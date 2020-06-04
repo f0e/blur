@@ -72,7 +72,7 @@ void c_avisynth_handler::create(std::string video_path, blur_settings& settings)
 			frame_gap = static_cast<int>(settings.interpolated_fps / settings.output_fps);
 			radius = static_cast<int>(frame_gap * settings.exposure);
 
-			output << fmt::format("InterFrame(NewNum={}, NewDen=1, Cores={}, Gpu=true, Tuning=\"Smooth\"", settings.interpolated_fps, settings.cpu_cores) << "\n";
+			output << fmt::format("InterFrame(NewNum={}, NewDen=1, Cores={}, Gpu=true, Tuning=\"Smooth\")", settings.interpolated_fps, settings.cpu_cores) << "\n";
 		}
 		else {
 			// don't interpolate footage, just blur with the current fps
@@ -92,7 +92,7 @@ void c_avisynth_handler::create(std::string video_path, blur_settings& settings)
 		if (settings.output_fps != true_fps) { // changing fps
 			if (settings.output_fps > true_fps) { // need more fps
 				// interpolate to output fps
-				output << fmt::format("InterFrame(NewNum={}, NewDen=1, Cores={}, Gpu=true, Tuning=\"Smooth\"", settings.output_fps, settings.cpu_cores) << "\n";
+				output << fmt::format("InterFrame(NewNum={}, NewDen=1, Cores={}, Gpu=true, Tuning=\"Smooth\")", settings.output_fps, settings.cpu_cores) << "\n";
 			}
 			else { // need less fps
 				// set output fps

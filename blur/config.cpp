@@ -8,16 +8,25 @@ void c_config::create() {
 	blur_settings template_settings;
 
 	std::ofstream output(filename);
+
 	output << "cpu_cores: " << template_settings.cpu_cores << "\n";
 	output << "cpu_threads: " << template_settings.cpu_threads << "\n";
+
+	output << "\n";
 
 	output << "input_fps: " << template_settings.input_fps << "\n";
 	output << "output_fps: " << template_settings.output_fps << "\n";
 
+	output << "\n";
+
 	output << "timescale: " << template_settings.timescale << "\n";
+
+	output << "\n";
 
 	output << "blur: " << (template_settings.blur ? "true" : "false") << "\n";
 	output << "exposure: " << template_settings.exposure << "\n";
+
+	output << "\n";
 
 	output << "interpolate: " << (template_settings.interpolate ? "true" : "false") << "\n";
 	output << "interpolated fps: " << template_settings.interpolated_fps << "\n";
