@@ -17,7 +17,7 @@ std::string c_ffmpeg::get_settings(std::string video_name, std::string output_na
 
 	std::vector<std::string> ffmpeg_settings {
 		"ffmpeg",
-		"-v warning -hide_banner -stats", // only show progress
+		"-loglevel error -hide_banner -stats", // only show progress
 		"-i " + avisynth.get_filename(), // input file
 		"-c:v libx264 -pix_fmt yuv420p", // render format settings
 		"-preset superfast -crf 18", // main render settings
