@@ -54,14 +54,10 @@ Drag video files onto the program executable. A config file will be generated in
 ## Settings explained:
 - cpu_cores - amount of cpu cores you have
 - cpu_threads - amount of cpu threads you have
-***
 - input_fps - input video file fps
 - output_fps - final output video file fps
-***
 - timescale - timescale of the input video file (will be sped up/slowed down accordingly)
-***
 - blur - whether or not the output video file will have motion blur
 - exposure - if blur is enabled, this is the amount of motion blur from 0-1
-***
 - interpolate - whether or not the input video file will be interpolated to a higher fps
 - interpolated fps - if interpolate is enabled, this is the fps that the input file will be interpolated to (before blending)
