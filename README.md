@@ -36,11 +36,15 @@ interpolated fps: 480
 - [InterFrame (ignore the dependencies)](https://www.spirton.com/interframe-2-8-2-released/)
 - [SVPflow 4.2.0.142](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
 
+or
+
+- [ZIP containing all of the required files](https://cdn.discordapp.com/attachments/540012280780161024/718154642600493106/AviSynth_plugins.zip)
+
 ## Installation
 1. Download [the latest release](https://github.com/f0e/blur/releases/latest) or build the project.
 2. Install FFmpeg and [add it to PATH](https://video.stackexchange.com/a/20496)
 3. Install the 64-bit version of AviSynth+
-4. Install each of the required AviSynth plugins into the plugins64+ directory inside the AviSynth+ installation folder
+4. Install the required AviSynth plugins into the plugins64+ directory inside the AviSynth+ installation folder
 
 ## Usage
 Drag video files onto the program executable. A config file will be generated in the video's directory, which can be modified to suit your needs.
