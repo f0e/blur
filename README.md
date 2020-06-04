@@ -33,8 +33,8 @@ interpolated fps: 480
 
 ### AviSynth plugins
 - [FFmpegSource](https://github.com/FFMS/ffms2/releases/latest)
-- [InterFrame](https://www.spirton.com/interframe-2-8-2-released/)
-- [MVTools (x64)](https://github.com/pinterf/mvtools/releases/latest)
+- [InterFrame (ignore the dependencies)](https://www.spirton.com/interframe-2-8-2-released/)
+- [SVPflow 4.2.0.142](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
 
 ## Installation
 1. Download [the latest release](https://github.com/f0e/blur/releases/latest) or build the project.
