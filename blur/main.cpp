@@ -55,7 +55,7 @@ int main(int argc, char* argv[]) {
 			"-v warning -hide_banner -stats", // only show progress
 			"-i " + avisynth.get_filename(), // input file
 			"-c:v libx264 -pix_fmt yuv420p", // render format settings
-			"-preset superfast -crf 20", // main render settings
+			"-preset superfast -crf 18", // main render settings
 			"\"" + video_name + " - blur.mp4\"" // output file
 		};
 
