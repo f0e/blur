@@ -81,10 +81,11 @@ void c_avisynth_handler::create(std::string video_path, blur_settings& settings)
 		}
 
 		// blur
-		output << fmt::format("TemporalSoften({}, 255, 255, 0, 3)", radius) << "\n";
+		if (radius > 0)
+			output << fmt::format("TemporalSoften({}, 255, 255, 0, 3)", radius) << "\n";
 
-		output << fmt::format("SelectEvery({}, 1)", frame_gap) << "\n";
-	
+		if (frame_gap > 0)
+			output << fmt::format("SelectEvery({}, 1)", frame_gap) << "\n";
 	}
 	else {
 		// don't do frame blending
