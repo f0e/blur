@@ -2,26 +2,21 @@
 
 #include "includes.h"
 
-const int console_w = 600;
-const int console_h = 400;
-const SHORT font_w = 8;
-const SHORT font_h = 16;
+c_console console;
 
-int console_max_chars = 0;
-
-void console::print_center(std::string string) {
+void c_console::print_center(std::string string) {
 	const int padding = (console_max_chars - string.size()) / 2;
 	const int scrollbar_fix = 1; // fixes the look of centering
 
 	printf("%*s%s\n", padding + scrollbar_fix, "", string.c_str());
 }
 
-void console::print_blank_line(int amount) {
+void c_console::print_blank_line(int amount) {
 	for (int i = 0; i < amount; i++)
 		printf("\n");
 }
 
-void console::print_line(int pad) {
+void c_console::print_line(int pad) {
 	for (int i = 0; i < pad; i++)
 		print_blank_line();
 
@@ -36,7 +31,7 @@ void console::print_line(int pad) {
 		print_blank_line();
 }
 
-void console::set_font() {
+void c_console::set_font() {
 	CONSOLE_FONT_INFOEX cfi;
 	cfi.cbSize = sizeof cfi;
 	cfi.nFont = 0;
@@ -48,7 +43,7 @@ void console::set_font() {
 	SetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), FALSE, &cfi);
 }
 
-void console::center_console() {
+void c_console::center_console() {
 	const HWND desktop = GetDesktopWindow();
 	const HWND console = GetConsoleWindow();
 

@@ -7,8 +7,8 @@
 int main(int argc, char* argv[]) {
 	// setup console
 	SetConsoleTitleA("tekno blur");
-	console::center_console();
-	console::set_font();
+	console.center_console();
+	console.set_font();
 
 	// print art
 	const std::vector<const char*> art{
@@ -19,12 +19,12 @@ int main(int argc, char* argv[]) {
 		"_/_/_/    _/    _/_/_/  _/         ",
 	};
 
-	console::print_blank_line();
+	console.print_blank_line();
 
 	for (const auto& line : art)
-		console::print_center(fmt::format("{}", line));
+		console.print_center(fmt::format("{}", line));
 
-	console::print_line();
+	console.print_line();
 
 	try {
 		// get input video
@@ -37,14 +37,14 @@ int main(int argc, char* argv[]) {
 		// parse config file
 		blur_settings settings = config.parse();
 
-		console::print_center(fmt::format("your settings:"));
-		console::print_center(fmt::format("- {} cores, {} threads -", settings.cpu_cores, settings.cpu_threads));
-		console::print_center(fmt::format("- source {}fps video at {:.2f} timescale -", settings.input_fps, settings.timescale));
-		if (settings.interpolate) console::print_center(fmt::format("- interpolated to {}fps -", settings.interpolated_fps));
-		if (settings.blur) console::print_center(fmt::format("- blended with {:.2f} exposure -", settings.exposure));
-		console::print_center(fmt::format("- rendered into {}fps -", settings.output_fps));
+		console.print_center(fmt::format("your settings:"));
+		console.print_center(fmt::format("- {} cores, {} threads -", settings.cpu_cores, settings.cpu_threads));
+		console.print_center(fmt::format("- source {}fps video at {:.2f} timescale -", settings.input_fps, settings.timescale));
+		if (settings.interpolate) console.print_center(fmt::format("- interpolated to {}fps -", settings.interpolated_fps));
+		if (settings.blur) console.print_center(fmt::format("- blended with {:.2f} exposure -", settings.exposure));
+		console.print_center(fmt::format("- rendered into {}fps -", settings.output_fps));
 
-		console::print_line();
+		console.print_line();
 
 		// create avisynth script
 		avisynth.create(video_path, settings);
@@ -63,24 +63,24 @@ int main(int argc, char* argv[]) {
 		for (const auto& ffmpeg_setting : ffmpeg_settings)
 			ffmpeg_command += " " + ffmpeg_setting;
 
-		console::print_center(fmt::format("starting render..."));
+		console.print_center(fmt::format("starting render..."));
 
-		console::print_blank_line();
+		console.print_blank_line();
 		system(ffmpeg_command.c_str());
-		console::print_blank_line();
+		console.print_blank_line();
 
-		console::print_center(fmt::format("finished rendering video"));
+		console.print_center(fmt::format("finished rendering video"));
 	}
 	catch (std::exception e) {
-		console::print_center(e.what());
+		console.print_center(e.what());
 	}
 
-	console::print_line();
+	console.print_line();
 
 	// delete the avisynth script
 	avisynth.erase();
 
 	// wait for keypress
-	console::print_center(fmt::format("press any key to exit"));
+	console.print_center(fmt::format("press any key to exit"));
 	_getch();
 }
