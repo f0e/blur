@@ -22,6 +22,7 @@
     <ClCompile Include="blur\avisynth_handler.cpp" />
     <ClCompile Include="blur\config.cpp" />
     <ClCompile Include="blur\console.cpp" />
+    <ClCompile Include="blur\ffmpeg.cpp" />
     <ClCompile Include="blur\main.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -40,6 +41,7 @@
     <ClInclude Include="blur\deps\fmt\posix.h" />
     <ClInclude Include="blur\deps\fmt\printf.h" />
     <ClInclude Include="blur\deps\fmt\ranges.h" />
+    <ClInclude Include="blur\ffmpeg.h" />
     <ClInclude Include="blur\includes.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -121,6 +123,7 @@
       <PreprocessorDefinitions>WIN32;NOMINMAX;FMT_HEADER_ONLY;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -153,6 +156,7 @@
       <ConformanceMode>true</ConformanceMode>
       <DebugInformationFormat>None</DebugInformationFormat>
       <LanguageStandard>stdcpplatest</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

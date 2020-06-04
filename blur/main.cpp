@@ -6,12 +6,10 @@
 
 int main(int argc, char* argv[]) {
 	// setup console
-	SetConsoleTitleA("tekno blur");
-	console.center_console();
-	console.set_font();
+	console.setup();
 
 	// print art
-	const std::vector<const char*> art{
+	const std::vector<const char*> art {
 		"    _/        _/                   ",
 		"   _/_/_/    _/  _/    _/  _/  _/_/",
 		"  _/    _/  _/  _/    _/  _/_/     ",
@@ -33,6 +31,29 @@ int main(int argc, char* argv[]) {
 
 		std::string video_path = argv[1];
 		std::string video_name = std::filesystem::path(video_path).stem().string();
+		std::string output_name = video_name + " - blur.mp4";
+
+		// check if the output path already contains a video
+		if (std::filesystem::exists(output_name)) {
+			console.print_center("destination file already exists, overwrite? (y/n)");
+
+			console.print_blank_line();
+
+			console.center_cursor();
+			console.show_cursor(true);
+
+			char choice = _getch();
+
+			console.show_cursor(false);
+			console.reset_cursor();
+
+			if (tolower(choice) == 'y') {
+				std::filesystem::remove(output_name);
+			}
+			else {
+				throw std::exception("can't write output file");
+			}
+		}
 
 		// parse config file
 		blur_settings settings = config.parse();
@@ -50,28 +71,17 @@ int main(int argc, char* argv[]) {
 		avisynth.create(video_path, settings);
 
 		// run avisynth script through ffmpeg
-		const static std::vector<std::string> ffmpeg_settings = {
-			"ffmpeg",
-			"-v warning -hide_banner -stats", // only show progress
-			"-i " + avisynth.get_filename(), // input file
-			"-c:v libx264 -pix_fmt yuv420p", // render format settings
-			"-preset superfast -crf 18", // main render settings
-			"\"" + video_name + " - blur.mp4\"" // output file
-		};
-
-		std::string ffmpeg_command = "";
-		for (const auto& ffmpeg_setting : ffmpeg_settings)
-			ffmpeg_command += " " + ffmpeg_setting;
-
 		console.print_center(fmt::format("starting render..."));
 
 		console.print_blank_line();
-		system(ffmpeg_command.c_str());
+
+		system(ffmpeg.get_settings(video_name, output_name).c_str());
+
 		console.print_blank_line();
 
 		console.print_center(fmt::format("finished rendering video"));
 	}
-	catch (std::exception e) {
+	catch (const std::exception& e) {
 		console.print_center(e.what());
 	}
 

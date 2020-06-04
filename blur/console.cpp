@@ -4,16 +4,30 @@
 
 c_console console;
 
+void c_console::setup() {
+	SetConsoleTitleA("tekno blur");
+
+	center_console();
+	set_font();
+
+	show_cursor(false);
+}
+
 void c_console::print_center(std::string string) {
 	const int padding = (console_max_chars - string.size()) / 2;
 	const int scrollbar_fix = 1; // fixes the look of centering
 
 	printf("%*s%s\n", padding + scrollbar_fix, "", string.c_str());
+
+	current_line++;
 }
 
 void c_console::print_blank_line(int amount) {
-	for (int i = 0; i < amount; i++)
+	for (int i = 0; i < amount; i++) {
 		printf("\n");
+
+		current_line++;
+	}
 }
 
 void c_console::print_line(int pad) {
@@ -66,7 +80,37 @@ void c_console::center_console() {
 	CONSOLE_SCREEN_BUFFER_INFO csbi;
 	GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
 	console_max_chars = static_cast<int>(csbi.srWindow.Right - csbi.srWindow.Left);
+	console_max_lines = static_cast<int>(csbi.srWindow.Bottom - csbi.srWindow.Top);
 
 	// disable resizing
 	SetWindowLong(console, GWL_STYLE, GetWindowLong(console, GWL_STYLE) & ~WS_MAXIMIZEBOX & ~WS_SIZEBOX);
+}
+
+void c_console::show_cursor(bool showing) {
+	HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+
+	CONSOLE_CURSOR_INFO cursorInfo;
+	GetConsoleCursorInfo(handle, &cursorInfo);
+
+	cursorInfo.bVisible = showing; // set the cursor visibility
+
+	SetConsoleCursorInfo(handle, &cursorInfo);
+}
+
+void c_console::center_cursor() {
+	COORD cursor_pos;
+	cursor_pos.X = static_cast<int>(console_max_chars / 2);
+	cursor_pos.Y = current_line;
+
+	HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetConsoleCursorPosition(handle, cursor_pos);
+}
+
+void c_console::reset_cursor() {
+	COORD cursor_pos;
+	cursor_pos.X = 0;
+	cursor_pos.Y = current_line;
+
+	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetConsoleCursorPosition(hConsole, cursor_pos);
 }

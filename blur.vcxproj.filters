@@ -27,6 +27,9 @@
     <ClCompile Include="blur\console.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="blur\ffmpeg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="blur\deps\fmt\chrono.h">
@@ -75,6 +78,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="blur\console.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="blur\ffmpeg.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

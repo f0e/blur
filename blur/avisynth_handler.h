@@ -17,8 +17,10 @@ public:
 	// create an avisynth file using input filename and settings
 	void create(std::string input_file, blur_settings& settings);
 
-	// get script filename
-	std::string get_filename() { return filename; }
+	// get avs script filename
+	std::string get_filename() {
+		return filename;
+	}
 
 	// delete script
 	void erase();

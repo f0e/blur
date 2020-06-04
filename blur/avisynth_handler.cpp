@@ -52,7 +52,7 @@ void c_avisynth_handler::create(std::string video_path, blur_settings& settings)
 	int true_fps = static_cast<int>(settings.input_fps * (1 / settings.timescale));
 	int true_sound_rate = static_cast<int>((1 / settings.timescale) * 100);
 
-	// multithreading bullshit
+	// multithreading
 	output << fmt::format("SetFilterMTMode(\"DEFAULT_MT_MODE\", 2)") << "\n";
 	output << fmt::format("SetFilterMTMode(\"InterFrame\", 3)") << "\n";
 	
@@ -70,7 +70,7 @@ void c_avisynth_handler::create(std::string video_path, blur_settings& settings)
 		if (settings.interpolate) {
 			// interpolate footage, blur with the interpolated fps
 			frame_gap = static_cast<int>(settings.interpolated_fps / settings.output_fps);
-			radius = static_cast<int>(frame_gap * settings.exposure);
+			radius = static_cast<int>((frame_gap * settings.exposure) / 2);
 
 			output << fmt::format("InterFrame(NewNum={}, NewDen=1, Cores={}, Gpu=true, Tuning=\"Smooth\")", settings.interpolated_fps, settings.cpu_cores) << "\n";
 		}

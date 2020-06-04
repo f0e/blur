@@ -18,3 +18,4 @@
 #include "avisynth_handler.h"
 #include "config.h"
 #include "console.h"
+#include "ffmpeg.h"
