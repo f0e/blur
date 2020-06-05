@@ -70,14 +70,14 @@ void c_avisynth_handler::create(std::string video_path, blur_settings& settings)
 		if (settings.interpolate) {
 			// interpolate footage, blur with the interpolated fps
 			frame_gap = static_cast<int>(settings.interpolated_fps / settings.output_fps);
-			radius = static_cast<int>((frame_gap * settings.exposure) / 2);
+			radius = static_cast<int>((frame_gap * settings.blur_amount) / 2);
 
 			output << fmt::format("InterFrame(NewNum={}, NewDen=1, Cores={}, Gpu=true, Tuning=\"Smooth\")", settings.interpolated_fps, settings.cpu_cores) << "\n";
 		}
 		else {
 			// don't interpolate footage, just blur with the current fps
 			frame_gap = static_cast<int>(true_fps / settings.output_fps);
-			radius = static_cast<int>(frame_gap * settings.exposure);
+			radius = static_cast<int>(frame_gap * settings.blur_amount);
 		}
 
 		// blur

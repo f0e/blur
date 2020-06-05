@@ -28,6 +28,8 @@ public:
 	void show_cursor(bool showing);
 	void center_cursor();
 	void reset_cursor();
+
+	char get_char();
 };
 
 extern c_console console;

@@ -12,7 +12,7 @@ struct blur_settings {
 	float timescale = 1.f;
 
 	bool blur = true;
-	float exposure = 0.5;
+	float blur_amount = 0.5;
 
 	bool interpolate = true;
 	int interpolated_fps = 480;

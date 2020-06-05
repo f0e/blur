@@ -114,3 +114,15 @@ void c_console::reset_cursor() {
 	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 	SetConsoleCursorPosition(hConsole, cursor_pos);
 }
+
+char c_console::get_char() {
+	console.center_cursor();
+	console.show_cursor(true);
+
+	char choice = _getch();
+
+	console.show_cursor(false);
+	console.reset_cursor();
+
+	return choice;
+}

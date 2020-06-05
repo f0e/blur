@@ -24,12 +24,12 @@ void c_config::create() {
 	output << "\n";
 
 	output << "blur: " << (template_settings.blur ? "true" : "false") << "\n";
-	output << "exposure: " << template_settings.exposure << "\n";
+	output << "blur_amount: " << template_settings.blur_amount << "\n";
 
 	output << "\n";
 
 	output << "interpolate: " << (template_settings.interpolate ? "true" : "false") << "\n";
-	output << "interpolated fps: " << template_settings.interpolated_fps << "\n";
+	output << "interpolated_fps: " << template_settings.interpolated_fps << "\n";
 }
 
 std::string_view trim(std::string_view s) {
@@ -82,14 +82,14 @@ blur_settings c_config::parse() {
 		settings.timescale = std::stof(config["timescale"]);
 
 		settings.blur = config["blur"] == "true" ? true : false;
-		settings.exposure = std::stof(config["exposure"]);
+		settings.blur_amount = std::stof(config["blur_amount"]);
 
 		settings.interpolate = config["interpolate"] == "true" ? true : false;
-		settings.interpolated_fps = std::stoi(config["interpolated fps"]);
+		settings.interpolated_fps = std::stoi(config["interpolated_fps"]);
 
 		return settings;
 	}
 	catch (std::exception e) {
-		throw std::exception("failed to parse config");
+		throw std::exception("failed to parse config, try deleting");
 	}
 }
