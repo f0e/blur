@@ -5,7 +5,7 @@
 c_console console;
 
 void c_console::setup() {
-	SetConsoleTitleA("tekno blur");
+	SetConsoleTitleA(name);
 
 	center_console();
 	set_font();

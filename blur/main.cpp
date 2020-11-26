@@ -59,7 +59,7 @@ int main(int argc, char* argv[]) {
 		console.print_center(fmt::format("- source {}fps video at {:.2f} timescale -", settings.input_fps, settings.timescale));
 		if (settings.interpolate) console.print_center(fmt::format("- interpolated to {}fps -", settings.interpolated_fps));
 		if (settings.blur) console.print_center(fmt::format("- motion blurred ({:d}%) -", static_cast<int>(settings.blur_amount * 100)));
-		console.print_center(fmt::format("- rendered into {}fps -", settings.output_fps));
+		console.print_center(fmt::format("- rendered into {}fps with crf {} -", settings.output_fps, settings.crf));
 
 		console.print_line();
 
@@ -70,7 +70,7 @@ int main(int argc, char* argv[]) {
 		console.print_center(fmt::format("starting render..."));
 		console.print_blank_line();
 
-		system(ffmpeg.get_settings(video_name, output_name).c_str());
+		system(ffmpeg.get_settings(video_name, output_name, settings).c_str());
 
 		console.print_blank_line();
 		console.print_center(fmt::format("finished rendering video"));

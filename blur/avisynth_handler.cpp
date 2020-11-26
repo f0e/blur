@@ -38,7 +38,7 @@ void c_avisynth_handler::remove_path() {
 	std::filesystem::remove_all(path);
 }
 
-void c_avisynth_handler::create(std::string video_path, blur_settings& settings) {
+void c_avisynth_handler::create(std::string video_path, const blur_settings& settings) {
 	// create the avs file path
 	create_path();
 
@@ -55,57 +55,44 @@ void c_avisynth_handler::create(std::string video_path, blur_settings& settings)
 	// multithreading
 	output << fmt::format("SetFilterMTMode(\"DEFAULT_MT_MODE\", 2)") << "\n";
 	output << fmt::format("SetFilterMTMode(\"InterFrame\", 3)") << "\n";
-	
+	output << fmt::format("SetFilterMTMode(\"FFVideoSource\", 3)") << "\n";
+
 	// load video / audio source
 	output << fmt::format("audio = FFAudioSource(\"{}\").TimeStretch(rate={})", video_path, true_sound_rate) << "\n";
 	output << fmt::format("FFVideoSource(\"{}\", threads={}, fpsnum={}).AssumeFPS({})", video_path, settings.cpu_threads, settings.input_fps, true_fps) << "\n";
 	
 	output << fmt::format("ConvertToYV12()") << "\n";
 
-	if (settings.blur) {
-		// do frame blending
+	{
+		int current_fps = true_fps;
 
-		int frame_gap, radius;
-
+		// interpolation
 		if (settings.interpolate) {
-			// interpolate footage, blur with the interpolated fps
-			frame_gap = static_cast<int>(settings.interpolated_fps / settings.output_fps);
-			radius = static_cast<int>((frame_gap * settings.blur_amount) / 2);
-
-			output << fmt::format("InterFrame(NewNum={}, NewDen=1, Cores={}, Gpu=true, Tuning=\"Smooth\")", settings.interpolated_fps, settings.cpu_cores) << "\n";
-		}
-		else {
-			// don't interpolate footage, just blur with the current fps
-			frame_gap = static_cast<int>(true_fps / settings.output_fps);
-			radius = static_cast<int>(frame_gap * settings.blur_amount);
+			current_fps = settings.interpolated_fps; // store new fps
+			output << fmt::format("InterFrame(NewNum={}, NewDen=1, Cores={}, Gpu=true)", settings.interpolated_fps, settings.cpu_cores) << "\n";
 		}
 
-		// blur
-		if (radius > 0)
-			output << fmt::format("TemporalSoften({}, 255, 255, 0, 3)", radius) << "\n";
+		// frame blending
+		if (settings.blur) {
+			int frame_gap = static_cast<int>(current_fps / settings.output_fps);
+			int radius = static_cast<int>((frame_gap * settings.blur_amount) / 2);
 
-		if (frame_gap > 0)
-			output << fmt::format("SelectEvery({}, 1)", frame_gap) << "\n";
-	}
-	else {
-		// don't do frame blending
+			if (radius > 0)
+				output << fmt::format("TemporalSoften({}, 255, 255, 0, 3)", radius) << "\n";
 
-		if (settings.interpolate) {
-			// interpolate footage
-			int frame_gap = static_cast<int>(settings.interpolated_fps / settings.output_fps);
-
-			output << fmt::format("InterFrame(NewNum={}, NewDen=1, Cores={}, Gpu=true, Tuning=\"Smooth\")", settings.interpolated_fps, settings.cpu_cores) << "\n";
+			if (frame_gap > 0)
+				output << fmt::format("SelectEvery({}, 1)", frame_gap) << "\n";
 		}
 	}
-	
-	// set output fps
-	output << fmt::format("ChangeFPS({})", settings.output_fps) << "\n";
+
+	// enable multithreading
+	output << fmt::format("Prefetch({})", settings.cpu_threads) << "\n";
 
 	// add audio to final video
 	output << fmt::format("AudioDub(audio)") << "\n";
 
-	// enable multithreading
-	output << fmt::format("Prefetch({})", settings.cpu_threads) << "\n";
+	// set output fps
+	output << fmt::format("ChangeFPS({}, LINEAR=false)", settings.output_fps) << "\n";
 
 	// set file as hidden
 	int attr = GetFileAttributesA(filename.c_str());

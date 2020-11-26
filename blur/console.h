@@ -4,6 +4,8 @@
 
 class c_console {
 private:
+	const char* name = "tekno's blur";
+
 	const int console_w = 650;
 	const int console_h = 400;
 	const short font_w = 8;

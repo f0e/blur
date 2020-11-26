@@ -30,6 +30,10 @@ void c_config::create() {
 
 	output << "interpolate: " << (template_settings.interpolate ? "true" : "false") << "\n";
 	output << "interpolated_fps: " << template_settings.interpolated_fps << "\n";
+
+	output << "\n";
+
+	output << "crf: " << template_settings.crf;
 }
 
 std::string_view trim(std::string_view s) {
@@ -86,6 +90,8 @@ blur_settings c_config::parse() {
 
 		settings.interpolate = config["interpolate"] == "true" ? true : false;
 		settings.interpolated_fps = std::stoi(config["interpolated_fps"]);
+
+		settings.crf = std::stoi(config["crf"]);
 
 		return settings;
 	}

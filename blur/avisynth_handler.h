@@ -15,7 +15,7 @@ private:
 	void remove_path();
 public:
 	// create an avisynth file using input filename and settings
-	void create(std::string input_file, blur_settings& settings);
+	void create(std::string input_file, const blur_settings& settings);
 
 	// get avs script filename
 	std::string get_filename() {

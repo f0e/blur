@@ -10,7 +10,7 @@ bool detect_command(std::string command) {
 	return system(find_ffmpeg_command.c_str()) == 0;
 }
 
-std::string c_ffmpeg::get_settings(std::string video_name, std::string output_name) {
+std::string c_ffmpeg::get_settings(std::string video_name, std::string output_name, const blur_settings& settings) {
 	// check if ffmpeg is installed
 	if (!detect_command("ffmpeg"))
 		throw std::exception("FFmpeg could not be found");
@@ -18,9 +18,9 @@ std::string c_ffmpeg::get_settings(std::string video_name, std::string output_na
 	std::vector<std::string> ffmpeg_settings {
 		"ffmpeg",
 		"-loglevel error -hide_banner -stats", // only show progress
-		"-i " + avisynth.get_filename(), // input file
+		fmt::format("-i {}", avisynth.get_filename()), // input file
 		"-c:v libx264 -pix_fmt yuv420p", // render format settings
-		"-preset superfast -crf 18", // main render settings
+		fmt::format("-preset superfast -crf {}", settings.crf), // main render settings
 		"\"" + video_name + " - blur.mp4\"" // output file
 	};
 

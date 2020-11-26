@@ -16,6 +16,8 @@ struct blur_settings {
 
 	bool interpolate = true;
 	int interpolated_fps = 480;
+
+	int crf = 18;
 };
 
 class c_config {
