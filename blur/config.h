@@ -17,17 +17,23 @@ struct blur_settings {
 	bool interpolate = true;
 	int interpolated_fps = 480;
 
+	std::string interpolation_speed = "default";
+	std::string interpolation_tuning = "default";
+	std::string interpolation_algorithm = "default";
+	
 	int crf = 18;
+
+	bool preview = true;
 };
 
 class c_config {
 private:
-	std::string filename = "config.cfg";
+	std::string filename = ".blur-config.cfg";
 	
 public:
 	// creates the config file with template values
-	void create();
-	
+	void create(blur_settings current_settings = blur_settings());
+
 	// parses the config file, returns settings
 	blur_settings parse();
 };

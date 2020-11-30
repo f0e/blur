@@ -1,9 +1,10 @@
 #pragma once
 
 #include <string>
+#include <Windows.h>
 
 class c_console {
-private:
+public:
 	const char* name = "tekno's blur";
 
 	const int console_w = 650;
@@ -25,6 +26,8 @@ public:
 
 	void set_font();
 
+	RECT get_console_position();
+
 	void center_console();
 
 	void show_cursor(bool showing);
@@ -32,6 +35,8 @@ public:
 	void reset_cursor();
 
 	char get_char();
+
+	std::string wait_for_dropped_file();
 };
 
 extern c_console console;

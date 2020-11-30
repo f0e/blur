@@ -4,7 +4,7 @@
 
 class c_ffmpeg {
 public:
-	std::string get_settings(std::string video_name, std::string output_name, const blur_settings& settings);
+	std::string get_settings(const blur_settings& settings, const std::string& output_name, const std::string& preview_name);
 };
 
 extern c_ffmpeg ffmpeg;

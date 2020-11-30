@@ -57,6 +57,16 @@ void c_console::set_font() {
 	SetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), FALSE, &cfi);
 }
 
+RECT c_console::get_console_position() {
+	const HWND desktop = GetDesktopWindow();
+	const HWND console = GetConsoleWindow();
+
+	RECT console_rect;
+	GetWindowRect(console, &console_rect);
+
+	return console_rect;
+}
+
 void c_console::center_console() {
 	const HWND desktop = GetDesktopWindow();
 	const HWND console = GetConsoleWindow();
@@ -125,4 +135,22 @@ char c_console::get_char() {
 	console.reset_cursor();
 
 	return choice;
+}
+
+std::string c_console::wait_for_dropped_file() { // https://stackoverflow.com/a/25484783
+	char ch = _getch();
+
+	std::string file_name;
+	if (ch == '\"') { // path containing spaces. read til next '"' ...
+		while ((ch = _getch()) != '\"')
+			file_name += ch;
+	}
+	else { // path not containing spaces. read as long as chars are coming rapidly
+		file_name += ch;
+
+		while (_kbhit())
+			file_name += _getch();
+	}
+
+	return file_name;
 }

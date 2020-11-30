@@ -26,22 +26,42 @@ int main(int argc, char* argv[]) {
 
 	try {
 		// get input video
-		if (argc <= 1)
-			throw std::exception("drag a video onto the exe");
+		std::string video_path;
+		if (argc <= 1) {
+			console.print_center("waiting for input, drag a video onto this window.");
 
-		std::string video_path = argv[1];
+			// wait for the user to drop a file onto the window
+			video_path = console.wait_for_dropped_file();
+		}
+		else {
+			video_path = argv[1];
+		}
+
+		// check the file exists
+		if (!std::filesystem::exists(video_path))
+			throw std::exception("video couldn't be opened (wrong path?)");
+
+		// set working directory
+		std::filesystem::current_path(std::filesystem::path(video_path).parent_path());
+
+		// set up filenames
 		std::string video_name = std::filesystem::path(video_path).stem().string();
-		std::string output_name = video_name + " - blur.mp4";
+		std::string input_filename = std::filesystem::path(video_path).filename().string();
+		std::string output_filename = video_name + " - blur.mp4";
+
+		console.print_center(fmt::format("opening {} for processing,", input_filename));
+		console.print_center(fmt::format("writing to {}", output_filename));
+		console.print_line();
 
 		// check if the output path already contains a video
-		if (std::filesystem::exists(output_name)) {
+		if (std::filesystem::exists(output_filename)) {
 			console.print_center("destination file already exists, overwrite? (y/n)");
 			console.print_blank_line();
 
 			char choice = console.get_char();
 
 			if (tolower(choice) == 'y') {
-				std::filesystem::remove(output_name);
+				std::filesystem::remove(output_filename);
 
 				console.print_center("overwriting file");
 				console.print_blank_line();
@@ -57,7 +77,7 @@ int main(int argc, char* argv[]) {
 		console.print_center(fmt::format("your settings:"));
 		console.print_center(fmt::format("- {} cores, {} threads -", settings.cpu_cores, settings.cpu_threads));
 		console.print_center(fmt::format("- source {}fps video at {:.2f} timescale -", settings.input_fps, settings.timescale));
-		if (settings.interpolate) console.print_center(fmt::format("- interpolated to {}fps -", settings.interpolated_fps));
+		if (settings.interpolate) console.print_center(fmt::format("- interpolated to {}fps -", settings.interpolated_fps, settings.interpolation_speed, settings.interpolation_tuning, settings.interpolation_algorithm));
 		if (settings.blur) console.print_center(fmt::format("- motion blurred ({:d}%) -", static_cast<int>(settings.blur_amount * 100)));
 		console.print_center(fmt::format("- rendered into {}fps with crf {} -", settings.output_fps, settings.crf));
 
@@ -70,7 +90,17 @@ int main(int argc, char* argv[]) {
 		console.print_center(fmt::format("starting render..."));
 		console.print_blank_line();
 
-		system(ffmpeg.get_settings(video_name, output_name, settings).c_str());
+		std::string preview_filename = avisynth.get_path() + "preview.jpg";
+
+		auto ffmpeg_settings = ffmpeg.get_settings(settings, output_filename, preview_filename);
+
+		// do preview
+		if (settings.preview) {
+			preview.start(preview_filename);
+		}
+
+		// run ffmpeg
+		system(ffmpeg_settings.c_str());
 
 		console.print_blank_line();
 		console.print_center(fmt::format("finished rendering video"));

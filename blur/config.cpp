@@ -4,43 +4,86 @@
 
 c_config config;
 
-void c_config::create() {
-	blur_settings template_settings;
-
+void c_config::create(blur_settings current_settings) {
 	std::ofstream output(filename);
 
-	output << "cpu_cores: " << template_settings.cpu_cores << "\n";
-	output << "cpu_threads: " << template_settings.cpu_threads << "\n";
+	output << "cpu_cores: " << current_settings.cpu_cores << "\n";
+	output << "cpu_threads: " << current_settings.cpu_threads << "\n";
 
 	output << "\n";
 
-	output << "input_fps: " << template_settings.input_fps << "\n";
-	output << "output_fps: " << template_settings.output_fps << "\n";
+	output << "input_fps: " << current_settings.input_fps << "\n";
+	output << "output_fps: " << current_settings.output_fps << "\n";
 
 	output << "\n";
 
-	output << "timescale: " << template_settings.timescale << "\n";
+	output << "timescale: " << current_settings.timescale << "\n";
 
 	output << "\n";
 
-	output << "blur: " << (template_settings.blur ? "true" : "false") << "\n";
-	output << "blur_amount: " << template_settings.blur_amount << "\n";
+	output << "blur: " << (current_settings.blur ? "true" : "false") << "\n";
+	output << "blur_amount: " << current_settings.blur_amount << "\n";
 
 	output << "\n";
 
-	output << "interpolate: " << (template_settings.interpolate ? "true" : "false") << "\n";
-	output << "interpolated_fps: " << template_settings.interpolated_fps << "\n";
+	output << "interpolate: " << (current_settings.interpolate ? "true" : "false") << "\n";
+	output << "interpolated_fps: " << current_settings.interpolated_fps << "\n";
 
 	output << "\n";
 
-	output << "crf: " << template_settings.crf;
+	output << "preview: " << (current_settings.preview ? "true" : "false") << "\n";
+
+	output << "\n";
+	output << "crf: " << current_settings.crf << "\n";
+
+	output << "\n";
+
+	output << "interpolation_speed: " << current_settings.interpolation_speed << "\n";
+	output << "interpolation_tuning: " << current_settings.interpolation_tuning << "\n";
+	output << "interpolation_algorithm: " << current_settings.interpolation_algorithm << "\n";
 }
 
 std::string_view trim(std::string_view s) {
-	s.remove_prefix(std::min(s.find_first_not_of(" \t\r\v\n"), s.size()));
-	s.remove_suffix(std::min(s.size() - s.find_last_not_of(" \t\r\v\n") - 1, s.size()));
+	s.remove_prefix(min(s.find_first_not_of(" \t\r\v\n"), s.size()));
+	s.remove_suffix(min(s.size() - s.find_last_not_of(" \t\r\v\n") - 1, s.size()));
 
 	return s;
+}
+
+bool config_get(std::map<std::string, std::string>& config, const std::string& var, std::string& out) {
+	if (!config.contains(var))
+		return false;
+
+	out = config[var];
+	return true;
+	return true;
+}
+
+bool config_get(std::map<std::string, std::string>& config, const std::string& var, int& out) {
+	std::string str_out;
+	if (!config_get(config, var, str_out))
+		return false;
+
+	out = std::stoi(str_out);
+	return true;
+}
+
+bool config_get(std::map<std::string, std::string>& config, const std::string& var, float& out) {
+	std::string str_out;
+	if (!config_get(config, var, str_out))
+		return false;
+
+	out = std::stof(str_out);
+	return true;
+}
+
+bool config_get(std::map<std::string, std::string>& config, const std::string& var, bool& out) {
+	std::string str_out;
+	if (!config_get(config, var, str_out))
+		return false;
+
+	out = str_out == "true" ? true : false;
+	return true;
 }
 
 blur_settings c_config::parse() {
@@ -77,21 +120,38 @@ blur_settings c_config::parse() {
 
 		blur_settings settings;
 
-		settings.cpu_cores = std::stoi(config["cpu_cores"]);
-		settings.cpu_threads = std::stoi(config["cpu_threads"]);
+		bool ok = true;
 
-		settings.input_fps = std::stoi(config["input_fps"]);
-		settings.output_fps = std::stoi(config["output_fps"]);
+		if (!config_get(config, "cpu_cores", settings.cpu_cores)) ok = false;
+		if (!config_get(config, "cpu_threads", settings.cpu_threads)) ok = false;
 
-		settings.timescale = std::stof(config["timescale"]);
+		if (!config_get(config, "input_fps", settings.input_fps)) ok = false;
+		if (!config_get(config, "output_fps", settings.output_fps)) ok = false;
 
-		settings.blur = config["blur"] == "true" ? true : false;
-		settings.blur_amount = std::stof(config["blur_amount"]);
+		if (!config_get(config, "timescale", settings.timescale)) ok = false;
 
-		settings.interpolate = config["interpolate"] == "true" ? true : false;
-		settings.interpolated_fps = std::stoi(config["interpolated_fps"]);
+		if (!config_get(config, "blur", settings.blur)) ok = false;
+		if (!config_get(config, "blur_amount", settings.blur_amount)) ok = false;
 
-		settings.crf = std::stoi(config["crf"]);
+		if (!config_get(config,"interpolate", settings.interpolate)) ok = false;
+		if (!config_get(config,"interpolated_fps", settings.interpolated_fps)) ok = false;
+
+		if (!config_get(config,"interpolation_speed", settings.interpolation_speed)) ok = false;
+		if (!config_get(config, "interpolation_tuning", settings.interpolation_tuning)) ok = false;
+		if (!config_get(config, "interpolation_algorithm", settings.interpolation_algorithm)) ok = false;
+
+		if (!config_get(config, "crf", settings.crf)) ok = false;
+
+		if (!config_get(config, "preview", settings.preview)) ok = false;
+		
+		if (!ok) {
+			// one or more variables weren't loaded, so recreate the config file (including currently loaded settings)
+			create(settings);
+		}
+
+		//	// convert strings to lowercase
+		//	std::transform(settings.interpolation_speed.begin(), settings.interpolation_speed.end(), settings.interpolation_speed.begin(), [](unsigned char c) { return std::tolower(c); });
+		//	std::transform(settings.interpolation_tuning.begin(), settings.interpolation_tuning.end(), settings.interpolation_tuning.begin(), [](unsigned char c) { return std::tolower(c); });
 
 		return settings;
 	}

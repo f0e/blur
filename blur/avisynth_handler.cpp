@@ -18,32 +18,32 @@ std::string random_string(int len) {
 
 void c_avisynth_handler::create_path() {
 	// check if the path already exists
-	if (!std::filesystem::exists(path)) {
+	if (!std::filesystem::exists(avs_path)) {
 		// try create the path
-		if (!std::filesystem::create_directory(path))
+		if (!std::filesystem::create_directory(avs_path))
 			return;
 	}
 
 	// set folder as hidden
-	int attr = GetFileAttributesA(path.c_str());
-	SetFileAttributesA(path.c_str(), attr | FILE_ATTRIBUTE_HIDDEN);
+	int attr = GetFileAttributesA(avs_path.c_str());
+	SetFileAttributesA(avs_path.c_str(), attr | FILE_ATTRIBUTE_HIDDEN);
 }
 
 void c_avisynth_handler::remove_path() {
 	// check if the path doesn\"t already exist
-	if (!std::filesystem::exists(path))
+	if (!std::filesystem::exists(avs_path))
 		return;
 
 	// remove the path and all the files inside
-	std::filesystem::remove_all(path);
+	std::filesystem::remove_all(avs_path);
 }
 
-void c_avisynth_handler::create(std::string video_path, const blur_settings& settings) {
+void c_avisynth_handler::create(std::string_view video_path, const blur_settings& settings) {
 	// create the avs file path
 	create_path();
 
 	// generate a random filename
-	filename = path + random_string(6) + (".avs");
+	filename = avs_path + random_string(6) + (".avs");
 
 	// create the file output stream
 	std::ofstream output(filename);
@@ -69,7 +69,17 @@ void c_avisynth_handler::create(std::string video_path, const blur_settings& set
 		// interpolation
 		if (settings.interpolate) {
 			current_fps = settings.interpolated_fps; // store new fps
-			output << fmt::format("InterFrame(NewNum={}, NewDen=1, Cores={}, Gpu=true)", settings.interpolated_fps, settings.cpu_cores) << "\n";
+
+			std::string speed = settings.interpolation_speed;
+			if (speed == "default") speed = "medium";
+
+			std::string tuning = settings.interpolation_tuning;
+			if (tuning == "default") tuning = "film";
+
+			std::string algorithm = settings.interpolation_algorithm;
+			if (algorithm == "default") algorithm = "13";
+
+			output << fmt::format("InterFrame(NewNum={}, Cores={}, Gpu=true, Preset=\"{}\", Tuning=\"{}\", OverrideAlgo={})", settings.interpolated_fps, settings.cpu_cores, speed, tuning, algorithm) << "\n";
 		}
 
 		// frame blending

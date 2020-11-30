@@ -19,3 +19,4 @@
 #include "config.h"
 #include "console.h"
 #include "ffmpeg.h"
+#include "preview.h"
