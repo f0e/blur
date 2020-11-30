@@ -74,7 +74,7 @@ void c_avisynth_handler::create(std::string_view video_path, const blur_settings
 			if (speed == "default") speed = "medium";
 
 			std::string tuning = settings.interpolation_tuning;
-			if (tuning == "default") tuning = "film";
+			if (tuning == "default") tuning = "smooth";
 
 			std::string algorithm = settings.interpolation_algorithm;
 			if (algorithm == "default") algorithm = "13";

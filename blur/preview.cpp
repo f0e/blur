@@ -27,8 +27,6 @@ std::wstring towstring(const std::string& v) {
 }
 
 // http://playtechs.blogspot.com/2007/10/forcing-window-to-maintain-particular.html
-int start_width = 800;
-int start_height = 450;
 int window_ratio_x;
 int window_ratio_y;
 int g_window_adjust_x;
@@ -225,10 +223,10 @@ bool create_window() {
         throw std::exception("failed to initialise preview");
 
     // aspect ratio shit
-    RECT rect = { 0, 0, start_width, start_height };
+    RECT rect = { 0, 0, preview.preview_width, preview.preview_height };
     AdjustWindowRect(&rect, NULL, FALSE);
-    g_window_adjust_x = (rect.right - rect.left) - start_width;
-    g_window_adjust_y = (rect.bottom - rect.top) - start_height;
+    g_window_adjust_x = (rect.right - rect.left) - preview.preview_width;
+    g_window_adjust_y = (rect.bottom - rect.top) - preview.preview_height;
 
     // // make preview start a bit offset from console
     // RECT console_rect = console.get_console_position();
@@ -236,7 +234,7 @@ bool create_window() {
     // int y = console_rect.top + offset_y;
 
     // create window
-    preview.hwnd = ::CreateWindow(wc.lpszClassName, L"blur preview", WS_OVERLAPPEDWINDOW, NULL, NULL, start_width, start_height, NULL, NULL, wc.hInstance, NULL);
+    preview.hwnd = ::CreateWindow(wc.lpszClassName, L"blur preview", WS_OVERLAPPEDWINDOW, NULL, NULL, preview.preview_width, preview.preview_height, NULL, NULL, wc.hInstance, NULL);
 
     if (preview.hwnd == NULL)
         throw std::exception("failed to initialise preview");
