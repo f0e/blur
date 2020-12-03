@@ -4,6 +4,83 @@
 
 c_console console;
 
+std::vector<std::string> split_string(std::string str, const std::string& delimiter) {
+	std::vector<std::string> output;
+
+	size_t pos = 0;
+	while ((pos = str.find(delimiter)) != std::string::npos) {
+		std::string token = str.substr(0, pos);
+		output.push_back(token);
+		str.erase(0, pos + delimiter.length());
+	}
+
+	output.push_back(str);
+
+	return output;
+}
+
+std::vector<std::string> text_get_lines(std::string_view text, int max_width) {
+	// first, check if we're even going to overflow. if not, just return a single line with the text
+	int width = text.size();
+	if (width < max_width)
+		return { text.data() };
+
+	std::vector<std::string> words = split_string(text.data(), " ");
+
+	std::vector<std::string> lines = {};
+	std::string current_line = "";
+
+	// go through words and build lines
+	for (auto& word : words) {
+		std::string new_line = current_line == ""
+			? word
+			: current_line + " " + word;
+
+		// check if the line's going to overflow
+		int width = new_line.size();
+		if (width < max_width) {
+			// line won't overflow, add to the current line
+			current_line = new_line;
+		}
+		else {
+			// line will overflow, start a new one
+			if (current_line != "")
+				lines.push_back(current_line);
+
+			// check that making a new line is fine
+			int new_line_width = word.size();
+			if (new_line_width < max_width) {
+				current_line = word;
+				continue;
+			}
+
+			// the new line will be too long as well, do extra clipping
+			std::string clipped_word = "";
+			for (const auto& c : word) {
+				clipped_word += c;
+
+				// see if it's gonna overflow
+				int element_text_size = clipped_word.size();
+				if (element_text_size > max_width) {
+					// make a new line and reset
+					lines.push_back(clipped_word);
+					clipped_word = "";
+				}
+			}
+
+			// add the last clip
+			if (clipped_word != "")
+				lines.push_back(clipped_word);
+		}
+	}
+
+	// add final line
+	if (current_line != "")
+		lines.push_back(current_line);
+
+	return lines;
+}
+
 void c_console::setup() {
 	SetConsoleTitleA(name);
 
@@ -13,13 +90,18 @@ void c_console::setup() {
 	show_cursor(false);
 }
 
-void c_console::print_center(std::string string) {
-	const int padding = (console_max_chars - string.size()) / 2;
-	const int scrollbar_fix = 1; // fixes the look of centering
+void c_console::print_center(std::string_view string) {
+	// split into lines
+	auto lines = text_get_lines(string, console_max_chars);
 
-	printf("%*s%s\n", padding + scrollbar_fix, "", string.c_str());
+	for (auto& line : lines) {
+		const int padding = (console_max_chars - line.size()) / 2;
+		const int scrollbar_fix = 1; // fixes the look of centering
 
-	current_line++;
+		printf("%*s%s\n", padding + scrollbar_fix, "", line.data());
+
+		current_line++;
+	}
 }
 
 void c_console::print_blank_line(int amount) {

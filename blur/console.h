@@ -20,7 +20,7 @@ public:
 public:
 	void setup();
 
-	void print_center(std::string string);
+	void print_center(std::string_view string);
 	void print_blank_line(int amount = 1);
 	void print_line(int pad = 1);
 
