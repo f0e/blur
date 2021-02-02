@@ -4,8 +4,8 @@
 
 c_config config;
 
-void c_config::create(blur_settings current_settings) {
-	std::ofstream output(filename);
+void c_config::create(std::string_view filepath, blur_settings current_settings) {
+	std::ofstream output(filepath);
 
 	output << "cpu_cores: " << current_settings.cpu_cores << "\n";
 	output << "cpu_threads: " << current_settings.cpu_threads << "\n";
@@ -32,9 +32,10 @@ void c_config::create(blur_settings current_settings) {
 	output << "\n";
 
 	output << "preview: " << (current_settings.preview ? "true" : "false") << "\n";
-
+	
 	output << "\n";
 	output << "crf: " << current_settings.crf << "\n";
+	output << "gpu: " << (current_settings.gpu ? "true" : "false") << "\n";
 
 	output << "\n";
 
@@ -86,16 +87,20 @@ bool config_get(std::map<std::string, std::string>& config, const std::string& v
 	return true;
 }
 
-blur_settings c_config::parse() {
+blur_settings c_config::parse(const std::string& video_folder, bool& first_time, std::string& config_filepath) {
+	config_filepath = video_folder + filename;
+
 	auto read_config = [&]() {
 		std::map<std::string, std::string> config = {};
 
 		// check if the config file exists, if not, write the default values
-		if (!std::filesystem::exists(filename))
-			create();
+		if (!std::filesystem::exists(config_filepath)) {
+			first_time = true;
+			create(config_filepath);
+		}
 
 		// retrieve all of the variables in the config file
-		std::ifstream input(filename);
+		std::ifstream input(config_filepath);
 		while (input) {
 			std::string key, value;
 
@@ -133,20 +138,21 @@ blur_settings c_config::parse() {
 		if (!config_get(config, "blur", settings.blur)) ok = false;
 		if (!config_get(config, "blur_amount", settings.blur_amount)) ok = false;
 
-		if (!config_get(config,"interpolate", settings.interpolate)) ok = false;
-		if (!config_get(config,"interpolated_fps", settings.interpolated_fps)) ok = false;
+		if (!config_get(config, "interpolate", settings.interpolate)) ok = false;
+		if (!config_get(config, "interpolated_fps", settings.interpolated_fps)) ok = false;
 
-		if (!config_get(config,"interpolation_speed", settings.interpolation_speed)) ok = false;
+		if (!config_get(config, "interpolation_speed", settings.interpolation_speed)) ok = false;
 		if (!config_get(config, "interpolation_tuning", settings.interpolation_tuning)) ok = false;
 		if (!config_get(config, "interpolation_algorithm", settings.interpolation_algorithm)) ok = false;
 
 		if (!config_get(config, "crf", settings.crf)) ok = false;
 
 		if (!config_get(config, "preview", settings.preview)) ok = false;
-		
+		if (!config_get(config, "gpu", settings.gpu)) ok = false;
+
 		if (!ok) {
 			// one or more variables weren't loaded, so recreate the config file (including currently loaded settings)
-			create(settings);
+			create(config_filepath, settings);
 		}
 
 		//	// convert strings to lowercase

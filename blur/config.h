@@ -7,15 +7,15 @@ struct blur_settings {
 	int cpu_threads = 4;
 
 	int input_fps = 60;
-	int output_fps = 30;
+	int output_fps = 60;
 
 	float timescale = 1.f;
 
 	bool blur = true;
-	float blur_amount = 0.5;
+	float blur_amount = 0.6f;
 
 	bool interpolate = true;
-	int interpolated_fps = 480;
+	int interpolated_fps = 600;
 
 	std::string interpolation_speed = "default";
 	std::string interpolation_tuning = "default";
@@ -24,6 +24,7 @@ struct blur_settings {
 	int crf = 18;
 
 	bool preview = true;
+	bool gpu = false;
 };
 
 class c_config {
@@ -31,11 +32,9 @@ private:
 	std::string filename = ".blur-config.cfg";
 	
 public:
-	// creates the config file with template values
-	void create(blur_settings current_settings = blur_settings());
+	void create(std::string_view filepath, blur_settings current_settings = blur_settings());
 
-	// parses the config file, returns settings
-	blur_settings parse();
+	blur_settings parse(const std::string& video_folder, bool& first_time, std::string& config_filepath);
 };
 
 extern c_config config;

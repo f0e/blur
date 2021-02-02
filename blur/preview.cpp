@@ -3,7 +3,6 @@
 #include <objidl.h>
 #include <gdiplus.h>
 
-#include <thread>
 #include <filesystem>
 
 #include "console.h"
@@ -124,8 +123,6 @@ void resize(int edge, RECT& rect) {
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    static float aspect_ratio = 1.f;
-
     switch (uMsg)  {
     case WM_DESTROY: {
         PostQuitMessage(0);
@@ -151,7 +148,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             SolidBrush brush(Color::Black);
             Status st = graphics.DrawString(L"waiting...", -1, &font, PointF(5, 5), &brush);
         }
-        else {
+        else if (preview.preview_disabled) {
+            // background
+            FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
+
+            // text
+            Font font(&FontFamily(L"Tahoma"), 12, FontStyle::FontStyleBold);
+            SolidBrush brush(Color::Black);
+            Status st = graphics.DrawString(L"preview disabled", -1, &font, PointF(5, 5), &brush);
+        } else {
             // set up image
             Rect image_rect(0, 0, width, height);
 
@@ -268,7 +273,7 @@ std::time_t to_time_t(TP tp) {
 void start_watch() {
     std::time_t last_update_time = std::time(NULL);
 
-    while (true) {
+    while (preview.preview_open) {
         if (std::filesystem::exists(preview.preview_filename) && preview.hwnd != NULL) {
             auto write_time = std::filesystem::last_write_time(preview.preview_filename);
             std::time_t write_time_t = to_time_t(write_time);
@@ -289,19 +294,37 @@ void start_watch() {
     }
 }
 
-std::unique_ptr<std::thread> window_thread_ptr;
-std::unique_ptr<std::thread> watch_thread_ptr;
 void c_preview::start(std::string_view filename) {
+    preview_disabled = false;
+    preview_open = true;
     preview_filename = filename;
 
-    window_thread_ptr = std::unique_ptr<std::thread>(new std::thread(&create_window));
-    window_thread_ptr->detach();
+    if (!window_thread_ptr) {
+        window_thread_ptr = std::unique_ptr<std::thread>(new std::thread(&create_window));
+        window_thread_ptr->detach();
+    }
+    else if (preview.hwnd) {
+        ShowWindow(preview.hwnd, SW_SHOWNORMAL);
+    }
 
-    watch_thread_ptr = std::unique_ptr<std::thread>(new std::thread(&start_watch));
-    watch_thread_ptr->detach();
+    if (!watch_thread_ptr) {
+        watch_thread_ptr = std::unique_ptr<std::thread>(new std::thread(&start_watch));
+        watch_thread_ptr->detach();
+    }
 }
 
 void c_preview::stop() {
-    window_thread_ptr->join();
-    watch_thread_ptr->join();
+    preview_open = false;
+    
+    // close window
+    SendMessage(preview.hwnd, WM_CLOSE, NULL, NULL);
+}
+
+void c_preview::disable() {
+    if (!preview_open)
+        return;
+
+    preview_disabled = true;
+    RedrawWindow(preview.hwnd, NULL, NULL, RDW_ERASE | RDW_INVALIDATE);
+    ShowWindow(preview.hwnd, SW_MINIMIZE);
 }

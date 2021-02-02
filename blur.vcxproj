@@ -20,14 +20,16 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="blur\avisynth_handler.cpp" />
+    <ClCompile Include="blur\blur.cpp" />
     <ClCompile Include="blur\config.cpp" />
     <ClCompile Include="blur\console.cpp" />
-    <ClCompile Include="blur\ffmpeg.cpp" />
+    <ClCompile Include="blur\rendering.cpp" />
     <ClCompile Include="blur\main.cpp" />
     <ClCompile Include="blur\preview.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="blur\avisynth_handler.h" />
+    <ClInclude Include="blur\blur.h" />
     <ClInclude Include="blur\config.h" />
     <ClInclude Include="blur\console.h" />
     <ClInclude Include="blur\deps\fmt\chrono.h" />
@@ -42,7 +44,7 @@
     <ClInclude Include="blur\deps\fmt\posix.h" />
     <ClInclude Include="blur\deps\fmt\printf.h" />
     <ClInclude Include="blur\deps\fmt\ranges.h" />
-    <ClInclude Include="blur\ffmpeg.h" />
+    <ClInclude Include="blur\rendering.h" />
     <ClInclude Include="blur\includes.h" />
     <ClInclude Include="blur\preview.h" />
   </ItemGroup>
@@ -102,6 +104,8 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(SolutionDir)bin\$(Configuration.toLower())\</OutDir>
     <IntDir>$(SolutionDir)build\$(Configuration.toLower())\</IntDir>
+    <IncludePath>$(ProjectDir)blur\deps;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)blur\deps;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
@@ -130,6 +134,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -166,6 +171,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(OutDir)$(TargetName).pdb</ProgramDatabaseFile>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

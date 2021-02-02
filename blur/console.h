@@ -1,7 +1,9 @@
 #pragma once
 
-#include <string>
 #include <Windows.h>
+
+#include <string>
+#include <vector>
 
 class c_console {
 public:

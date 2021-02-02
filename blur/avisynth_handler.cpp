@@ -16,34 +16,9 @@ std::string random_string(int len) {
 	return str.substr(0, len);
 }
 
-void c_avisynth_handler::create_path() {
-	// check if the path already exists
-	if (!std::filesystem::exists(avs_path)) {
-		// try create the path
-		if (!std::filesystem::create_directory(avs_path))
-			return;
-	}
-
-	// set folder as hidden
-	int attr = GetFileAttributesA(avs_path.c_str());
-	SetFileAttributesA(avs_path.c_str(), attr | FILE_ATTRIBUTE_HIDDEN);
-}
-
-void c_avisynth_handler::remove_path() {
-	// check if the path doesn\"t already exist
-	if (!std::filesystem::exists(avs_path))
-		return;
-
-	// remove the path and all the files inside
-	std::filesystem::remove_all(avs_path);
-}
-
-void c_avisynth_handler::create(std::string_view video_path, const blur_settings& settings) {
-	// create the avs file path
-	create_path();
-
+void c_avisynth_handler::create(const std::string& temp_path, std::string_view video_path, const blur_settings& settings) {
 	// generate a random filename
-	filename = avs_path + random_string(6) + (".avs");
+	filename = temp_path + random_string(6) + (".avs");
 
 	// create the file output stream
 	std::ofstream output(filename);
@@ -53,15 +28,29 @@ void c_avisynth_handler::create(std::string_view video_path, const blur_settings
 	int true_sound_rate = static_cast<int>((1 / settings.timescale) * 100);
 
 	// multithreading
-	output << fmt::format("SetFilterMTMode(\"DEFAULT_MT_MODE\", 2)") << "\n";
-	output << fmt::format("SetFilterMTMode(\"InterFrame\", 3)") << "\n";
-	output << fmt::format("SetFilterMTMode(\"FFVideoSource\", 3)") << "\n";
+	output << fmt::format("SetFilterMTMode(\"DEFAULT_MT_MODE\", MT_MULTI_INSTANCE)") << "\n";
+	output << fmt::format("SetFilterMTMode(\"InterFrame\", MT_SERIALIZED)") << "\n";
+	output << fmt::format("SetFilterMTMode(\"FFVideoSource\", MT_SERIALIZED)") << "\n";
+	output << fmt::format("SetFilterMTMode(\"DSS2\", MT_SERIALIZED)") << "\n";
 
-	// load video / audio source
-	output << fmt::format("audio = FFAudioSource(\"{}\").TimeStretch(rate={})", video_path, true_sound_rate) << "\n";
-	output << fmt::format("FFVideoSource(\"{}\", threads={}, fpsnum={}).AssumeFPS({})", video_path, settings.cpu_threads, settings.input_fps, true_fps) << "\n";
-	
+	// load video
+	auto extension = std::filesystem::path(video_path).extension();
+	if (extension != ".avi") {
+		output << fmt::format("FFmpegSource2(\"{}\", threads={}, fpsnum={}, atrack=-1).AssumeFPS({})", video_path, settings.cpu_threads, settings.input_fps, true_fps) << "\n";
+	}
+	else {
+		// FFmpegSource2 doesnt work with frameserver
+		output << fmt::format("audio = FFAudioSource(\"{}\")", video_path) << "\n";
+		output << fmt::format("DSS2(\"{}\", fps={}).AssumeFPS({})", video_path, settings.input_fps, true_fps) << "\n";
+		output << fmt::format("AudioDub(audio)", video_path, settings.input_fps, true_fps) << "\n";
+	}
+
 	output << fmt::format("ConvertToYV12()") << "\n";
+
+	// timestretch audio
+	if (settings.timescale != 1.f) {
+		output << fmt::format("TimeStretch(rate={})", true_sound_rate) << "\n";
+	}
 
 	{
 		int current_fps = true_fps;
@@ -98,8 +87,8 @@ void c_avisynth_handler::create(std::string_view video_path, const blur_settings
 	// enable multithreading
 	output << fmt::format("Prefetch({})", settings.cpu_threads) << "\n";
 
-	// add audio to final video
-	output << fmt::format("AudioDub(audio)") << "\n";
+	// // add audio to final video
+	// output << fmt::format("AudioDub(audio)") << "\n";
 
 	// set output fps
 	output << fmt::format("ChangeFPS({}, LINEAR=false)", settings.output_fps) << "\n";
@@ -107,12 +96,4 @@ void c_avisynth_handler::create(std::string_view video_path, const blur_settings
 	// set file as hidden
 	int attr = GetFileAttributesA(filename.c_str());
 	SetFileAttributesA(filename.c_str(), attr | FILE_ATTRIBUTE_HIDDEN);
-}
-
-void c_avisynth_handler::erase() {
-	if (filename == "")
-		return;
-
-	// remove the path and files inside
-	remove_path();
 }

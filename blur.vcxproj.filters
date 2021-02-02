@@ -27,10 +27,13 @@
     <ClCompile Include="blur\console.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="blur\ffmpeg.cpp">
+    <ClCompile Include="blur\preview.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="blur\preview.cpp">
+    <ClCompile Include="blur\blur.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="blur\rendering.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -83,10 +86,13 @@
     <ClInclude Include="blur\console.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="blur\ffmpeg.h">
+    <ClInclude Include="blur\preview.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="blur\preview.h">
+    <ClInclude Include="blur\blur.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="blur\rendering.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
