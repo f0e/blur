@@ -25,6 +25,7 @@ struct blur_settings {
 
 	bool preview = true;
 	bool gpu = false;
+	bool detailed_filenames = false;
 };
 
 class c_config {
@@ -34,6 +35,7 @@ private:
 public:
 	void create(std::string_view filepath, blur_settings current_settings = blur_settings());
 
+	std::string get_config_filename(const std::string& video_folder);
 	blur_settings parse(const std::string& video_folder, bool& first_time, std::string& config_filepath);
 };
 

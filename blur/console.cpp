@@ -208,13 +208,13 @@ void c_console::reset_cursor() {
 }
 
 char c_console::get_char() {
-	console.center_cursor();
+	// console.center_cursor();
 	console.show_cursor(true);
 
 	char choice = _getch();
 
 	console.show_cursor(false);
-	console.reset_cursor();
+	// console.reset_cursor();
 
 	return choice;
 }

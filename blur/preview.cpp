@@ -144,7 +144,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
 
             // text
-            Font font(&FontFamily(L"Tahoma"), 12, FontStyle::FontStyleBold);
+            auto tahoma = FontFamily(L"Tahoma");
+            Font font(&tahoma, 12, FontStyle::FontStyleBold);
             SolidBrush brush(Color::Black);
             Status st = graphics.DrawString(L"waiting...", -1, &font, PointF(5, 5), &brush);
         }
@@ -153,7 +154,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
 
             // text
-            Font font(&FontFamily(L"Tahoma"), 12, FontStyle::FontStyleBold);
+            auto tahoma = FontFamily(L"Tahoma");
+            Font font(&tahoma, 12, FontStyle::FontStyleBold);
             SolidBrush brush(Color::Black);
             Status st = graphics.DrawString(L"preview disabled", -1, &font, PointF(5, 5), &brush);
         } else {

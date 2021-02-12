@@ -108,11 +108,6 @@ void c_render::render() {
 	// create temp path
 	temp_path = blur.create_temp_path(video_folder);
 
-	// parse config file
-	bool first_time_config = false;
-	std::string config_filepath;
-	settings = config.parse(video_folder, first_time_config, config_filepath);
-
 	console.print_center(fmt::format("render settings:"));
 	console.print_center(fmt::format("- {} cores, {} threads -", settings.cpu_cores, settings.cpu_threads));
 	console.print_center(fmt::format("- source {}fps video at {:.2f} timescale -", settings.input_fps, settings.timescale));

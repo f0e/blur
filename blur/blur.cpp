@@ -75,7 +75,6 @@ void c_blur::run(int argc, char* argv[]) {
 				render.video_folder = std::filesystem::path(video_path).parent_path().string() + "\\";
 
 				render.input_filename = std::filesystem::path(video_path).filename().string();
-				render.output_filename = render.video_name + " - blur.mp4";
 
 				// set working directory
 				std::filesystem::current_path(render.video_folder);
@@ -84,39 +83,18 @@ void c_blur::run(int argc, char* argv[]) {
 				if (!rendering.queue.empty()) {
 					console.print_blank_line();
 					console.print_line();
-					console.print_center(fmt::format("adding {} to render queue...", render.input_filename));
-					console.print_center(fmt::format("writing to {}", render.output_filename));
-				}
-				else {
-					console.print_center(fmt::format("opening {} for processing,", render.input_filename));
-					console.print_center(fmt::format("writing to {}", render.output_filename));
 				}
 
-				console.print_line();
+				console.print_center(fmt::format("opening {} for processing", render.input_filename));
 
-				// check if the output path already contains a video
-				if (std::filesystem::exists(render.output_filename)) {
-					console.print_center("destination file already exists, overwrite? (y/n)");
-					console.print_blank_line();
-
-					char choice = console.get_char();
-					if (tolower(choice) == 'y') {
-						std::filesystem::remove(render.output_filename);
-
-						console.print_center("overwriting file");
-						console.print_blank_line();
-					}
-					else {
-						throw std::exception("not overwriting file");
-					}
-				}
-
-				// check if the config exists
+				// parse config file (do it now, not when rendering. nice for batch rendering the same file with different settings)
 				bool first_time_config = false;
 				std::string config_filepath;
-				config.parse(render.video_folder, first_time_config, config_filepath);
+				render.settings = config.parse(render.video_folder, first_time_config, config_filepath);
 
+				// check if the config exists
 				if (first_time_config) {
+					console.print_blank_line();
 					console.print_center(fmt::format("configuration file not found, default config generated at {}", config_filepath));
 					console.print_blank_line();
 					console.print_center("continue render? (y/n)");
@@ -127,6 +105,33 @@ void c_blur::run(int argc, char* argv[]) {
 						throw std::exception("stopping render");
 					}
 				}
+
+				// build output filename
+				int num = 1;
+				do {
+					render.output_filename = fmt::format("{} - blur", render.video_name);
+
+					if (render.settings.detailed_filenames) {
+						render.output_filename += " (";
+						render.output_filename += fmt::format("{}fps", render.settings.output_fps);
+						if (render.settings.interpolate)
+							render.output_filename += fmt::format("~{}", render.settings.interpolated_fps);
+						if (render.settings.blur)
+							render.output_filename += fmt::format("~{}", render.settings.blur_amount);
+						render.output_filename += ")";
+					}
+
+					if (num > 1)
+						render.output_filename += fmt::format(" ({})", num);
+
+					render.output_filename += ".mp4";
+
+					num++;
+				} while (std::filesystem::exists(render.output_filename));
+
+				console.print_center(fmt::format("writing to {}", render.output_filename));
+
+				console.print_line();
 
 				rendering.queue_render(render);
 
