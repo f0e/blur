@@ -47,6 +47,13 @@
     <ClInclude Include="blur\rendering.h" />
     <ClInclude Include="blur\includes.h" />
     <ClInclude Include="blur\preview.h" />
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="blur.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="blur\res\blur.ico" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
