@@ -78,7 +78,7 @@ or
 - interpolate - whether or not the input video file will be interpolated to a higher fps
 - interpolated_fps - if interpolate is enabled, this is the fps that the input file will be interpolated to (before blending)
 
-- crf - [ZIP crf](https://trac.ffmpeg.org/wiki/Encode/H.264#crf) of the output video
+- crf - [crf](https://trac.ffmpeg.org/wiki/Encode/H.264#crf) of the output video
 
 - interpolation_speed - default is 'medium', [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
 - interpolation_tuning - default is 'smooth', [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
