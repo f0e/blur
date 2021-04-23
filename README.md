@@ -90,9 +90,9 @@ or
 
 - interpolated_fps - results become worse if this is too high, for 60fps source footage around 300-900 should be good, for 180fps 1200 is good
 
-- interpolation_speed - keep it at default
+- interpolation_speed - just keep it at default
 - interpolation_tuning - for gameplay footage default (smooth) keeps the crosshair intact, but film is also a good option
-- interpolation_algorithm - stick to 13
+- interpolation_algorithm - just keep it at default
 
 ### Limiting smearing
 Using blur on 60fps footage results in clean motion blur, but occasionally leaves some smearing artifacts. To remove these artifacts, higher framerate source footage can be used. Recording with software such as OBS at framerates like 120/180fps will result in a greatly reduced amount of artifacting.
