@@ -42,13 +42,14 @@ interpolation_algorithm: default
 - [AviSynth+ (x64)](https://avs-plus.net/)
 
 ### AviSynth plugins
-- [FFmpegSource](https://github.com/FFMS/ffms2/releases/latest)
-- [InterFrame (ignore the dependencies)](https://www.spirton.com/interframe-2-8-2-released/)
-- [SVPflow 4.2.0.142](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
+- [ZIP containing all of the required plugin files (recommended)](https://cdn.discordapp.com/attachments/588965578493001729/836700121772064858/AviSynth_plugins.7z)
 
 or
 
-- [ZIP containing all of the required plugin files](https://cdn.discordapp.com/attachments/540012280780161024/718154642600493106/AviSynth_plugins.zip)
+- [FFmpegSource](https://github.com/FFMS/ffms2/releases/latest)
+- [InterFrame (ignore the dependencies)](https://www.spirton.com/interframe-2-8-2-released/)
+- [SVPflow 4.2.0.142](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
+- [ClipBlend](http://avisynth.nl/index.php/ClipBlend)
 
 ## Installation
 1. Download [the latest release](https://github.com/f0e/blur/releases/latest) or build the project.
