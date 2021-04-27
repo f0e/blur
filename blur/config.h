@@ -4,7 +4,6 @@
 
 struct blur_settings {
 	int cpu_cores = 4;
-	int cpu_threads = 4;
 
 	int input_fps = 60;
 	int output_fps = 60;

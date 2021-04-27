@@ -8,7 +8,6 @@ void c_config::create(std::string_view filepath, blur_settings current_settings)
 	std::ofstream output(filepath);
 
 	output << "cpu cores: " << current_settings.cpu_cores << "\n";
-	output << "cpu threads: " << current_settings.cpu_threads << "\n";
 
 	output << "\n";
 
@@ -134,7 +133,6 @@ blur_settings c_config::parse(const std::string& video_folder, bool& first_time,
 		bool ok = true;
 
 		if (!config_get(config, "cpu cores", settings.cpu_cores)) ok = false;
-		if (!config_get(config, "cpu threads", settings.cpu_threads)) ok = false;
 
 		if (!config_get(config, "input fps", settings.input_fps)) ok = false;
 		if (!config_get(config, "output fps", settings.output_fps)) ok = false;

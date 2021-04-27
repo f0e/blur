@@ -29,14 +29,16 @@ void c_avisynth_handler::create(const std::string& temp_path, std::string_view v
 
 	// multithreading
 	output << fmt::format("SetFilterMTMode(\"DEFAULT_MT_MODE\", MT_MULTI_INSTANCE)") << "\n";
-	output << fmt::format("SetFilterMTMode(\"InterFrame\", MT_SERIALIZED)") << "\n";
-	output << fmt::format("SetFilterMTMode(\"FFVideoSource\", MT_SERIALIZED)") << "\n";
-	output << fmt::format("SetFilterMTMode(\"DSS2\", MT_SERIALIZED)") << "\n";
+	// output << fmt::format("SetFilterMTMode(\"InterFrame\", MT_SERIALIZED)") << "\n";
+	// output << fmt::format("SetFilterMTMode(\"FFVideoSource\", MT_SERIALIZED)") << "\n";
+	// output << fmt::format("SetFilterMTMode(\"DSS2\", MT_SERIALIZED)") << "\n";
+	// output << fmt::format("SetFilterMTMode(\"AudioDub\", MT_SERIALIZED)") << "\n";
 
+	
 	// load video
 	auto extension = std::filesystem::path(video_path).extension();
 	if (extension != ".avi") {
-		output << fmt::format("FFmpegSource2(\"{}\", threads={}, fpsnum={}, atrack=-1, cache=false).AssumeFPS({})", video_path, settings.cpu_threads, settings.input_fps, true_fps) << "\n";
+		output << fmt::format("FFmpegSource2(\"{}\", fpsnum={}, atrack=-1, cache=false).AssumeFPS({})", video_path, settings.input_fps, true_fps) << "\n";
 	}
 	else {
 		// FFmpegSource2 doesnt work with frameserver
@@ -82,7 +84,7 @@ void c_avisynth_handler::create(const std::string& temp_path, std::string_view v
 	if (settings.blur) {
 		int frame_gap = static_cast<int>(current_fps / settings.output_fps);
 		int radius = static_cast<int>(frame_gap * settings.blur_amount);
-
+		
 		if (radius > 0)
 			output << fmt::format("ClipBlend({})", radius) << "\n";
 
@@ -90,8 +92,10 @@ void c_avisynth_handler::create(const std::string& temp_path, std::string_view v
 			output << fmt::format("SelectEvery({}, 1)", frame_gap) << "\n";
 	}
 
-	// enable multithreading
-	output << fmt::format("Prefetch({})", settings.cpu_threads) << "\n";
+	if (settings.interpolate) {
+		// enable multithreading
+		output << fmt::format("Prefetch()") << "\n";
+	}
 
 	// set output fps
 	output << fmt::format("ChangeFPS({}, LINEAR=false)", settings.output_fps) << "\n";

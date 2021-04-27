@@ -109,7 +109,6 @@ void c_render::render() {
 	temp_path = blur.create_temp_path(video_folder);
 
 	console.print_center(fmt::format("render settings:"));
-	console.print_center(fmt::format("- {} cores, {} threads -", settings.cpu_cores, settings.cpu_threads));
 	console.print_center(fmt::format("- source {}fps video at {:.2f} timescale -", settings.input_fps, settings.input_timescale));
 	if (settings.interpolate) console.print_center(fmt::format("- interpolated to {}fps with {:.2f} timescale -", settings.interpolated_fps, settings.output_timescale));
 	if (settings.blur) console.print_center(fmt::format("- motion blurred ({}%) -", static_cast<int>(settings.blur_amount * 100)));
