@@ -110,9 +110,9 @@ void c_render::render() {
 
 	console.print_center(fmt::format("render settings:"));
 	console.print_center(fmt::format("- {} cores, {} threads -", settings.cpu_cores, settings.cpu_threads));
-	console.print_center(fmt::format("- source {}fps video at {:.2f} timescale -", settings.input_fps, settings.timescale));
-	if (settings.interpolate) console.print_center(fmt::format("- interpolated to {}fps -", settings.interpolated_fps, settings.interpolation_speed, settings.interpolation_tuning, settings.interpolation_algorithm));
-	if (settings.blur) console.print_center(fmt::format("- motion blurred ({:d}%) -", static_cast<int>(settings.blur_amount * 100)));
+	console.print_center(fmt::format("- source {}fps video at {:.2f} timescale -", settings.input_fps, settings.input_timescale));
+	if (settings.interpolate) console.print_center(fmt::format("- interpolated to {}fps with {:.2f} timescale -", settings.interpolated_fps, settings.output_timescale));
+	if (settings.blur) console.print_center(fmt::format("- motion blurred ({}%) -", static_cast<int>(settings.blur_amount * 100)));
 	console.print_center(fmt::format("- rendered into {}fps with crf {} -", settings.output_fps, settings.crf));
 
 	console.print_line();

@@ -17,7 +17,8 @@ void c_config::create(std::string_view filepath, blur_settings current_settings)
 
 	output << "\n";
 
-	output << "timescale: " << current_settings.timescale << "\n";
+	output << "input timescale: " << current_settings.input_timescale << "\n";
+	output << "output timescale: " << current_settings.output_timescale << "\n";
 
 	output << "\n";
 
@@ -138,7 +139,8 @@ blur_settings c_config::parse(const std::string& video_folder, bool& first_time,
 		if (!config_get(config, "input fps", settings.input_fps)) ok = false;
 		if (!config_get(config, "output fps", settings.output_fps)) ok = false;
 
-		if (!config_get(config, "timescale", settings.timescale)) ok = false;
+		if (!config_get(config, "input timescale", settings.input_timescale)) ok = false;
+		if (!config_get(config, "output timescale", settings.output_timescale)) ok = false;
 
 		if (!config_get(config, "blur", settings.blur)) ok = false;
 		if (!config_get(config, "blur amount", settings.blur_amount)) ok = false;

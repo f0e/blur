@@ -24,8 +24,8 @@ void c_avisynth_handler::create(const std::string& temp_path, std::string_view v
 	std::ofstream output(filename);
 
 	// get timescale
-	int true_fps = static_cast<int>(settings.input_fps * (1 / settings.timescale));
-	int true_sound_rate = static_cast<int>((1 / settings.timescale) * 100);
+	int true_fps = static_cast<int>(settings.input_fps * (1 / settings.input_timescale));
+	int true_sound_rate = static_cast<int>((1 / settings.input_timescale) * 100);
 
 	// multithreading
 	output << fmt::format("SetFilterMTMode(\"DEFAULT_MT_MODE\", MT_MULTI_INSTANCE)") << "\n";
@@ -36,7 +36,7 @@ void c_avisynth_handler::create(const std::string& temp_path, std::string_view v
 	// load video
 	auto extension = std::filesystem::path(video_path).extension();
 	if (extension != ".avi") {
-		output << fmt::format("FFmpegSource2(\"{}\", threads={}, fpsnum={}, atrack=-1).AssumeFPS({})", video_path, settings.cpu_threads, settings.input_fps, true_fps) << "\n";
+		output << fmt::format("FFmpegSource2(\"{}\", threads={}, fpsnum={}, atrack=-1, cache=false).AssumeFPS({})", video_path, settings.cpu_threads, settings.input_fps, true_fps) << "\n";
 	}
 	else {
 		// FFmpegSource2 doesnt work with frameserver
@@ -48,47 +48,50 @@ void c_avisynth_handler::create(const std::string& temp_path, std::string_view v
 	output << fmt::format("ConvertToYV12()") << "\n";
 
 	// timestretch audio
-	if (settings.timescale != 1.f) {
+	if (settings.input_timescale != 1.f) {
 		output << fmt::format("TimeStretch(rate={})", true_sound_rate) << "\n";
 	}
 
-	{
-		int current_fps = true_fps;
+	int current_fps = true_fps;
 
-		// interpolation
-		if (settings.interpolate) {
-			current_fps = settings.interpolated_fps; // store new fps
+	// interpolation
+	if (settings.interpolate) {
+		current_fps = settings.interpolated_fps; // store new fps
 
-			std::string speed = settings.interpolation_speed;
-			if (speed == "default") speed = "medium";
+		std::string speed = settings.interpolation_speed;
+		if (speed == "default") speed = "medium";
 
-			std::string tuning = settings.interpolation_tuning;
-			if (tuning == "default") tuning = "smooth";
+		std::string tuning = settings.interpolation_tuning;
+		if (tuning == "default") tuning = "smooth";
 
-			std::string algorithm = settings.interpolation_algorithm;
-			if (algorithm == "default") algorithm = "13";
+		std::string algorithm = settings.interpolation_algorithm;
+		if (algorithm == "default") algorithm = "13";
 
-			output << fmt::format("InterFrame(NewNum={}, Cores={}, Gpu=true, Preset=\"{}\", Tuning=\"{}\", OverrideAlgo={})", settings.interpolated_fps, settings.cpu_cores, speed, tuning, algorithm) << "\n";
-		}
+		output << fmt::format("InterFrame(NewNum={}, Cores={}, Gpu=true, Preset=\"{}\", Tuning=\"{}\", OverrideAlgo={})", settings.interpolated_fps, settings.cpu_cores, speed, tuning, algorithm) << "\n";
+	}
 
-		// frame blending
-		if (settings.blur) {
-			int frame_gap = static_cast<int>(current_fps / settings.output_fps);
-			int radius = static_cast<int>((frame_gap * settings.blur_amount) / 2);
+	// timescale adjustment
+	if (settings.output_timescale != 1.f) {
+		current_fps = static_cast<int>(current_fps * settings.output_timescale);
 
-			if (radius > 0)
-				output << fmt::format("TemporalSoften({}, 255, 255, 0, 3)", radius) << "\n";
+		// adjust video
+		output << fmt::format("AssumeFPS({}, sync_audio=true)", current_fps) << "\n";
+	}
 
-			if (frame_gap > 0)
-				output << fmt::format("SelectEvery({}, 1)", frame_gap) << "\n";
-		}
+	// frame blending
+	if (settings.blur) {
+		int frame_gap = static_cast<int>(current_fps / settings.output_fps);
+		int radius = static_cast<int>(frame_gap * settings.blur_amount);
+
+		if (radius > 0)
+			output << fmt::format("ClipBlend({})", radius) << "\n";
+
+		if (frame_gap > 0)
+			output << fmt::format("SelectEvery({}, 1)", frame_gap) << "\n";
 	}
 
 	// enable multithreading
 	output << fmt::format("Prefetch({})", settings.cpu_threads) << "\n";
-
-	// // add audio to final video
-	// output << fmt::format("AudioDub(audio)") << "\n";
 
 	// set output fps
 	output << fmt::format("ChangeFPS({}, LINEAR=false)", settings.output_fps) << "\n";

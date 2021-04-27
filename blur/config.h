@@ -9,7 +9,8 @@ struct blur_settings {
 	int input_fps = 60;
 	int output_fps = 60;
 
-	float timescale = 1.f;
+	float input_timescale = 1.f;
+	float output_timescale = 1.f;
 
 	bool blur = true;
 	float blur_amount = 0.6f;
