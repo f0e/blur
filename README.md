@@ -67,7 +67,7 @@ or
 ***
 
 ## Config settings explained:
-- cpu_cores - amount of cpu cores you have
+- cpu cores - amount of cpu cores you have
 
 - input fps - input video file fps
 - output fps - final output video file fps
