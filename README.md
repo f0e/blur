@@ -15,7 +15,6 @@ As visible from these images, the interpolated 60fps footage produces motion blu
 ## Sample config file
 ```c
 cpu_cores: 8
-cpu_threads: 16
 
 input_fps: 60
 output_fps: 30
@@ -66,7 +65,6 @@ or
 
 ## Config settings explained:
 - cpu_cores - amount of cpu cores you have
-- cpu_threads - amount of cpu threads you have
 
 - input_fps - input video file fps
 - output_fps - final output video file fps
