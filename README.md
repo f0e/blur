@@ -5,24 +5,25 @@ Blur is a program made for easily and efficiently adding motion blur to videos t
 The amount of motion blur is easily configurable, and there are additional options to enable other features such as interpolating the video's fps. This can be used to generate 'fake' motion blur through frame blending the interpolated footage. This motion blur does not blur non-moving parts of the video, like the HUD in gameplay footage.
 
 ## Sample output
-### 600fps footage, blurred with 0.6 exposure
+### 600fps footage, blurred with 0.6 blur amount
 ![](https://i.imgur.com/Hk0XIPe.jpg)
-### 60fps footage, interpolated to 600fps, blurred with 0.6 exposure
+### 60fps footage, interpolated to 600fps, blurred with 0.6 blur amount
 ![](https://i.imgur.com/I4QFWGc.jpg)
 
 As visible from these images, the interpolated 60fps footage produces motion blur that is comparable to actual 600fps footage.
 
 ## Sample config file
 ```c
-cpu_cores: 8
+cpu cores: 4
 
-input_fps: 60
-output_fps: 30
+input fps: 60
+output fps: 60
 
-timescale: 1
+input timescale: 1
+output timescale: 1
 
 blur: true
-exposure: 0.75
+blur amount: 0.6
 
 interpolate: true
 interpolated fps: 600
@@ -30,10 +31,12 @@ interpolated fps: 600
 preview: true
 
 crf: 18
+gpu: false
+detailed filenames: false
 
-interpolation_speed: default
-interpolation_tuning: default
-interpolation_algorithm: default
+interpolation speed: default
+interpolation tuning: default
+interpolation algorithm: default
 ```
 
 ## Requirements
@@ -66,32 +69,35 @@ or
 ## Config settings explained:
 - cpu_cores - amount of cpu cores you have
 
-- input_fps - input video file fps
-- output_fps - final output video file fps
+- input fps - input video file fps
+- output fps - final output video file fps
 
-- timescale - timescale of the input video file (will be sped up/slowed down accordingly)
+- input timescale - timescale of the input video file (will be sped up/slowed down accordingly)
+- output timescale - timescale of the output video file
 
 - blur - whether or not the output video file will have motion blur
-- blur_amount - if blur is enabled, this is the amount of motion blur from 0-1
+- blur amount - if blur is enabled, this is the amount of motion blur from 0-1
 
 - interpolate - whether or not the input video file will be interpolated to a higher fps
-- interpolated_fps - if interpolate is enabled, this is the fps that the input file will be interpolated to (before blending)
+- interpolated fps - if interpolate is enabled, this is the fps that the input file will be interpolated to (before blending)
 
 - crf - [crf](https://trac.ffmpeg.org/wiki/Encode/H.264#crf) of the output video
+- gpu - experimental gpu acceleration (doesn't work)
+- detailed filenames - adds blur settings to generated filenames
 
-- interpolation_speed - default is 'medium', [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
-- interpolation_tuning - default is 'smooth', [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
-- interpolation_algorithm - default is 13, [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
+- interpolation speed - default is 'medium', [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
+- interpolation tuning - default is 'smooth', [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
+- interpolation algorithm - default is 13, [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
 
 ## Recommended settings for gameplay footage:
 ### Config options
-- blur_amount - for maximum blur/smoothness use 1, for medium blur use 0.5. 0.6-0.8 gives nice results
+- blur amount - for maximum blur/smoothness use 1, for medium blur use 0.5. 0.6-0.8 gives nice results
 
-- interpolated_fps - results become worse if this is too high, for 60fps source footage around 300-900 should be good, for 180fps 1200 is good
+- interpolated fps - results become worse if this is too high, for 60fps source footage around 300-900 should be good, for 180fps 1200 is good
 
-- interpolation_speed - just keep it at default
-- interpolation_tuning - for gameplay footage default (smooth) keeps the crosshair intact, but film is also a good option
-- interpolation_algorithm - just keep it at default
+- interpolation speed - just keep it at default
+- interpolation tuning - for gameplay footage default (smooth) keeps the crosshair intact, but film is also a good option
+- interpolation algorithm - just keep it at default
 
 ### Limiting smearing
 Using blur on 60fps footage results in clean motion blur, but occasionally leaves some smearing artifacts. To remove these artifacts, higher framerate source footage can be used. Recording with software such as OBS at framerates like 120/180fps will result in a greatly reduced amount of artifacting.
