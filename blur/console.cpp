@@ -2,8 +2,6 @@
 
 #include "includes.h"
 
-c_console console;
-
 std::vector<std::string> split_string(std::string str, const std::string& delimiter) {
 	std::vector<std::string> output;
 

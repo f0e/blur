@@ -2,8 +2,6 @@
 
 #include "includes.h"
 
-c_config config;
-
 void c_config::create(std::string_view filepath, blur_settings current_settings) {
 	std::ofstream output(filepath);
 

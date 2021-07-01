@@ -2,8 +2,6 @@
 
 #include "includes.h"
 
-c_avisynth_handler avisynth;
-
 // generate a random string
 std::string random_string(int len) {
 	std::string str("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");

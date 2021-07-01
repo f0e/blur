@@ -16,4 +16,4 @@ public:
 	void run(int argc, char* argv[]);
 };
 
-extern c_blur blur;
+inline c_blur blur;

@@ -6,8 +6,8 @@
 #include <vector>
 
 class c_console {
-public:
-	const char* name = "tekno's blur";
+private:
+	const char* name = "blur";
 
 	const int console_w = 650;
 	const int console_h = 400;
@@ -41,4 +41,4 @@ public:
 	std::string wait_for_dropped_file();
 };
 
-extern c_console console;
+inline c_console console;

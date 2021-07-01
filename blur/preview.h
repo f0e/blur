@@ -26,4 +26,4 @@ public:
 	void disable();
 };
 
-extern c_preview preview;
+inline c_preview preview;

@@ -7,8 +7,6 @@
 
 #include "console.h"
 
-c_preview preview;
-
 bool drew_image = false;
 // const int offset_x = 100;
 // const int offset_y = 100;

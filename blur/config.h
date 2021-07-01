@@ -39,4 +39,4 @@ public:
 	blur_settings parse(const std::string& video_folder, bool& first_time, std::string& config_filepath);
 };
 
-extern c_config config;
+inline c_config config;

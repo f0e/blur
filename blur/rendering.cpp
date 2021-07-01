@@ -2,8 +2,6 @@
 
 #include "includes.h"
 
-c_rendering rendering;
-
 bool detect_command(std::string command) {
 	std::string find_ffmpeg_command = "where /q " + command;
 

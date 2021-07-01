@@ -12,4 +12,4 @@ public:
 	std::string get_filename() { return filename; }
 };
 
-extern c_avisynth_handler avisynth;
+inline c_avisynth_handler avisynth;

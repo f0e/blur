@@ -2,8 +2,6 @@
 
 #include "includes.h"
 
-c_blur blur;
-
 std::vector<std::string> c_blur::get_files(int& argc, char* argv[]) {
 	std::vector<std::string> video_paths;
 

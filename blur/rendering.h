@@ -41,4 +41,4 @@ public:
 	void stop();
 };
 
-extern c_rendering rendering;
+inline c_rendering rendering;
