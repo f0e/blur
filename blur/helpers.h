@@ -8,6 +8,17 @@ namespace helpers {
 		return s;
 	}
 
+	inline std::string random_string(int len) {
+		std::string str("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+
+		std::random_device rd;
+		std::mt19937 generator(rd());
+
+		std::shuffle(str.begin(), str.end(), generator);
+
+		return str.substr(0, len);
+	}
+
 	inline std::vector<std::string> split_string(std::string str, const std::string& delimiter) {
 		std::vector<std::string> output;
 

@@ -1,20 +1,8 @@
 #include "includes.h"
 
-// generate a random string
-std::string random_string(int len) {
-	std::string str("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
-
-	std::random_device rd;
-	std::mt19937 generator(rd());
-
-	std::shuffle(str.begin(), str.end(), generator);
-
-	return str.substr(0, len);
-}
-
 void c_avisynth_handler::create(const std::string& temp_path, const std::string& video_path, const s_blur_settings& settings) {
 	// generate a random filename
-	filename = temp_path + random_string(6) + (".avs");
+	filename = temp_path + helpers::random_string(6) + (".avs");
 
 	// create the file output stream
 	std::ofstream output(filename);
