@@ -3,30 +3,8 @@
 #include <objidl.h>
 #include <gdiplus.h>
 
-#include <filesystem>
-
-bool drew_image = false;
-// const int offset_x = 100;
-// const int offset_y = 100;
-
-using namespace Gdiplus;
-#pragma comment (lib, "Gdiplus.lib")
-
-std::wstring towstring(const std::string& v) {
-    std::wstring out(v.size() + 1, L'\0');
-
-    int size = MultiByteToWideChar(CP_UTF8, 0, v.c_str(), -1, &out[0], out.size());
-
-    out.resize(size - 1);
-    return out;
-}
-
 // http://playtechs.blogspot.com/2007/10/forcing-window-to-maintain-particular.html
-int window_ratio_x;
-int window_ratio_y;
-int g_window_adjust_x;
-int g_window_adjust_y;
-void resize(int edge, RECT& rect) {
+void c_preview::resize(int edge, RECT& rect) {
     int size_x_desired = (rect.right - rect.left) - g_window_adjust_x;
     int size_y_desired = (rect.bottom - rect.top) - g_window_adjust_y;
 
@@ -118,8 +96,8 @@ void resize(int edge, RECT& rect) {
     }
 }
 
-LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    switch (uMsg)  {
+LRESULT CALLBACK c_preview::wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+    switch (msg)  {
     case WM_DESTROY: {
         PostQuitMessage(0);
 
@@ -128,52 +106,53 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
-        Graphics graphics(hdc);
+        Gdiplus::Graphics graphics(hdc);
 
         RECT rc;
         GetClientRect(hwnd, &rc);
         int width = rc.right - rc.left;
         int height = rc.bottom - rc.top;
 
+        auto draw_text = [&](const std::wstring& text) {
+            auto tahoma = Gdiplus::FontFamily(L"Tahoma");
+            Gdiplus::Font font(&tahoma, 12, Gdiplus::FontStyle::FontStyleBold);
+            Gdiplus::SolidBrush brush(Gdiplus::Color::Black);
+            Gdiplus::Status st = graphics.DrawString(text.data(), -1, &font, Gdiplus::PointF(5, 5), &brush);
+        };
+
         if (!preview.drawing) {
             // background
             FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
 
             // text
-            auto tahoma = FontFamily(L"Tahoma");
-            Font font(&tahoma, 12, FontStyle::FontStyleBold);
-            SolidBrush brush(Color::Black);
-            Status st = graphics.DrawString(L"waiting...", -1, &font, PointF(5, 5), &brush);
+            draw_text(L"waiting...");
         }
         else if (preview.preview_disabled) {
             // background
             FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
 
             // text
-            auto tahoma = FontFamily(L"Tahoma");
-            Font font(&tahoma, 12, FontStyle::FontStyleBold);
-            SolidBrush brush(Color::Black);
-            Status st = graphics.DrawString(L"preview disabled", -1, &font, PointF(5, 5), &brush);
+            draw_text(L"preview disabled");
         } else {
             // set up image
-            Rect image_rect(0, 0, width, height);
+            Gdiplus::Rect image_rect(0, 0, width, height);
 
-            Image image(towstring(preview.preview_filename).data());
+            Gdiplus::Image image(helpers::towstring(preview.preview_filename).data());
 
-            window_ratio_x = image.GetWidth();
-            window_ratio_y = image.GetHeight();
+            preview.window_ratio_x = image.GetWidth();
+            preview.window_ratio_y = image.GetHeight();
 
             // draw image
             graphics.DrawImage(&image, image_rect);
 
-            if (!drew_image) {
-                drew_image = true;
+            if (!preview.drew_image) {
+                preview.drew_image = true;
 
                 // force resize to fit aspect ratio
                 RECT window_rc;
                 GetWindowRect(hwnd, &window_rc);
 
-                resize(WMSZ_BOTTOMRIGHT, window_rc);
+                preview.resize(WMSZ_BOTTOMRIGHT, window_rc);
 
                 SetWindowPos(hwnd, NULL, window_rc.left, window_rc.top, window_rc.right - window_rc.left, window_rc.bottom - window_rc.top, NULL);
             }
@@ -184,36 +163,28 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
         return 0;
     }
     case WM_SIZING: {
-        if (drew_image) {
-            resize(int(wParam), *reinterpret_cast<LPRECT>(lParam));
+        if (preview.drew_image) {
+            preview.resize(int(wparam), *reinterpret_cast<LPRECT>(lparam));
 
             return TRUE;
         }
     }
-    case WM_GETMINMAXINFO: {
-        // if (drew_image) {
-        //     MINMAXINFO* info = reinterpret_cast<MINMAXINFO*>(lParam);
-        //     info->ptMinTrackSize.y = ((info->ptMinTrackSize.x - g_window_adjust_x) * window_ratio_y) / window_ratio_x + g_window_adjust_y;
-        // 
-        //     break;
-        // }
-    }
     case WM_ERASEBKGND:
-        if (drew_image) {
+        if (preview.drew_image) {
             // prevent flickering by not clearing background
             return 0;
         }
     }
 
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 
-bool create_window() {
+void c_preview::create_window() {
     // create window class
     WNDCLASSEX wc = { 0 };
     wc.cbSize = sizeof(WNDCLASSEX);
     wc.style = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc = WndProc;
+    wc.lpfnWndProc = wnd_proc;
     wc.cbClsExtra = 0;
     wc.cbWndExtra = 0;
     wc.hInstance = GetModuleHandle(NULL);
@@ -225,42 +196,36 @@ bool create_window() {
     if (!RegisterClassEx(&wc))
         throw std::exception("failed to initialise preview");
 
-    // aspect ratio shit
+    // aspect ratio handling
     RECT rect = { 0, 0, preview.preview_width, preview.preview_height };
     AdjustWindowRect(&rect, NULL, FALSE);
     g_window_adjust_x = (rect.right - rect.left) - preview.preview_width;
     g_window_adjust_y = (rect.bottom - rect.top) - preview.preview_height;
 
-    // // make preview start a bit offset from console
-    // RECT console_rect = console.get_console_position();
-    // int x = console_rect.left + offset_x;
-    // int y = console_rect.top + offset_y;
-
     // create window
     preview.hwnd = ::CreateWindow(wc.lpszClassName, L"blur preview", WS_OVERLAPPEDWINDOW, NULL, NULL, preview.preview_width, preview.preview_height, NULL, NULL, wc.hInstance, NULL);
-
     if (preview.hwnd == NULL)
         throw std::exception("failed to initialise preview");
 
     ShowWindow(preview.hwnd, SW_SHOW);
 
+    // initialise gdiplus
     ULONG_PTR token;
-    GdiplusStartupInput input = { 0 };
-    input.GdiplusVersion = 1;
-    GdiplusStartup(&token, &input, NULL);
+    Gdiplus::GdiplusStartupInput input;
+    Gdiplus::GdiplusStartup(&token, &input, NULL);
 
+    // window loop
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0) > 0) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
 
-    GdiplusShutdown(token);
-
-    return true;
+    // shutdown gdiplus
+    Gdiplus::GdiplusShutdown(token);
 }
 
-void start_watch() {
+void c_preview::watch_preview() {
     std::time_t last_update_time = std::time(NULL);
 
     while (preview.preview_open) {
@@ -290,7 +255,7 @@ void c_preview::start(const std::string& filename) {
     preview_filename = filename;
 
     if (!window_thread_ptr) {
-        window_thread_ptr = std::unique_ptr<std::thread>(new std::thread(&create_window));
+        window_thread_ptr = std::unique_ptr<std::thread>(new std::thread(&c_preview::create_window, this));
         window_thread_ptr->detach();
     }
     else if (preview.hwnd) {
@@ -298,7 +263,7 @@ void c_preview::start(const std::string& filename) {
     }
 
     if (!watch_thread_ptr) {
-        watch_thread_ptr = std::unique_ptr<std::thread>(new std::thread(&start_watch));
+        watch_thread_ptr = std::unique_ptr<std::thread>(new std::thread(&c_preview::watch_preview, this));
         watch_thread_ptr->detach();
     }
 }

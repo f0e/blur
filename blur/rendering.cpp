@@ -9,7 +9,7 @@ bool detect_command(std::string command) {
 std::string c_rendering::get_ffmpeg_command(const s_blur_settings& settings, const std::string& output_name, const std::string& preview_name) {
 	// check if ffmpeg is installed
 	if (!detect_command("ffmpeg"))
-		throw std::exception("FFmpeg could not be found");
+		throw std::exception("ffmpeg could not be found");
 
 	std::vector<std::string> ffmpeg_settings;
 	if (settings.gpu) {
@@ -125,7 +125,7 @@ void c_render::render() {
 	auto ffmpeg_settings = rendering.get_ffmpeg_command(settings, output_filename, preview_filename);
 	system(ffmpeg_settings.c_str());
 
-	// finished render //
+	// finished render
 	console.print_blank_line();
 	console.print_center(fmt::format("finished rendering {}", video_name));
 	console.print_line();

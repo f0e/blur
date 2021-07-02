@@ -30,4 +30,13 @@ namespace helpers {
 			+ system_clock::now());
 		return system_clock::to_time_t(sctp);
 	}
+
+	inline std::wstring towstring(const std::string& v) {
+		std::wstring out(v.size() + 1, L'\0');
+
+		int size = MultiByteToWideChar(CP_UTF8, 0, v.c_str(), -1, &out[0], out.size());
+
+		out.resize(size - 1);
+		return out;
+	}
 }
