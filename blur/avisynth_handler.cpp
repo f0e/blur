@@ -1,5 +1,3 @@
-#include "avisynth_handler.h"
-
 #include "includes.h"
 
 // generate a random string
@@ -14,7 +12,7 @@ std::string random_string(int len) {
 	return str.substr(0, len);
 }
 
-void c_avisynth_handler::create(const std::string& temp_path, std::string_view video_path, const blur_settings& settings) {
+void c_avisynth_handler::create(const std::string& temp_path, const std::string& video_path, const s_blur_settings& settings) {
 	// generate a random filename
 	filename = temp_path + random_string(6) + (".avs");
 
@@ -26,7 +24,7 @@ void c_avisynth_handler::create(const std::string& temp_path, std::string_view v
 	int true_sound_rate = static_cast<int>((1 / settings.input_timescale) * 100);
 
 	// multithreading
-	output << fmt::format("SetFilterMTMode(\"DEFAULT_MT_MODE\", MT_MULTI_INSTANCE)") << "\n";
+	output << "SetFilterMTMode(\"DEFAULT_MT_MODE\", MT_MULTI_INSTANCE)" << "\n";
 	// output << fmt::format("SetFilterMTMode(\"InterFrame\", MT_SERIALIZED)") << "\n";
 	// output << fmt::format("SetFilterMTMode(\"FFVideoSource\", MT_SERIALIZED)") << "\n";
 	// output << fmt::format("SetFilterMTMode(\"DSS2\", MT_SERIALIZED)") << "\n";

@@ -1,5 +1,3 @@
-#include "rendering.h"
-
 #include "includes.h"
 
 bool detect_command(std::string command) {
@@ -8,7 +6,7 @@ bool detect_command(std::string command) {
 	return system(find_ffmpeg_command.c_str()) == 0;
 }
 
-std::string c_rendering::get_ffmpeg_command(const blur_settings& settings, const std::string& output_name, const std::string& preview_name) {
+std::string c_rendering::get_ffmpeg_command(const s_blur_settings& settings, const std::string& output_name, const std::string& preview_name) {
 	// check if ffmpeg is installed
 	if (!detect_command("ffmpeg"))
 		throw std::exception("FFmpeg could not be found");

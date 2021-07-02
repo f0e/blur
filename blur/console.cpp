@@ -1,29 +1,12 @@
-#include "console.h"
-
 #include "includes.h"
 
-std::vector<std::string> split_string(std::string str, const std::string& delimiter) {
-	std::vector<std::string> output;
-
-	size_t pos = 0;
-	while ((pos = str.find(delimiter)) != std::string::npos) {
-		std::string token = str.substr(0, pos);
-		output.push_back(token);
-		str.erase(0, pos + delimiter.length());
-	}
-
-	output.push_back(str);
-
-	return output;
-}
-
-std::vector<std::string> text_get_lines(std::string_view text, int max_width) {
+std::vector<std::string> text_get_lines(const std::string& text, int max_width) {
 	// first, check if we're even going to overflow. if not, just return a single line with the text
 	int width = text.size();
 	if (width < max_width)
 		return { text.data() };
 
-	std::vector<std::string> words = split_string(text.data(), " ");
+	std::vector<std::string> words = helpers::split_string(text.data(), " ");
 
 	std::vector<std::string> lines = {};
 	std::string current_line = "";
@@ -88,7 +71,7 @@ void c_console::setup() {
 	show_cursor(false);
 }
 
-void c_console::print_center(std::string_view string) {
+void c_console::print_center(const std::string& string) {
 	// split into lines
 	auto lines = text_get_lines(string, console_max_chars);
 

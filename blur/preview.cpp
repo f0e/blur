@@ -1,11 +1,9 @@
-#include "preview.h"
+#include "includes.h"
 
 #include <objidl.h>
 #include <gdiplus.h>
 
 #include <filesystem>
-
-#include "console.h"
 
 bool drew_image = false;
 // const int offset_x = 100;
@@ -262,21 +260,13 @@ bool create_window() {
     return true;
 }
 
-template <typename TP>
-std::time_t to_time_t(TP tp) {
-    using namespace std::chrono;
-    auto sctp = time_point_cast<system_clock::duration>(tp - TP::clock::now()
-        + system_clock::now());
-    return system_clock::to_time_t(sctp);
-}
-
 void start_watch() {
     std::time_t last_update_time = std::time(NULL);
 
     while (preview.preview_open) {
         if (std::filesystem::exists(preview.preview_filename) && preview.hwnd != NULL) {
             auto write_time = std::filesystem::last_write_time(preview.preview_filename);
-            std::time_t write_time_t = to_time_t(write_time);
+            std::time_t write_time_t = helpers::to_time_t(write_time);
             
             // check if the image has been modified
             if (std::difftime(write_time_t, last_update_time) > 0) {
@@ -294,7 +284,7 @@ void start_watch() {
     }
 }
 
-void c_preview::start(std::string_view filename) {
+void c_preview::start(const std::string& filename) {
     preview_disabled = false;
     preview_open = true;
     preview_filename = filename;

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <Windows.h>
-
 #include <conio.h>
 
 #include <fstream>
@@ -14,6 +12,8 @@
 #include <filesystem>
 
 #include "deps/fmt/format.h"
+
+#include "helpers.h"
 
 #include "avisynth_handler.h"
 #include "blur.h"

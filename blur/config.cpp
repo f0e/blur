@@ -1,8 +1,6 @@
-#include "config.h"
-
 #include "includes.h"
 
-void c_config::create(std::string_view filepath, blur_settings current_settings) {
+void c_config::create(const std::string& filepath, s_blur_settings current_settings) {
 	std::ofstream output(filepath);
 
 	output << "cpu cores: " << current_settings.cpu_cores << "\n";
@@ -30,12 +28,12 @@ void c_config::create(std::string_view filepath, blur_settings current_settings)
 	output << "\n";
 
 	output << "preview: " << (current_settings.preview ? "true" : "false") << "\n";
-	
+
 	output << "\n";
 	output << "crf: " << current_settings.crf << "\n";
 	output << "gpu: " << (current_settings.gpu ? "true" : "false") << "\n";
 	output << "detailed filenames: " << (current_settings.detailed_filenames ? "true" : "false") << "\n";
-	
+
 	output << "\n";
 
 	output << "interpolation speed: " << current_settings.interpolation_speed << "\n";
@@ -43,54 +41,11 @@ void c_config::create(std::string_view filepath, blur_settings current_settings)
 	output << "interpolation algorithm: " << current_settings.interpolation_algorithm << "\n";
 }
 
-std::string_view trim(std::string_view s) {
-	s.remove_prefix(min(s.find_first_not_of(" \t\r\v\n"), s.size()));
-	s.remove_suffix(min(s.size() - s.find_last_not_of(" \t\r\v\n") - 1, s.size()));
-
-	return s;
-}
-
-bool config_get(std::map<std::string, std::string>& config, const std::string& var, std::string& out) {
-	if (!config.contains(var))
-		return false;
-
-	out = config[var];
-	return true;
-	return true;
-}
-
-bool config_get(std::map<std::string, std::string>& config, const std::string& var, int& out) {
-	std::string str_out;
-	if (!config_get(config, var, str_out))
-		return false;
-
-	out = std::stoi(str_out);
-	return true;
-}
-
-bool config_get(std::map<std::string, std::string>& config, const std::string& var, float& out) {
-	std::string str_out;
-	if (!config_get(config, var, str_out))
-		return false;
-
-	out = std::stof(str_out);
-	return true;
-}
-
-bool config_get(std::map<std::string, std::string>& config, const std::string& var, bool& out) {
-	std::string str_out;
-	if (!config_get(config, var, str_out))
-		return false;
-
-	out = str_out == "true" ? true : false;
-	return true;
-}
-
 std::string c_config::get_config_filename(const std::string& video_folder) {
 	return video_folder + filename;
 }
 
-blur_settings c_config::parse(const std::string& video_folder, bool& first_time, std::string& config_filepath) {
+s_blur_settings c_config::parse(const std::string& video_folder, bool& first_time, std::string& config_filepath) {
 	config_filepath = get_config_filename(video_folder);
 
 	auto read_config = [&]() {
@@ -111,8 +66,8 @@ blur_settings c_config::parse(const std::string& video_folder, bool& first_time,
 			std::getline(input, value, '\n');
 
 			// trim whitespace
-			key = trim(key);
-			value = trim(value);
+			key = helpers::trim(key);
+			value = helpers::trim(value);
 
 			if (key == "" || value == "")
 				continue;
@@ -123,49 +78,49 @@ blur_settings c_config::parse(const std::string& video_folder, bool& first_time,
 		return config;
 	};
 
-	try {
-		auto config = read_config();
+	auto config = read_config();
 
-		blur_settings settings;
+	bool missing_a_variable = false;
 
-		bool ok = true;
-
-		if (!config_get(config, "cpu cores", settings.cpu_cores)) ok = false;
-
-		if (!config_get(config, "input fps", settings.input_fps)) ok = false;
-		if (!config_get(config, "output fps", settings.output_fps)) ok = false;
-
-		if (!config_get(config, "input timescale", settings.input_timescale)) ok = false;
-		if (!config_get(config, "output timescale", settings.output_timescale)) ok = false;
-
-		if (!config_get(config, "blur", settings.blur)) ok = false;
-		if (!config_get(config, "blur amount", settings.blur_amount)) ok = false;
-
-		if (!config_get(config, "interpolate", settings.interpolate)) ok = false;
-		if (!config_get(config, "interpolated fps", settings.interpolated_fps)) ok = false;
-
-		if (!config_get(config, "interpolation speed", settings.interpolation_speed)) ok = false;
-		if (!config_get(config, "interpolation tuning", settings.interpolation_tuning)) ok = false;
-		if (!config_get(config, "interpolation algorithm", settings.interpolation_algorithm)) ok = false;
-
-		if (!config_get(config, "crf", settings.crf)) ok = false;
-
-		if (!config_get(config, "preview", settings.preview)) ok = false;
-		if (!config_get(config, "gpu", settings.gpu)) ok = false;
-		if (!config_get(config, "detailed filenames", settings.detailed_filenames)) ok = false;
-		
-		if (!ok) {
-			// one or more variables weren't loaded, so recreate the config file (including currently loaded settings)
-			create(config_filepath, settings);
+	auto config_get = [&]<typename t>(const std::string& var, t& out) {
+		if (!config.contains(var)) {
+			missing_a_variable = true;
+			console.print_center(fmt::format("config missing variable '{}', adding and setting default value", var));
+			return;
 		}
 
-		//	// convert strings to lowercase
-		//	std::transform(settings.interpolation_speed.begin(), settings.interpolation_speed.end(), settings.interpolation_speed.begin(), [](unsigned char c) { return std::tolower(c); });
-		//	std::transform(settings.interpolation_tuning.begin(), settings.interpolation_tuning.end(), settings.interpolation_tuning.begin(), [](unsigned char c) { return std::tolower(c); });
+		try {
+			std::stringstream ss(config[var]);
+			ss.exceptions(std::ios::failbit); // enable exceptions
+			ss >> std::boolalpha >> out; // boolalpha: enable true/false bool parsing
+		}
+		catch (const std::exception&) {
+			throw std::exception(fmt::format("failed to parse config variable '{}' (value: {})", var, config[var]).c_str());
+		}
+	};
 
-		return settings;
+	s_blur_settings settings;
+	config_get("cpu cores", settings.cpu_cores);
+	config_get("input fps", settings.input_fps);
+	config_get("output fps", settings.output_fps);
+	config_get("input timescale", settings.input_timescale);
+	config_get("output timescale", settings.output_timescale);
+	config_get("blur", settings.blur);
+	config_get("blur amount", settings.blur_amount);
+	config_get("interpolate", settings.interpolate);
+	config_get("interpolated fps", settings.interpolated_fps);
+	config_get("interpolation speed", settings.interpolation_speed);
+	config_get("interpolation tuning", settings.interpolation_tuning);
+	config_get("interpolation algorithm", settings.interpolation_algorithm);
+	config_get("crf", settings.crf);
+	config_get("preview", settings.preview);
+	config_get("gpu", settings.gpu);
+	config_get("detailed filenames", settings.detailed_filenames);
+
+	if (missing_a_variable) {
+		// one or more variables weren't loaded, so recreate the config file (including currently loaded settings)
+		create(config_filepath, settings);
 	}
-	catch (std::exception e) {
-		throw std::exception("failed to parse config, try deleting");
-	}
+
+	return settings;
 }

@@ -2,7 +2,7 @@
 
 #include <string>
 
-struct blur_settings {
+struct s_blur_settings {
 	int cpu_cores = 4;
 
 	int input_fps = 60;
@@ -30,13 +30,15 @@ struct blur_settings {
 
 class c_config {
 private:
-	std::string filename = ".blur-config.cfg";
-	
-public:
-	void create(std::string_view filepath, blur_settings current_settings = blur_settings());
+	const std::string filename = ".blur-config.cfg";
 
+private:
 	std::string get_config_filename(const std::string& video_folder);
-	blur_settings parse(const std::string& video_folder, bool& first_time, std::string& config_filepath);
+
+public:
+	void create(const std::string& filepath, s_blur_settings current_settings = s_blur_settings());
+
+	s_blur_settings parse(const std::string& video_folder, bool& first_time, std::string& config_filepath);
 };
 
 inline c_config config;

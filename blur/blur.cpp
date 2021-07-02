@@ -1,5 +1,3 @@
-#include "blur.h"
-
 #include "includes.h"
 
 std::vector<std::string> c_blur::get_files(int& argc, char* argv[]) {
@@ -47,7 +45,7 @@ std::string c_blur::create_temp_path(const std::string& video_path) {
 	return temp_path;
 }
 
-void c_blur::remove_temp_path(std::string_view path) {
+void c_blur::remove_temp_path(const std::string& path) {
 	// check if the path doesn't already exist
 	if (!std::filesystem::exists(path))
 		return;

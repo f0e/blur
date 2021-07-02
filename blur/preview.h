@@ -21,7 +21,7 @@ public:
 	std::unique_ptr<std::thread> watch_thread_ptr;
 
 public:
-	void start(std::string_view filename);
+	void start(const std::string& filename);
 	void stop();
 	void disable();
 };

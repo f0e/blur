@@ -10,7 +10,7 @@ private:
 
 public:
 	std::string create_temp_path(const std::string& video_path);
-	void remove_temp_path(std::string_view path);
+	void remove_temp_path(const std::string& path);
 
 public:
 	void run(int argc, char* argv[]);

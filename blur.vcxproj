@@ -44,6 +44,7 @@
     <ClInclude Include="blur\deps\fmt\posix.h" />
     <ClInclude Include="blur\deps\fmt\printf.h" />
     <ClInclude Include="blur\deps\fmt\ranges.h" />
+    <ClInclude Include="blur\helpers.h" />
     <ClInclude Include="blur\rendering.h" />
     <ClInclude Include="blur\includes.h" />
     <ClInclude Include="blur\preview.h" />

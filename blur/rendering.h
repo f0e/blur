@@ -17,7 +17,7 @@ public:
 	std::string temp_path;
 
 public:
-	blur_settings settings;
+	s_blur_settings settings;
 	std::string preview_filename;
 
 public:
@@ -33,7 +33,7 @@ public:
 	bool in_render;
 
 public:
-	std::string get_ffmpeg_command(const blur_settings& settings, const std::string& output_name, const std::string& preview_name);
+	std::string get_ffmpeg_command(const s_blur_settings& settings, const std::string& output_name, const std::string& preview_name);
 
 	void queue_render(c_render render);
 
