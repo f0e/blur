@@ -40,7 +40,7 @@ private:
 public:
 	void create(const std::string& filepath, s_blur_settings current_settings = s_blur_settings());
 
-	s_blur_settings parse(const std::string& video_folder, bool& first_time, std::string& config_filepath);
+	s_blur_settings parse(const std::string& video_folder, std::string& config_filepath, bool& first_time);
 };
 
 inline c_config config;

@@ -25,7 +25,7 @@ private:
 public:
 	void setup();
 
-	void print_center(const std::string& string);
+	void print(const std::string& string);
 	void print_blank_line(int amount = 1);
 	void print_line(int pad = 1);
 

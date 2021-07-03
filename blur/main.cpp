@@ -1,24 +1,26 @@
 #include "includes.h"
 
+#include <cxxopts/cxxopts.hpp>
+
 int main(int argc, char* argv[]) {
-	// setup console
-	console.setup();
+	cxxopts::Options options("Blur", "Add motion blur to videos");
+	options.add_options()
+		("h,help", "Print usage")
+		("i,input", "Input file names", cxxopts::value<std::vector<std::string>>())
+		("o,output", "Output file names (optional)", cxxopts::value<std::vector<std::string>>())
+		("c,config-path", "Manual configuration file path (optional)", cxxopts::value<std::string>())
+		("d,disable-ui", "Disable user interface", cxxopts::value<bool>())
+		("v,verbose", "Verbose mode", cxxopts::value<bool>())
+		;
+	
+	auto result = options.parse(argc, argv);
 
-	// print art
-	const std::vector<const char*> art {
-		"    _/        _/                   ",
-		"   _/_/_/    _/  _/    _/  _/  _/_/",
-		"  _/    _/  _/  _/    _/  _/_/     ",
-		" _/    _/  _/  _/    _/  _/        ",
-		"_/_/_/    _/    _/_/_/  _/         ",
-	};
+	if (result.count("help")) {
+		std::cout << options.help() << std::endl;
+		return 0;
+	}
 
-	console.print_blank_line();
+	blur.run(argc, argv, result);
 
-	for (const auto& line : art)
-		console.print_center(line);
-
-	console.print_line();
-
-	blur.run(argc, argv);
+	return 0;
 }

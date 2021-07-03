@@ -5,7 +5,7 @@ std::vector<std::string> c_blur::get_files(int& argc, char* argv[]) {
 
 	if (argc <= 1) {
 		if (!rendering.in_render) {
-			console.print_center("waiting for input, drag a video onto this window.");
+			console.print("waiting for input, drag a video onto this window.");
 		}
 
 		// wait for the user to drop a file onto the window
@@ -54,93 +54,118 @@ void c_blur::remove_temp_path(const std::string& path) {
 	std::filesystem::remove_all(path);
 }
 
-void c_blur::run(int argc, char* argv[]) {
-	while (!GetAsyncKeyState(VK_ESCAPE)) {
+void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
+	blur.using_ui = !cmd["disable-ui"].as<bool>();
+
+	if (blur.using_ui) {
+		// setup console
+		console.setup();
+
+		// print art
+		const std::vector<const char*> art{
+			"    _/        _/                   ",
+			"   _/_/_/    _/  _/    _/  _/  _/_/",
+			"  _/    _/  _/  _/    _/  _/_/     ",
+			" _/    _/  _/  _/    _/  _/        ",
+			"_/_/_/    _/    _/_/_/  _/         ",
+		};
+
+		console.print_blank_line();
+
+		for (const auto& line : art)
+			console.print(line);
+
+		console.print_line();
+	}
+
+	if (using_ui) {
 		try {
-			// get/wait for input file
-			auto videos = get_files(argc, argv);
-			for (auto& video_path : videos) {
-				// check the file exists
-				if (!std::filesystem::exists(video_path))
-					throw std::exception("video couldn't be opened (wrong path?)\n");
-
-				// set up render
-				c_render render;
-				render.video_path = video_path;
-				render.video_name = std::filesystem::path(video_path).stem().string();
-				render.video_folder = std::filesystem::path(video_path).parent_path().string() + "\\";
-
-				render.input_filename = std::filesystem::path(video_path).filename().string();
-
-				// set working directory
-				std::filesystem::current_path(render.video_folder);
-
-				// print message
-				if (!rendering.queue.empty()) {
-					console.print_blank_line();
-					console.print_line();
+			while (!GetAsyncKeyState(VK_ESCAPE)) {
+				// get/wait for input file
+				auto videos = get_files(argc, argv);
+				for (auto& video_path : videos) {
+					// check the file exists
+					if (!std::filesystem::exists(video_path))
+						throw std::exception("video couldn't be opened (wrong path?)\n");
+				
+					// render video
+					c_render render(video_path);
+					rendering.queue_render(render);
 				}
-
-				console.print_center(fmt::format("opening {} for processing", render.input_filename));
-
-				// parse config file (do it now, not when rendering. nice for batch rendering the same file with different settings)
-				bool first_time_config = false;
-				std::string config_filepath;
-				render.settings = config.parse(render.video_folder, first_time_config, config_filepath);
-
-				// check if the config exists
-				if (first_time_config) {
-					console.print_blank_line();
-					console.print_center(fmt::format("configuration file not found, default config generated at {}", config_filepath));
-					console.print_blank_line();
-					console.print_center("continue render? (y/n)");
-					console.print_blank_line();
-
-					char choice = console.get_char();
-					if (tolower(choice) != 'y') {
-						throw std::exception("stopping render");
-					}
-				}
-
-				// build output filename
-				int num = 1;
-				do {
-					render.output_filename = fmt::format("{} - blur", render.video_name);
-
-					if (render.settings.detailed_filenames) {
-						render.output_filename += " (";
-						render.output_filename += fmt::format("{}fps", render.settings.output_fps);
-						if (render.settings.interpolate)
-							render.output_filename += fmt::format("~{}", render.settings.interpolated_fps);
-						if (render.settings.blur)
-							render.output_filename += fmt::format("~{}", render.settings.blur_amount);
-						render.output_filename += ")";
-					}
-
-					if (num > 1)
-						render.output_filename += fmt::format(" ({})", num);
-
-					render.output_filename += ".mp4";
-
-					num++;
-				} while (std::filesystem::exists(render.output_filename));
-
-				console.print_center(fmt::format("writing to {}", render.output_filename));
-
-				console.print_line();
-
-				rendering.queue_render(render);
-
+			
 				// start rendering
-				rendering.start();
+				rendering.start_thread();
 			}
 		}
 		catch (const std::exception& e) {
-			console.print_center(e.what());
+			console.print(e.what());
 			console.print_blank_line();
 		}
+
+		rendering.stop_thread();
+	}
+	else { // command-line mode
+		std::vector<std::string> input_filenames, output_filenames;
+
+		if (!cmd.count("input")) {
+			std::cout << "No input files specified. Use -i or --input." << "\n";
+			return;
+		}
+
+		input_filenames = cmd["input"].as<std::vector<std::string>>();
+
+		// check inputs exist
+		for (const auto& input_filename : input_filenames) {
+			if (!std::filesystem::exists(input_filename)) {
+				std::cout << "Video '" << input_filename << "' was not found (wrong path?)" << "\n";
+				return;
+			}
+		}
+
+		bool manual_output_files = cmd.count("output");
+		if (manual_output_files) {
+			if (cmd.count("input") != cmd.count("output")) {
+				std::cout << "Input/output filename count mismatch (" << cmd.count("input") << " inputs, " << cmd.count("output") <<
+					" outputs). Use -o or --output to specify output filenames." << "\n";
+
+				return;
+			}
+
+			output_filenames = cmd["output"].as<std::vector<std::string>>();
+		}
+
+		verbose = cmd["verbose"].as<bool>();
+
+		std::optional<std::string> config_path;
+		if (cmd.count("config-path")) {
+			config_path = cmd["config-path"].as<std::string>();
+
+			if (!std::filesystem::exists(config_path.value())) {
+				std::cout << "Specified config file '" << config_path.value() << "' not found." << "\n";
+				return;
+			}
+		}
+
+		// queue videos to be rendered
+		for (size_t i = 0; i < input_filenames.size(); i++) {
+			const std::string& input_filename = input_filenames[i];
+			std::optional<std::string> output_filename;
+
+			if (manual_output_files)
+				output_filename = output_filenames[i];
+
+			// set up render
+			c_render render(input_filename, output_filename, config_path);
+			rendering.queue_render(render);
+
+			if (verbose) {
+				std::cout << "Queued '" << render.get_video_name() << "' for render, outputting to '" << render.get_output_video_path() << "'\n";
+			}
+		}
+
+		// render videos
+		rendering.render_videos();
 	}
 
 	preview.stop();
-	rendering.stop();
 }

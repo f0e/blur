@@ -1,0 +1,33 @@
+name: Build
+
+on: [push]
+
+env:
+  is_tag: ${{ startsWith(github.ref, 'refs/tags/') }}
+  
+  PROJECT_FILE_PATH: ./blur.vcxproj
+
+  BUILD_CONFIGURATION: Release
+  BUILD_PLATFORM: x86
+  
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v1.0.2
+
+    - name: Build
+      working-directory: ${{env.GITHUB_WORKSPACE}}
+      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{env.BUILD_PLATFORM}}  ${{env.PROJECT_FILE_PATH}}
+    
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: ${{ env.is_tag == 'true' }}
+      with:
+        files: bin\release\blur.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

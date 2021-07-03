@@ -71,17 +71,22 @@ void c_console::setup() {
 	show_cursor(false);
 }
 
-void c_console::print_center(const std::string& string) {
-	// split into lines
-	auto lines = get_text_lines(string, console_max_chars);
+void c_console::print(const std::string& string) {
+	if (blur.using_ui) {
+		// split into lines
+		auto lines = get_text_lines(string, console_max_chars);
 
-	for (auto& line : lines) {
-		const int padding = (console_max_chars - line.size()) / 2;
-		const int scrollbar_fix = 1; // fixes the look of centering
+		for (auto& line : lines) {
+			const int padding = (console_max_chars - line.size()) / 2;
+			const int scrollbar_fix = 1; // fixes the look of centering
 
-		printf("%*s%s\n", padding + scrollbar_fix, "", line.data());
+			printf("%*s%s\n", padding + scrollbar_fix, "", line.data());
 
-		current_line++;
+			current_line++;
+		}
+	}
+	else {
+		std::cout << string << "\n";
 	}
 }
 
@@ -94,18 +99,23 @@ void c_console::print_blank_line(int amount) {
 }
 
 void c_console::print_line(int pad) {
-	for (int i = 0; i < pad; i++)
+	if (blur.using_ui) {
+		for (int i = 0; i < pad; i++)
+			print_blank_line();
+
+		printf(" ");
+
+		for (int i = 1; i < console_max_chars; i++)
+			printf("-");
+
 		print_blank_line();
 
-	printf(" ");
-
-	for (int i = 1; i < console_max_chars; i++)
-		printf("-");
-
-	print_blank_line();
-
-	for (int i = 0; i < pad; i++)
-		print_blank_line();
+		for (int i = 0; i < pad; i++)
+			print_blank_line();
+	}
+	else {
+		printf("-----------------------------------\n");
+	}
 }
 
 void c_console::set_font() {

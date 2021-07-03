@@ -46,7 +46,7 @@ std::string c_config::get_config_filename(const std::string& video_folder) {
 	return video_folder + filename;
 }
 
-s_blur_settings c_config::parse(const std::string& video_folder, bool& first_time, std::string& config_filepath) {
+s_blur_settings c_config::parse(const std::string& video_folder, std::string& config_filepath, bool& first_time) {
 	config_filepath = get_config_filename(video_folder);
 
 	auto read_config = [&]() {
@@ -86,7 +86,7 @@ s_blur_settings c_config::parse(const std::string& video_folder, bool& first_tim
 	auto config_get = [&]<typename t>(const std::string& var, t& out) {
 		if (!config.contains(var)) {
 			missing_a_variable = true;
-			console.print_center(fmt::format("config missing variable '{}', adding and setting default value", var));
+			console.print(fmt::format("config missing variable '{}', adding and setting default value", var));
 			return;
 		}
 

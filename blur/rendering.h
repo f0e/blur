@@ -6,7 +6,7 @@
 #include <thread>
 
 class c_render {
-public:
+private:
 	std::string video_name;
 	std::string video_path;
 	std::string video_folder;
@@ -16,9 +16,22 @@ public:
 
 	std::string temp_path;
 
-public:
 	s_blur_settings settings;
 	std::string preview_filename;
+
+private:
+	void build_output_filename();
+
+public:
+	c_render(const std::string& input_path, std::optional<std::string> output_filename = {}, std::optional<std::string> config_path = {});
+
+	std::string get_video_name() {
+		return video_name;
+	}
+
+	std::string get_output_video_path() {
+		return output_filename;
+	}
 
 public:
 	void render();
@@ -35,10 +48,13 @@ public:
 public:
 	std::string get_ffmpeg_command(const s_blur_settings& settings, const std::string& output_name, const std::string& preview_name);
 
+	void render_videos();
+	void render_videos_thread();
+
 	void queue_render(c_render render);
 
-	void start();
-	void stop();
+	void start_thread();
+	void stop_thread();
 };
 
 inline c_rendering rendering;
