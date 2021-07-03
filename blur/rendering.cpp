@@ -162,10 +162,15 @@ c_render::c_render(const std::string& input_path, std::optional<std::string> out
 	}
 
 	if (config_path.has_value()) {
-		std::string config_folder = std::filesystem::path(config_path.value()).parent_path().string() + "\\";
+		std::string config_folder = std::filesystem::path(config_path.value()).string() + "\\";
 		bool first_time_config = false; // todo: remove need for these
 		std::string config_filepath;
 		this->settings = config.parse(config_folder, config_filepath, first_time_config);
+
+		if (first_time_config) {
+			if (blur.verbose)
+				console.print(fmt::format("configuration file not found, default config generated at {}", config_filepath));
+		}
 	}
 	else {
 		// parse config file (do it now, not when rendering. nice for batch rendering the same file with different settings)

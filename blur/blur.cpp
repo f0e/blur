@@ -141,7 +141,7 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 			config_path = cmd["config-path"].as<std::string>();
 
 			if (!std::filesystem::exists(config_path.value())) {
-				std::cout << "Specified config file '" << config_path.value() << "' not found." << "\n";
+				std::cout << "Specified config file path '" << config_path.value() << "' not found." << "\n";
 				return;
 			}
 		}
