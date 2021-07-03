@@ -1,6 +1,6 @@
 #include "includes.h"
 
-std::vector<std::string> text_get_lines(const std::string& text, int max_width) {
+std::vector<std::string> c_console::get_text_lines(const std::string& text, int max_width) {
 	// first, check if we're even going to overflow. if not, just return a single line with the text
 	int width = text.size();
 	if (width < max_width)
@@ -73,7 +73,7 @@ void c_console::setup() {
 
 void c_console::print_center(const std::string& string) {
 	// split into lines
-	auto lines = text_get_lines(string, console_max_chars);
+	auto lines = get_text_lines(string, console_max_chars);
 
 	for (auto& line : lines) {
 		const int padding = (console_max_chars - line.size()) / 2;

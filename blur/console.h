@@ -19,6 +19,9 @@ private:
 
 	int current_line = 0;
 
+private:
+	static std::vector<std::string> get_text_lines(const std::string& text, int max_width);
+
 public:
 	void setup();
 
