@@ -55,7 +55,7 @@ or
 
 ## Installation
 1. Download [the latest release](https://github.com/f0e/blur/releases/latest) or build the project.
-2. Install FFmpeg and [add it to PATH](https://video.stackexchange.com/a/20496)
+2. Install FFmpeg and [add it to PATH](https://www.wikihow.com/Install-FFmpeg-on-Windows)
 3. Install the 64-bit version of AviSynth+
 4. Install the required AviSynth plugins into the plugins64+ directory inside the AviSynth+ installation folder
 
