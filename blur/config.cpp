@@ -28,11 +28,12 @@ void c_config::create(const std::string& filepath, s_blur_settings current_setti
 	output << "\n";
 
 	output << "preview: " << (current_settings.preview ? "true" : "false") << "\n";
+	output << "detailed filenames: " << (current_settings.detailed_filenames ? "true" : "false") << "\n";
 
 	output << "\n";
 	output << "crf: " << current_settings.crf << "\n";
 	output << "gpu: " << (current_settings.gpu ? "true" : "false") << "\n";
-	output << "detailed filenames: " << (current_settings.detailed_filenames ? "true" : "false") << "\n";
+	output << "multithreading: " << (current_settings.multithreading ? "true" : "false") << "\n";
 
 	output << "\n";
 
@@ -100,22 +101,32 @@ s_blur_settings c_config::parse(const std::string& video_folder, bool& first_tim
 	};
 
 	s_blur_settings settings;
+
 	config_get("cpu cores", settings.cpu_cores);
+
 	config_get("input fps", settings.input_fps);
 	config_get("output fps", settings.output_fps);
+
 	config_get("input timescale", settings.input_timescale);
 	config_get("output timescale", settings.output_timescale);
+
 	config_get("blur", settings.blur);
 	config_get("blur amount", settings.blur_amount);
+
 	config_get("interpolate", settings.interpolate);
 	config_get("interpolated fps", settings.interpolated_fps);
+
+	config_get("crf", settings.crf);
+
+	config_get("preview", settings.preview);
+	config_get("detailed filenames", settings.detailed_filenames);
+
+	config_get("gpu", settings.gpu);
+	config_get("multithreading", settings.multithreading);
+
 	config_get("interpolation speed", settings.interpolation_speed);
 	config_get("interpolation tuning", settings.interpolation_tuning);
 	config_get("interpolation algorithm", settings.interpolation_algorithm);
-	config_get("crf", settings.crf);
-	config_get("preview", settings.preview);
-	config_get("gpu", settings.gpu);
-	config_get("detailed filenames", settings.detailed_filenames);
 
 	if (missing_a_variable) {
 		// one or more variables weren't loaded, so recreate the config file (including currently loaded settings)

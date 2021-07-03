@@ -17,7 +17,6 @@ void c_avisynth_handler::create(const std::string& temp_path, const std::string&
 	// output << fmt::format("SetFilterMTMode(\"FFVideoSource\", MT_SERIALIZED)") << "\n";
 	// output << fmt::format("SetFilterMTMode(\"DSS2\", MT_SERIALIZED)") << "\n";
 	// output << fmt::format("SetFilterMTMode(\"AudioDub\", MT_SERIALIZED)") << "\n";
-
 	
 	// load video
 	auto extension = std::filesystem::path(video_path).extension();
@@ -77,8 +76,10 @@ void c_avisynth_handler::create(const std::string& temp_path, const std::string&
 	}
 
 	if (settings.interpolate) {
-		// enable multithreading
-		output << fmt::format("Prefetch()") << "\n";
+		if (settings.multithreading) {
+			// enable multithreading
+			output << fmt::format("Prefetch()") << "\n";
+		}
 	}
 
 	// set output fps

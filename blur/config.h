@@ -16,16 +16,18 @@ struct s_blur_settings {
 
 	bool interpolate = true;
 	int interpolated_fps = 600;
-
-	std::string interpolation_speed = "default";
-	std::string interpolation_tuning = "default";
-	std::string interpolation_algorithm = "default";
 	
 	int crf = 18;
 
 	bool preview = true;
-	bool gpu = false;
 	bool detailed_filenames = false;
+
+	bool gpu = false;
+	bool multithreading = true;
+
+	std::string interpolation_speed = "default";
+	std::string interpolation_tuning = "default";
+	std::string interpolation_algorithm = "default";
 };
 
 class c_config {
