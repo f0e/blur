@@ -4,7 +4,7 @@ std::vector<std::string> c_blur::get_files(int& argc, char* argv[]) {
 	std::vector<std::string> video_paths;
 
 	if (argc <= 1) {
-		if (!rendering.in_render) {
+		if (!rendering.renders_queued) {
 			console.print("waiting for input, drag a video onto this window.");
 		}
 
@@ -29,7 +29,7 @@ std::vector<std::string> c_blur::get_files(int& argc, char* argv[]) {
 }
 
 std::string c_blur::create_temp_path(const std::string& video_path) {
-	std::string temp_path = video_path + "/blur_temp/";
+	std::string temp_path = video_path + "\\blur_temp\\";
 
 	// check if the path already exists
 	if (!std::filesystem::exists(temp_path)) {
@@ -38,9 +38,7 @@ std::string c_blur::create_temp_path(const std::string& video_path) {
 			throw std::exception("failed to create temporary path");
 	}
 
-	// set folder as hidden
-	int attr = GetFileAttributesA(temp_path.c_str());
-	SetFileAttributesA(temp_path.c_str(), attr | FILE_ATTRIBUTE_HIDDEN);
+	helpers::set_hidden(temp_path);
 
 	return temp_path;
 }
@@ -55,12 +53,12 @@ void c_blur::remove_temp_path(const std::string& path) {
 }
 
 void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
-	blur.using_ui = !cmd["disable-ui"].as<bool>();
+	using_ui = !cmd["disable-ui"].as<bool>();
+	verbose = using_ui || cmd["verbose"].as<bool>();
+
+	console.setup();
 
 	if (blur.using_ui) {
-		// setup console
-		console.setup();
-
 		// print art
 		const std::vector<const char*> art{
 			"    _/        _/                   ",
@@ -79,8 +77,8 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 	}
 
 	if (using_ui) {
-		try {
-			while (!GetAsyncKeyState(VK_ESCAPE)) {
+		while (!GetAsyncKeyState(VK_ESCAPE)) {
+			try {
 				// get/wait for input file
 				auto videos = get_files(argc, argv);
 				for (auto& video_path : videos) {
@@ -96,19 +94,19 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 				// start rendering
 				rendering.start_thread();
 			}
-		}
-		catch (const std::exception& e) {
-			console.print(e.what());
-			console.print_blank_line();
+			catch (const std::exception& e) {
+				console.print(e.what());
+				console.print_blank_line();
+			}
 		}
 
 		rendering.stop_thread();
 	}
 	else { // command-line mode
-		std::vector<std::string> input_filenames, output_filenames;
+		std::vector<std::string> input_filenames, output_filenames, config_paths;
 
 		if (!cmd.count("input")) {
-			std::cout << "No input files specified. Use -i or --input." << "\n";
+			console.print("No input files specified. Use -i or --input.");
 			return;
 		}
 
@@ -117,7 +115,7 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 		// check inputs exist
 		for (const auto& input_filename : input_filenames) {
 			if (!std::filesystem::exists(input_filename)) {
-				std::cout << "Video '" << input_filename << "' was not found (wrong path?)" << "\n";
+				console.print(fmt::format("Video {} was not found (wrong path?)", input_filename));
 				return;
 			}
 		}
@@ -125,31 +123,43 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 		bool manual_output_files = cmd.count("output");
 		if (manual_output_files) {
 			if (cmd.count("input") != cmd.count("output")) {
-				std::cout << "Input/output filename count mismatch (" << cmd.count("input") << " inputs, " << cmd.count("output") <<
-					" outputs). Use -o or --output to specify output filenames." << "\n";
-
+				console.print(fmt::format("Input/output filename count mismatch ({} inputs, {} outputs).", cmd.count("input"), cmd.count("output")));
 				return;
 			}
 
 			output_filenames = cmd["output"].as<std::vector<std::string>>();
 		}
 
-		verbose = cmd["verbose"].as<bool>();
-
-		std::optional<std::string> config_path;
-		if (cmd.count("config-path")) {
-			config_path = cmd["config-path"].as<std::string>();
-
-			if (!std::filesystem::exists(config_path.value())) {
-				std::cout << "Specified config file path '" << config_path.value() << "' not found." << "\n";
+		bool manual_config_files = cmd.count("config-path"); // todo: cleanup redundancy ^^
+		if (manual_config_files) {
+			if (cmd.count("input") != cmd.count("config-path")) {
+				console.print(fmt::format("Input filename/config paths count mismatch ({} inputs, {} config paths).", cmd.count("input"), cmd.count("config-path")));
 				return;
 			}
+
+			config_paths = cmd["config-path"].as<std::vector<std::string>>();
+
+			// check if all configs exist
+			bool paths_ok = true;
+			for (const auto& path : config_paths) {
+				if (!std::filesystem::exists(path)) {
+					console.print(fmt::format("Specified config file path '{}' not found.", path));
+					paths_ok = false;
+				}
+			}
+
+			if (!paths_ok)
+				return;
 		}
 
 		// queue videos to be rendered
 		for (size_t i = 0; i < input_filenames.size(); i++) {
 			const std::string& input_filename = input_filenames[i];
 			std::optional<std::string> output_filename;
+			std::optional<std::string> config_path;
+
+			if (manual_config_files)
+				config_path = config_paths[i];
 
 			if (manual_output_files)
 				output_filename = output_filenames[i];
@@ -159,7 +169,7 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 			rendering.queue_render(render);
 
 			if (verbose) {
-				std::cout << "Queued '" << render.get_video_name() << "' for render, outputting to '" << render.get_output_video_path() << "'\n";
+				console.print(fmt::format("Queued '{}' for render, outputting to '{}'", render.get_video_name(), render.get_output_video_path()));
 			}
 		}
 

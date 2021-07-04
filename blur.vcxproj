@@ -23,6 +23,7 @@
     <ClCompile Include="blur\blur.cpp" />
     <ClCompile Include="blur\config.cpp" />
     <ClCompile Include="blur\console.cpp" />
+    <ClCompile Include="blur\helpers.cpp" />
     <ClCompile Include="blur\rendering.cpp" />
     <ClCompile Include="blur\main.cpp" />
     <ClCompile Include="blur\preview.cpp" />

@@ -63,12 +63,16 @@ std::vector<std::string> c_console::get_text_lines(const std::string& text, int 
 }
 
 void c_console::setup() {
-	SetConsoleTitleA(name);
+	hwnd = GetConsoleWindow();
 
-	center_console();
-	set_font();
+	if (blur.using_ui) {
+		SetConsoleTitleA(name);
 
-	show_cursor(false);
+		center_console();
+		set_font();
+
+		show_cursor(false);
+	}
 }
 
 void c_console::print(const std::string& string) {
@@ -132,21 +136,19 @@ void c_console::set_font() {
 
 RECT c_console::get_console_position() {
 	const HWND desktop = GetDesktopWindow();
-	const HWND console = GetConsoleWindow();
 
 	RECT console_rect;
-	GetWindowRect(console, &console_rect);
+	GetWindowRect(hwnd, &console_rect);
 
 	return console_rect;
 }
 
 void c_console::center_console() {
 	const HWND desktop = GetDesktopWindow();
-	const HWND console = GetConsoleWindow();
 
 	// get window position information
 	RECT console_rect;
-	GetWindowRect(console, &console_rect);
+	GetWindowRect(hwnd, &console_rect);
 
 	// get desktop position information
 	RECT desktop_rect;
@@ -157,7 +159,7 @@ void c_console::center_console() {
 	const int console_y = desktop_rect.top + ((desktop_rect.bottom - desktop_rect.top) / 2) - console_h / 2;
 
 	// center and resize window
-	MoveWindow(console, console_x, console_y, console_w, console_h, TRUE);
+	MoveWindow(hwnd, console_x, console_y, console_w, console_h, TRUE);
 
 	// get max console chars
 	CONSOLE_SCREEN_BUFFER_INFO csbi;
@@ -166,7 +168,7 @@ void c_console::center_console() {
 	console_max_lines = static_cast<int>(csbi.srWindow.Bottom - csbi.srWindow.Top);
 
 	// disable resizing
-	SetWindowLong(console, GWL_STYLE, GetWindowLong(console, GWL_STYLE) & ~WS_MAXIMIZEBOX & ~WS_SIZEBOX);
+	SetWindowLong(hwnd, GWL_STYLE, GetWindowLong(hwnd, GWL_STYLE) & ~WS_MAXIMIZEBOX & ~WS_SIZEBOX);
 }
 
 void c_console::show_cursor(bool showing) {

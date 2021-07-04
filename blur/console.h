@@ -6,8 +6,11 @@
 #include <vector>
 
 class c_console {
+public:
+	HWND hwnd;
+
 private:
-	const char* name = "tekno blur";
+	const char* name = "tekno's blur";
 
 	const int console_w = 650;
 	const int console_h = 400;

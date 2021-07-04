@@ -21,6 +21,7 @@ private:
 
 private:
 	void build_output_filename();
+	std::string build_ffmpeg_command();
 
 public:
 	c_render(const std::string& input_path, std::optional<std::string> output_filename = {}, std::optional<std::string> config_path = {});
@@ -43,11 +44,9 @@ private:
 
 public:
 	std::vector<c_render> queue;
-	bool in_render;
+	bool renders_queued;
 
 public:
-	std::string get_ffmpeg_command(const s_blur_settings& settings, const std::string& output_name, const std::string& preview_name);
-
 	void render_videos();
 	void render_videos_thread();
 

@@ -1,91 +1,68 @@
 #include "includes.h"
 
-void c_avisynth_handler::create(const std::string& temp_path, const std::string& video_path, const s_blur_settings& settings) {
-	// generate a random filename
-	filename = temp_path + helpers::random_string(6) + (".avs");
+void c_script_handler::create(const std::string& temp_path, const std::string& video_path, const s_blur_settings& settings) {
+	// generate random filenames
+	script_filename = temp_path + helpers::random_string(6) + ".vpy";
 
-	// create the file output stream
-	std::ofstream output(filename);
+	// create video script
+	std::ofstream video_script(script_filename);
+	{
+		video_script << "from vapoursynth import core" << "\n";
+		video_script << "import havsfunc as haf" << "\n";
 
-	// get timescale
-	int true_fps = static_cast<int>(settings.input_fps * (1 / settings.input_timescale));
-	int true_sound_rate = static_cast<int>((1 / settings.input_timescale) * 100);
+		// load video
+		std::string chungus = video_path;
+		std::replace(chungus.begin(), chungus.end(), '\\', '/');
+		video_script << fmt::format("video = core.ffms2.Source(source=\"{}\", cache=False)", chungus) << "\n";
 
-	// multithreading
-	output << "SetFilterMTMode(\"DEFAULT_MT_MODE\", MT_MULTI_INSTANCE)" << "\n";
-	// output << fmt::format("SetFilterMTMode(\"InterFrame\", MT_SERIALIZED)") << "\n";
-	// output << fmt::format("SetFilterMTMode(\"FFVideoSource\", MT_SERIALIZED)") << "\n";
-	// output << fmt::format("SetFilterMTMode(\"DSS2\", MT_SERIALIZED)") << "\n";
-	// output << fmt::format("SetFilterMTMode(\"AudioDub\", MT_SERIALIZED)") << "\n";
-	
-	// load video
-	auto extension = std::filesystem::path(video_path).extension();
-	if (extension != ".avi") {
-		output << fmt::format("FFmpegSource2(\"{}\", fpsnum={}, atrack=-1, cache=false).AssumeFPS({})", video_path, settings.input_fps, true_fps) << "\n";
-	}
-	else {
-		// FFmpegSource2 doesnt work with frameserver
-		output << fmt::format("audio = FFAudioSource(\"{}\")", video_path) << "\n";
-		output << fmt::format("DSS2(\"{}\", fps={}).AssumeFPS({})", video_path, settings.input_fps, true_fps) << "\n";
-		output << fmt::format("AudioDub(audio)", video_path, settings.input_fps, true_fps) << "\n";
-	}
+		// input timescale
+		video_script << fmt::format("video = core.std.AssumeFPS(video, fpsnum=(video.fps * (1 / {})))",  settings.input_timescale) << "\n";
 
-	output << fmt::format("ConvertToYV12()") << "\n";
+		// interpolation
+		if (settings.interpolate) {
+			std::string speed = settings.interpolation_speed;
+			if (helpers::to_lower(speed) == "default") speed = "medium";
 
-	// timestretch audio
-	if (settings.input_timescale != 1.f) {
-		output << fmt::format("TimeStretch(rate={})", true_sound_rate) << "\n";
-	}
+			std::string tuning = settings.interpolation_tuning;
+			if (helpers::to_lower(tuning) == "default") tuning = "smooth";
 
-	int current_fps = true_fps;
+			std::string algorithm = settings.interpolation_algorithm;
+			if (helpers::to_lower(algorithm) == "default") algorithm = "13";
 
-	// interpolation
-	if (settings.interpolate) {
-		current_fps = settings.interpolated_fps; // store new fps
-
-		std::string speed = settings.interpolation_speed;
-		if (speed == "default") speed = "medium";
-
-		std::string tuning = settings.interpolation_tuning;
-		if (tuning == "default") tuning = "smooth";
-
-		std::string algorithm = settings.interpolation_algorithm;
-		if (algorithm == "default") algorithm = "13";
-
-		output << fmt::format("InterFrame(NewNum={}, Cores={}, Gpu=true, Preset=\"{}\", Tuning=\"{}\", OverrideAlgo={})", settings.interpolated_fps, settings.cpu_cores, speed, tuning, algorithm) << "\n";
-	}
-
-	// timescale adjustment
-	if (settings.output_timescale != 1.f) {
-		current_fps = static_cast<int>(current_fps * settings.output_timescale);
-
-		// adjust video
-		output << fmt::format("AssumeFPS({}, sync_audio=true)", current_fps) << "\n";
-	}
-
-	// frame blending
-	if (settings.blur) {
-		int frame_gap = static_cast<int>(current_fps / settings.output_fps);
-		int radius = static_cast<int>(frame_gap * settings.blur_amount);
-		
-		if (radius > 0)
-			output << fmt::format("ClipBlend({})", radius) << "\n";
-
-		if (frame_gap > 0)
-			output << fmt::format("SelectEvery({}, 1)", frame_gap) << "\n";
-	}
-
-	if (settings.interpolate) {
-		if (settings.multithreading) {
-			// enable multithreading
-			output << fmt::format("Prefetch()") << "\n";
+			video_script << fmt::format("video = haf.InterFrame(video, GPU={}, NewNum={}, Preset=\"{}\", Tuning=\"{}\", OverrideAlgo={})", settings.gpu ? "True" : "False", settings.interpolated_fps, speed, tuning, algorithm) << "\n";
 		}
+
+		// output timescale
+		video_script << fmt::format("video = core.std.AssumeFPS(video, fpsnum=(video.fps * {}))", settings.output_timescale) << "\n";
+
+		// blurring
+		if (settings.blur) {
+			video_script << fmt::format("frame_gap = int(video.fps / {})", settings.blur_output_fps) << "\n";
+			video_script << fmt::format("radius = int(frame_gap * {})", settings.blur_amount) << "\n";
+
+			video_script << "if radius > 0:" << "\n";
+			// "AverageFrames: Number of weights must be odd when only one clip supplied"
+			video_script << "	if radius % 2 == 0:" << "\n";
+			video_script << "		radius += 1" << "\n";
+
+			// todo: remove weighting limit
+			// todo: gaussian weighting option
+			// todo: is this wasteful? if you're blending together the surrounding frames for every single frame, then just
+			// selecting every nth one afterwards is that unneccessarily blending a ton of extra frames that are just going
+			// to be deleted anyway? i don't know how vapoursynth handles this. look into it. BIG SPEED GAIN IF ITS REAL...
+			video_script << "	video = core.misc.AverageFrames(video, [1] * radius)" << "\n";
+
+			video_script << "if frame_gap > 0:" << "\n";
+			video_script << "	video = core.std.SelectEvery(video, cycle=frame_gap, offsets=0)" << "\n";
+			
+			// set exact fps
+			video_script << fmt::format("video = haf.ChangeFPS(video, {})", settings.blur_output_fps) << "\n";
+		}
+
+		video_script << "video.set_output()" << "\n";
 	}
+	video_script.close();
 
-	// set output fps
-	output << fmt::format("ChangeFPS({}, LINEAR=false)", settings.output_fps) << "\n";
-
-	// set file as hidden
-	int attr = GetFileAttributesA(filename.c_str());
-	SetFileAttributesA(filename.c_str(), attr | FILE_ATTRIBUTE_HIDDEN);
+	// set scripts as hidden
+	helpers::set_hidden(script_filename);
 }
