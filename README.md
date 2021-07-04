@@ -49,7 +49,8 @@ interpolation algorithm: default
 
 ## Installation
 Automatic:
-- Download and run [Installer.bat](https://raw.githubusercontent.com/f0e/blur/master/Installer.bat) to automatically install all of the requirements.
+1. Download [the latest release](https://github.com/f0e/blur/releases/latest) or build the project.
+2. Download and run [Installer.bat](https://raw.githubusercontent.com/f0e/blur/master/Installer.bat) to automatically install all of the requirements.
 
 Manual:
 1. Download [the latest release](https://github.com/f0e/blur/releases/latest) or build the project.
