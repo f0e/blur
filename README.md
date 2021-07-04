@@ -14,25 +14,23 @@ As visible from these images, the interpolated 60fps footage produces motion blu
 
 ## Sample config file
 ```c
-cpu cores: 4
-
-input fps: 60
-output fps: 60
-
 input timescale: 1
 output timescale: 1
 
 blur: true
 blur amount: 0.6
+blur output fps: 60
 
 interpolate: true
 interpolated fps: 600
 
 preview: true
-
-crf: 18
-gpu: false
 detailed filenames: false
+
+quality: 18
+multithreading: true
+gpu: false
+gpu type (nvidia/amd/intel): nvidia
 
 interpolation speed: default
 interpolation tuning: default
@@ -41,23 +39,23 @@ interpolation algorithm: default
 
 ## Requirements
 - [FFmpeg](https://ffmpeg.org/download.html)
-- [AviSynth+ (x64)](https://avs-plus.net/)
+- [VapourSynth x64](https://www.vapoursynth.com/)
 
-### AviSynth plugins
-- [ZIP containing all of the required plugin files (recommended)](https://cdn.discordapp.com/attachments/588965578493001729/836700121772064858/AviSynth_plugins.7z)
-
-or
-
+### VapourSynth plugins
 - [FFmpegSource](https://github.com/FFMS/ffms2/releases/latest)
 - [InterFrame (ignore the dependencies)](https://www.spirton.com/interframe-2-8-2-released/)
 - [SVPflow 4.2.0.142](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
 - [ClipBlend](http://avisynth.nl/index.php/ClipBlend)
 
 ## Installation
+Automatic:
+- Download and run [installer.bat](https://github.com/f0e/blur/blob/master/installer.bat) (Thanks Couleur)
+
+Manual:
 1. Download [the latest release](https://github.com/f0e/blur/releases/latest) or build the project.
 2. Install FFmpeg and [add it to PATH](https://www.wikihow.com/Install-FFmpeg-on-Windows)
-3. Install the 64-bit version of AviSynth+
-4. Install the required AviSynth plugins into the plugins64+ directory inside the AviSynth+ installation folder
+3. Install the 64-bit version of VapourSynth
+4. vsrepo install havsfunc
 
 ## Usage
 1. Open the executable and drag a video file onto the console window, or directly drop video files onto the executable file.

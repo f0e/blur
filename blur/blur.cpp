@@ -76,6 +76,34 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 		console.print_line();
 	}
 
+	// check if dependencies were installed
+	try {
+		if (!helpers::detect_command("ffmpeg"))
+			throw std::exception("FFmpeg could not be found");
+
+		if (!helpers::detect_command("py"))
+			throw std::exception("Python could not be found");
+
+		if (!helpers::detect_command("vspipe"))
+			throw std::exception("VapourSynth could not be found");
+	}
+	catch (const std::exception& e) {
+		console.print(e.what());
+		console.print_blank_line();
+		console.print("Make sure you have followed the installation instructions");
+		console.print("https://github.com/f0e/blur/blob/master/README.md#Requirements");
+		console.print_blank_line();
+		console.print("If you're still unsure, open an issue on the GitHub");
+		console.print_line();
+
+		if (using_ui) {
+			console.print("Press any key to exit.");
+			_getch();
+		}
+
+		return;
+	}
+
 	if (using_ui) {
 		while (!GetAsyncKeyState(VK_ESCAPE)) {
 			try {

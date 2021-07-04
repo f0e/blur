@@ -176,10 +176,6 @@ c_render::c_render(const std::string& input_path, std::optional<std::string> out
 }
 
 std::string c_render::build_ffmpeg_command() {
-	// check if ffmpeg is installed
-	if (!helpers::detect_command("ffmpeg"))
-		throw std::exception("FFmpeg could not be found");
-
 	std::string pipe_command = fmt::format("vspipe -y \"{}\" -", script_handler.script_filename);
 
 	// build ffmpeg command
