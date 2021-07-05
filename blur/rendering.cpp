@@ -216,8 +216,10 @@ std::string c_render::build_ffmpeg_command() {
 		ffmpeg_command += fmt::format(" \"{}\"", output_filename);
 
 		// extra output for preview. generate low-quality preview images.
-		if (settings.preview)
+		if (settings.preview) {
+			ffmpeg_command += " -map 0:v"; // copy video from first input, copy audio from second
 			ffmpeg_command += fmt::format(" -q:v 5 -update 1 -atomic_writing 1 -y \"{}\"", preview_filename);
+		}
 	}
 
 	return pipe_command + " | " + ffmpeg_command;
