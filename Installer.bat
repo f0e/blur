@@ -178,8 +178,7 @@ echo.
 
 vsrepo.py install ffms2 havsfunc
 
-pause
-
+:svpflow
 cls
 echo 4.1. Installing SVPflow
 echo.
@@ -201,7 +200,7 @@ set plugins_folder=%plugins_folder:"=%
 
 if exist "%plugins_folder%\svpflow1_vs64.dll" (
     if exist "%plugins_folder%\svpflow2_vs64.dll" (
-        goto end
+        goto frameblender
     )
 )
 
@@ -210,6 +209,21 @@ powershell Invoke-WebRequest "https://cdn.discordapp.com/attachments/58896557849
 
 move %temp%\svpflow1_vs64.dll "%plugins_folder%\svpflow1_vs64.dll">nul
 move %temp%\svpflow2_vs64.dll "%plugins_folder%\svpflow2_vs64.dll">nul
+
+pause
+
+:frameblender
+cls
+echo 4.2. Installing vs-frameblender
+echo.
+
+if exist "%plugins_folder%\vs-frameblender-x64.dll" (
+    goto end
+)
+
+powershell Invoke-WebRequest "https://github.com/f0e/vs-frameblender/releases/download/v1/vs-frameblender-x64.dll" -OutFile "%temp%\vs-frameblender-x64.dll"
+
+move %temp%\vs-frameblender-x64.dll "%plugins_folder%\vs-frameblender-x64.dll">nul
 
 pause
 
