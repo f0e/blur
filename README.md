@@ -28,6 +28,11 @@ preview: true
 detailed filenames: false
 
 quality: 18
+
+brightness: 1
+saturation: 1
+contrast: 1
+
 multithreading: true
 gpu: false
 gpu type (nvidia/amd/intel): nvidia
@@ -46,6 +51,7 @@ interpolation algorithm: default
 - [FFMS2](https://github.com/FFMS/ffms2)
 - [HAvsFunc](https://github.com/HomeOfVapourSynthEvolution/havsfunc)
 - [SVPflow 4.2.0.142](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
+- [vs-frameblender](https://github.com/f0e/vs-frameblender)
 
 ## Installation
 Automatic:
@@ -58,7 +64,8 @@ Manual:
 2. Install FFmpeg and [add it to PATH](https://www.wikihow.com/Install-FFmpeg-on-Windows)
 4. Install the 64-bit version of VapourSynth
 5. Install the required VapourSynth plugins using the command "vsrepo.py install ffms2 havsfunc"
-6. Install SVPflow 4.2.0.142 manually by moving the files inside "lib-windows/vapoursynth/x64" to "VapourSynth/plugins64"
+6. Install vs-frameblender manually by downloading the x64 .dll from [here](https://github.com/f0e/vs-frameblender/releases/latest) to "VapourSynth/plugins64"
+7. Install SVPflow 4.2.0.142 manually by downloading the zip from [here](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip) and moving the files inside "lib-windows/vapoursynth/x64" to "VapourSynth/plugins64"
 
 ## Usage
 1. Open the executable and drag a video file onto the console window, or directly drop video files onto the executable file.
@@ -84,9 +91,14 @@ The program can also be used in the command line, use -h or --help for more info
 - detailed filenames - adds blur settings to generated filenames
 
 - quality - [crf](https://trac.ffmpeg.org/wiki/Encode/H.264#crf) of the output video (qp if using GPU rendering)
-- multithreading - enables multithreaded rendering
 
+- brightness - brightness of the output video
+- saturation - saturation of the output video
+- contrast - contrast of the output video
+
+- multithreading - enables multithreaded rendering
 - gpu - enables experimental gpu accelerated rendering (likely slower)
+- gpu type (nvidia/amd/intel) - your gpu type
 
 - interpolation speed - default is 'medium', [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
 - interpolation tuning - default is 'smooth', [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
