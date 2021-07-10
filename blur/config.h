@@ -15,6 +15,10 @@ struct s_blur_settings {
 	
 	int quality = 18;
 
+	float brightness = 1.f;
+	float saturation = 1.f;
+	float contrast = 1.f;
+
 	bool preview = true;
 	bool detailed_filenames = false;
 

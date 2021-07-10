@@ -23,7 +23,17 @@ void c_config::create(const std::string& filepath, s_blur_settings current_setti
 	output << "detailed filenames: " << (current_settings.detailed_filenames ? "true" : "false") << "\n";
 
 	output << "\n";
+
 	output << "quality: " << current_settings.quality << "\n";
+
+	output << "\n";
+
+	output << "brightness: " << current_settings.brightness << "\n";
+	output << "saturation: " << current_settings.saturation << "\n";
+	output << "contrast: " << current_settings.contrast << "\n";
+
+	output << "\n";
+
 	output << "multithreading: " << (current_settings.multithreading ? "true" : "false") << "\n";
 	output << "gpu: " << (current_settings.gpu ? "true" : "false") << "\n";
 	output << "gpu type (nvidia/amd/intel): " << current_settings.gpu_type << "\n";
@@ -32,7 +42,7 @@ void c_config::create(const std::string& filepath, s_blur_settings current_setti
 
 	output << "interpolation speed: " << current_settings.interpolation_speed << "\n";
 	output << "interpolation tuning: " << current_settings.interpolation_tuning << "\n";
-	output << "interpolation algorithm: " << current_settings.interpolation_algorithm << "\n";
+	output << "interpolation algorithm: " << current_settings.interpolation_algorithm;
 }
 
 std::string c_config::get_config_filename(const std::string& video_folder) {
@@ -104,6 +114,10 @@ s_blur_settings c_config::parse(const std::string& config_filepath, bool& first_
 	config_get("interpolated fps", settings.interpolated_fps);
 
 	config_get("quality", settings.quality);
+
+	config_get("brightness", settings.brightness);
+	config_get("saturation", settings.saturation);
+	config_get("contrast", settings.contrast);
 
 	config_get("preview", settings.preview);
 	config_get("detailed filenames", settings.detailed_filenames);

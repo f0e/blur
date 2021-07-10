@@ -9,6 +9,7 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 	{
 		video_script << "from vapoursynth import core" << "\n";
 		video_script << "import havsfunc as haf" << "\n";
+		video_script << "import adjust" << "\n";
 
 		// load video
 		std::string chungus = video_path;
@@ -35,6 +36,10 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 		// output timescale
 		video_script << fmt::format("video = core.std.AssumeFPS(video, fpsnum=(video.fps * {}))", settings.output_timescale) << "\n";
 
+		// brightness
+		video_script << fmt::format("video = adjust.Tweak(video, bright={}, cont={}, sat={})", settings.brightness - 1.f, settings.contrast, settings.saturation) << "\n";
+		
+
 		// blurring
 		if (settings.blur) {
 			video_script << fmt::format("frame_gap = int(video.fps / {})", settings.blur_output_fps) << "\n";
@@ -47,10 +52,8 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 
 			// todo: remove weighting limit
 			// todo: gaussian weighting option
-			// todo: is this wasteful? if you're blending together the surrounding frames for every single frame, then just
-			// selecting every nth one afterwards is that unneccessarily blending a ton of extra frames that are just going
-			// to be deleted anyway? i don't know how vapoursynth handles this. look into it. BIG SPEED GAIN IF ITS REAL...
-			video_script << "	video = core.misc.AverageFrames(video, [1] * radius)" << "\n";
+			// video_script << "	video = core.misc.AverageFrames(video, [1] * radius)" << "\n";
+			video_script << fmt::format("	video = core.frameblender.FrameBlend(video, [1] * radius)") << "\n";
 
 			video_script << "if frame_gap > 0:" << "\n";
 			video_script << "	video = core.std.SelectEvery(video, cycle=frame_gap, offsets=0)" << "\n";

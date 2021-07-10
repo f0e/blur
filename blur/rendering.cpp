@@ -82,19 +82,23 @@ void c_render::build_output_filename() {
 		if (this->settings.detailed_filenames) {
 			std::string extra_details;
 
-			if (this->settings.interpolate) {
-				extra_details += fmt::format("»{}fps", this->settings.interpolated_fps);
-			}
-
+			// stupid
 			if (this->settings.blur) {
-				if (extra_details != "")
-					extra_details += " ";
-
-				extra_details += fmt::format("»{}fps ({})", this->settings.blur_output_fps, this->settings.blur_amount);
+				if (this->settings.interpolate) {
+					extra_details = fmt::format("{}fps ({}, {})", this->settings.blur_output_fps, this->settings.interpolated_fps, this->settings.blur_amount);
+				}
+				else {
+					extra_details = fmt::format("{}fps ({})", this->settings.blur_output_fps, this->settings.blur_amount);
+				}
+			}
+			else {
+				if (this->settings.interpolate) {
+					extra_details = fmt::format("{}fps", this->settings.interpolated_fps);
+				}
 			}
 
 			if (extra_details != "") {
-				this->output_filename += " " + extra_details;
+				this->output_filename += " ~ " + extra_details;
 			}
 		}
 
@@ -187,7 +191,7 @@ std::string c_render::build_ffmpeg_command() {
 		// input
 		ffmpeg_command += " -i -"; // piped output from video script
 		ffmpeg_command += fmt::format(" -i \"{}\"", video_path); // original video (for audio)
-		ffmpeg_command += " -map 0:v -map 1:a"; // copy video from first input, copy audio from second
+		ffmpeg_command += " -map 0:v -map 1:a?"; // copy video from first input, copy audio from second
 
 		// video format
 		if (settings.gpu) {
@@ -206,9 +210,6 @@ std::string c_render::build_ffmpeg_command() {
 		if (settings.input_timescale != 1.f || settings.output_timescale != 1.f)
 			ffmpeg_command += fmt::format(" -af \"asetrate=44100*{}\"", (1 / settings.input_timescale) * settings.output_timescale);
 
-		// audio format
-		ffmpeg_command += " -c:a libopus -b:a 320k";
-
 		// extra
 		ffmpeg_command += " -movflags +faststart";
 
@@ -217,8 +218,8 @@ std::string c_render::build_ffmpeg_command() {
 
 		// extra output for preview. generate low-quality preview images.
 		if (settings.preview) {
-			ffmpeg_command += " -map 0:v"; // copy video from first input, copy audio from second
-			ffmpeg_command += fmt::format(" -q:v 5 -update 1 -atomic_writing 1 -y \"{}\"", preview_filename);
+			ffmpeg_command += " -map 0:v"; // copy video from first input
+			ffmpeg_command += fmt::format(" -q:v 3 -update 1 -atomic_writing 1 -y \"{}\"", preview_filename);
 		}
 	}
 
