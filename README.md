@@ -12,36 +12,6 @@ The amount of motion blur is easily configurable, and there are additional optio
 
 As visible from these images, the interpolated 60fps footage produces motion blur that is comparable to actual 600fps footage.
 
-## Sample config file
-```c
-input timescale: 1
-output timescale: 1
-
-blur: true
-blur amount: 0.6
-blur output fps: 60
-
-interpolate: true
-interpolated fps: 600
-
-preview: true
-detailed filenames: false
-
-quality: 18
-
-brightness: 1
-saturation: 1
-contrast: 1
-
-multithreading: true
-gpu: false
-gpu type (nvidia/amd/intel): nvidia
-
-interpolation speed: default
-interpolation tuning: default
-interpolation algorithm: default
-```
-
 ## Requirements
 - [Python](https://www.python.org/downloads)
 - [FFmpeg](https://ffmpeg.org/download.html)
@@ -52,6 +22,7 @@ interpolation algorithm: default
 - [HAvsFunc](https://github.com/HomeOfVapourSynthEvolution/havsfunc)
 - [SVPflow 4.2.0.142](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
 - [vs-frameblender](https://github.com/f0e/vs-frameblender)
+- [weighting.py](https://github.com/f0e/blur/blob/master/weighting.py)
 
 ## Installation
 Automatic:
@@ -66,6 +37,7 @@ Manual:
 5. Install the required VapourSynth plugins using the command "vsrepo.py install ffms2 havsfunc"
 6. Install vs-frameblender manually by downloading the x64 .dll from [here](https://github.com/f0e/vs-frameblender/releases/latest) to "VapourSynth/plugins64"
 7. Install SVPflow 4.2.0.142 manually by downloading the zip from [here](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip) and moving the files inside "lib-windows/vapoursynth/x64" to "VapourSynth/plugins64"
+8. Install [weighting.py](https://raw.githubusercontent.com/f0e/blur/master/weighting.py) to "%appdata%/Roaming/Python/Python39/site-packages"
 
 ## Usage
 1. Open the executable and drag a video file onto the console window, or directly drop video files onto the executable file.
@@ -83,14 +55,21 @@ The program can also be used in the command line, use -h or --help for more info
 - blur - whether or not the output video file will have motion blur
 - blur amount - if blur is enabled, this is the amount of motion blur from 0-1
 - blur output fps - if blur is enabled, this is the fps the output video will be
+- blur weighting - weighting function to use when blending frames. options are listed below:
+  - equal - each frame is blended equally
+  - gaussian
+  - gaussian_sym
+  - pyramid
+  - pyramid_sym
+  - custom weights - custom frame weights, e.g. [5, 3, 3, 2, 1]. higher numbers indicate frames being more visible when blending, lower numbers mean they are less so.
+  - custom function - generate weights based off of custom python code, which is called for each frame 'x', e.g. -x**2+1
 
 - interpolate - whether or not the input video file will be interpolated to a higher fps
 - interpolated fps - if interpolate is enabled, this is the fps that the input file will be interpolated to (before blending)
 
+- quality - [crf](https://trac.ffmpeg.org/wiki/Encode/H.264#crf) of the output video (qp if using GPU rendering)
 - preview - opens a render preview window
 - detailed filenames - adds blur settings to generated filenames
-
-- quality - [crf](https://trac.ffmpeg.org/wiki/Encode/H.264#crf) of the output video (qp if using GPU rendering)
 
 - brightness - brightness of the output video
 - saturation - saturation of the output video
@@ -100,6 +79,10 @@ The program can also be used in the command line, use -h or --help for more info
 - gpu - enables experimental gpu accelerated rendering (likely slower)
 - gpu type (nvidia/amd/intel) - your gpu type
 
+- blur weighting gaussian std dev - standard deviation used in the gaussian weighting
+- blur weighting triangle reverse - reverses the direction of the triangle weighting
+- blur weighting bound - weighting bounds, spreads out weights more
+
 - interpolation speed - default is 'medium', [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
 - interpolation tuning - default is 'smooth', [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
 - interpolation algorithm - default is 13, [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
@@ -107,6 +90,7 @@ The program can also be used in the command line, use -h or --help for more info
 ## Recommended settings for gameplay footage:
 ### Config options
 - blur amount - for maximum blur/smoothness use 1, for medium blur use 0.5, low blur 0.2-0.3. 0.6-0.8 gives nice results for 60fps, 0.3~ is good for 30fps
+- blur weighting - just keep it at equal
 
 - interpolated fps - results become worse if this is too high, for 60fps source footage around 300-900 should be good, for 180fps 1200 is good
 
