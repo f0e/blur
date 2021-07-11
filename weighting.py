@@ -56,7 +56,7 @@ def divide(frames, weights):
     val = []
     for x in range(0, frames):
         scaled_index = int(r[x])
-        val.append(weights[index])
+        val.append(weights[scaled_index])
 
     if np.amin(val) < 0: val -= np.amin(val)
 

@@ -191,7 +191,7 @@ std::string c_render::build_ffmpeg_command() {
 		// input
 		ffmpeg_command += " -i -"; // piped output from video script
 		ffmpeg_command += fmt::format(" -i \"{}\"", video_path); // original video (for audio)
-		ffmpeg_command += " -map 0:v -map 1:a:0?"; // copy video from first input, copy audio from second
+		ffmpeg_command += " -map 0:v -map 1:a?"; // copy video from first input, copy audio from second
 
 		// video format
 		if (settings.gpu) {
@@ -206,9 +206,27 @@ std::string c_render::build_ffmpeg_command() {
 			ffmpeg_command += fmt::format(" -c:v libx264 -pix_fmt yuv420p -preset superfast -crf {}", settings.quality);
 		}
 
-		// audio timescale (todo: this isn't ideal still, check for a better option)
-		if (settings.input_timescale != 1.f || settings.output_timescale != 1.f)
-			ffmpeg_command += fmt::format(" -af \"asetrate=44100*{}\"", (1 / settings.input_timescale) * settings.output_timescale);
+		// audio filters
+		std::string audio_filters;
+		{
+			// timescale (todo: this isn't ideal still, check for a better option)
+			if (settings.input_timescale != 1.f) {
+				// asetrate: speed up and change pitch
+				audio_filters += fmt::format("asetrate=44100*{}", (1 / settings.input_timescale));
+			}
+
+			if (settings.output_timescale != 1.f) {
+				if (audio_filters != "") audio_filters += ",";
+				// atempo: speed up without changing pitch
+				audio_filters += fmt::format("atempo={}", settings.output_timescale);
+			}
+		}
+
+		if (audio_filters != "")
+			ffmpeg_command += " -af " + audio_filters;
+
+		// audio format
+		ffmpeg_command += " -c:a aac -b:a 320k";
 
 		// extra
 		ffmpeg_command += " -movflags +faststart";
