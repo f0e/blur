@@ -1,10 +1,10 @@
 #include "includes.h"
 
-std::string_view helpers::trim(std::string_view str) {
+std::string helpers::trim(std::string_view str) {
 	str.remove_prefix(min(str.find_first_not_of(" \t\r\v\n"), str.size()));
 	str.remove_suffix(min(str.size() - str.find_last_not_of(" \t\r\v\n") - 1, str.size()));
 
-	return str;
+	return str.data();
 }
 
 std::string helpers::random_string(int len) {

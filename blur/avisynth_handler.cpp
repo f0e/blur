@@ -10,6 +10,7 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 		video_script << "from vapoursynth import core" << "\n";
 		video_script << "import havsfunc as haf" << "\n";
 		video_script << "import adjust" << "\n";
+		video_script << "import weighting" << "\n";
 
 		// load video
 		std::string chungus = video_path;
@@ -43,17 +44,38 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 		// blurring
 		if (settings.blur) {
 			video_script << fmt::format("frame_gap = int(video.fps / {})", settings.blur_output_fps) << "\n";
-			video_script << fmt::format("radius = int(frame_gap * {})", settings.blur_amount) << "\n";
+			video_script << fmt::format("blended_frames = int(frame_gap * {})", settings.blur_amount) << "\n";
 
-			video_script << "if radius > 0:" << "\n";
-			// "AverageFrames: Number of weights must be odd when only one clip supplied"
-			video_script << "	if radius % 2 == 0:" << "\n";
-			video_script << "		radius += 1" << "\n";
+			video_script << "if blended_frames > 0:" << "\n";
 
-			// todo: remove weighting limit
-			// todo: gaussian weighting option
-			// video_script << "	video = core.misc.AverageFrames(video, [1] * radius)" << "\n";
-			video_script << fmt::format("	video = core.frameblender.FrameBlend(video, [1] * radius)") << "\n";
+			// number of weights must be odd
+			video_script << "	if blended_frames % 2 == 0:" << "\n";
+			video_script << "		blended_frames += 1" << "\n";
+
+			const std::unordered_map<std::string, std::function<std::string()>> weighting_functions = {
+				{ "equal",			 [&]() { return fmt::format("weighting.equal(blended_frames)"); }},
+				{ "gaussian",		 [&]() { return fmt::format("weighting.gaussian(blended_frames, {}, {})", settings.blur_weighting_gaussian_std_dev, settings.blur_weighting_bound); }},
+				{ "gaussian_sym",	 [&]() { return fmt::format("weighting.gaussianSym(blended_frames, {}, {})", settings.blur_weighting_gaussian_std_dev, settings.blur_weighting_bound); }},
+				{ "pyramid",		 [&]() { return fmt::format("weighting.pyramid(blended_frames, {})", settings.blur_weighting_triangle_reverse); }},
+				{ "pyramid_sym",	 [&]() { return "weighting.pyramid(blended_frames)"; }},
+				{ "custom_weight",	 [&]() { return fmt::format("weighting.divide(blended_frames, {})", settings.blur_weighting); }},
+				{ "custom_function", [&]() { return fmt::format("weighting.custom(blended_frames, '{}', {})", settings.blur_weighting, settings.blur_weighting_bound); }},
+			};
+
+			std::string weighting = settings.blur_weighting;
+			if (!weighting_functions.contains(weighting)) {
+				// check if it's a custom weighting function
+				if (weighting.front() == '[' && weighting.back() == ']')
+					weighting = "custom_weight";
+				else
+					weighting = "custom_function";
+			}
+
+			video_script << "	weights = " << weighting_functions.at(weighting)() << "\n";
+
+			// frame blend
+			// video_script << "	video = core.misc.AverageFrames(video, [1] * blended_frames)" << "\n";
+			video_script << fmt::format("	video = core.frameblender.FrameBlend(video, weights)") << "\n";
 
 			video_script << "if frame_gap > 0:" << "\n";
 			video_script << "	video = core.std.SelectEvery(video, cycle=frame_gap, offsets=0)" << "\n";

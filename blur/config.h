@@ -9,22 +9,26 @@ struct s_blur_settings {
 	bool blur = true;
 	float blur_amount = 0.6f;
 	int blur_output_fps = 60;
+	std::string blur_weighting = "equal";
 
 	bool interpolate = true;
 	int interpolated_fps = 600;
-	
-	int quality = 18;
 
 	float brightness = 1.f;
 	float saturation = 1.f;
 	float contrast = 1.f;
 
+	int quality = 18;
 	bool preview = true;
 	bool detailed_filenames = false;
 
 	bool multithreading = true;
 	bool gpu = false;
 	std::string gpu_type = "nvidia";
+
+	float blur_weighting_gaussian_std_dev = 2.f;
+	bool blur_weighting_triangle_reverse = false;
+	std::string blur_weighting_bound = "[0, 2]";
 
 	std::string interpolation_speed = "default";
 	std::string interpolation_tuning = "default";

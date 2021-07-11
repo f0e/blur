@@ -10,6 +10,7 @@
 #include <vector>
 #include <random>
 #include <filesystem>
+#include <numeric>
 
 #include "deps/fmt/format.h"
 

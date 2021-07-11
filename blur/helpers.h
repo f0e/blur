@@ -1,7 +1,7 @@
 #pragma once
 
 namespace helpers {
-	std::string_view trim(std::string_view str);
+	std::string trim(std::string_view str);
 	std::string random_string(int len);
 	std::vector<std::string> split_string(std::string str, const std::string& delimiter);
 	std::wstring towstring(const std::string& str);
