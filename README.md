@@ -17,6 +17,9 @@ As visible from these images, the interpolated 60fps footage produces motion blu
 - [FFmpeg](https://ffmpeg.org/download.html)
 - [VapourSynth x64](https://www.vapoursynth.com)
 
+### Python packages
+- [numpy](https://pypi.org/project/numpy/)
+
 ### VapourSynth plugins
 - [FFMS2](https://github.com/FFMS/ffms2)
 - [HAvsFunc](https://github.com/HomeOfVapourSynthEvolution/havsfunc)
@@ -38,6 +41,7 @@ Manual:
 6. Install vs-frameblender manually by downloading the x64 .dll from [here](https://github.com/f0e/vs-frameblender/releases/latest) to "VapourSynth/plugins64"
 7. Install SVPflow 4.2.0.142 manually by downloading the zip from [here](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip) and moving the files inside "lib-windows/vapoursynth/x64" to "VapourSynth/plugins64"
 8. Install [weighting.py](https://raw.githubusercontent.com/f0e/blur/master/weighting.py) to "%appdata%/Roaming/Python/Python39/site-packages"
+9. Install numpy using the command "pip install numpy"
 
 ## Usage
 1. Open the executable and drag a video file onto the console window, or directly drop video files onto the executable file.
