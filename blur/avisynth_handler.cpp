@@ -75,7 +75,7 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 
 			// frame blend
 			// video_script << "	video = core.misc.AverageFrames(video, [1] * blended_frames)" << "\n";
-			video_script << fmt::format("	video = core.frameblender.FrameBlend(video, weights)") << "\n";
+			video_script << fmt::format("	video = core.frameblender.FrameBlend(video, weights, True)") << "\n";
 
 			video_script << "if frame_gap > 0:" << "\n";
 			video_script << "	video = core.std.SelectEvery(video, cycle=frame_gap, offsets=0)" << "\n";
