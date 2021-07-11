@@ -3,11 +3,6 @@
 void c_config::create(const std::string& filepath, s_blur_settings current_settings) {
 	std::ofstream output(filepath);
 
-	output << "- input" << "\n";
-	output << "input timescale: " << current_settings.input_timescale << "\n";
-	output << "output timescale: " << current_settings.output_timescale << "\n";
-
-	output << "\n";
 	output << "- blur" << "\n";
 	output << "blur: " << (current_settings.blur ? "true" : "false") << "\n";
 	output << "blur amount: " << current_settings.blur_amount << "\n";
@@ -24,6 +19,11 @@ void c_config::create(const std::string& filepath, s_blur_settings current_setti
 	output << "quality: " << current_settings.quality << "\n";
 	output << "preview: " << (current_settings.preview ? "true" : "false") << "\n";
 	output << "detailed filenames: " << (current_settings.detailed_filenames ? "true" : "false") << "\n";
+
+	output << "\n";
+	output << "- timescale" << "\n";
+	output << "input timescale: " << current_settings.input_timescale << "\n";
+	output << "output timescale: " << current_settings.output_timescale << "\n";
 
 	output << "\n";
 	output << "- rendering filters" << "\n";
@@ -113,9 +113,6 @@ s_blur_settings c_config::parse(const std::string& config_filepath, bool& first_
 
 	s_blur_settings settings;
 
-	config_get("input timescale", settings.input_timescale);
-	config_get("output timescale", settings.output_timescale);
-
 	config_get("blur", settings.blur);
 	config_get("blur amount", settings.blur_amount);
 	config_get("blur output fps", settings.blur_output_fps);
@@ -128,9 +125,12 @@ s_blur_settings c_config::parse(const std::string& config_filepath, bool& first_
 	config_get("saturation", settings.saturation);
 	config_get("contrast", settings.contrast);
 
+	config_get("quality", settings.quality);
 	config_get("preview", settings.preview);
 	config_get("detailed filenames", settings.detailed_filenames);
-	config_get("quality", settings.quality);
+
+	config_get("input timescale", settings.input_timescale);
+	config_get("output timescale", settings.output_timescale);
 
 	config_get("multithreading", settings.multithreading);
 	config_get("gpu", settings.gpu);

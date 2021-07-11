@@ -3,9 +3,6 @@
 #include <string>
 
 struct s_blur_settings {
-	float input_timescale = 1.f;
-	float output_timescale = 1.f;
-
 	bool blur = true;
 	float blur_amount = 0.6f;
 	int blur_output_fps = 60;
@@ -13,6 +10,9 @@ struct s_blur_settings {
 
 	bool interpolate = true;
 	int interpolated_fps = 600;
+
+	float input_timescale = 1.f;
+	float output_timescale = 1.f;
 
 	float brightness = 1.f;
 	float saturation = 1.f;
