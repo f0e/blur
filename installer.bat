@@ -218,12 +218,38 @@ echo 4.2. Installing vs-frameblender
 echo.
 
 if exist "%plugins_folder%\vs-frameblender-x64.dll" (
-    goto end
+    goto weighting
 )
 
 powershell Invoke-WebRequest "https://github.com/f0e/vs-frameblender/releases/download/v1/vs-frameblender-x64.dll" -OutFile "%temp%\vs-frameblender-x64.dll"
 
 move %temp%\vs-frameblender-x64.dll "%plugins_folder%\vs-frameblender-x64.dll">nul
+
+pause
+
+:weighting
+cls
+echo 4.3. Installing weighting.py
+echo.
+
+if exist "%homepath%\AppData\Roaming\Python\Python39\site-packages" (
+    set python_packages_folder="%homepath%\AppData\Roaming\Python\Python39\site-packages"
+) else (
+    echo Couldn't find Python's site-packages folder, try manually installing weighting.py
+    echo.
+    pause
+    exit
+)
+
+set python_packages_folder=%python_packages_folder:"=%
+
+if exist "%python_packages_folder%\weighting.py" (
+    goto end
+)
+
+powershell Invoke-WebRequest "https://raw.githubusercontent.com/f0e/blur/master/weighting.py" -OutFile "%temp%\weighting.py"
+
+move %temp%\weighting.py "%python_packages_folder%\weighting.py">nul
 
 pause
 
