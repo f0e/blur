@@ -191,7 +191,7 @@ std::string c_render::build_ffmpeg_command() {
 		// input
 		ffmpeg_command += " -i -"; // piped output from video script
 		ffmpeg_command += fmt::format(" -i \"{}\"", video_path); // original video (for audio)
-		ffmpeg_command += " -map 0:v -map 1:a?"; // copy video from first input, copy audio from second
+		ffmpeg_command += " -map 0:v -map 1:a:0?"; // copy video from first input, copy audio from second
 
 		// video format
 		if (settings.gpu) {
