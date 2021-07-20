@@ -8,6 +8,7 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 	std::ofstream video_script(script_filename);
 	{
 		video_script << "from vapoursynth import core" << "\n";
+		video_script << "import vapoursynth as vs" << "\n";
 		video_script << "import havsfunc as haf" << "\n";
 		video_script << "import adjust" << "\n";
 		video_script << "import weighting" << "\n";
@@ -15,10 +16,22 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 		// load video
 		std::string chungus = video_path;
 		std::replace(chungus.begin(), chungus.end(), '\\', '/');
-		video_script << fmt::format("video = core.ffms2.Source(source=\"{}\", cache=False)", chungus) << "\n";
+
+		auto extension = std::filesystem::path(video_path).extension();
+		if (extension != ".avi") {
+			video_script << fmt::format("video = core.ffms2.Source(source=\"{}\", cache=False)", chungus) << "\n";
+		}
+		else {
+			// FFmpegSource2 doesnt work with frameserver
+			video_script << fmt::format("video = core.avisource.AVISource(\"{}\")", chungus) << "\n";
+			video_script << "video = core.fmtc.matrix(clip=video, mat=\"601\", col_fam=vs.YUV, bits=16)" << "\n";
+			video_script << "video = core.fmtc.resample(clip=video, css=\"420\")" << "\n";
+			video_script << "video = core.fmtc.bitdepth(clip=video, bits=8)" << "\n";
+		}
 
 		// input timescale
-		video_script << fmt::format("video = core.std.AssumeFPS(video, fpsnum=(video.fps * (1 / {})))",  settings.input_timescale) << "\n";
+		if (settings.input_timescale != 1.f)
+			video_script << fmt::format("video = core.std.AssumeFPS(video, fpsnum=(video.fps * (1 / {})))", settings.input_timescale) << "\n";
 
 		// interpolation
 		if (settings.interpolate) {
@@ -35,11 +48,8 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 		}
 
 		// output timescale
-		video_script << fmt::format("video = core.std.AssumeFPS(video, fpsnum=(video.fps * {}))", settings.output_timescale) << "\n";
-
-		// brightness
-		video_script << fmt::format("video = adjust.Tweak(video, bright={}, cont={}, sat={})", settings.brightness - 1.f, settings.contrast, settings.saturation) << "\n";
-		
+		if (settings.output_timescale != 1.f)
+			video_script << fmt::format("video = core.std.AssumeFPS(video, fpsnum=(video.fps * {}))", settings.output_timescale) << "\n";
 
 		// blurring
 		if (settings.blur) {
@@ -47,21 +57,21 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 			video_script << fmt::format("blended_frames = int(frame_gap * {})", settings.blur_amount) << "\n";
 
 			video_script << "if blended_frames > 0:" << "\n";
-
+			
 			// number of weights must be odd
 			video_script << "	if blended_frames % 2 == 0:" << "\n";
 			video_script << "		blended_frames += 1" << "\n";
-
+			
 			const std::unordered_map<std::string, std::function<std::string()>> weighting_functions = {
 				{ "equal",			 [&]() { return fmt::format("weighting.equal(blended_frames)"); }},
 				{ "gaussian",		 [&]() { return fmt::format("weighting.gaussian(blended_frames, {}, {})", settings.blur_weighting_gaussian_std_dev, settings.blur_weighting_bound); }},
 				{ "gaussian_sym",	 [&]() { return fmt::format("weighting.gaussianSym(blended_frames, {}, {})", settings.blur_weighting_gaussian_std_dev, settings.blur_weighting_bound); }},
-				{ "pyramid",		 [&]() { return fmt::format("weighting.pyramid(blended_frames, {})", settings.blur_weighting_triangle_reverse); }},
+				{ "pyramid",		 [&]() { return fmt::format("weighting.pyramid(blended_frames, {})", settings.blur_weighting_triangle_reverse ? "True" : "False"); }},
 				{ "pyramid_sym",	 [&]() { return "weighting.pyramid(blended_frames)"; }},
 				{ "custom_weight",	 [&]() { return fmt::format("weighting.divide(blended_frames, {})", settings.blur_weighting); }},
 				{ "custom_function", [&]() { return fmt::format("weighting.custom(blended_frames, '{}', {})", settings.blur_weighting, settings.blur_weighting_bound); }},
 			};
-
+			
 			std::string weighting = settings.blur_weighting;
 			if (!weighting_functions.contains(weighting)) {
 				// check if it's a custom weighting function
@@ -70,19 +80,22 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 				else
 					weighting = "custom_function";
 			}
-
+			
 			video_script << "	weights = " << weighting_functions.at(weighting)() << "\n";
-
+			
 			// frame blend
 			// video_script << "	video = core.misc.AverageFrames(video, [1] * blended_frames)" << "\n";
 			video_script << fmt::format("	video = core.frameblender.FrameBlend(video, weights, True)") << "\n";
 
-			video_script << "if frame_gap > 0:" << "\n";
-			video_script << "	video = core.std.SelectEvery(video, cycle=frame_gap, offsets=0)" << "\n";
+			// video_script << "if frame_gap > 0:" << "\n";
+			// video_script << "	video = core.std.SelectEvery(video, cycle=frame_gap, offsets=0)" << "\n";
 			
 			// set exact fps
 			video_script << fmt::format("video = haf.ChangeFPS(video, {})", settings.blur_output_fps) << "\n";
 		}
+
+		// filters
+		video_script << fmt::format("video = adjust.Tweak(video, bright={}, cont={}, sat={})", settings.brightness - 1.f, settings.contrast, settings.saturation) << "\n";
 
 		video_script << "video.set_output()" << "\n";
 	}

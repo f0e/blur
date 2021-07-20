@@ -13,6 +13,7 @@ struct s_blur_settings {
 
 	float input_timescale = 1.f;
 	float output_timescale = 1.f;
+	bool output_timescale_audio_pitch = false;
 
 	float brightness = 1.f;
 	float saturation = 1.f;

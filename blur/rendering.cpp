@@ -212,13 +212,18 @@ std::string c_render::build_ffmpeg_command() {
 			// timescale (todo: this isn't ideal still, check for a better option)
 			if (settings.input_timescale != 1.f) {
 				// asetrate: speed up and change pitch
-				audio_filters += fmt::format("asetrate=44100*{}", (1 / settings.input_timescale));
+				audio_filters += fmt::format("asetrate=48000*{}", (1 / settings.input_timescale));
 			}
 
 			if (settings.output_timescale != 1.f) {
 				if (audio_filters != "") audio_filters += ",";
-				// atempo: speed up without changing pitch
-				audio_filters += fmt::format("atempo={}", settings.output_timescale);
+				if (settings.output_timescale_audio_pitch) {
+					audio_filters += fmt::format("asetrate=48000*{}", settings.output_timescale);
+				}
+				else {
+					// atempo: speed up without changing pitch
+					audio_filters += fmt::format("atempo={}", settings.output_timescale);
+				}
 			}
 		}
 

@@ -7,27 +7,16 @@ title Blur dependencies installer
 
 :: -------------------------- Administrator access request --------------------------
 
-:check_permissions
-    net session >nul 2>&1
-    if %errorLevel% == 0 (
-        goto got_admin
-    ) else (
-        goto request_administrator
-        pause
-        exit
+:: https://privacy.sexy — v0.10.2 — Tue, 20 Jul 2021 11:05:44 GMT
+:: Ensure admin privileges
+fltmc >nul 2>&1 || (
+    echo Administrator privileges are required.
+    PowerShell Start -Verb RunAs '%0' 2> nul || (
+        echo Right-click on the script and select "Run as administrator".
+        pause & exit 1
     )
-
-:request_administrator
-    echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\getadmin.vbs"
-    echo UAC.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\getadmin.vbs"
-
-    "%temp%\getadmin.vbs"
-    exit /B
-
-:got_admin
-    if exist "%temp%\getadmin.vbs" ( del "%temp%\getadmin.vbs" )
-    pushd "%CD%"
-    CD /D "%~dp0"
+    exit 0
+)
 
 :: ------------------------------- Python installation ------------------------------
 

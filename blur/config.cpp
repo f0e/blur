@@ -24,6 +24,7 @@ void c_config::create(const std::string& filepath, s_blur_settings current_setti
 	output << "- timescale" << "\n";
 	output << "input timescale: " << current_settings.input_timescale << "\n";
 	output << "output timescale: " << current_settings.output_timescale << "\n";
+	output << "adjust timescaled audio pitch: " << (current_settings.output_timescale_audio_pitch ? "true" : "false") << "\n";
 
 	output << "\n";
 	output << "- rendering filters" << "\n";
@@ -131,7 +132,8 @@ s_blur_settings c_config::parse(const std::string& config_filepath, bool& first_
 
 	config_get("input timescale", settings.input_timescale);
 	config_get("output timescale", settings.output_timescale);
-
+	config_get("adjust timescaled audio pitch", settings.output_timescale_audio_pitch);
+	
 	config_get("multithreading", settings.multithreading);
 	config_get("gpu", settings.gpu);
 	config_get("gpu type (nvidia/amd/intel)", settings.gpu_type);
