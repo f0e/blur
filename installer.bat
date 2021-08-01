@@ -148,7 +148,7 @@ echo VapourSynth not found. Downloading installer...
 echo.
 
 :: Download installer
-powershell Invoke-WebRequest "https://github.com/vapoursynth/vapoursynth/releases/latest/download/VapourSynth64-R53.exe" -OutFile "%temp%\VapourSynth-installer.exe"
+powershell Invoke-WebRequest "https://github.com/vapoursynth/vapoursynth/releases/download/R54/VapourSynth64-R54.exe" -OutFile "%temp%\VapourSynth-installer.exe"
 
 :: Run installer
 start /wait %temp%\VapourSynth-installer.exe
