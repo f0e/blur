@@ -165,7 +165,7 @@ cls
 echo 4. Installing VapourSynth plugins...
 echo.
 
-vsrepo.py install ffms2 havsfunc
+vsrepo.py -d install ffms2 havsfunc mvsfunc adjust mvtools
 
 :svpflow
 cls
