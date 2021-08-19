@@ -53,12 +53,12 @@ void c_blur::remove_temp_path(const std::string& path) {
 }
 
 void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
-	using_ui = !cmd["disable-ui"].as<bool>();
+	using_ui = !cmd["noui"].as<bool>();
 	verbose = using_ui || cmd["verbose"].as<bool>();
 
-	console.setup();
+	if (using_ui) {
+		console.setup();
 
-	if (blur.using_ui) {
 		// print art
 		const std::vector<const char*> art{
 			"    _/        _/                   ",
@@ -76,32 +76,38 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 		console.print_line();
 	}
 
-	// check if dependencies were installed
-	try {
-		if (!helpers::detect_command("ffmpeg"))
-			throw std::exception("FFmpeg could not be found");
+	path = std::filesystem::path(helpers::get_executable_path()).parent_path().string(); // folder the exe is in
+	used_installer = std::filesystem::exists(fmt::format("{}/lib/vapoursynth/vspipe.exe", path))
+		&& std::filesystem::exists(fmt::format("{}/lib/ffmpeg/ffmpeg.exe", path));
 
-		if (!helpers::detect_command("py"))
-			throw std::exception("Python could not be found");
+	if (!used_installer) {
+		// didn't use installer, check if dependencies were installed
+		try {
+			if (!helpers::detect_command("ffmpeg"))
+				throw std::exception("FFmpeg could not be found");
 
-		if (!helpers::detect_command("vspipe"))
-			throw std::exception("VapourSynth could not be found");
-	}
-	catch (const std::exception& e) {
-		console.print(e.what());
-		console.print_blank_line();
-		console.print("Make sure you have followed the installation instructions");
-		console.print("https://github.com/f0e/blur/blob/master/README.md#Requirements");
-		console.print_blank_line();
-		console.print("If you're still unsure, open an issue on the GitHub");
-		console.print_line();
+			if (!helpers::detect_command("py"))
+				throw std::exception("Python could not be found");
 
-		if (using_ui) {
-			console.print("Press any key to exit.");
-			_getch();
+			if (!helpers::detect_command("vspipe"))
+				throw std::exception("VapourSynth could not be found");
 		}
+		catch (const std::exception& e) {
+			console.print(e.what());
+			console.print_blank_line();
+			console.print("Make sure you have followed the installation instructions");
+			console.print("https://github.com/f0e/blur/blob/master/README.md#Requirements");
+			console.print_blank_line();
+			console.print("If you're still unsure, open an issue on the GitHub");
+			console.print_line();
 
-		return;
+			if (using_ui) {
+				console.print("Press any key to exit.");
+				_getch();
+			}
+
+			return;
+		}
 	}
 
 	if (using_ui) {
@@ -187,13 +193,22 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 			std::optional<std::string> config_path;
 
 			if (manual_config_files)
-				config_path = config_paths[i];
+				config_path = std::filesystem::canonical(config_paths[i]).string();
 
-			if (manual_output_files)
-				output_filename = output_filenames[i];
+			if (manual_output_files) {
+				// create output directory if needed
+				auto path = std::filesystem::weakly_canonical(output_filenames[i]);
+				if (!std::filesystem::exists(path.parent_path()))
+					std::filesystem::create_directories(path.parent_path());
+
+				output_filename = path.string();
+			}
 
 			// set up render
-			c_render render(input_filename, output_filename, config_path);
+			c_render render(std::filesystem::canonical(input_filename).string(),
+				output_filename,
+				config_path);
+
 			rendering.queue_render(render);
 
 			if (verbose) {

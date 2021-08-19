@@ -10,6 +10,9 @@ public:
 	bool using_ui = true;
 	bool verbose = true;
 
+	std::string path;
+	bool used_installer = false;
+
 private:
 	std::vector<std::string> get_files(int& argc, char* argv[]);
 

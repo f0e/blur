@@ -12,7 +12,7 @@ private:
 	std::string video_folder;
 	
 	std::string input_filename;
-	std::string output_filename;
+	std::string output_path;
 
 	std::string temp_path;
 
@@ -31,7 +31,7 @@ public:
 	}
 
 	std::string get_output_video_path() {
-		return output_filename;
+		return output_path;
 	}
 
 public:

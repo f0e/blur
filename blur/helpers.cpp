@@ -63,7 +63,7 @@ int helpers::exec(const std::string& command) {
 	FILE* pipe;
 	
 	// run command and redirect output to pipe
-	if ((pipe = _popen(command.c_str(), "rt")) == NULL)
+	if ((pipe = _popen(std::string("\"" + command + "\"").c_str(), "rt")) == NULL)
 		return -1;
 	
 	// read from pipe until end
@@ -81,4 +81,10 @@ int helpers::exec(const std::string& command) {
 bool helpers::detect_command(const std::string& command) {
 	auto ret = exec("where /q " + command);
 	return ret == 0;
+}
+
+std::string helpers::get_executable_path() {
+	char buf[MAX_PATH];
+	GetModuleFileNameA(NULL, buf, MAX_PATH);
+	return std::string(buf);
 }

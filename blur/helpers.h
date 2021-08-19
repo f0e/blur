@@ -12,6 +12,8 @@ namespace helpers {
 	int exec(const std::string& command);
 	bool detect_command(const std::string& command);
 
+	std::string get_executable_path();
+
 	template <typename TP>
 	inline std::time_t to_time_t(TP tp) {
 		using namespace std::chrono;
