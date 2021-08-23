@@ -236,7 +236,7 @@ if exist "%python_packages_folder%\weighting.py" (
     goto numpy
 )
 
-powershell Invoke-WebRequest "https://raw.githubusercontent.com/f0e/blur/master/weighting.py" -OutFile "%temp%\weighting.py"
+powershell Invoke-WebRequest "https://raw.githubusercontent.com/f0e/blur/master/plugins/weighting.py" -OutFile "%temp%\weighting.py"
 
 move %temp%\weighting.py "%python_packages_folder%\weighting.py">nul
 
