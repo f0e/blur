@@ -25,7 +25,7 @@ As visible from these images, the interpolated 60fps footage produces motion blu
 - [HAvsFunc](https://github.com/HomeOfVapourSynthEvolution/havsfunc)
 - [SVPflow 4.2.0.142](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
 - [vs-frameblender](https://github.com/f0e/vs-frameblender)
-- [weighting.py](https://github.com/f0e/blur/blob/master/weighting.py)
+- [weighting.py](https://github.com/f0e/blur/blob/master/plugins/weighting.py)
 
 ## Installation
 Automatic:
