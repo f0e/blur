@@ -26,16 +26,16 @@ struct s_blur_settings {
 	bool multithreading = true;
 	bool gpu = false;
 	std::string gpu_type = "nvidia";
+	std::string ffmpeg_override = "";
 
 	float blur_weighting_gaussian_std_dev = 2.f;
 	bool blur_weighting_triangle_reverse = false;
 	std::string blur_weighting_bound = "[0, 2]";
 
+	std::string interpolation_program = "svp";
 	std::string interpolation_speed = "default";
 	std::string interpolation_tuning = "default";
 	std::string interpolation_algorithm = "default";
-	
-	std::string ffmpeg_override = "";
 };
 
 class c_config {

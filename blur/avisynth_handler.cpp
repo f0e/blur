@@ -13,6 +13,10 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 		video_script << "import adjust" << "\n";
 		video_script << "import weighting" << "\n";
 
+		if (helpers::to_lower(settings.interpolation_program) == "rife") {
+			video_script << "from vsrife import RIFE" << "\n";
+		}
+
 		// load video
 		std::string chungus = video_path;
 		std::replace(chungus.begin(), chungus.end(), '\\', '/');
@@ -35,16 +39,34 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 
 		// interpolation
 		if (settings.interpolate) {
-			std::string speed = settings.interpolation_speed;
-			if (helpers::to_lower(speed) == "default") speed = "medium";
+			if (helpers::to_lower(settings.interpolation_program) == "rife") {
+				video_script << "video = core.resize.Bicubic(video, format=vs.RGBS)" << "\n";
 
-			std::string tuning = settings.interpolation_tuning;
-			if (helpers::to_lower(tuning) == "default") tuning = "smooth";
+				video_script << fmt::format("while video.fps < {}:", settings.interpolated_fps) << "\n";
+				video_script << "	video = RIFE(video)" << "\n";
 
-			std::string algorithm = settings.interpolation_algorithm;
-			if (helpers::to_lower(algorithm) == "default") algorithm = "13";
+				video_script << "video = core.resize.Bicubic(video, format=vs.YUV420P8, matrix_s=\"709\")" << "\n";
+			}
+			else if (helpers::to_lower(settings.interpolation_program) == "rife-ncnn") {
+				video_script << "video = core.resize.Bicubic(video, format=vs.RGBS)" << "\n";
 
-			video_script << fmt::format("video = haf.InterFrame(video, GPU={}, NewNum={}, Preset=\"{}\", Tuning=\"{}\", OverrideAlgo={})", settings.gpu ? "True" : "False", settings.interpolated_fps, speed, tuning, algorithm) << "\n";
+				video_script << fmt::format("while video.fps < {}:", settings.interpolated_fps) << "\n";
+				video_script << "	video = core.rife.RIFE(video)" << "\n";
+
+				video_script << "video = core.resize.Bicubic(video, format=vs.YUV420P8, matrix_s=\"709\")" << "\n";
+			}
+			else {
+				std::string speed = settings.interpolation_speed;
+				if (helpers::to_lower(speed) == "default") speed = "medium";
+
+				std::string tuning = settings.interpolation_tuning;
+				if (helpers::to_lower(tuning) == "default") tuning = "smooth";
+
+				std::string algorithm = settings.interpolation_algorithm;
+				if (helpers::to_lower(algorithm) == "default") algorithm = "13";
+
+				video_script << fmt::format("video = haf.InterFrame(video, GPU={}, NewNum={}, Preset=\"{}\", Tuning=\"{}\", OverrideAlgo={})", settings.gpu ? "True" : "False", settings.interpolated_fps, speed, tuning, algorithm) << "\n";
+			}
 		}
 
 		// output timescale

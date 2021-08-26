@@ -47,6 +47,7 @@ void c_config::create(const std::string& filepath, s_blur_settings current_setti
 
 	output << "\n";
 	output << "- advanced interpolation" << "\n";
+	output << "interpolation program (svp/rife/rife-ncnn): " << current_settings.interpolation_program << "\n";
 	output << "interpolation speed: " << current_settings.interpolation_speed << "\n";
 	output << "interpolation tuning: " << current_settings.interpolation_tuning << "\n";
 	output << "interpolation algorithm: " << current_settings.interpolation_algorithm;
@@ -149,16 +150,16 @@ s_blur_settings c_config::parse(const std::string& config_filepath, bool& first_
 	config_get("multithreading", settings.multithreading);
 	config_get("gpu", settings.gpu);
 	config_get_str("gpu type (nvidia/amd/intel)", settings.gpu_type);
+	config_get_str("custom ffmpeg filters (overrides quality & gpu)", settings.ffmpeg_override);
 
 	config_get("blur weighting gaussian std dev", settings.blur_weighting_gaussian_std_dev);
 	config_get("blur weighting triangle reverse", settings.blur_weighting_triangle_reverse);
 	config_get_str("blur weighting bound", settings.blur_weighting_bound);
-	
+
+	config_get_str("interpolation program (svp/rife/rife-ncnn)", settings.interpolation_program);
 	config_get_str("interpolation speed", settings.interpolation_speed);
 	config_get_str("interpolation tuning", settings.interpolation_tuning);
 	config_get_str("interpolation algorithm", settings.interpolation_algorithm);
-
-	config_get_str("custom ffmpeg filters (overrides quality & gpu)", settings.ffmpeg_override);
 	
 	// recreate the config file using the parsed values (keeps nice formatting)
 	create(config_filepath, settings);
