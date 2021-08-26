@@ -34,6 +34,8 @@ struct s_blur_settings {
 	std::string interpolation_speed = "default";
 	std::string interpolation_tuning = "default";
 	std::string interpolation_algorithm = "default";
+	
+	std::string ffmpeg_override = "";
 };
 
 class c_config {

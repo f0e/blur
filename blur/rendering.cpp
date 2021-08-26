@@ -196,19 +196,6 @@ std::string c_render::build_ffmpeg_command() {
 		ffmpeg_command += fmt::format(" -i \"{}\"", video_path); // original video (for audio)
 		ffmpeg_command += " -map 0:v -map 1:a?"; // copy video from first input, copy audio from second
 
-		// video format
-		if (settings.gpu) {
-			if (helpers::to_lower(settings.gpu_type) == "nvidia")
-				ffmpeg_command += fmt::format(" -c:v h264_nvenc -preset p7 -qp {}", settings.quality);
-			else if (helpers::to_lower(settings.gpu_type) == "amd")
-				ffmpeg_command += fmt::format(" -c:v h264_amf -qp_i {} -qp_b {} -qp_p {} -quality quality", settings.quality, settings.quality, settings.quality);
-			else if (helpers::to_lower(settings.gpu_type) == "intel")
-				ffmpeg_command += fmt::format(" -c:v h264_qsv -global_quality {} -preset veryslow", settings.quality);
-		}
-		else {
-			ffmpeg_command += fmt::format(" -c:v libx264 -pix_fmt yuv420p -preset superfast -crf {}", settings.quality);
-		}
-
 		// audio filters
 		std::string audio_filters;
 		{
@@ -233,11 +220,28 @@ std::string c_render::build_ffmpeg_command() {
 		if (audio_filters != "")
 			ffmpeg_command += " -af " + audio_filters;
 
-		// audio format
-		ffmpeg_command += " -c:a aac -b:a 320k";
+		if (settings.ffmpeg_override != "") {
+			ffmpeg_command += " " + settings.ffmpeg_override;
+		} else {
+			// video format
+			if (settings.gpu) {
+				if (helpers::to_lower(settings.gpu_type) == "nvidia")
+					ffmpeg_command += fmt::format(" -c:v h264_nvenc -preset p7 -qp {}", settings.quality);
+				else if (helpers::to_lower(settings.gpu_type) == "amd")
+					ffmpeg_command += fmt::format(" -c:v h264_amf -qp_i {} -qp_b {} -qp_p {} -quality quality", settings.quality, settings.quality, settings.quality);
+				else if (helpers::to_lower(settings.gpu_type) == "intel")
+					ffmpeg_command += fmt::format(" -c:v h264_qsv -global_quality {} -preset veryslow", settings.quality);
+			}
+			else {
+				ffmpeg_command += fmt::format(" -c:v libx264 -pix_fmt yuv420p -preset superfast -crf {}", settings.quality);
+			}
 
-		// extra
-		ffmpeg_command += " -movflags +faststart";
+			// audio format
+			ffmpeg_command += " -c:a aac -b:a 320k";
+
+			// extra
+			ffmpeg_command += " -movflags +faststart";
+		}
 
 		// output
 		ffmpeg_command += fmt::format(" \"{}\"", output_path);

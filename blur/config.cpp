@@ -37,13 +37,14 @@ void c_config::create(const std::string& filepath, s_blur_settings current_setti
 	output << "multithreading: " << (current_settings.multithreading ? "true" : "false") << "\n";
 	output << "gpu: " << (current_settings.gpu ? "true" : "false") << "\n";
 	output << "gpu type (nvidia/amd/intel): " << current_settings.gpu_type << "\n";
-
+	output << "custom ffmpeg filters (overrides quality & gpu): " << current_settings.ffmpeg_override << "\n";
+	
 	output << "\n";
 	output << "- advanced blur" << "\n";
 	output << "blur weighting gaussian std dev: " << current_settings.blur_weighting_gaussian_std_dev << "\n";
 	output << "blur weighting triangle reverse: " << (current_settings.blur_weighting_triangle_reverse ? "true" : "false") << "\n";
 	output << "blur weighting bound: " << current_settings.blur_weighting_bound << "\n";
-	
+
 	output << "\n";
 	output << "- advanced interpolation" << "\n";
 	output << "interpolation speed: " << current_settings.interpolation_speed << "\n";
@@ -70,20 +71,22 @@ s_blur_settings c_config::parse(const std::string& config_filepath, bool& first_
 		std::string line;
 		while (std::getline(input, line)) {
 			// get key & value
-			auto split = helpers::split_string(line, ":");
-			if (split.size() == 1) // not a variable
+			auto pos = line.find(':');
+			if (pos == std::string::npos) // not a variable
 				continue;
 
-			std::string key = split[0];
-			std::string value = split[1];
+			std::string key = line.substr(0, pos);
+			std::string value = line.substr(pos + 1);
 
 			// trim whitespace
 			key = helpers::trim(key);
 			value = helpers::trim(value);
 
-			// remove all spaces in values (it breaks stringstream string parsing, this is a dumb workaround)
-			std::string::iterator end_pos = std::remove(value.begin(), value.end(), ' ');
-			value.erase(end_pos, value.end());
+			if (key != "custom ffmpeg filters (overrides quality & gpu)") { // i hate this i hate this i hate this i hate this i hate this i hate this i hate this i hate this
+				// remove all spaces in values (it breaks stringstream string parsing, this is a dumb workaround)
+				std::string::iterator end_pos = std::remove(value.begin(), value.end(), ' ');
+				value.erase(end_pos, value.end());
+			}
 
 			if (key == "" || value == "")
 				continue;
@@ -112,12 +115,21 @@ s_blur_settings c_config::parse(const std::string& config_filepath, bool& first_
 		}
 	};
 
+	auto config_get_str = [&](const std::string& var, std::string& out) { // todo: clean this up i cant be bothered rn
+		if (!config.contains(var)) {
+			console.print(fmt::format("config missing variable '{}', adding and setting default value", var));
+			return;
+		}
+
+		out = config[var];
+	};
+
 	s_blur_settings settings;
 
 	config_get("blur", settings.blur);
 	config_get("blur amount", settings.blur_amount);
 	config_get("blur output fps", settings.blur_output_fps);
-	config_get("blur weighting", settings.blur_weighting);
+	config_get_str("blur weighting", settings.blur_weighting);
 	
 	config_get("interpolate", settings.interpolate);
 	config_get("interpolated fps", settings.interpolated_fps);
@@ -136,16 +148,18 @@ s_blur_settings c_config::parse(const std::string& config_filepath, bool& first_
 	
 	config_get("multithreading", settings.multithreading);
 	config_get("gpu", settings.gpu);
-	config_get("gpu type (nvidia/amd/intel)", settings.gpu_type);
+	config_get_str("gpu type (nvidia/amd/intel)", settings.gpu_type);
 
 	config_get("blur weighting gaussian std dev", settings.blur_weighting_gaussian_std_dev);
 	config_get("blur weighting triangle reverse", settings.blur_weighting_triangle_reverse);
-	config_get("blur weighting bound", settings.blur_weighting_bound);
+	config_get_str("blur weighting bound", settings.blur_weighting_bound);
 	
-	config_get("interpolation speed", settings.interpolation_speed);
-	config_get("interpolation tuning", settings.interpolation_tuning);
-	config_get("interpolation algorithm", settings.interpolation_algorithm);
+	config_get_str("interpolation speed", settings.interpolation_speed);
+	config_get_str("interpolation tuning", settings.interpolation_tuning);
+	config_get_str("interpolation algorithm", settings.interpolation_algorithm);
 
+	config_get_str("custom ffmpeg filters (overrides quality & gpu)", settings.ffmpeg_override);
+	
 	// recreate the config file using the parsed values (keeps nice formatting)
 	create(config_filepath, settings);
 
