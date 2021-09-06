@@ -43,7 +43,7 @@ Or
 5. Install the required VapourSynth plugins using the command "vsrepo.py install ffms2 havsfunc"
 6. Install vs-frameblender manually by downloading the x64 .dll from [here](https://github.com/f0e/vs-frameblender/releases/latest) to "VapourSynth/plugins64"
 7. Install SVPflow 4.2.0.142 manually by downloading the zip from [here](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip) and moving the files inside "lib-windows/vapoursynth/x64" to "VapourSynth/plugins64"
-8. Install [weighting.py](https://raw.githubusercontent.com/f0e/blur/master/weighting.py) to "%appdata%/Roaming/Python/Python39/site-packages"
+8. Install [weighting.py](https://raw.githubusercontent.com/f0e/blur/master/plugins/weighting.py) to "%appdata%/Roaming/Python/Python39/site-packages"
 9. Install numpy using the command "pip install numpy"
 
 ## Usage
