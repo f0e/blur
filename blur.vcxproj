@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="blur\avisynth_handler.cpp" />
+    <ClCompile Include="blur\script_handler.cpp" />
     <ClCompile Include="blur\blur.cpp" />
     <ClCompile Include="blur\config.cpp" />
     <ClCompile Include="blur\console.cpp" />
@@ -29,7 +29,7 @@
     <ClCompile Include="blur\preview.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="blur\avisynth_handler.h" />
+    <ClInclude Include="blur\script_handler.h" />
     <ClInclude Include="blur\blur.h" />
     <ClInclude Include="blur\config.h" />
     <ClInclude Include="blur\console.h" />

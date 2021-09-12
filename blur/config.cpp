@@ -27,7 +27,7 @@ void c_config::create(const std::string& filepath, s_blur_settings current_setti
 	output << "adjust timescaled audio pitch: " << (current_settings.output_timescale_audio_pitch ? "true" : "false") << "\n";
 
 	output << "\n";
-	output << "- rendering filters" << "\n";
+	output << "- filters" << "\n";
 	output << "brightness: " << current_settings.brightness << "\n";
 	output << "saturation: " << current_settings.saturation << "\n";
 	output << "contrast: " << current_settings.contrast << "\n";
@@ -37,7 +37,7 @@ void c_config::create(const std::string& filepath, s_blur_settings current_setti
 	output << "multithreading: " << (current_settings.multithreading ? "true" : "false") << "\n";
 	output << "gpu: " << (current_settings.gpu ? "true" : "false") << "\n";
 	output << "gpu type (nvidia/amd/intel): " << current_settings.gpu_type << "\n";
-	output << "custom ffmpeg filters (overrides quality & gpu): " << current_settings.ffmpeg_override << "\n";
+	output << "custom ffmpeg filters: " << current_settings.ffmpeg_override << "\n";
 	
 	output << "\n";
 	output << "- advanced blur" << "\n";
@@ -81,16 +81,16 @@ s_blur_settings c_config::parse(const std::string& config_filepath, bool& first_
 
 			// trim whitespace
 			key = helpers::trim(key);
+			if (key == "")
+				continue;
+
 			value = helpers::trim(value);
 
-			if (key != "custom ffmpeg filters (overrides quality & gpu)") { // i hate this i hate this i hate this i hate this i hate this i hate this i hate this i hate this
-				// remove all spaces in values (it breaks stringstream string parsing, this is a dumb workaround)
+			if (key != "custom ffmpeg filters") {
+				// remove all spaces in values (it breaks stringstream string parsing, this is a dumb workaround) todo: better solution
 				std::string::iterator end_pos = std::remove(value.begin(), value.end(), ' ');
 				value.erase(end_pos, value.end());
 			}
-
-			if (key == "" || value == "")
-				continue;
 
 			config[key] = value;
 		}
@@ -150,7 +150,7 @@ s_blur_settings c_config::parse(const std::string& config_filepath, bool& first_
 	config_get("multithreading", settings.multithreading);
 	config_get("gpu", settings.gpu);
 	config_get_str("gpu type (nvidia/amd/intel)", settings.gpu_type);
-	config_get_str("custom ffmpeg filters (overrides quality & gpu)", settings.ffmpeg_override);
+	config_get_str("custom ffmpeg filters", settings.ffmpeg_override);
 
 	config_get("blur weighting gaussian std dev", settings.blur_weighting_gaussian_std_dev);
 	config_get("blur weighting triangle reverse", settings.blur_weighting_triangle_reverse);

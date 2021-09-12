@@ -275,7 +275,7 @@ void c_render::render() {
 		console.print_line();
 	}
 
-	// create avisynth script
+	// create script
 	script_handler.create(temp_path, video_path, settings);
 
 	// start preview

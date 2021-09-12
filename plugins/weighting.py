@@ -1,6 +1,8 @@
 import math
-import numpy as np
-import json
+
+def scaleWeights(frames):
+    tot = sum(frames)
+    return [frame / tot for frame in frames]
 
 # modified functions taken from https://github.com/siveroo/HFR-Resampler
 
@@ -15,13 +17,13 @@ def equal(frames):
 def gaussian(frames, standard_deviation = 2, bound = [0, 2]):
     r = scaleRange(frames, bound[0], bound[1])
     val = [math.exp(-((x) ** 2) / (2 * (standard_deviation ** 2))) for x in r]
-    return val / np.sum(val)
+    return scaleWeights(val)
 
 def gaussianSym(frames, standard_deviation = 2, bound = [0, 2]):
-    max_abs = np.amax(np.abs(bound))
+    max_abs = max(bound)
     r = scaleRange(frames, -max_abs, max_abs)
     val = [math.exp(-((x) ** 2) / (2 * (standard_deviation ** 2))) for x in r]
-    return val / np.sum(val)
+    return scaleWeights(val)
 
 def pyramid(frames, reverse = False):
     val = []
@@ -29,11 +31,11 @@ def pyramid(frames, reverse = False):
         val = [x for x in range(frames, 0, -1)]
     else:
         val = [x for x in range(1, frames + 1)]
-    return val / np.sum(val)
+    return scaleWeights(val)
 
 def pyramidSym(frames):
     val = [((frames - 1) / 2 - abs(x - ((frames - 1) / 2)) + 1) for x in range(0, frames)]
-    return val / np.sum(val)
+    return scaleWeights(val)
 
 def funcEval(func, nums):
     try:
@@ -44,8 +46,8 @@ def funcEval(func, nums):
 def custom(frames, func = "", bound = [0, 1]):
     r = scaleRange(frames, bound[0], bound[1])
     val = funcEval(func, r)
-    if np.amin(val) < 0: val -= np.amin(val)
-    return val / np.sum(val)
+    if min(val) < 0: val -= min(val)
+    return scaleWeights(val)
 
 # stretch the given array (weights) to a specific length (frames)
 # example : frames = 10, weights = [1,2]
@@ -58,6 +60,6 @@ def divide(frames, weights):
         scaled_index = int(r[x])
         val.append(weights[scaled_index])
 
-    if np.amin(val) < 0: val -= np.amin(val)
+    if min(val) < 0: val -= min(val)
 
-    return val / np.sum(val)
+    return scaleWeights(val)

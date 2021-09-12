@@ -117,7 +117,8 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 		}
 
 		// filters
-		video_script << fmt::format("video = adjust.Tweak(video, bright={}, cont={}, sat={})", settings.brightness - 1.f, settings.contrast, settings.saturation) << "\n";
+		if (settings.brightness != 1.f || settings.contrast != 1.f || settings.saturation != 1.f)
+			video_script << fmt::format("video = adjust.Tweak(video, bright={}, cont={}, sat={})", settings.brightness - 1.f, settings.contrast, settings.saturation) << "\n";
 
 		video_script << "video.set_output()" << "\n";
 	}

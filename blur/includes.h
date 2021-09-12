@@ -16,7 +16,7 @@
 
 #include "helpers.h"
 
-#include "avisynth_handler.h"
+#include "script_handler.h"
 #include "blur.h"
 #include "config.h"
 #include "console.h"

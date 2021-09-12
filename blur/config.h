@@ -4,12 +4,12 @@
 
 struct s_blur_settings {
 	bool blur = true;
-	float blur_amount = 0.6f;
+	float blur_amount = 1.f;
 	int blur_output_fps = 60;
 	std::string blur_weighting = "equal";
 
 	bool interpolate = true;
-	int interpolated_fps = 600;
+	int interpolated_fps = 480;
 
 	float input_timescale = 1.f;
 	float output_timescale = 1.f;
