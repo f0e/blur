@@ -84,7 +84,7 @@ The program can also be used in the command line, use -h or --help for more info
 - blur amount - for maximum blur/smoothness use 1, for medium blur use 0.5, low blur 0.2-0.3. 0.6-0.8 gives nice results for 60fps, 0.3~ is good for 30fps
 - blur weighting - just keep it at equal
 
-- interpolated fps - results become worse if this is too high, for 60fps source footage around 300-900 should be good, for 180fps 1200 is good
+- interpolated fps - results become worse if this is too high, for 60fps source footage around 300-900 should be good, for 180fps 1200 is good. In general the limit tends to be at around 10x the input video's fps.
 
 - interpolation speed - just keep it at default
 - interpolation tuning - for gameplay footage default (smooth) keeps the crosshair intact, but film is also a good option
