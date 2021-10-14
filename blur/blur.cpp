@@ -55,6 +55,7 @@ void c_blur::remove_temp_path(const std::string& path) {
 void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 	using_ui = !cmd["noui"].as<bool>();
 	verbose = using_ui || cmd["verbose"].as<bool>();
+	no_preview = cmd["nopreview"].as<bool>();
 
 	if (using_ui) {
 		console.setup();
@@ -193,11 +194,12 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 			std::optional<std::string> config_path;
 
 			if (manual_config_files)
-				config_path = std::filesystem::canonical(config_paths[i]).string();
+				config_path = std::filesystem::absolute(config_paths[i]).string();
 
 			if (manual_output_files) {
+				auto path = std::filesystem::absolute(output_filenames[i]);
+
 				// create output directory if needed
-				auto path = std::filesystem::weakly_canonical(output_filenames[i]);
 				if (!std::filesystem::exists(path.parent_path()))
 					std::filesystem::create_directories(path.parent_path());
 
@@ -205,9 +207,7 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 			}
 
 			// set up render
-			c_render render(std::filesystem::canonical(input_filename).string(),
-				output_filename,
-				config_path);
+			c_render render(std::filesystem::absolute(input_filename).string(), output_filename, config_path);
 
 			rendering.queue_render(render);
 

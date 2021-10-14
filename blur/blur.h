@@ -9,6 +9,7 @@ class c_blur {
 public:
 	bool using_ui = true;
 	bool verbose = true;
+	bool no_preview = false;
 
 	std::string path;
 	bool used_installer = false;

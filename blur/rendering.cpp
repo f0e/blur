@@ -247,7 +247,7 @@ std::string c_render::build_ffmpeg_command() {
 		ffmpeg_command += fmt::format(" \"{}\"", output_path);
 
 		// extra output for preview. generate low-quality preview images.
-		if (settings.preview) {
+		if (settings.preview && !blur.no_preview) {
 			ffmpeg_command += " -map 0:v"; // copy video from first input
 			ffmpeg_command += fmt::format(" -q:v 3 -update 1 -atomic_writing 1 -y \"{}\"", preview_filename);
 		}
@@ -279,7 +279,7 @@ void c_render::render() {
 	script_handler.create(temp_path, video_path, settings);
 
 	// start preview
-	if (settings.preview) {
+	if (settings.preview && !blur.no_preview) {
 		preview_filename = temp_path + "preview.jpg";
 		preview.start(preview_filename);
 	}
