@@ -29,7 +29,7 @@ The program can also be used in the command line, use -h or --help for more info
 ## Config settings explained:
 ### blur
 - blur - whether or not the output video file will have motion blur
-- blur amount - if blur is enabled, this is the amount of motion blur from 0-1
+- blur amount - if blur is enabled, this is the amount of motion blur (0 = no blur, 1 = fully blend every frame together, 1+ = more blur/ghosting)
 - blur output fps - if blur is enabled, this is the fps the output video will be
 - blur weighting - weighting function to use when blending frames. options are listed below:
   - equal - each frame is blended equally
