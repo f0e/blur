@@ -37,7 +37,7 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 
 		// replace duplicate frames with new frames which are interpolated based off of the surrounding frames
 		if (settings.deduplicate)
-			video_script << "video = filldrops.FillDrops(video)" << "\n";
+			video_script << "video = filldrops.FillDrops(video, thresh=0.001)" << "\n";
 
 		// input timescale
 		if (settings.input_timescale != 1.f)

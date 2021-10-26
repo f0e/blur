@@ -1,7 +1,7 @@
 import vapoursynth as vs
 from vapoursynth import core
 
-def FillDrops(clip, thresh=0.0001):
+def FillDrops(clip, thresh=0.1):
     if not isinstance(clip, vs.VideoNode):
         raise ValueError('This is not a clip')
 
