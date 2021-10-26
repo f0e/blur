@@ -60,9 +60,9 @@ The program can also be used in the command line, use -h or --help for more info
 - contrast - contrast of the output video
 
 ### advanced rendering
-- multithreading - enables multithreaded rendering
 - gpu - enables experimental gpu accelerated rendering (likely slower)
 - gpu type (nvidia/amd/intel) - your gpu type
+- deduplicate - removes duplicate frames and generates new interpolated frames to take their place
 - custom ffmpeg filters - custom ffmpeg filters to be used when rendering (replaces gpu & quality options)
 
 ### advanced blur
