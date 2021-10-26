@@ -94,7 +94,7 @@ The program can also be used in the command line, use -h or --help for more info
 Using blur on 60fps footage results in clean motion blur, but occasionally leaves some smearing artifacts. To remove these artifacts, higher framerate source footage can be used. Recording with software such as OBS at framerates like 120/180fps will result in a greatly reduced amount of artifacting.
 
 ### Preventing unsmooth output
-If your footage contains duplicate frames then the output video will not look smooth. Either remove the duplicate frames before running blur or adjust your recording settings.
+If your footage contains duplicate frames then occasionally blurred frames will look out of place, making the video seem unsmooth at points. The 'deduplicate' option will automatically fill in duplicated frames with interpolated frames to prevent this from happening.
 
 ## Manual installation
 Note: I don't suggest manual installation due to the large amount of dependencies. If possible, stick to using the provided installer.
