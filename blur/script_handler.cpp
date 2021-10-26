@@ -12,6 +12,8 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 		video_script << "import havsfunc as haf" << "\n";
 		video_script << "import adjust" << "\n";
 		video_script << "import weighting" << "\n";
+		if (settings.deduplicate)
+			video_script << "import filldrops" << "\n";
 
 		if (helpers::to_lower(settings.interpolation_program) == "rife") {
 			video_script << "from vsrife import RIFE" << "\n";
@@ -32,6 +34,10 @@ void c_script_handler::create(const std::string& temp_path, const std::string& v
 			video_script << "video = core.fmtc.resample(clip=video, css=\"420\")" << "\n";
 			video_script << "video = core.fmtc.bitdepth(clip=video, bits=8)" << "\n";
 		}
+
+		// replace duplicate frames with new frames which are interpolated based off of the surrounding frames
+		if (settings.deduplicate)
+			video_script << "video = filldrops.FillDrops(video)" << "\n";
 
 		// input timescale
 		if (settings.input_timescale != 1.f)

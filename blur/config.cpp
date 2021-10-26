@@ -34,9 +34,9 @@ void c_config::create(const std::string& filepath, s_blur_settings current_setti
 
 	output << "\n";
 	output << "- advanced rendering" << "\n";
-	output << "multithreading: " << (current_settings.multithreading ? "true" : "false") << "\n";
 	output << "gpu: " << (current_settings.gpu ? "true" : "false") << "\n";
 	output << "gpu type (nvidia/amd/intel): " << current_settings.gpu_type << "\n";
+	output << "deduplicate: " << (current_settings.deduplicate ? "true" : "false") << "\n";
 	output << "custom ffmpeg filters: " << current_settings.ffmpeg_override << "\n";
 	
 	output << "\n";
@@ -147,9 +147,9 @@ s_blur_settings c_config::parse(const std::string& config_filepath, bool& first_
 	config_get("output timescale", settings.output_timescale);
 	config_get("adjust timescaled audio pitch", settings.output_timescale_audio_pitch);
 	
-	config_get("multithreading", settings.multithreading);
 	config_get("gpu", settings.gpu);
 	config_get_str("gpu type (nvidia/amd/intel)", settings.gpu_type);
+	config_get("deduplicate", settings.deduplicate);
 	config_get_str("custom ffmpeg filters", settings.ffmpeg_override);
 
 	config_get("blur weighting gaussian std dev", settings.blur_weighting_gaussian_std_dev);

@@ -23,9 +23,9 @@ struct s_blur_settings {
 	bool preview = true;
 	bool detailed_filenames = false;
 
-	bool multithreading = true;
 	bool gpu = false;
 	std::string gpu_type = "nvidia";
+	bool deduplicate = false;
 	std::string ffmpeg_override = "";
 
 	float blur_weighting_gaussian_std_dev = 2.f;

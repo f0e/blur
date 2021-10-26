@@ -233,12 +233,29 @@ if exist "%homepath%\AppData\Roaming\Python\Python39\site-packages" (
 set python_packages_folder=%python_packages_folder:"=%
 
 if exist "%python_packages_folder%\weighting.py" (
-    goto numpy
+    goto filldrops
 )
 
 powershell Invoke-WebRequest "https://raw.githubusercontent.com/f0e/blur/master/plugins/weighting.py" -OutFile "%temp%\weighting.py"
 
 move %temp%\weighting.py "%python_packages_folder%\weighting.py">nul
+
+pause
+
+:filldrops
+cls
+echo 4.4. Installing filldrops.py
+echo.
+
+set python_packages_folder=%python_packages_folder:"=%
+
+if exist "%python_packages_folder%\filldrops.py" (
+    goto numpy
+)
+
+powershell Invoke-WebRequest "https://raw.githubusercontent.com/f0e/blur/master/plugins/filldrops.py" -OutFile "%temp%\filldrops.py"
+
+move %temp%\filldrops.py "%python_packages_folder%\filldrops.py">nul
 
 pause
 
