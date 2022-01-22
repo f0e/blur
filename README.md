@@ -1,106 +1,86 @@
-# Blur
-Blur is a program made for easily and efficiently adding motion blur to videos through frame blending.
 
-## Features
-The amount of motion blur is easily configurable, and there are additional options to enable other features such as interpolating the video's fps. This can be used to generate 'fake' motion blur through frame blending the interpolated footage. This motion blur does not blur non-moving parts of the video, like the HUD in gameplay footage.
+# 🍹 Smoothie [WIP, yet has to be released]
 
-## Sample output
-### 600fps footage, blurred with 0.6 blur amount
-![](https://i.imgur.com/Hk0XIPe.jpg)
-### 60fps footage, interpolated to 600fps, blurred with 0.6 blur amount
-![](https://i.imgur.com/I4QFWGc.jpg)
-
-As visible from these images, the interpolated 60fps footage produces motion blur that is comparable to actual 600fps footage.
+Smoothie is a fork of [blur](https://github.com/f0e/blur) rewrote in Python with the following enhancements:
+* Static blur config, you won't have to recreate/move your config each time you change a directory
+* Queue multiple files at once via Send To
+* Option to pipe to Av1an (instead of ffmpeg)
 
 ## Installation
-To install blur for Windows, just download and run [the installer](https://github.com/f0e/blur/releases/latest). Other operating systems are not currently supported.
+To install Smoothie for Windows, use our [Scoop](https://github.com/ScoopInstaller/Scoop) bucket:
+
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force ; Invoke-RestMethod https://get.scoop.sh | Invoke-Expression
+```
+
+Then you can add utils' bucket and install Smoothie:
+```
+scoop.cmd install utils/smoothie
+```
+
+If you already have your own VapourSynth/Python environment installed you can clone the repository and make your own shortcuts, also see [dependencies](#dependencies)
 
 For manual installation, see [manual installation](#manual-installation)
 
-## Usage
-1. Open the executable and drag a video file onto the console window, or directly drop video files onto the executable file.
-2. A config file will be generated in the video's directory, which can be modified to suit your needs.
-3. The program will process the inputted video according to the configuration file located in the same folder as the video, and will output the blurred version to the same directory with " - blur" appended.
+## Usages
+1. Select one multiple videos and right click and of them -> Send To -> Smoothie
+2. Open up your favorite terminal and type in smoothie \<inputvideo>
+The program will process the inputted video according to the configuration file used, and will save the output video to the same directory, or a custom one if you specify it in Smoothie's config.yaml file
 
-The program can also be used in the command line, use -h or --help for more information.
+Use -h or --help for more information about using Smoothie through the command line.
 
 ***
 
 ## Config settings explained:
-### blur
-- blur - whether or not the output video file will have motion blur
-- blur amount - if blur is enabled, this is the amount of motion blur (0 = no blur, 1 = fully blend every frame together, 1+ = more blur/ghosting)
-- blur output fps - if blur is enabled, this is the fps the output video will be
-- blur weighting - weighting function to use when blending frames. options are listed below:
-  - equal - each frame is blended equally
-  - gaussian
-  - gaussian_sym
-  - pyramid
-  - pyramid_sym
-  - custom weights - custom frame weights, e.g. [5, 3, 3, 2, 1]. higher numbers indicate frames being more visible when blending, lower numbers mean they are less so.
-  - custom function - generate weights based off of custom python code, which is called for each frame 'x', e.g. -x**2+1
-
+### Resample
+- enabled - whether or not the output video file will have motion blur
+- amount - if resample is enabled, this is the amount of motion blur (0 = no blur, 1 = fully blend every frame together, 1+ = more blur/ghosting)
+- output fps - if blur is enabled, this is the fps the output video will be
 ### interpolation
 - interpolate - whether or not the input video file will be interpolated to a higher fps
 - interpolated fps - if interpolate is enabled, this is the fps that the input file will be interpolated to (before blending)
-
-### rendering
-- quality - [crf](https://trac.ffmpeg.org/wiki/Encode/H.264#crf) of the output video (qp if using GPU rendering)
-- preview - opens a render preview window
-- detailed filenames - adds blur settings to generated filenames
+- interpolation speed - default is 'medium'
+- interpolation tuning - default is 'weak'
+- interpolation algorithm - default is 23
+  [Interpolation settings are explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
+  - interpolation program (svp/rife/rife-ncnn) - program used for interpolation.
+  - svp - fastest option, also blurs static parts of video the least
+  - rife - considerably slower than SVP but can produce more accurate results, particularly for low framerate input videos. this is the CUDA implementation of RIFE, and is the faster option for NVIDIA gpus.
+  - rife-ncnn - Vulkan implementation of rife, works for all devices but is slower.
 
 ### timescale
 - input timescale - timescale of the input video file (will be sped up/slowed down accordingly)
 - output timescale - timescale of the output video file
 - adjust timescaled audio pitch - will pitch shift audio when sped up/slowed down
 
-### filters
+### rendering
+- gpu - enables gpu accelerated rendering (likely slower)
+- gpu type (nvidia/amd/intel) - your gpu's type (will be parsed if left default)
+- deduplicate - removes duplicate frames and generates new interpolated frames to take their place (using ``filldrops.py``)
+- custom ffmpeg filters - custom ffmpeg flags (video filters and encoding args)
+  
+  ### color grading
 - brightness - brightness of the output video
 - saturation - saturation of the output video
 - contrast - contrast of the output video
 
-### advanced rendering
-- gpu - enables experimental gpu accelerated rendering (likely slower)
-- gpu type (nvidia/amd/intel) - your gpu type
-- deduplicate - removes duplicate frames and generates new interpolated frames to take their place
-- custom ffmpeg filters - custom ffmpeg filters to be used when rendering (replaces gpu & quality options)
-
-### advanced blur
-- blur weighting gaussian std dev - standard deviation used in the gaussian weighting
-- blur weighting triangle reverse - reverses the direction of the triangle weighting
-- blur weighting bound - weighting bounds, spreads out weights more
-
-### advanced interpolation
-- interpolation program (svp/rife/rife-ncnn) - program used for interpolation.
-  - svp - fastest option, also blurs static parts of video the least
-  - rife - considerably slower than SVP but can produce more accurate results, particularly for low framerate input videos. this is the CUDA implementation of RIFE, and is the faster option for NVIDIA gpus.
-  - rife-ncnn - Vulkan implementation of rife, works for all devices but is slower.
-- interpolation speed - default is 'medium', [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
-- interpolation tuning - default is 'smooth', [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
-- interpolation algorithm - default is 13, [explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
-
 ## Recommended settings for gameplay footage:
 ### Config options
-- blur amount - for maximum blur/smoothness use 1, for medium blur use 0.5, low blur 0.2-0.3. 0.6-0.8 gives nice results for 60fps, 0.3~ is good for 30fps
-- blur weighting - just keep it at equal
-
-- interpolated fps - results become worse if this is too high, for 60fps source footage around 300-900 should be good, for 180fps 1200 is good. In general the limit tends to be at around 10x the input video's fps.
-
-- interpolation speed - just keep it at default
-- interpolation tuning - for gameplay footage default (smooth) keeps the crosshair intact, but film is also a good option
-- interpolation algorithm - just keep it at default
+- blur amount - the higher fps you render in, the higher you can set this value without it looking too blurry. Nothing higher than 1.0 at 30FPS, you can go up to 1.75 at 60FPS and for 120FPS you can try 3.0 to 5.0
+- interpolated fps - to make good frames with SVP you'll need your input FPS clip to have at the very least 120FPS
+- interpolation settings - defaults
 
 ### Limiting smearing
 Using blur on 60fps footage results in clean motion blur, but occasionally leaves some smearing artifacts. To remove these artifacts, higher framerate source footage can be used. Recording with software such as OBS at framerates like 120/180fps will result in a greatly reduced amount of artifacting.
 
 ### Preventing unsmooth output
-If your footage contains duplicate frames then occasionally blurred frames will look out of place, making the video seem unsmooth at points. The 'deduplicate' option will automatically fill in duplicated frames with interpolated frames to prevent this from happening.
+If your footage contains duplicate frames then occasionally blurred frames will look out of place, making the video seem unsmooth at points. The 'deduplicate' option will automatically fill in duplicated frames with interpolated frames to prevent this from happening. This will only affect micro stutters, don't expect this to magically recover your clips, but will smoothen up if you had a little bit of encoding lag on OBS (e.g at ~0.5%)
 
 ## Manual installation
 Note: I don't suggest manual installation due to the large amount of dependencies. If possible, stick to using the provided installer.
 
 ### Requirements
-- [Python](https://www.python.org/downloads)
+- [Python](https://www.python.org/downloads) (3.9)
 - [FFmpeg](https://ffmpeg.org/download.html)
 - [VapourSynth x64](https://www.vapoursynth.com)
 
@@ -109,18 +89,15 @@ Note: I don't suggest manual installation due to the large amount of dependencie
 - [HAvsFunc](https://github.com/HomeOfVapourSynthEvolution/havsfunc)
 - [SVPflow 4.2.0.142](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
 - [vs-frameblender](https://github.com/f0e/vs-frameblender)
-- [weighting.py](https://github.com/f0e/blur/blob/master/plugins/weighting.py)
-- [filldrops.py](https://github.com/f0e/blur/blob/master/plugins/filldrops.py)
+- [weighting.py](https://github.com/couleur-tweak-tips/Smoothie/blob/master/plugins/weighting.py)
+- [filldrops.py](https://github.com/couleur-tweak-tips/Smoothie/blob/master/plugins/filldrops.py)
 
-1. Download [the latest release](https://github.com/f0e/blur/releases/latest) or build the project.
-2. Download and run [installer.bat](https://raw.githubusercontent.com/f0e/blur/master/installer.bat) to automatically install all of the requirements.
+### Manual installation steps
 
-Or
-
-2. Install Python
-3. Install FFmpeg and [add it to PATH](https://www.wikihow.com/Install-FFmpeg-on-Windows)
-4. Install the 64-bit version of VapourSynth
-5. Install the required VapourSynth plugins using the command "vsrepo.py install ffms2 havsfunc"
-6. Install vs-frameblender manually by downloading the x64 .dll from [here](https://github.com/f0e/vs-frameblender/releases/latest) to "VapourSynth/plugins64"
-7. Install SVPflow 4.2.0.142 manually by downloading the zip from [here](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip) and moving the files inside "lib-windows/vapoursynth/x64" to "VapourSynth/plugins64"
-8. Install [weighting.py](https://raw.githubusercontent.com/f0e/blur/master/plugins/weighting.py) and [filldrops.py](https://github.com/f0e/blur/blob/master/plugins/filldrops.py) to "%appdata%/Roaming/Python/Python39/site-packages"
+1. Install Python (<=3.9)
+2. Install FFmpeg and [add it to PATH](https://www.wikihow.com/Install-FFmpeg-on-Windows)
+3. Install the 64-bit version of VapourSynth
+4. Install the required VapourSynth plugins using the command "vsrepo.py install ffms2 havsfunc"
+5. Install vs-frameblender manually by downloading the x64 .dll from [here](https://github.com/f0e/vs-frameblender/releases/latest) to "VapourSynth/plugins64"
+6. Install SVPflow 4.2.0.142 manually by downloading the zip from [here](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip) and moving the files inside "lib-windows/vapoursynth/x64" to "VapourSynth/plugins64"
+7. Install [weighting.py](https://raw.githubusercontent.com/couleur-tweak-tips/smoothie/master/plugins/weighting.py) and [filldrops.py](https://github.com/couleur-tweak-tips/smoothie/blob/master/plugins/filldrops.py) to "%appdata%/Python/Python39/site-packages"
