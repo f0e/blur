@@ -1,5 +1,5 @@
 
-# 🍹 Smoothie [WIP, yet has to be released]
+# 🧋 Smoothie [WIP; yet has to be released]
 
 Smoothie is a fork of [blur](https://github.com/f0e/blur) rewrote in Python with the following enhancements:
 * Static blur config, you won't have to recreate/move your config each time you change a directory
