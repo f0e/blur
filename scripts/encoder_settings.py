@@ -28,21 +28,21 @@ def Settings():
         Index=0                  
 
     if "nvidia" in List[Index].lower():
-        HWAccelArgs = "-hwaccel cuda -threads 8"
-        FFmpegArgs = "-c:v hevc_nvenc -rc constqp -preset p7 -qp 18"
+        FFmpegOptions = "-hwaccel cuda -threads 8"
+        FFmpegEncodingArgs = "-c:v hevc_nvenc -rc constqp -preset p7 -qp 18"
 
     elif "amd" in List[Index].lower() or "vega" in List[Index].lower() or "radeon" in List[Index].lower():
-        HWAccelArgs = "-hwaccel d3d11va"
-        FFmpegArgs = "-c:v hevc_nvenc -rc constqp -preset p7 -qp 18"
+        FFmpegOptions = "-hwaccel d3d11va"
+        FFmpegEncodingArgs = "-c:v hevc_nvenc -rc constqp -preset p7 -qp 18"
 
     elif "intel" in List[Index].lower():
-        HWAccelArgs = "-hwaccel d3d11va"
-        FFmpegArgs = "-c:v hevc_qsv -preset veryslow -global_quality:v 18"
+        FFmpegOptions = "-hwaccel d3d11va"
+        FFmpegEncodingArgs = "-c:v hevc_qsv -preset veryslow -global_quality:v 18"
     else:
-        HWAccelArgs=""
-        FFmpegArgs = "-c:v libx265 -preset medium -crf 18"
+        FFmpegOptions=""
+        FFmpegEncodingArgs = "-c:v libx265 -preset medium -crf 18"
 
-    return (HWAccelArgs,FFmpegArgs)   
+    return (FFmpegOptions, FFmpegEncodingArgs)   
 
 
 

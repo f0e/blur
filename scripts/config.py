@@ -26,8 +26,8 @@ def ConfigCreate():
 
     # Rendering
     SmoothieConfig['rendering'] = {
-    "hw accel args": EncoderSettings[0],
-    "ffmpeg args": EncoderSettings[1]} 
+    "ffmpeg options": EncoderSettings[0],
+    "ffmpeg encoding args": EncoderSettings[1]} 
 
     # Create Config File
     with open(File, 'w') as configfile:
@@ -37,15 +37,15 @@ def ConfigRead(Option):
   SmoothieConfig = configparser.ConfigParser()
   SmoothieConfig.read(File)
 
-  HWAccelArgs=SmoothieConfig['rendering']['hw accel args']
-  FFmpegArgs=SmoothieConfig['rendering']['ffmpeg args']
+  FFmpegOptions=SmoothieConfig['rendering']['ffmpeg options']
+  FFmpegEncodingArgs=SmoothieConfig['rendering']['ffmpeg encoding args']
 
   if Option == "blur":
     FPS=SmoothieConfig['blur']['fps']
 
     Amount=SmoothieConfig['blur']['amount']
 
-    return (HWAccelArgs, FFmpegArgs, Amount, FPS) 
+    return (FFmpegOptions, FFmpegEncodingArgs, Amount, FPS) 
     
   elif Option == "interpolate":
     FPS=SmoothieConfig['interpolation']['fps']
@@ -56,7 +56,7 @@ def ConfigRead(Option):
 
     Algorithm=SmoothieConfig['interpolation']['algorithm']
 
-    return (HWAccelArgs, FFmpegArgs, FPS, Speed, Tuning, Algorithm) 
+    return (FFmpegOptions, FFmpegEncodingArgs, FPS, Speed, Tuning, Algorithm) 
 
   elif Option == "frameblend":   
     InterpolateFPS=SmoothieConfig['interpolation']['fps']
@@ -71,7 +71,7 @@ def ConfigRead(Option):
 
     Amount=SmoothieConfig['blur']['amount']
 
-    return (HWAccelArgs, FFmpegArgs, 
+    return (FFmpegOptions, FFmpegEncodingArgs, 
     InterpolateFPS, Speed, Tuning, Algorithm, 
     BlurFPS, Amount)   
 
