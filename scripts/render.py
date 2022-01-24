@@ -4,7 +4,6 @@ from vs_script import Resample
 from vs_script import Interpolate
 from re import findall
 from time import sleep
-import resource
 import subprocess
 
 Temp=os.environ["TEMP"]
