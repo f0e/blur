@@ -28,18 +28,18 @@ def Settings():
         Index=0                  
 
     if "nvidia" in List[Index].lower():
-        HWAccelArgs = "-hwaccel cuda -threads 4"
+        HWAccelArgs = "-hwaccel cuda -threads 8"
         EncodingArgs = "-c:v hevc_nvenc -rc constqp -preset p7 -qp 18"
 
     elif "amd" in List[Index].lower() or "vega" in List[Index].lower() or "radeon" in List[Index].lower():
-        HWAccelArgs = "-hwaccel d3d11va -threads 4"
+        HWAccelArgs = "-hwaccel d3d11va"
         EncodingArgs = "-c:v hevc_nvenc -rc constqp -preset p7 -qp 18"
 
     elif "intel" in List[Index].lower():
-        HWAccelArgs = "-hwaccel d3d11va -threads 4"
+        HWAccelArgs = "-hwaccel d3d11va"
         EncodingArgs = "-c:v hevc_qsv -preset veryslow -global_quality:v 18"
     else:
-        HWAccelArgs="-threads 4"
+        HWAccelArgs=""
         EncodingArgs = "-c:v libx265 -preset medium -crf 18"
 
     return ('-y '+HWAccelArgs+' -loglevel error -hide_banner -stats -i {Input} '+EncodingArgs+' {Output}')   
