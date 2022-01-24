@@ -33,7 +33,6 @@ def Render(VideoList, Option):
             InFile=Temp+'/Render.vpy' 
             Pipe=[]
         OutFile=f"{VideoPath}\\{Prefix}_{VideoFile}"
-        resource.setrlimit(resource.RLIMIT_CPU)
         Main=Pipe+[Settings[0]]+findall(r'[A-Z]+:(?:\\[^\\]+)+\.\w+|\S+',f"{Settings[1]}".format(Input=InFile,Output=OutFile)) 
         print(f"Video: {Video}\n")      
         subprocess.run(Main,shell=True) 
