@@ -6,6 +6,54 @@ Smoothie is a fork of [blur](https://github.com/f0e/blur) rewrote in Python with
 * Queue multiple files at once via Send To
 * Option to pipe to Av1an (instead of ffmpeg)
 
+## Notes about this Smoothie Fork:
+This is a somewhat proof of concept working version of Smoothie but isn't meant to be the final project.
+
+### Usage
+```
+Smoothie -edit <Edit Smoothie's Config File>
+Smoothie -blur Video1.mp4 Video2.mp4 Video3.mp4 <Add Motion Blur to specified videos.>
+Smoothie -frameblend Video1.mp4 Video2.mp4 Video3.mp4 <Blur and Interpolate the specified videos at once.>
+```
+
+### Config File Explained.
+```ini
+[interpolation]
+fps = 480
+speed = medium
+tuning = weak
+algorithm = 23
+
+[blur]
+fps = 60
+amount = 1
+
+[rendering]
+ffmpeg options = -hwaccel cuda -threads 8
+ffmpeg encoding args = -c:v hevc_nvenc -rc constqp -preset p7 -qp 18
+```
+#### Interpolation
+
+1. `fps` = Interpolate FPS
+2. `speed` = Interpolation Speed
+3. `tuning` = Interpolation Tuning
+4. `algorithm` = Interpolation Algorithm
+
+#### Blur
+
+1. `fps` = Blur FPS/Resample FPS
+2. `amount` = Blur Amount/Intensity
+
+#### Rendering
+
+1. `ffmpeg options` = FFmpeg Options.
+2. `ffmpeg encoding args` = FFmpeg Encoding Arguments. 
+
+#### Important!
+1. **This Smoothie build uses blur's equal weighting.**
+2. **SVP is the default interpolation program.**
+
+
 ## Installation
 To install Smoothie for Windows, use our [Scoop](https://github.com/ScoopInstaller/Scoop) bucket:
 
