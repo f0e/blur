@@ -1,5 +1,5 @@
 import configparser
-import encoder_settings
+import encoder
 import os
 
 File=os.environ["APPDATA"]+"/Smoothie/Smoothie-Config.ini"
@@ -10,7 +10,7 @@ def ConfigExist():
 
 def ConfigCreate():
     SmoothieConfig = configparser.ConfigParser()
-    EncoderSettings=encoder_settings.Settings()
+    Arguments=encoder.Settings()
     # Video
     SmoothieConfig['interpolation'] = {
     'fps': '480',
@@ -19,15 +19,15 @@ def ConfigCreate():
     'algorithm': '23'
     }
 
-    SmoothieConfig['blur'] = {
+    SmoothieConfig['resampling'] = {
       'fps': '60', 
-      'amount': '1'
+      'intensity': '1'
       }   
 
     # Rendering
     SmoothieConfig['rendering'] = {
-    "ffmpeg options": EncoderSettings[0],
-    "ffmpeg encoding args": EncoderSettings[1]} 
+    "process": 'ffmpeg.exe',
+    "arguments": Arguments} 
 
     # Create Config File
     with open(File, 'w') as configfile:
@@ -37,16 +37,34 @@ def ConfigRead(Option):
   SmoothieConfig = configparser.ConfigParser()
   SmoothieConfig.read(File)
 
-  FFmpegOptions=SmoothieConfig['rendering']['ffmpeg options']
-  FFmpegEncodingArgs=SmoothieConfig['rendering']['ffmpeg encoding args']
+  Process=SmoothieConfig['rendering']['process']
+  Arguments=SmoothieConfig['rendering']['arguments']
 
-  if Option == "blur":
-    FPS=SmoothieConfig['blur']['fps']
+  if Option == "resample":
+    FPS=SmoothieConfig['resampling']['fps']
 
-    Amount=SmoothieConfig['blur']['amount']
+    Intensity=SmoothieConfig['resampling']['intensity']
 
-    return (FFmpegOptions, FFmpegEncodingArgs, Amount, FPS) 
-    
+    return (Process, Arguments, Intensity, FPS)
+     
+  elif Option == "interpolate":   
+    InterpolateFPS=SmoothieConfig['interpolation']['fps']
+
+    Speed=SmoothieConfig['interpolation']['speed']
+
+    Tuning=SmoothieConfig['interpolation']['tuning']
+
+    Algorithm=SmoothieConfig['interpolation']['algorithm']
+
+    ResampleFPS=SmoothieConfig['resampling']['fps']
+
+    Intensity=SmoothieConfig['resampling']['intensity']
+
+    return (Process, Arguments, 
+    InterpolateFPS, Speed, Tuning, Algorithm, 
+    ResampleFPS, Intensity)   
+
+"""  
   elif Option == "interpolate":
     FPS=SmoothieConfig['interpolation']['fps']
 
@@ -56,24 +74,10 @@ def ConfigRead(Option):
 
     Algorithm=SmoothieConfig['interpolation']['algorithm']
 
-    return (FFmpegOptions, FFmpegEncodingArgs, FPS, Speed, Tuning, Algorithm) 
+    return (Process, Arguments, FPS, Speed, Tuning, Algorithm)
+"""     
 
-  elif Option == "frameblend":   
-    InterpolateFPS=SmoothieConfig['interpolation']['fps']
-
-    Speed=SmoothieConfig['interpolation']['speed']
-
-    Tuning=SmoothieConfig['interpolation']['tuning']
-
-    Algorithm=SmoothieConfig['interpolation']['algorithm']
-
-    BlurFPS=SmoothieConfig['blur']['fps']
-
-    Amount=SmoothieConfig['blur']['amount']
-
-    return (FFmpegOptions, FFmpegEncodingArgs, 
-    InterpolateFPS, Speed, Tuning, Algorithm, 
-    BlurFPS, Amount)   
+  
 
     
 
