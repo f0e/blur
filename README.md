@@ -62,7 +62,7 @@ Variables:
 ```
 pip install nuitka
 pip install zstandard
-pip install wmit
+pip install wmi
 ```
 3. Run `build.bat`.
 
