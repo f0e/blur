@@ -1,26 +1,47 @@
 
 # 🧋 Smoothie [WIP]
 
-Smoothie is a fork of [blur](https://github.com/f0e/blur) rewrote in Python with the following enhancements:
-* Static blur config, you won't have to recreate/move your config each time you change a directory
+Smoothie is a fork of [blur](https://github.com/f0e/blur) rewritten in Python with the following enhancements:
+* Wrote in dead simple Python, code is roughly ![](https://tokei.rs/b1/github/couleur-tweak-tips/smoothie). The only feature we can't bother to port is the [preview](https://github.com/f0e/blur/blob/master/blur/preview.cpp), which is made in C++
+* Static blur config, you won't have to recreate/carry your config around each time you change directory
 * Queue multiple files at once via Send To
-* Option to pipe to ffmpeg or Av1an
+* Simplified config, here called a "recipe" ;)
+```yaml
+# Latest default config (without comments):
+interpolation:
+  enabled: yes
+  fps: 1440 
+  speed: medium
+  tuning: weak
+  algorithm: 23
 
+resampling:
+  enabled: yes
+  fps: 60
+  amount: 1.27
+
+encoding:
+  process: ffmpeg
+  args: -c:v hevc_nvenc -preset p7 -rc vbr -qp 18
+
+misc:
+  deduplication: false
+  outputfolder: null
+
+  timescale:
+    in: 1
+    out: 1
+```
 ## Installation
-To install Smoothie for Windows, use our [Scoop](https://github.com/ScoopInstaller/Scoop) bucket:
+To install Smoothie and its [dependencies](#dependencies) for Windows, run this installer script:
 
 ```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force ; Invoke-RestMethod https://get.scoop.sh | Invoke-Expression
+powershell "irm smoothie.ctt.cx|iex"
 ```
-
-Then you can add utils' bucket and install Smoothie:
-```
-scoop.cmd install utils/smoothie
-```
+For Linux users and those who seek for a manual installation, see [manual installation](#manual-installation)
 
 If you already have your own VapourSynth/Python environment installed you can clone the repository and make your own shortcuts, also see [dependencies](#dependencies)
 
-For manual installation, see [manual installation](#manual-installation)
 
 ## Usages
 1. Select one multiple videos and right click and of them -> Send To -> Smoothie
@@ -39,14 +60,11 @@ Use -h or --help for more information about using Smoothie through the command l
 ### interpolation
 - interpolate - whether or not the input video file will be interpolated to a higher fps
 - interpolated fps - if interpolate is enabled, this is the fps that the input file will be interpolated to (before blending)
-- interpolation speed - default is 'medium'
-- interpolation tuning - default is 'weak'
-- interpolation algorithm - default is 23
+- speed - default is 'medium'
+- tuning - default is 'weak'
+- algorithm - default is 23
   [Interpolation settings are explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)
-  - interpolation program (svp/rife/rife-ncnn) - program used for interpolation.
   - svp - fastest option, also blurs static parts of video the least
-  - rife - considerably slower than SVP but can produce more accurate results, particularly for low framerate input videos. this is the CUDA implementation of RIFE, and is the faster option for NVIDIA gpus.
-  - rife-ncnn - Vulkan implementation of rife, works for all devices but is slower.
 
 ### timescale
 - input timescale - timescale of the input video file (will be sped up/slowed down accordingly)
