@@ -1,0 +1,27 @@
+interpolation: # Will uses SVP-Flow to "guess" frames for a smoother resampling, slowers the higher you go
+  enabled: false # None of the settings will be affected if you disable this, same thing goes for resampling
+  fps: 960
+  speed: medium
+  tuning: weak
+  algorithm: 23
+  pre interpolation: # WIP
+    enabled: false
+    rife type: cuda
+    factor: 4
+
+resampling: # Blends the frames to make a smoother video with a lower FPS (e.g 60FPS)
+  enabled: true
+  fps: 60
+  intensity: 1.27 # The higher the resampling (final output) fps, the higher you can set this to
+
+encoding: # How your video will be encoded
+  process: ffmpeg
+  args: -c:v hevc_nvenc -preset p7 -rc vbr -qp 18
+
+misc:
+  deduplication: y # Finds duplicate frames (e.g if you had encoding lag) and tries patching them with interpolation
+  custom output folder: null # Set a folder here if you wish to redirect all outputted videos, else leave it set to "null"
+  
+  timescale: # If your clips are slowed down / you wish to accelerate your clips before resampling
+    in: 1
+    out: 1
