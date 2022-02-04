@@ -1,4 +1,5 @@
-Rename-Item -Path "$DIR\Smoothie-$version" -NewName "Smoothie"
+Rename-Item -Path "$DIR\Smoothie*" -NewName "Smoothie"
+
 if (-Not(Test-Path "$ScoopDir\shims\Smoothie.exe")){
     Copy-Item "$ScoopDir\shims\7z.exe" "$ScoopDir\shims\Smoothie.exe" # All shims are the same
 }
@@ -19,8 +20,9 @@ Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/f0e/vs-frameblender/
 & "$DIR\python.exe" "$DIR\vsrepo.py" install ffms2 mv
 
 # SVPFlow
+Remove-Item "$env:TMP\SVPFlow.7z","$env:TMP\SVPFlow" -Force -Ea Ignore -Recurse
 Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/bjaan/smoothvideo/main/SVPflow_LastGoodVersions.7z' -OutFile "$env:TMP\SVPFlow.7z"
-Remove-Item "$env:TMP\SVPFlow.7z","$env:TMP\SVPFlow" -Force -Ea Ignore
+while (-not(Test-Path "$env:TMP\SVPFlow.7z")){$null}
 7z x  "$env:TMP\SVPFlow.7z" -o"$env:TMP\SVPFlow"
 Move-Item "$env:TEMP\svpflow\x64_vs\*.dll" "$DIR\vapoursynth64\plugins"
-Remove-Item "$env:TMP\SVPFlow.7z","$env:TMP\SVPFlow" -Force -Ea Ignore
+Remove-Item "$env:TMP\SVPFlow.7z","$env:TMP\SVPFlow" -Force -Ea Ignore -Recurse
