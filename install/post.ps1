@@ -1,4 +1,4 @@
-Rename-Item -Path "$DIR\Smoothie*" -NewName "Smoothie"
+Rename-Item -Path (Convert-Path "$DIR\Smoothie*") -NewName "Smoothie"
 
 if (-Not(Test-Path "$ScoopDir\shims\sm.exe")){
     Copy-Item "$ScoopDir\shims\7z.exe" "$ScoopDir\shims\sm.exe" # All shims are the same
@@ -25,5 +25,5 @@ Remove-Item "$env:TMP\SVPFlow.7z","$env:TMP\SVPFlow" -Force -Ea Ignore -Recurse
 Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/bjaan/smoothvideo/main/SVPflow_LastGoodVersions.7z' -OutFile "$env:TMP\SVPFlow.7z"
 while (-not(Test-Path "$env:TMP\SVPFlow.7z")){$null}
 7z x  "$env:TMP\SVPFlow.7z" -o"$env:TMP\SVPFlow"
-Move-Item "$env:TEMP\svpflow\x64_vs\*.dll" "$DIR\vapoursynth64\plugins"
+Move-Item "$env:TEMP\svpflow\x64_vs\*.dll" "$DIR\vapoursynth64\plugins" -Force
 Remove-Item "$env:TMP\SVPFlow.7z","$env:TMP\SVPFlow" -Force -Ea Ignore -Recurse
