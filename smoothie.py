@@ -1,4 +1,4 @@
-from sys import argv # parse args
+from sys import argv,exit # parse args
 from os import path # split file extension
 from configparser import ConfigParser
 from subprocess import run # Run vs
@@ -24,6 +24,10 @@ def ensure(file, desc):
     if path.exists(file) == False:
         print(f"{desc} file not found: {file}")
         exit(1)
+
+if argv == [argv[0],'folder']:
+    run(f'explorer {path.dirname(argv[0])}')
+    exit(0)
 
 if path.splitext(argv[1])[1] in ['.ini','.txt']:
 
@@ -70,14 +74,17 @@ for video in queue:
         out = path.join(outdir, filename + f' - {choice(flavors)}' + f' ({count})' + ext)
         count+=1
 
+    vspipe = path.join(path.split(path.dirname(argv[0])[0]),'vspipe.exe')
+    
     command = [ # Split in two for readability
         
-        f"cmd /c vspipe -y \"{path.join(path.dirname(argv[0]), 'blender.vpy')}\" --arg input_video=\"{video}\" --arg config_filepath=\"{config_filepath}\"",
+        f"cmd /c {vspipe} -y \"{path.join(path.dirname(argv[0]), 'blender.vpy')}\" --arg input_video=\"{video}\" --arg config_filepath=\"{config_filepath}\"",
         f"- | {conf['encoding']['process']} -hide_banner -loglevel warning -stats -i - {conf['encoding']['args']} \"{out}\""
         # -i \"{video}\" -map 0:v -map 1:a?
     ]
     if (conf['misc']['verbose']) in yes:
         print(command)
+        print(f"VSPipe: {vspipe}")
         print(f"VIDEO: {video}")
 
     run(' '.join(command),shell=True)
