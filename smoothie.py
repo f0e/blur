@@ -1,8 +1,12 @@
 from sys import argv # parse args
-from os import _exit, path # split file extension
-from yaml import load,FullLoader # parse the config
+from os import path # split file extension
+from configparser import ConfigParser
 from subprocess import run # Run vs
 from random import choice # Randomize the smoothie's flavor))
+
+# Bool aliases
+yes = ['True','true','yes','y','1']
+no = ['False','false','no','n','0','null','',None]
 
 if len(argv) == 1:
     print('''
@@ -21,68 +25,59 @@ def ensure(file, desc):
         print(f"{desc} file not found: {file}")
         exit(1)
 
-if path.splitext(argv[1])[1] in ['.conf','.cfg','.txt','.json','.yml','yaml']:
+if path.splitext(argv[1])[1] in ['.ini','.txt']:
 
     if path.dirname(argv[1]) == '': # If no directory, look for it in the settings folder
         recipe = path.join(path.dirname(argv[0]), f"settings\\{argv[1]}")
         config_filepath = recipe
-        conf = load(open(recipe), Loader=FullLoader)
+        conf = ConfigParser()
+        conf.read(recipe)
     else: # If there is a directory, it's a full path so just load it in
-        conf = load(open(argv[1]), Loader=FullLoader)
+        conf = ConfigParser()
+        conf.read(argv[1])
         config_filepath = argv[1]
 
     queue = argv[2:]
 else:
-    recipe = path.join(path.dirname(argv[0]), "settings\\recipe.yaml")
+    recipe = path.join(path.dirname(argv[0]), "settings\\recipe.ini")
     config_filepath = recipe
-    conf = load(open(recipe), Loader=FullLoader)
+    conf = ConfigParser()
+    conf.read(recipe)
     queue = argv[1:]
 
 for video in queue:
 
-    if ['conf']['misc']['random flavors'] == True:
+    if str(conf['misc']['flavors']) in [yes,'fruits']:
         flavors = [
-            'Strawberry'
-            'Blueberry'
-            'Raspberry'
-            'Blackberry'
-            'Cherry'
-            'Cranberry'
-            'Coconut'
-            'Peach'
-            'Apricot'
-            'Dragonftui'
-            'Grapefruit'
-            'Melon'
-            'Papaya'
-            'Watermelon'
-            'Banana'
-            'Pineapple'
-            'Apple'
-            'Kiwi'
+            'Strawberry','Blueberry','Raspberry','Blackberry','Cherry','Cranberry','Coconut','Pineapple','Kiwi'
+            'Peach','Apricot','Dragonfuit','Grapefruit','Melon','Papaya','Watermelon','Banana','Apple','Pear','Orange'
         ]
     else:
         flavors = ['Smoothie']
 
     filename, ext = path.splitext(video)
 
-    if conf['misc']['custom output folder'] in [None,'null','','none','no','n']:
+    if conf['misc']['folder'] in no:
 
         outdir = path.dirname(video)
     else:
-        outdir = conf['misc']['custom output folder']
+        outdir = conf['misc']['folder']
 
-    out = path.join(outdir, filename + f'- {choice(flavors)}' + ext)
+    out = path.join(outdir, filename + f' - {choice(flavors)}' + ext)
 
     count=2
     while path.exists(out):
-        out = path.join(outdir, filename + f'- {choice(flavors)}' + f' ({count})' + ext)
+        out = path.join(outdir, filename + f' - {choice(flavors)}' + f' ({count})' + ext)
         count+=1
 
     command = [ # Split in two for readability
-        f"vspipe -i \"{path.join(path.dirname(argv[0]), 'blender.vpy')}\" --arg input_video=\"{video}\" --arg config_filepath=\"{config_filepath}\" --container y4m",
-        f"-| {conf['encoding']['process']} -hide_banner -loglevel warning -stats -i - {conf['encoding']['args']} \"{out}\""
+        
+        f"cmd /c vspipe -y \"{path.join(path.dirname(argv[0]), 'blender.vpy')}\" --arg input_video=\"{video}\" --arg config_filepath=\"{config_filepath}\"",
+        f"- | {conf['encoding']['process']} -hide_banner -loglevel warning -stats -i - {conf['encoding']['args']} \"{out}\""
+        # -i \"{video}\" -map 0:v -map 1:a?
     ]
-    print(command)
+    if (conf['misc']['verbose']) in yes:
+        print(command)
+        print(f"VIDEO: {video}")
 
     run(' '.join(command),shell=True)
