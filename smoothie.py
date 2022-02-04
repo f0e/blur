@@ -74,7 +74,7 @@ for video in queue:
         out = path.join(outdir, filename + f' - {choice(flavors)}' + f' ({count})' + ext)
         count+=1
 
-    vspipe = path.join(path.split(path.dirname(argv[0])[0]),'vspipe.exe')
+    vspipe = path.join((path.split(path.dirname(argv[0]))[0]),'vspipe.exe')
     
     command = [ # Split in two for readability
         
