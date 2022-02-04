@@ -10,7 +10,7 @@ if (-Not(Test-Path "$ScoopDir\shims\sm.shim")){
 }
 
 Write-Warning "Importing havsfunc,mvsfunc, filldrops & adjust"
-Move-Item "$DIR\Smoothie\*.py" "$DIR\vapoursynth64\plugins"
+Move-Item "$DIR\Smoothie\plugins\*.py" "$DIR"
 
 Write-Warning "Downloading vs-frameblender"
 Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/f0e/vs-frameblender/releases/latest/download/vs-frameblender-x64.dll' -OutFile "$DIR\vapoursynth64\plugins\vs-frameblender-x64.dll"
