@@ -3,7 +3,7 @@ if (Get-Command sm  -Ea Ignore){
 A Smoothie installation has been detected, what would you like to do?
 
 Press R to Reinstall Smoothie (clean install)
-Press V to update Smoothie to a newer Version
+Press V to update Smoothie to a newer version
 Press U to uninstall Smoothie
 
 @"
@@ -40,15 +40,15 @@ if ('utils' -NotIn (scoop.cmd bucket list)){
 }
 
 if(Get-Command ffmpeg -Ea Ignore){
-    if ((ffmpeg -hide_banner -h filter=libplacebo) -eq "Unknown filter 'libplacebo'."){ # Check if libplacebo is installed, therefore if ffmpeg is atleast version 5.0 s/o vlad
-        if ((Get-Command ffmpeg).Source -like "*\shims\*"){
             scoop.cmd update ffmpeg
-        }else{
-            scoop.cmd install ffmpeg
-        }
-    }
 }else{
     scoop.cmd install ffmpeg
+}
+
+if ('utils' -NotIn (scoop.cmd bucket list)){
+    Write-Warning "Failed to add the utils bucket"
+    pause
+    exit
 }
 
 scoop.cmd install utils/smoothie
