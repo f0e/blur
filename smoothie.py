@@ -43,7 +43,7 @@ if path.splitext(argv[1])[1] in ['.ini','.txt']:
 
     queue = argv[2:]
 else:
-    recipe = path.join(path.dirname(argv[0]), "settings\\recipe.ini")
+    recipe = path.join(path.dirname(__file__), "settings\\recipe.ini")
     config_filepath = recipe
     conf = ConfigParser()
     conf.read(recipe)
@@ -74,11 +74,12 @@ for video in queue:
         out = path.join(outdir, filename + f' - {choice(flavors)}' + f' ({count})' + ext)
         count+=1
 
-    vspipe = path.join((path.split(path.dirname(argv[0]))[0]),'vspipe.exe')
+    vspipe = path.join(path.dirname((path.dirname(__file__))),'VapourSynth','VSPipe.exe')
+    vpy = 'blender.vpy'
     
     command = [ # Split in two for readability
         
-        f"cmd /c {vspipe} -y \"{path.join(path.dirname(argv[0]), 'blender.vpy')}\" --arg input_video=\"{video}\" --arg config_filepath=\"{config_filepath}\"",
+        f"cmd /c {vspipe} -y \"{path.join(path.dirname(__file__), vpy)}\" --arg input_video=\"{video}\" --arg config_filepath=\"{config_filepath}\"",
         f"- | {conf['encoding']['process']} -hide_banner -loglevel warning -stats -i - {conf['encoding']['args']} \"{out}\""
         # -i \"{video}\" -map 0:v -map 1:a?
     ]
