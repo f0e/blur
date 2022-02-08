@@ -12,8 +12,8 @@ yes = ['True','true','yes','y','1']
 no = ['False','false','no','n','0','null','',None]
 
 if path.splitext(input_video)[1] == '.avi':
-    video = core.avisource.AVISource(f"{input_video}")
-    video = core.fmtc.matrix(clip=video, mat="601", col_fam=vs.YUV, bits=16)
+    video = core.avisource.AVISource(input_video)
+    video = core.fmtc.matrix(clip=video, mat="709", col_fam=vs.YUV, bits=16)
     video = core.fmtc.resampling(clip=video, css="420")
     video = core.fmtc.bitdepth(clip=video, bits=8)
 else:
@@ -21,6 +21,8 @@ else:
 
 if float(conf['timescale']['in']) != 1: # Input timescale, done before interpolation
     video = core.std.AssumeFPS(video, fpsnum=(video.fps * (1 / float(conf['timescale']['in']))))
+
+# Commented this out as I don't see RIFE being this much better than SVP, and it's not worth the time / long & confusing installation
 
 #   if str(conf['interpolation']['pre interpolation']['enabled']).lower() in yes: # Pre-interpolating with RIFE
 #
@@ -35,11 +37,16 @@ if float(conf['timescale']['in']) != 1: # Input timescale, done before interpola
 #               video = core.rife.RIFE(video)
 #       video = core.resize.Bicubic(video, format=vs.YUV420P8, matrix_s="709")
 
-if str(conf['interpolation']['enabled']).lower() in yes: # Interpolation using Interframe2 (uses SVP-Flow, which is what blur uses)
+if str(conf['interpolation']['enabled']).lower() in yes: # Interpolation using Interframe2 (uses SVP-Flow, which is also what blur uses)
+
+    if (conf['interpolation']['gpu']) in yes:
+        useGPU = True
+    elif (conf['interpolation']['gpu']) in no:
+        useGPU = False
 
     video = havsfunc.InterFrame(
         video,
-        GPU=True,
+        GPU=useGPU,
         NewNum=int(conf['interpolation']['fps']),
         Preset=str(conf['interpolation']['speed']),
         Tuning=str(conf['interpolation']['tuning']),
