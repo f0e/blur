@@ -2,7 +2,7 @@
 # 🧋 Smoothie [WIP]
 
 Smoothie is a fork of [blur](https://github.com/f0e/blur) rewritten in Python with the following enhancements:
-* Wrote in dead simple Python, code is roughly ![](https://tokei.rs/b1/github/couleur-tweak-tips/smoothie). The only feature we can't bother to port is the [preview](https://github.com/f0e/blur/blob/master/blur/preview.cpp), which is made in C++
+* Wrote in dead simple Python, code (cli & vpy script) is roughly 150 lines long. The only feature we can't bother to port is the [preview](https://github.com/f0e/blur/blob/master/blur/preview.cpp), which is made in C++
 * Static blur config, you won't have to recreate/carry your config around each time you change directory
 * Queue multiple files at once via Send To
 * Simplified config, here called a "recipe" ;)
