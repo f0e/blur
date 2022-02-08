@@ -31,4 +31,23 @@ Write-Warning "Testing FFmpeg encoders.. note NVENC may fail if you use an older
     }
 }
 
-(Get-Content "$DIR\Smoothie\settings\recipe.ini") -replace ('-c:v libx264 -preset slow -crf 15',"-c:v $valid_args") | Set-Content "$DIR\Smoothie\settings\recipe.ini"
+(Get-Content "$DIR\Smoothie\settings\recipe.ini") -replace ('libx264 -preset slow -crf 15',$valid_args) | Set-Content "$DIR\Smoothie\settings\recipe.ini"
+
+$SendTo = [System.Environment]::GetFolderPath('SendTo')
+
+if (-Not(Test-Path "$Sendto\Smoothie.lnk")){
+
+    if (-Not(Test-Path "$DIR\sm.ico")){
+        Invoke-WebRequest -UseBasicParsing https://cdn.discordapp.com/attachments/885925073851146310/940709737685725276/sm.ico -OutFile "$DIR\sm.ico"
+    }
+
+    $WScriptShell = New-Object -ComObject WScript.Shell
+    $Shortcut = $WScriptShell.CreateShortcut("$SendTo\smoothie.lnk")
+    $Shortcut.TargetPath = "$DIR\VapourSynth\python.exe"
+    $Shortcut.Arguments = "$DIR\Smoothie\smoothie.py"
+    $Shortcut.IconLocation = "$DIR\sm.ico"
+    $Shortcut.Save()
+
+    Rename-Item -Path "$SendTo\smoothie.lnk" -NewName 'Smoothie.lnk' # Shortcuts are always created in lowercase for some reason
+}
+
