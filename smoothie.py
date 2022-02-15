@@ -1,91 +1,144 @@
-from sys import argv,exit # parse args
-from os import path # split file extension
+from argparse import ArgumentParser
+from sys import argv,exit
+from os import path, system
 from configparser import ConfigParser
-from subprocess import run # Run vs
-from random import choice # Randomize the smoothie's flavor))
+from subprocess import run
+from random import choice # Randomize smoothie's flavor
 
 # Bool aliases
 yes = ['True','true','yes','y','1']
 no = ['False','false','no','n','0','null','',None]
 
-if len(argv) == 1:
-    print('''
-using Smoothie from the command line:
+parser = ArgumentParser()
+parser.add_argument("-peek",    "-p",    help="render a specific frame (outputs an image)", action="store", nargs=1, metavar='752',       type=int)
+parser.add_argument("-trim",    "-t",    help="Trim out the frames you don't want to use",  action="store", nargs=1, metavar='0:23,1:34', type=str)
+parser.add_argument("-dir",              help="opens the directory where Smoothie resides", action="store_true"                                   )
+parser.add_argument("-recipe",  "-rc",   help="opens default recipe.ini",                   action="store_true"                                   )
+parser.add_argument("--config", "-c",    help="specify override config file",               action="store", nargs=1, metavar='PATH',      type=str)
+parser.add_argument("--encoding","-enc", help="specify override ffmpeg encoding arguments", action="store",                               type=str)
+parser.add_argument("-verbose", "-v",    help="increase output verbosity",                  action="store_true"                                   )
+parser.add_argument("-curdir",  "-cd",   help="save all output to current directory",       action="store_true",                                  )
+parser.add_argument("-input",   "-i",    help="specify input video path(s)",                action="store", nargs="+", metavar='PATH',    type=str)
+parser.add_argument("-vpy",              help="specify a VapourSynth script",               action="store", nargs=1, metavar='PATH',      type=str)
+args = parser.parse_args()
 
-sm "D:\Video\input1.mp4" "D:\Video\input2.mp4" ...
-    Simply give in the path of the videos you wish to queue to smoothie
-
-sm config.extension "D:\Video\input1.mp4" "D:\Video\input2.mp4" ...
-    You can also make the first argument be your custom config file's name, it'll look for it in the settings folder
-    ''')
-    exit(0)
-
-def ensure(file, desc):
-    if path.exists(file) == False:
-        print(f"{desc} file not found: {file}")
-        exit(1)
-
-if argv == [argv[0],'folder']:
+if args.dir:
     run(f'explorer {path.dirname(argv[0])}')
     exit(0)
+if args.recipe:
+    recipe = path.abspath(path.join(path.dirname(__file__), "settings/recipe.ini"))
+    if path.exists(recipe) == False:
+        print("config path does not exist (are you messing with files?), exitting")
+        run('powershell -NoLogo')
+    run(f'explorer {recipe}')
+    exit(0)
 
-if path.splitext(argv[1])[1] in ['.ini','.txt']:
 
-    if path.dirname(argv[1]) == '': # If no directory, look for it in the settings folder
-        recipe = path.join(path.dirname(argv[0]), f"settings\\{argv[1]}")
-        config_filepath = recipe
-        conf = ConfigParser()
-        conf.read(recipe)
-    else: # If there is a directory, it's a full path so just load it in
-        conf = ConfigParser()
-        conf.read(argv[1])
-        config_filepath = argv[1]
+conf = ConfigParser()
 
-    queue = argv[2:]
+if args.config:
+    config_filepath = path.abspath(args.config[0])
+    conf.read(config_filepath)
 else:
-    recipe = path.join(path.dirname(__file__), "settings\\recipe.ini")
-    config_filepath = recipe
-    conf = ConfigParser()
-    conf.read(recipe)
-    queue = argv[1:]
+    config_filepath = path.abspath(path.join(path.dirname(__file__), "settings/recipe.ini"))
+    conf.read(config_filepath)
 
-for video in queue:
+if path.exists(config_filepath) in [False,None]:
+    print("config path does not exist, exitting")
+    run('powershell -NoLogo')
+elif args.verbose:
+    print(f"VERBOSE: using config file: {config_filepath}")
+
+if args.input in [no, None]:
+    parser.parse_args('-h'.split()) # If the user does not pass any args, just redirect to -h (Help)
+
+round = 0 # Reset the round counter
+
+for video in args.input: # Loops through every single video
+
+    # Title
+
+    round += 1
+
+    title = "Smoothie - " + path.basename(video)
+
+    if len(args.input) > 1:
+        title = f'[{round}/{len(args.input)}] ' + title
+
+    system(f"title {title}")
+
+    # Suffix
 
     if str(conf['misc']['flavors']) in [yes,'fruits']:
         flavors = [
-            'Strawberry','Blueberry','Raspberry','Blackberry','Cherry','Cranberry','Coconut','Pineapple','Kiwi'
-            'Peach','Apricot','Dragonfuit','Grapefruit','Melon','Papaya','Watermelon','Banana','Apple','Pear','Orange'
+            'Berry','Cherry','Cranberry','Coconut','Kiwi','Avocado','Durian','Lemon','Lime','Fig','Mirabelle',
+            'Peach','Apricot','Grape','Melon','Papaya','Banana','Apple','Pear','Orange','Mango','Plum','Pitaya'
         ]
     else:
         flavors = ['Smoothie']
 
-    filename, ext = path.splitext(video)
+    # Extension
 
-    if conf['misc']['folder'] in no:
+    if args.peek:
+        ext = '.png'
+    elif conf['misc']['container'] in no:
+        ext = path.splitext(video)[1]
+    else:
+        ext = conf['misc']['container']
 
+    filename = path.basename(path.splitext(video)[0])
+
+    # Directory
+
+    if args.curdir:
+        outdir = path.abspath(path.curdir)
+    elif conf['misc']['folder'] in no:
         outdir = path.dirname(video)
     else:
         outdir = conf['misc']['folder']
 
-    out = path.join(outdir, filename + f' - {choice(flavors)}' + ext)
+    out = path.join(outdir, filename + f' - {choice(flavors)}{ext}')
 
     count=2
     while path.exists(out):
-        out = path.join(outdir, filename + f' - {choice(flavors)}' + f' ({count})' + ext)
+        out = path.join(outdir, f'{filename} - {choice(flavors)} ({count}){ext}')
         count+=1
 
+    # VapourSynth
+
     vspipe = path.join(path.dirname((path.dirname(__file__))),'VapourSynth','VSPipe.exe')
-    vpy = 'blender.vpy'
+
+    if args.vpy:
+
+        if path.dirname(args.vpy[0]) in no:
+            
+            vpy = path.join( path.dirname(__file__), (args.vpy[0]) )
+        else:
+            vpy = path.abspath(args.vpy[0])
+    else:
+        vpy = path.abspath(path.join(path.dirname(__file__),'blender.vpy'))
     
-    command = [ # Split in two for readability
-        
-        f"cmd /c {vspipe} -y \"{path.join(path.dirname(__file__), vpy)}\" --arg input_video=\"{video}\" --arg config_filepath=\"{config_filepath}\"",
-        f"- | {conf['encoding']['process']} -hide_banner -loglevel warning -stats -i - {conf['encoding']['args']} \"{out}\""
-        # -i \"{video}\" -map 0:v -map 1:a?
+    command = [ # This is the master command, it gets appended some extra output args later down
+    f'{vspipe} -y "{vpy}" --arg input_video="{video}" --arg config_filepath="{config_filepath}" ',
+    f'- | {conf["encoding"]["process"]} -hide_banner -loglevel warning -stats -i - ',
     ]
-    if (conf['misc']['verbose']) in yes:
-        print(command)
-        print(f"VSPipe: {vspipe}")
-        print(f"VIDEO: {video}")
+
+    if args.peek:
+        frame = int(args.peek[0]) # Extracting the frame passed from the singular array
+        command[0] += f'--start {frame} --end {frame}'
+        command[1] += f' "{out}"' # No need to specify audio map, simple image output
+    elif args.trim:
+        command[0] += f'--arg trim="{args.trim}"'
+        command[1] += f'{conf["encoding"]["args"]} "{out}"'
+    else:
+        # Adds as input the video to get it's audio tracks and gets encoding arguments from the config file
+        command[1] += f'-i "{path.abspath(video)}" -map 0:v -map 1:a? {conf["encoding"]["args"]} "{out}"'
+
+    if args.verbose:
+        command[0] += ' --arg verbose=True'
+        for cmd in command: print(cmd)
+        print(f"Queuing video: {video}")
 
     run(' '.join(command),shell=True)
+
+system(f"title [{round}/{len(args.input)}] Smoothie - Finished! (EOF)")
