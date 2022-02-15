@@ -31,7 +31,13 @@ Write-Warning "Testing FFmpeg encoders.. note NVENC may fail if you use an older
     }
 }
 
-(Get-Content "$DIR\Smoothie\settings\recipe.ini") -replace ('libx264 -preset slow -crf 15',$valid_args) | Set-Content "$DIR\Smoothie\settings\recipe.ini"
+$rc = (Get-Content "$DIR\Smoothie\settings\recipe.ini") -replace ('libx264 -preset slow -crf 15',$valid_args)
+
+if ($valid_args -like '*libx26'){
+    $rc = $rc -replace ('gpu=true','gpu=false')
+}
+
+Set-Content "$DIR\Smoothie\settings\recipe.ini" -Value $rc
 
 $SendTo = [System.Environment]::GetFolderPath('SendTo')
 
