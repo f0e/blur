@@ -45,15 +45,12 @@ out=1
 
 
 ## Installation
-To install Smoothie and its [dependencies](#dependencies) for Windows, run this install script:
+To install Smoothie and its dependencies for Windows, run this install script:
 
 ```powershell
 powershell "irm smoothie.ctt.cx|iex"
 ```
-For Linux users and those who seek for a manual installation, see [manual installation](#manual-installation)
-
-If you already have your own VapourSynth/Python environment installed you can clone the repository and make your own shortcuts, also see [dependencies](#dependencies)
-
+For Linux users and those who seek for a manual installation/already have a Python 3.9/VapourSynth, scroll all the way down
 
 ## Using Smoothie
 You can simply select one multiple videos and right click and of them -> Send To -> Smoothie
@@ -67,7 +64,7 @@ using Smoothie from the command line:
     You can also make the first argument be your custom config file's name, it'll look for it in the settings folder
 
 
-<details open>
+<details>
 <summary>Dependencies </summary>
 
 - [Python](https://www.python.org/downloads) (3.9)
