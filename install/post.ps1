@@ -1,5 +1,3 @@
-$DIR = "C:\Users\WDAGUtilityAccount\scoop\apps\smoothie\current"
-
 Rename-Item -Path (Convert-Path "$DIR\Smoothie*") -NewName "Smoothie"
 
 if (-Not(Test-Path "$ScoopDir\shims\sm.exe")){
