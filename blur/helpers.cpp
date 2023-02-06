@@ -45,15 +45,15 @@ std::wstring helpers::towstring(const std::string& str) {
 std::string helpers::to_lower(const std::string& str) {
 	std::string out = str;
 
-	std::for_each(out.begin(), out.end(), [](char & c){
+	std::for_each(out.begin(), out.end(), [](char& c) {
 		c = ::tolower(c);
-	});
+		});
 
 	return out;
 }
 
-void helpers::set_hidden(const std::string& path) {
-	const char* path_str = path.c_str();
+void helpers::set_hidden(const std::filesystem::path& path) {
+	const char* path_str = path.string().c_str();
 	int attr = GetFileAttributesA(path_str);
 	SetFileAttributesA(path_str, attr | FILE_ATTRIBUTE_HIDDEN);
 }
@@ -61,20 +61,20 @@ void helpers::set_hidden(const std::string& path) {
 int helpers::exec(const std::string& command) {
 	char buf[128];
 	FILE* pipe;
-	
+
 	// run command and redirect output to pipe
 	if ((pipe = _popen(std::string("\"" + command + "\"").c_str(), "rt")) == NULL)
 		return -1;
-	
+
 	// read from pipe until end
 	while (fgets(buf, 128, pipe)) {
 		puts(buf);
 	}
-	
+
 	// close pipe and return value
 	if (feof(pipe))
 		return _pclose(pipe);
-	
+
 	return -1;
 }
 

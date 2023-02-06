@@ -10,7 +10,7 @@ private:
 	const int preview_width = 1000;
 	const int preview_height = 563;
 
-	std::string preview_filename;
+	std::filesystem::path preview_path;
 	bool preview_disabled = false;
 	bool preview_open = false;
 
@@ -35,7 +35,7 @@ private:
 	void watch_preview();
 
 public:
-	void start(const std::string& filename);
+	void start(const std::filesystem::path& filepath);
 	void stop();
 	void disable();
 };

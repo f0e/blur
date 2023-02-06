@@ -7,7 +7,7 @@ namespace helpers {
 	std::wstring towstring(const std::string& str);
 	std::string to_lower(const std::string& str);
 
-	void set_hidden(const std::string& path);
+	void set_hidden(const std::filesystem::path& path);
 
 	int exec(const std::string& command);
 	bool detect_command(const std::string& command);

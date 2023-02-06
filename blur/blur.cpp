@@ -28,8 +28,8 @@ std::vector<std::string> c_blur::get_files(int& argc, char* argv[]) {
 	return video_paths;
 }
 
-std::string c_blur::create_temp_path(const std::string& video_path) {
-	std::string temp_path = video_path + "\\blur_temp\\";
+std::filesystem::path c_blur::create_temp_path(const std::filesystem::path& video_path) {
+	std::filesystem::path temp_path = video_path / "blur_temp\\";
 
 	// check if the path already exists
 	if (!std::filesystem::exists(temp_path)) {
@@ -43,7 +43,7 @@ std::string c_blur::create_temp_path(const std::string& video_path) {
 	return temp_path;
 }
 
-void c_blur::remove_temp_path(const std::string& path) {
+void c_blur::remove_temp_path(const std::filesystem::path& path) {
 	// check if the path doesn't already exist
 	if (!std::filesystem::exists(path))
 		return;
@@ -77,9 +77,9 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 		console.print_line();
 	}
 
-	path = std::filesystem::path(helpers::get_executable_path()).parent_path().string(); // folder the exe is in
-	used_installer = std::filesystem::exists(fmt::format("{}/lib/vapoursynth/vspipe.exe", path))
-		&& std::filesystem::exists(fmt::format("{}/lib/ffmpeg/ffmpeg.exe", path));
+	path = std::filesystem::path(helpers::get_executable_path()).parent_path(); // folder the exe is in
+	used_installer = std::filesystem::exists(path / "lib\\vapoursynth\\vspipe.exe")
+		&& std::filesystem::exists(path / "lib\\ffmpeg\\ffmpeg.exe");
 
 	if (!used_installer) {
 		// didn't use installer, check if dependencies were installed
@@ -120,12 +120,12 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 					// check the file exists
 					if (!std::filesystem::exists(video_path))
 						throw std::exception("video couldn't be opened (wrong path?)\n");
-				
+
 					// render video
 					c_render render(video_path);
 					rendering.queue_render(render);
 				}
-			
+
 				// start rendering
 				rendering.start_thread();
 			}
@@ -138,22 +138,14 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 		rendering.stop_thread();
 	}
 	else { // command-line mode
-		std::vector<std::string> input_filenames, output_filenames, config_paths;
+		std::vector<std::string> inputs, outputs, config_paths;
 
 		if (!cmd.count("input")) {
 			console.print("No input files specified. Use -i or --input.");
 			return;
 		}
 
-		input_filenames = cmd["input"].as<std::vector<std::string>>();
-
-		// check inputs exist
-		for (const auto& input_filename : input_filenames) {
-			if (!std::filesystem::exists(input_filename)) {
-				console.print(fmt::format("Video {} was not found (wrong path?)", input_filename));
-				return;
-			}
-		}
+		inputs = cmd["input"].as<std::vector<std::string>>();
 
 		bool manual_output_files = cmd.count("output");
 		if (manual_output_files) {
@@ -162,7 +154,7 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 				return;
 			}
 
-			output_filenames = cmd["output"].as<std::vector<std::string>>();
+			outputs = cmd["output"].as<std::vector<std::string>>();
 		}
 
 		bool manual_config_files = cmd.count("config-path"); // todo: cleanup redundancy ^^
@@ -188,31 +180,35 @@ void c_blur::run(int argc, char* argv[], const cxxopts::ParseResult& cmd) {
 		}
 
 		// queue videos to be rendered
-		for (size_t i = 0; i < input_filenames.size(); i++) {
-			const std::string& input_filename = input_filenames[i];
-			std::optional<std::string> output_filename;
-			std::optional<std::string> config_path;
+		for (size_t i = 0; i < inputs.size(); i++) {
+			std::filesystem::path input_path = std::filesystem::absolute(inputs[i]);
+
+			if (!std::filesystem::exists(input_path)) {
+				console.print(fmt::format("Video {} was not found (wrong path?)", input_path.string()));
+				return;
+			}
+
+			std::optional<std::filesystem::path> output_path;
+			std::optional<std::filesystem::path> config_path;
 
 			if (manual_config_files)
 				config_path = std::filesystem::absolute(config_paths[i]).string();
 
 			if (manual_output_files) {
-				auto path = std::filesystem::absolute(output_filenames[i]);
+				output_path = std::filesystem::absolute(outputs[i]);
 
 				// create output directory if needed
-				if (!std::filesystem::exists(path.parent_path()))
-					std::filesystem::create_directories(path.parent_path());
-
-				output_filename = path.string();
+				if (!std::filesystem::exists(output_path->parent_path()))
+					std::filesystem::create_directories(output_path->parent_path());
 			}
 
 			// set up render
-			c_render render(std::filesystem::absolute(input_filename).string(), output_filename, config_path);
+			c_render render(input_path, output_path, config_path);
 
 			rendering.queue_render(render);
 
 			if (verbose) {
-				console.print(fmt::format("Queued '{}' for render, outputting to '{}'", render.get_video_name(), render.get_output_video_path()));
+				console.print(fmt::format("Queued '{}' for render, outputting to '{}'", render.get_video_name(), render.get_output_video_path().string()));
 			}
 		}
 

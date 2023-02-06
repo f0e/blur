@@ -8,29 +8,28 @@
 class c_render {
 private:
 	std::string video_name;
-	std::string video_path;
-	std::string video_folder;
-	
-	std::string input_filename;
-	std::string output_path;
 
-	std::string temp_path;
+	std::filesystem::path video_path;
+	std::filesystem::path video_folder;
+
+	std::filesystem::path output_path;
+	std::filesystem::path temp_path;
+	std::filesystem::path preview_path;
 
 	s_blur_settings settings;
-	std::string preview_filename;
 
 private:
 	void build_output_filename();
 	std::string build_ffmpeg_command();
 
 public:
-	c_render(const std::string& input_path, std::optional<std::string> output_filename = {}, std::optional<std::string> config_path = {});
+	c_render(const std::filesystem::path& input_path, std::optional<std::filesystem::path> output_path = {}, std::optional<std::filesystem::path> config_path = {});
 
 	std::string get_video_name() {
 		return video_name;
 	}
 
-	std::string get_output_video_path() {
+	std::filesystem::path get_output_video_path() {
 		return output_path;
 	}
 

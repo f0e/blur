@@ -77,7 +77,7 @@ void c_render::build_output_filename() {
 	// build output filename
 	int num = 1;
 	do {
-		this->output_path = this->video_folder + fmt::format("{} - blur", this->video_name);
+		std::string output_filename = fmt::format("{} - blur", this->video_name);
 
 		if (this->settings.detailed_filenames) {
 			std::string extra_details;
@@ -98,26 +98,26 @@ void c_render::build_output_filename() {
 			}
 
 			if (extra_details != "") {
-				this->output_path += " ~ " + extra_details;
+				output_filename += " ~ " + extra_details;
 			}
 		}
 
 		if (num > 1)
-			this->output_path += fmt::format(" ({})", num);
+			output_filename += fmt::format(" ({})", num);
 
-		this->output_path += ".mp4";
+		output_filename += "." + this->settings.video_container;
+
+		this->output_path = this->video_folder / output_filename;
 
 		num++;
 	} while (std::filesystem::exists(this->output_path));
 }
 
-c_render::c_render(const std::string& input_path, std::optional<std::string> output_filename, std::optional<std::string> config_path) {
+c_render::c_render(const std::filesystem::path& input_path, std::optional<std::filesystem::path> output_path, std::optional<std::filesystem::path> config_path) {
 	this->video_path = input_path;
 
-	this->video_name = std::filesystem::path(this->video_path).stem().string();
-	this->video_folder = std::filesystem::path(this->video_path).parent_path().string() + "\\";
-
-	this->input_filename = std::filesystem::path(this->video_path).filename().string();
+	this->video_name = this->video_path.stem().string();
+	this->video_folder = this->video_path.parent_path().string() + "\\";
 
 	if (blur.using_ui) {
 		// print message
@@ -126,29 +126,29 @@ c_render::c_render(const std::string& input_path, std::optional<std::string> out
 			console.print_line();
 		}
 
-		console.print(fmt::format("opening {} for processing", this->input_filename));
+		console.print(fmt::format("opening {} for processing", this->video_path.filename().string()));
 	}
 
 	if (config_path.has_value()) {
 		bool first_time_config = false;
-		this->settings = config.parse(config_path.value(), first_time_config);
+		this->settings = config.parse(output_path.value(), first_time_config);
 
 		if (first_time_config) {
 			if (blur.verbose)
-				console.print(fmt::format("configuration file not found, default config generated at {}", config_path.value()));
+				console.print(fmt::format("configuration file not found, default config generated at {}", config_path->string()));
 		}
 	}
 	else {
 		// parse config file (do it now, not when rendering. nice for batch rendering the same file with different settings)
 		bool first_time_config = false;
-		std::string config_filepath;
+		std::filesystem::path config_filepath;
 		this->settings = config.parse_folder(this->video_folder, config_filepath, first_time_config);
 
 		if (blur.using_ui) {
 			// check if the config exists
 			if (first_time_config) {
 				console.print_blank_line();
-				console.print(fmt::format("configuration file not found, default config generated at {}", config_filepath));
+				console.print(fmt::format("configuration file not found, default config generated at {}", config_filepath.string()));
 				console.print_blank_line();
 				console.print("continue render? (y/n)");
 				console.print_blank_line();
@@ -164,26 +164,18 @@ c_render::c_render(const std::string& input_path, std::optional<std::string> out
 		}
 	}
 
-	if (output_filename.has_value())
-		this->output_path = output_filename.value();
-	else
-		this->build_output_filename();
-
-	if (blur.using_ui) {
-		console.print(fmt::format("writing to {}", this->output_path));
-
-		console.print_line();
-	}
+	if (output_path.has_value())
+		this->output_path = output_path.value();
 }
 
 std::string c_render::build_ffmpeg_command() {
 	std::string vspipe_path = "vspipe", ffmpeg_path = "ffmpeg";
 	if (blur.used_installer) {
-		vspipe_path = fmt::format("\"{}/lib/vapoursynth/vspipe.exe\"", blur.path);
-		ffmpeg_path = fmt::format("\"{}/lib/ffmpeg/ffmpeg.exe\"", blur.path);
+		vspipe_path = (blur.path / "lib\\vapoursynth\\vspipe.exe").string();
+		ffmpeg_path = (blur.path / "lib\\ffmpeg\\ffmpeg.exe").string();
 	}
 
-	std::string pipe_command = fmt::format("{} -y \"{}\" -", vspipe_path, script_handler.script_filename);
+	std::string pipe_command = fmt::format("{} -y \"{}\" -", vspipe_path, script_handler.script_path.string());
 
 	// build ffmpeg command
 	std::string ffmpeg_command = ffmpeg_path;
@@ -193,7 +185,7 @@ std::string c_render::build_ffmpeg_command() {
 
 		// input
 		ffmpeg_command += " -i -"; // piped output from video script
-		ffmpeg_command += fmt::format(" -i \"{}\"", video_path); // original video (for audio)
+		ffmpeg_command += fmt::format(" -i \"{}\"", video_path.string()); // original video (for audio)
 		ffmpeg_command += " -map 0:v -map 1:a?"; // copy video from first input, copy audio from second
 
 		// audio filters
@@ -222,9 +214,10 @@ std::string c_render::build_ffmpeg_command() {
 
 		if (settings.ffmpeg_override != "") {
 			ffmpeg_command += " " + settings.ffmpeg_override;
-		} else {
+		}
+		else {
 			// video format
-			if (settings.gpu) {
+			if (settings.gpu_rendering) {
 				if (helpers::to_lower(settings.gpu_type) == "nvidia")
 					ffmpeg_command += fmt::format(" -c:v h264_nvenc -preset p7 -qp {}", settings.quality);
 				else if (helpers::to_lower(settings.gpu_type) == "amd")
@@ -244,12 +237,12 @@ std::string c_render::build_ffmpeg_command() {
 		}
 
 		// output
-		ffmpeg_command += fmt::format(" \"{}\"", output_path);
+		ffmpeg_command += fmt::format(" \"{}\"", output_path.string());
 
 		// extra output for preview. generate low-quality preview images.
 		if (settings.preview && !blur.no_preview) {
 			ffmpeg_command += " -map 0:v"; // copy video from first input
-			ffmpeg_command += fmt::format(" -q:v 3 -update 1 -atomic_writing 1 -y \"{}\"", preview_filename);
+			ffmpeg_command += fmt::format(" -q:v 2 -update 1 -atomic_writing 1 -y \"{}\"", preview_path.string());
 		}
 	}
 
@@ -257,8 +250,11 @@ std::string c_render::build_ffmpeg_command() {
 }
 
 void c_render::render() {
+	if (output_path.empty())
+		build_output_filename();
+
 	if (blur.verbose) {
-		console.print(fmt::format("rendering {}...", video_name));
+		console.print(fmt::format("rendering {}... (writing to {})", video_name, output_path.string()));
 		console.print_blank_line();
 	}
 
@@ -280,8 +276,8 @@ void c_render::render() {
 
 	// start preview
 	if (settings.preview && !blur.no_preview) {
-		preview_filename = temp_path + "preview.jpg";
-		preview.start(preview_filename);
+		preview_path = temp_path / "preview.jpg";
+		preview.start(preview_path);
 	}
 
 	// render

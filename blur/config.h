@@ -9,7 +9,7 @@ struct s_blur_settings {
 	std::string blur_weighting = "equal";
 
 	bool interpolate = true;
-	int interpolated_fps = 480;
+	std::string interpolated_fps = "5x";
 
 	float input_timescale = 1.f;
 	float output_timescale = 1.f;
@@ -20,12 +20,14 @@ struct s_blur_settings {
 	float contrast = 1.f;
 
 	int quality = 18;
+	bool deduplicate = true;
 	bool preview = true;
 	bool detailed_filenames = false;
 
-	bool gpu = false;
+	bool gpu_interpolation = true;
+	bool gpu_rendering = false;
 	std::string gpu_type = "nvidia";
-	bool deduplicate = false;
+	std::string video_container = "mp4";
 	std::string ffmpeg_override = "";
 
 	float blur_weighting_gaussian_std_dev = 2.f;
@@ -33,23 +35,31 @@ struct s_blur_settings {
 	std::string blur_weighting_bound = "[0, 2]";
 
 	std::string interpolation_program = "svp";
-	std::string interpolation_speed = "default";
-	std::string interpolation_tuning = "default";
-	std::string interpolation_algorithm = "default";
+	std::string interpolation_speed = "medium";
+	std::string interpolation_preset = "default";
+	std::string interpolation_algorithm = "13";
+	std::string interpolation_mask_area = "50";
+
+	bool manual_svp = false;
+	std::string super_string = "";
+	std::string vectors_string = "";
+	std::string smooth_string = "";
 };
+
+const s_blur_settings default_settings;
 
 class c_config {
 private:
 	const std::string filename = ".blur-config.cfg";
 
 private:
-	std::string get_config_filename(const std::string& video_folder);
+	std::filesystem::path get_config_filename(const std::filesystem::path& video_folder);
 
 public:
-	void create(const std::string& filepath, s_blur_settings current_settings = s_blur_settings());
+	void create(const std::filesystem::path& filepath, s_blur_settings current_settings = s_blur_settings());
 
-	s_blur_settings parse(const std::string& config_filepath, bool& first_time);
-	s_blur_settings parse_folder(const std::string& video_folder, std::string& config_filepath, bool& first_time);
+	s_blur_settings parse(const std::filesystem::path& config_filepath, bool& first_time);
+	s_blur_settings parse_folder(const std::filesystem::path& video_folder, std::filesystem::path& config_filepath, bool& first_time);
 };
 
 inline c_config config;
