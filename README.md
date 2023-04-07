@@ -121,7 +121,9 @@ For 60fps footage:
 | Medium                      | 0.5     |
 | Low                         | 0.2-0.3 |
 
-In general the lower the fps the lower blur amount you should use, so for 30fps I'd recommend halving the values above. This really is just preference though.
+To preserve your old blur amount when changing framerate use the following formula:
+
+`[new blur amount] = [old blur amount] × ([new fps] / [old fps])`
 
 ### interpolated fps
 
@@ -135,9 +137,11 @@ Using blur on 60fps footage results in clean motion blur, but occasionally leave
 
 If your footage contains duplicate frames then occasionally blurred frames will look out of place, making the video seem unsmooth at points. The 'deduplicate' option will automatically fill in duplicated frames with interpolated frames to prevent this from happening.
 
+---
+
 ## Manual installation
 
-Note: I don't suggest manual installation due to the large amount of dependencies. If possible, stick to using the provided installer.
+> *Note: I don't suggest manual installation due to the large amount of dependencies. If possible, stick to using the provided installer.*
 
 ### Requirements
 
@@ -150,15 +154,9 @@ Note: I don't suggest manual installation due to the large amount of dependencie
 - [FFMS2](https://github.com/FFMS/ffms2)
 - [SVPflow 4.2.0.142](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
 - [vs-frameblender](https://github.com/f0e/vs-frameblender)
-- [deduplicate.py](https://github.com/f0e/blur/blob/master/plugins/deduplicate.py)
-- [interpolate.py](https://github.com/f0e/blur/blob/master/plugins/interpolate.py)
-- [weighting.py](https://github.com/f0e/blur/blob/master/plugins/weighting.py)
+- [blur plugins](https://github.com/f0e/blur/tree/master/plugins)
 
 1. Download [the latest release](https://github.com/f0e/blur/releases/latest) or build the project.
-2. Download and run [installer.bat](https://raw.githubusercontent.com/f0e/blur/master/installer.bat) to automatically install all of the requirements.
-
-Or
-
 2. Install Python
 3. Install FFmpeg and [add it to PATH](https://www.wikihow.com/Install-FFmpeg-on-Windows)
 4. Install the 64-bit version of VapourSynth
