@@ -8,7 +8,7 @@ dupe_last_good_idx = 0
 dupe_next_good_idx = 0
 
 
-def get_interp(clip, duplicate_index, svp_speed, svp_preset, svp_algorithm, svp_masking, svp_gpu):
+def get_interp(clip, duplicate_index, svp_preset, svp_algorithm, svp_masking, svp_gpu):
     global cur_interp
     global dupe_last_good_idx
     global dupe_next_good_idx
@@ -38,8 +38,7 @@ def get_interp(clip, duplicate_index, svp_speed, svp_preset, svp_algorithm, svp_
     # todo: possibly including more frames will result in better results?
     good_frames = clip[dupe_last_good_idx] + clip[dupe_next_good_idx]
 
-    [super_string, vectors_string,
-        smooth_string] = interpolate.generate_svp_strings(duped_frames + 1, svp_speed, svp_preset, svp_algorithm, svp_masking, svp_gpu)
+    [super_string, vectors_string, smooth_string] = interpolate.generate_svp_strings(duped_frames + 1, svp_preset, svp_algorithm, svp_masking, svp_gpu)
 
     super = core.svp1.Super(good_frames, super_string)
     vectors = core.svp1.Analyse(
@@ -60,7 +59,7 @@ def get_interp(clip, duplicate_index, svp_speed, svp_preset, svp_algorithm, svp_
     cur_interp = core.std.AssumeFPS(cur_interp, fpsnum=1, fpsden=1)
 
 
-def interpolate_dupes(clip, frame_index, svp_speed, svp_preset, svp_algorithm, svp_masking, svp_gpu):
+def interpolate_dupes(clip, frame_index, svp_preset, svp_algorithm, svp_masking, svp_gpu):
     global cur_interp
     global dupe_last_good_idx
     global dupe_next_good_idx
@@ -69,8 +68,7 @@ def interpolate_dupes(clip, frame_index, svp_speed, svp_preset, svp_algorithm, s
 
     if cur_interp == None:
         # haven't interpolated yet
-        get_interp(clip1, frame_index, svp_speed, svp_preset,
-                   svp_algorithm, svp_masking, svp_gpu)
+        get_interp(clip1, frame_index, svp_preset, svp_algorithm, svp_masking, svp_gpu)
 
     # combine the good frames with the interpolated ones so that vapoursynth can use them by indexing
     # (i hate how you have to do this, there might be nicer way idk)
@@ -84,8 +82,7 @@ def interpolate_dupes(clip, frame_index, svp_speed, svp_preset, svp_algorithm, s
 
 def fill_drops(
     clip,
-    thresh=0.1,
-    svp_speed="medium",
+    threshold=0.1,
     svp_preset="default",
     svp_algorithm=13,
     svp_masking=50,
@@ -98,12 +95,12 @@ def fill_drops(
     def handle_frames(n, f):
         global cur_interp
 
-        if f.props["PlaneStatsDiff"] > thresh or n == 0:
+        if f.props["PlaneStatsDiff"] > threshold or n == 0:
             cur_interp = None
             return clip
 
         # duplicate frame
-        interp = interpolate_dupes(clip, n, svp_speed, svp_preset,
+        interp = interpolate_dupes(clip, n, svp_preset,
                                    svp_algorithm, svp_masking, svp_gpu)
 
         if debug:
@@ -118,7 +115,7 @@ def fill_drops(
     diffclip = core.std.PlaneStats(clip, clip[0] + clip)
     return core.std.FrameEval(clip, handle_frames, prop_src=diffclip)
 
-def fill_drops_old(clip, thresh=0.1):
+def fill_drops_old(clip, threshold=0.1):
     if not isinstance(clip, vs.VideoNode):
         raise ValueError('This is not a clip')
 
@@ -130,8 +127,8 @@ def fill_drops_old(clip, thresh=0.1):
     filldrops = core.mv.FlowInter(clip, super, mvbw=backwards_vectors, mvfw=forward_vectors, ml=1)
     
     def selectFunc(n, f):
-        if f.props['PlaneStatsDiff'] < thresh:
-            return filldrops
+        if f.props['PlaneStatsDiff'] < threshold:
+            return core.text.Text(filldrops, f"interpolated, diff: {f.props['PlaneStatsDiff']:.3f}")
         else:
             return clip
 

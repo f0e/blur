@@ -50,7 +50,6 @@ void c_config::create(const std::filesystem::path& filepath, s_blur_settings cur
 	output << "\n";
 	output << "- advanced interpolation" << "\n";
 	output << "interpolation program (svp/rife/rife-ncnn): " << current_settings.interpolation_program << "\n";
-	output << "interpolation speed: " << current_settings.interpolation_speed << "\n";
 	output << "interpolation preset: " << current_settings.interpolation_preset << "\n";
 	output << "interpolation algorithm: " << current_settings.interpolation_algorithm << "\n";
 	output << "interpolation mask area: " << current_settings.interpolation_mask_area << "\n";
@@ -175,7 +174,6 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath, bo
 	config_get_str("blur weighting bound", settings.blur_weighting_bound);
 
 	config_get_str("interpolation program (svp/rife/rife-ncnn)", settings.interpolation_program);
-	config_get_str("interpolation speed", settings.interpolation_speed);
 	config_get_str("interpolation preset", settings.interpolation_preset);
 	config_get_str("interpolation algorithm", settings.interpolation_algorithm);
 	config_get_str("interpolation mask area", settings.interpolation_mask_area);
@@ -185,7 +183,6 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath, bo
 	if (settings.setting == "default") \
 		settings.setting = default_settings.setting
 
-	FIX_OLD(interpolation_speed);
 	FIX_OLD(interpolation_algorithm);
 
 	config_get("manual svp", settings.manual_svp);

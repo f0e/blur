@@ -12,7 +12,6 @@ NEW_PRESETS = ["default"]
 
 def generate_svp_strings(
     new_fps,
-    speed="medium",
     preset="default",
     algorithm=13,
     masking=50,
@@ -79,11 +78,9 @@ def generate_svp_strings(
 def interpolate(
     video,
     new_fps,
-    speed="medium",
     preset="default",
     algorithm=13,
     masking=50,
-    deduplicate=True,
     gpu=True,
 ):
     if not isinstance(video, vs.VideoNode):
@@ -92,7 +89,7 @@ def interpolate(
     preset = preset.lower()
 
     print(
-        f"speed: {speed}, preset: {preset}, algorithm: {algorithm}, masking: {masking}, gpu: {gpu}"
+        f"preset: {preset}, algorithm: {algorithm}, masking: {masking}, gpu: {gpu}"
     )
 
     if preset not in LEGACY_PRESETS and preset not in NEW_PRESETS:
@@ -100,7 +97,7 @@ def interpolate(
 
     # generate svp strings
     [super_string, vectors_string, smooth_string] = generate_svp_strings(
-        new_fps, speed, preset, algorithm, masking, gpu)
+        new_fps, preset, algorithm, masking, gpu)
 
     print(smooth_string)
 

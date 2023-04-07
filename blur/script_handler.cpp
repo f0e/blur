@@ -38,7 +38,15 @@ void c_script_handler::create(const std::filesystem::path& temp_path, const std:
 
 		// replace duplicate frames with new frames which are interpolated based off of the surrounding frames
 		if (settings.deduplicate)
-			video_script << "video = deduplicate.fill_drops_old(video, thresh=0.001)" << "\n";
+			video_script << "video = deduplicate.fill_drops_old(video, threshold=0.001)" << "\n";
+
+		// if (settings.deduplicate)
+		// 	video_script << fmt::format("video = deduplicate.fill_drops(video, threshold=0.001, svp_preset='{}', svp_algorithm={}, svp_masking={}, svp_gpu={})",
+		// 		settings.interpolation_preset,
+		// 		settings.interpolation_algorithm,
+		// 		settings.interpolation_mask_area,
+		// 		settings.gpu_interpolation ? "True" : "False"
+		// 	) << "\n";
 
 		// input timescale
 		if (settings.input_timescale != 1.f)
@@ -91,12 +99,10 @@ void c_script_handler::create(const std::filesystem::path& temp_path, const std:
 					video_script << fmt::format("video = core.svp2.SmoothFps(video, super['clip'], super['data'], vectors['clip'], vectors['data'], {})", fixed_smooth_string) << "\n";
 				}
 				else {
-					video_script << fmt::format("video = interpolate.interpolate(video, new_fps=interpolated_fps, speed='{}', preset='{}', algorithm={}, masking={}, deduplicate={}, gpu={})",
-						settings.interpolation_speed,
+					video_script << fmt::format("video = interpolate.interpolate(video, new_fps=interpolated_fps, preset='{}', algorithm={}, masking={}, gpu={})",
 						settings.interpolation_preset,
 						settings.interpolation_algorithm,
 						settings.interpolation_mask_area,
-						false ? "True" : "False",
 						settings.gpu_interpolation ? "True" : "False"
 					) << "\n";
 				}
