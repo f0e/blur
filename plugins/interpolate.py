@@ -12,7 +12,7 @@ NEW_PRESETS = ["default"]
 
 def generate_svp_strings(
     new_fps,
-    preset="default",
+    preset="weak",
     algorithm=13,
     masking=50,
     gpu=True
@@ -78,7 +78,7 @@ def generate_svp_strings(
 def interpolate(
     video,
     new_fps,
-    preset="default",
+    preset="weak",
     algorithm=13,
     masking=50,
     gpu=True,

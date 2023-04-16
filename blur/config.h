@@ -35,9 +35,9 @@ struct s_blur_settings {
 	std::string blur_weighting_bound = "[0, 2]";
 
 	std::string interpolation_program = "svp";
-	std::string interpolation_preset = "default";
+	std::string interpolation_preset = "weak";
 	std::string interpolation_algorithm = "13";
-	std::string interpolation_mask_area = "50";
+	std::string interpolation_mask_area = "0";
 
 	bool manual_svp = false;
 	std::string super_string = "";
