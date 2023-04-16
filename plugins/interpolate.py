@@ -88,18 +88,12 @@ def interpolate(
 
     preset = preset.lower()
 
-    print(
-        f"preset: {preset}, algorithm: {algorithm}, masking: {masking}, gpu: {gpu}"
-    )
-
     if preset not in LEGACY_PRESETS and preset not in NEW_PRESETS:
         raise vs.Error(f"interpolate: '{preset}' is not a valid preset")
 
     # generate svp strings
     [super_string, vectors_string, smooth_string] = generate_svp_strings(
         new_fps, preset, algorithm, masking, gpu)
-
-    print(smooth_string)
 
     # interpolate
     super = core.svp1.Super(video, super_string)

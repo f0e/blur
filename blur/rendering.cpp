@@ -175,7 +175,7 @@ std::string c_render::build_ffmpeg_command() {
 		ffmpeg_path = (blur.path / "lib\\ffmpeg\\ffmpeg.exe").string();
 	}
 
-	std::string pipe_command = fmt::format("\"{}\" -y \"{}\" -", vspipe_path, script_handler.script_path.string());
+	std::string pipe_command = fmt::format("\"{}\" -c y4m \"{}\" -", vspipe_path, script_handler.script_path.string());
 
 	// build ffmpeg command
 	std::string ffmpeg_command = '"' + ffmpeg_path + '"';
