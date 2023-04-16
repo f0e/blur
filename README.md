@@ -88,13 +88,21 @@ The program can also be used in the command line, use -h or --help for more info
 
 ### advanced interpolation
 
-- interpolation program (svp/rife/rife-ncnn) - program used for interpolation.
-  - svp - fastest option, also blurs static parts of video the least
-  - rife - considerably slower than SVP but can produce more accurate results, particularly for low framerate input videos. this is the CUDA implementation of RIFE, and is the faster option for NVIDIA gpus.
-  - rife-ncnn - Vulkan implementation of rife, works for all devices but is slower.
-- interpolation speed - todo
-- interpolation tuning - todo
-- interpolation algorithm - todo
+- interpolation preset - preset used for framerate interpolation, one of:
+  - weak (default) - _[explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
+  - film - _[explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
+  - smooth - _[explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
+  - default _(default svp settings)_
+- interpolation algorithm - algorithm used for framerate interpolation, one of:
+
+  - 13 - best overall quality and smoothness (default) - _[explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
+  - 23 - sometimes smoother than 13, but can result in smearing - _[explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
+  - 1 - _[explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
+  - 2 - _[explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
+  - 11 - _[explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
+  - 21 - _[explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
+
+- interpolation mask area - mask amount used when interpolating. higher values can mean static objects are blurred less, but can also result in less smooth output
 
 ### manual svp override
 
@@ -141,7 +149,7 @@ If your footage contains duplicate frames then occasionally blurred frames will 
 
 ## Manual installation
 
-> *Note: I don't suggest manual installation due to the large amount of dependencies. If possible, stick to using the provided installer.*
+> _Note: I don't suggest manual installation due to the large amount of dependencies. If possible, stick to using the provided installer._
 
 ### Requirements
 
