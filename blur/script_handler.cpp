@@ -12,7 +12,6 @@ void c_script_handler::create(const std::filesystem::path& temp_path, const std:
 		video_script << "import interpolate" << "\n";
 		video_script << "import adjust" << "\n";
 		video_script << "import weighting" << "\n";
-		video_script << "import havsfunc as haf" << "\n";
 
 		if (settings.deduplicate)
 			video_script << "import deduplicate" << "\n";

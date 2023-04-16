@@ -115,7 +115,7 @@ def fill_drops(
     diffclip = core.std.PlaneStats(clip, clip[0] + clip)
     return core.std.FrameEval(clip, handle_frames, prop_src=diffclip)
 
-def fill_drops_old(clip, threshold=0.1):
+def fill_drops_old(clip, threshold=0.1, debug=False):
     if not isinstance(clip, vs.VideoNode):
         raise ValueError('This is not a clip')
 
@@ -128,7 +128,10 @@ def fill_drops_old(clip, threshold=0.1):
     
     def selectFunc(n, f):
         if f.props['PlaneStatsDiff'] < threshold:
-            return core.text.Text(filldrops, f"interpolated, diff: {f.props['PlaneStatsDiff']:.3f}")
+            if debug:
+                return core.text.Text(filldrops, f"interpolated, diff: {f.props['PlaneStatsDiff']:.3f}", alignment=8)
+            
+            return filldrops
         else:
             return clip
 

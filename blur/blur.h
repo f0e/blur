@@ -7,6 +7,8 @@
 
 class c_blur {
 public:
+	const std::string BLUR_VERSION = "1.9";
+
 	bool using_ui = true;
 	bool verbose = true;
 	bool no_preview = false;

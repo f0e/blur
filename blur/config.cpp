@@ -3,6 +3,8 @@
 void c_config::create(const std::filesystem::path& filepath, s_blur_settings current_settings) {
 	std::ofstream output(filepath);
 
+	output << "[blur v" << blur.BLUR_VERSION << "]" << "\n";
+
 	output << "- blur" << "\n";
 	output << "blur: " << (current_settings.blur ? "true" : "false") << "\n";
 	output << "blur amount: " << current_settings.blur_amount << "\n";
