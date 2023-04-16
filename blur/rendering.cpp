@@ -129,40 +129,11 @@ c_render::c_render(const std::filesystem::path& input_path, std::optional<std::f
 		console.print(fmt::format("opening {} for processing", this->video_path.filename().string()));
 	}
 
-	if (config_path.has_value()) {
-		bool first_time_config = false;
-		this->settings = config.parse(output_path.value(), first_time_config);
-
-		if (first_time_config) {
-			if (blur.verbose)
-				console.print(fmt::format("configuration file not found, default config generated at {}", config_path->string()));
-		}
-	}
-	else {
-		// parse config file (do it now, not when rendering. nice for batch rendering the same file with different settings)
-		bool first_time_config = false;
-		std::filesystem::path config_filepath;
-		this->settings = config.parse_folder(this->video_folder, config_filepath, first_time_config);
-
-		if (blur.using_ui) {
-			// check if the config exists
-			if (first_time_config) {
-				console.print_blank_line();
-				console.print(fmt::format("configuration file not found, default config generated at {}", config_filepath.string()));
-				console.print_blank_line();
-				console.print("continue render? (y/n)");
-				console.print_blank_line();
-
-				char choice = console.get_char();
-				if (tolower(choice) != 'y') {
-					throw std::exception("stopping render");
-				}
-
-				// get settings again in case the user modified them
-				this->settings = config.parse_folder(this->video_folder, config_filepath, first_time_config);
-			}
-		}
-	}
+	// parse config file (do it now, not when rendering. nice for batch rendering the same file with different settings)
+	if (config_path.has_value())
+		this->settings = config.get_config(output_path.value(), false); // specified config path, don't use global
+	else
+		this->settings = config.get_config(config.get_config_filename(video_folder), true);
 
 	if (output_path.has_value())
 		this->output_path = output_path.value();

@@ -70,15 +70,9 @@ std::filesystem::path c_config::get_config_filename(const std::filesystem::path&
 	return video_folder / filename;
 }
 
-s_blur_settings c_config::parse(const std::filesystem::path& config_filepath, bool& first_time) {
+s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 	auto read_config = [&]() {
 		std::map<std::string, std::string> config = {};
-
-		// check if the config file exists, if not, write the default values
-		if (!std::filesystem::exists(config_filepath)) {
-			first_time = true;
-			create(config_filepath);
-		}
 
 		// retrieve all of the variables in the config file
 		std::ifstream input(config_filepath);
@@ -198,7 +192,45 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath, bo
 	return settings;
 }
 
-s_blur_settings c_config::parse_folder(const std::filesystem::path& video_folder, std::filesystem::path& config_filepath, bool& first_time) {
-	config_filepath = get_config_filename(video_folder);
-	return parse(config_filepath, first_time);
+s_blur_settings c_config::get_config(const std::filesystem::path& config_filepath, bool use_global) {
+	bool local_cfg_exists = std::filesystem::exists(config_filepath);
+
+	auto global_cfg_path = blur.path / filename;
+	bool global_cfg_exists = std::filesystem::exists(global_cfg_path);
+
+	std::filesystem::path cfg_path;
+	if (use_global && !local_cfg_exists && global_cfg_exists) {
+		cfg_path = global_cfg_path;
+
+		if (blur.using_ui || blur.verbose)
+			console.print("using global config");
+	}
+	else {
+		// check if the config file exists, if not, write the default values
+		if (!local_cfg_exists) {
+			config.create(config_filepath);
+
+			if (blur.using_ui) {
+				// check if the config exists
+				console.print_blank_line();
+				console.print(fmt::format("configuration file not found, default config generated at {}", config_filepath.string()));
+				console.print_blank_line();
+				console.print("continue render? (y/n)");
+				console.print_blank_line();
+
+				char choice = console.get_char();
+				if (tolower(choice) != 'y') {
+					throw std::exception("stopping render");
+				}
+			}
+			else {
+				if (blur.verbose)
+					console.print(fmt::format("configuration file not found, default config generated at {}", config_filepath.string()));
+			}
+		}
+
+		cfg_path = config_filepath;
+	}
+
+	return parse(cfg_path);
 }

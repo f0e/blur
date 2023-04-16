@@ -51,14 +51,14 @@ class c_config {
 private:
 	const std::string filename = ".blur-config.cfg";
 
-private:
-	std::filesystem::path get_config_filename(const std::filesystem::path& video_folder);
-
 public:
 	void create(const std::filesystem::path& filepath, s_blur_settings current_settings = s_blur_settings());
 
-	s_blur_settings parse(const std::filesystem::path& config_filepath, bool& first_time);
-	s_blur_settings parse_folder(const std::filesystem::path& video_folder, std::filesystem::path& config_filepath, bool& first_time);
+	std::filesystem::path get_config_filename(const std::filesystem::path& video_folder);
+
+	s_blur_settings parse(const std::filesystem::path& config_filepath);
+
+	s_blur_settings get_config(const std::filesystem::path& config_filepath, bool use_global);
 };
 
 inline c_config config;
