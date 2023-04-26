@@ -5,7 +5,7 @@ on: [push]
 env:
   is_tag: ${{ startsWith(github.ref, 'refs/tags/') }}
   
-  PROJECT_FILE_PATH: blur.sln
+  PROJECT_FILE_PATH: blur/blur.vcxproj
 
   BUILD_CONFIGURATION: Release
   BUILD_PLATFORM: x64
@@ -28,12 +28,12 @@ jobs:
       uses: actions/upload-artifact@master
       with:
         name: Blur
-        path: bin/Release/blur.exe
+        path: blur/bin/Release/blur.exe
     
     - name: Release
       uses: softprops/action-gh-release@v1
       if: ${{ env.is_tag == 'true' }}
       with:
-        files: bin/Release/blur.exe
+        files: blur/bin/Release/blur.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
