@@ -22,18 +22,18 @@ jobs:
 
     - name: Build
       working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{env.BUILD_PLATFORM}}  ${{env.PROJECT_FILE_PATH}}
+      run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{env.BUILD_PLATFORM}} ${{env.PROJECT_FILE_PATH}}
 
     - name: Upload
       uses: actions/upload-artifact@master
       with:
         name: Blur
-        path: bin/release/blur.exe
+        path: bin/Release/blur.exe
     
     - name: Release
       uses: softprops/action-gh-release@v1
       if: ${{ env.is_tag == 'true' }}
       with:
-        files: bin/release/blur.exe
+        files: bin/Release/blur.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
