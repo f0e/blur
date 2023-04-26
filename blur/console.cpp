@@ -11,13 +11,18 @@ bool console::init() {
 	return true;
 #endif
 
-	AllocConsole();
-
-	FILE* pConsole;
-	freopen_s(&pConsole, "CONOUT$", "w", stdout);
+	if (!AllocConsole())
+		return false;
 
 	atexit([]() {
 		FreeConsole();
+	});
+
+	if (freopen_s(&stream, "CONOUT$", "w", stdout) != 0)
+		return false;
+
+	atexit([]() {
+		fclose(stream);
 	});
 
 	initialised = true;
