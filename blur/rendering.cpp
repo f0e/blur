@@ -211,8 +211,8 @@ bool c_render::do_render(s_render_command render_command) {
 	}
 
 	STARTUPINFO vspipe_si;
-	ZeroMemory(&vspipe_si, sizeof(STARTUPINFO));
-	ZeroMemory(&rendering.vspipe_pi, sizeof(PROCESS_INFORMATION));
+	SecureZeroMemory(&vspipe_si, sizeof(STARTUPINFO));
+	SecureZeroMemory(&rendering.vspipe_pi, sizeof(PROCESS_INFORMATION));
 
 	vspipe_si.cb = sizeof(vspipe_si);
 
@@ -238,8 +238,8 @@ bool c_render::do_render(s_render_command render_command) {
 	// --------------------------------
 	/////// run ffmpeg
 	STARTUPINFO ffmpeg_si;
-	ZeroMemory(&ffmpeg_si, sizeof(STARTUPINFO));
-	ZeroMemory(&rendering.ffmpeg_pi, sizeof(PROCESS_INFORMATION));
+	SecureZeroMemory(&ffmpeg_si, sizeof(STARTUPINFO));
+	SecureZeroMemory(&rendering.ffmpeg_pi, sizeof(PROCESS_INFORMATION));
 	ffmpeg_si.cb = sizeof(ffmpeg_si);
 
 	ffmpeg_si.hStdInput = hPipeRead; // use the vspipe stdout as input (piping)
