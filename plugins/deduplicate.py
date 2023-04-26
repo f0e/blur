@@ -7,7 +7,6 @@ cur_interp = None
 dupe_last_good_idx = 0
 dupe_next_good_idx = 0
 
-
 def get_interp(clip, duplicate_index, svp_preset, svp_algorithm, svp_masking, svp_gpu):
     global cur_interp
     global dupe_last_good_idx
@@ -79,7 +78,6 @@ def interpolate_dupes(clip, frame_index, svp_preset, svp_algorithm, svp_masking,
 
     return core.std.AssumeFPS(joined, src=clip)
 
-
 def fill_drops(
     clip,
     threshold=0.1,
@@ -135,5 +133,71 @@ def fill_drops_old(clip, threshold=0.1, debug=False):
         else:
             return clip
 
-    fixed = core.std.FrameEval(clip, selectFunc, prop_src=differences)
-    return fixed
+    return core.std.FrameEval(clip, selectFunc, prop_src=differences)
+
+def fill_drops_svp(video, threshold=0.1, debug=False):
+    if not isinstance(video, vs.VideoNode):
+        raise ValueError('This is not a video')
+
+    differences = core.std.PlaneStats(video, video[0] + video)
+
+    [super_string, vectors_string, smooth_string] = interpolate.generate_svp_strings(video.fps, "tekno", 13, 4, 0, "medium", 0, True)
+    
+    super = core.svp1.Super(video, super_string)
+    vectors = core.svp1.Analyse(
+        super["clip"], super["data"], video, vectors_string)
+
+    filldrops = core.svp2.SmoothFps(
+        video,
+        super["clip"],
+        super["data"],
+        vectors["clip"],
+        vectors["data"],
+        smooth_string,
+    )
+    
+    def selectFunc(n, f):
+        if f.props['PlaneStatsDiff'] < threshold:
+            if debug:
+                return core.text.Text(filldrops, f"interpolated, diff: {f.props['PlaneStatsDiff']:.3f}", alignment=8)
+            
+            return filldrops
+        else:
+            return video
+
+    return core.std.FrameEval(video, selectFunc, prop_src=differences)
+
+def fill_drops_mvtools(clip, threshold=0.1, debug=False):
+    if not isinstance(clip, vs.VideoNode):
+        raise ValueError('This is not a clip')
+
+    differences = core.std.PlaneStats(clip, clip[0] + clip)
+
+    pel = 4
+    rfilter=4
+    sharp = 0
+    blksize = 4
+    overlap = 2
+    search = 5
+    searchparam = 3
+    dct = 5
+
+    super = core.mv.Super(clip, hpad=blksize, vpad=blksize, pel=pel, rfilter=rfilter, sharp=sharp)
+
+    analyse_args = dict(blksize=blksize, overlap=overlap, search=search, searchparam=searchparam, dct=dct)
+
+    bv = core.mv.Analyse(super, isb=True,  **analyse_args)
+    fv = core.mv.Analyse(super, isb=False, **analyse_args)
+
+    filldrops = core.mv.FlowInter(clip, super, mvbw=bv, mvfw=fv, ml=200)
+    
+    def selectFunc(n, f):
+        if f.props['PlaneStatsDiff'] < threshold:
+            if debug:
+                return core.text.Text(filldrops, f"interpolated, diff: {f.props['PlaneStatsDiff']:.3f}", alignment=8)
+            
+            return filldrops
+        else:
+            return clip
+
+    return core.std.FrameEval(clip, selectFunc, prop_src=differences)

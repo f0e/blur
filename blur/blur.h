@@ -25,6 +25,7 @@ public:
 
 public:
 	void run(int argc, char* argv[], const cxxopts::ParseResult& cmd);
+	void run_gui();
 };
 
 inline c_blur blur;

@@ -1,4 +1,4 @@
-#include "includes.h"
+#include "script_handler.h"
 
 void c_script_handler::create(const std::filesystem::path& temp_path, const std::filesystem::path& video_path, const s_blur_settings& settings) {
 	// generate random filenames
@@ -10,8 +10,9 @@ void c_script_handler::create(const std::filesystem::path& temp_path, const std:
 		video_script << "from vapoursynth import core" << "\n";
 		video_script << "import vapoursynth as vs" << "\n";
 		video_script << "import interpolate" << "\n";
-		video_script << "import adjust" << "\n";
+		video_script << "import blending" << "\n";
 		video_script << "import weighting" << "\n";
+		video_script << "import adjust" << "\n";
 
 		if (settings.deduplicate)
 			video_script << "import deduplicate" << "\n";
@@ -19,17 +20,15 @@ void c_script_handler::create(const std::filesystem::path& temp_path, const std:
 		if (helpers::to_lower(settings.interpolation_program) == "rife")
 			video_script << "from vsrife import RIFE" << "\n";
 
-		// load video
-		std::string path_string = video_path.string();
-		std::replace(path_string.begin(), path_string.end(), '\\', '/');
+		video_script << "video_path = vars().get(\"video_path\")" << "\n";
 
 		auto extension = std::filesystem::path(video_path).extension();
 		if (extension != ".avi") {
-			video_script << fmt::format("video = core.ffms2.Source(source=\"{}\", cache=False)", path_string) << "\n";
+			video_script << "video = core.ffms2.Source(source=video_path, cache=False)" << "\n";
 		}
 		else {
 			// FFmpegSource2 doesnt work with frameserver
-			video_script << fmt::format("video = core.avisource.AVISource(\"{}\")", path_string) << "\n";
+			video_script << "video = core.avisource.AVISource(\"{}\")" << "\n";
 			video_script << "video = core.fmtc.matrix(clip=video, mat=\"601\", col_fam=vs.YUV, bits=16)" << "\n";
 			video_script << "video = core.fmtc.resample(clip=video, css=\"420\")" << "\n";
 			video_script << "video = core.fmtc.bitdepth(clip=video, bits=8)" << "\n";
@@ -98,9 +97,11 @@ void c_script_handler::create(const std::filesystem::path& temp_path, const std:
 					video_script << fmt::format("video = core.svp2.SmoothFps(video, super['clip'], super['data'], vectors['clip'], vectors['data'], {})", fixed_smooth_string) << "\n";
 				}
 				else {
-					video_script << fmt::format("video = interpolate.interpolate(video, new_fps=interpolated_fps, preset='{}', algorithm={}, masking={}, gpu={})",
+					video_script << fmt::format("video = interpolate.interpolate_svp(video, new_fps=interpolated_fps, preset='{}', algorithm={}, blocksize={}, overlap=0, speed='{}', masking={}, gpu={})",
 						settings.interpolation_preset,
 						settings.interpolation_algorithm,
+						settings.interpolation_blocksize,
+						settings.interpolation_speed,
 						settings.interpolation_mask_area,
 						settings.gpu_interpolation ? "True" : "False"
 					) << "\n";
@@ -147,7 +148,7 @@ void c_script_handler::create(const std::filesystem::path& temp_path, const std:
 
 				// frame blend
 				// video_script << "	video = core.misc.AverageFrames(video, [1] * blended_frames)" << "\n";
-				video_script << fmt::format("	video = core.frameblender.FrameBlend(video, weights, True)") << "\n";
+				video_script << fmt::format("	video = blending.average(video, weights)") << "\n";
 			}
 
 			// video_script << "if frame_gap > 0:" << "\n";

@@ -1,4 +1,6 @@
-#include "includes.h"
+#include "config.h"
+
+#include "console.h"
 
 void c_config::create(const std::filesystem::path& filepath, s_blur_settings current_settings) {
 	std::ofstream output(filepath);
@@ -54,6 +56,8 @@ void c_config::create(const std::filesystem::path& filepath, s_blur_settings cur
 	// output << "interpolation program (svp/rife/rife-ncnn): " << current_settings.interpolation_program << "\n";
 	output << "interpolation preset: " << current_settings.interpolation_preset << "\n";
 	output << "interpolation algorithm: " << current_settings.interpolation_algorithm << "\n";
+	output << "interpolation block size: " << current_settings.interpolation_blocksize << "\n";
+	output << "interpolation speed: " << current_settings.interpolation_speed << "\n";
 	output << "interpolation mask area: " << current_settings.interpolation_mask_area << "\n";
 
 	if (current_settings.manual_svp) {
@@ -110,7 +114,7 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 	auto config_get = [&]<typename t>(const std::string & var, t & out) {
 		if (!config.contains(var)) {
 #ifdef _DEBUG
-			console.print(fmt::format("config missing variable '{}'", var));
+			console::print(fmt::format("config missing variable '{}'", var));
 #endif
 			return;
 		}
@@ -128,7 +132,7 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 	auto config_get_str = [&](const std::string& var, std::string& out) { // todo: clean this up i cant be bothered rn
 		if (!config.contains(var)) {
 #ifdef _DEBUG
-			console.print(fmt::format("config missing variable '{}'", var));
+			console::print(fmt::format("config missing variable '{}'", var));
 #endif
 			return;
 		}
@@ -172,6 +176,8 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 	// config_get_str("interpolation program (svp/rife/rife-ncnn)", settings.interpolation_program);
 	config_get_str("interpolation preset", settings.interpolation_preset);
 	config_get_str("interpolation algorithm", settings.interpolation_algorithm);
+	config_get("interpolation block size", settings.interpolation_blocksize);
+	config_get_str("interpolation speed", settings.interpolation_speed);
 	config_get_str("interpolation mask area", settings.interpolation_mask_area);
 
 	// fix old configs (Im So Lazy)
@@ -203,30 +209,14 @@ s_blur_settings c_config::get_config(const std::filesystem::path& config_filepat
 		cfg_path = global_cfg_path;
 
 		if (blur.using_ui || blur.verbose)
-			console.print("using global config");
+			console::print("using global config");
 	}
 	else {
 		// check if the config file exists, if not, write the default values
 		if (!local_cfg_exists) {
 			config.create(config_filepath);
 
-			if (blur.using_ui) {
-				// check if the config exists
-				console.print_blank_line();
-				console.print(fmt::format("configuration file not found, default config generated at {}", config_filepath.string()));
-				console.print_blank_line();
-				console.print("continue render? (y/n)");
-				console.print_blank_line();
-
-				char choice = console.get_char();
-				if (tolower(choice) != 'y') {
-					throw std::exception("stopping render");
-				}
-			}
-			else {
-				if (blur.verbose)
-					console.print(fmt::format("configuration file not found, default config generated at {}", config_filepath.string()));
-			}
+			console::print(fmt::format(L"configuration file not found, default config generated at {}", config_filepath.wstring()));
 		}
 
 		cfg_path = config_filepath;

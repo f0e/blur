@@ -1,7 +1,19 @@
-#include "includes.h"
+#include "gui.h"
 
-#include <cxxopts/cxxopts.hpp>
+#include "console.h"
 
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine, int nCmdShow) {
+	console::init();
+
+	// run gui in another thread
+	std::thread(gui::run).detach();
+
+	blur.run_gui();
+
+	return 0;
+}
+
+/*
 int main(int argc, char* argv[]) {
 	cxxopts::Options options("blur", "Add motion blur to videos");
 	options.add_options()
@@ -30,3 +42,4 @@ int main(int argc, char* argv[]) {
 
 	return 0;
 }
+*/

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <string>
 
 struct s_blur_settings {
 	bool blur = true;
@@ -37,6 +36,8 @@ struct s_blur_settings {
 	std::string interpolation_program = "svp";
 	std::string interpolation_preset = "weak";
 	std::string interpolation_algorithm = "13";
+	int interpolation_blocksize = 8;
+	std::string interpolation_speed = "medium";
 	std::string interpolation_mask_area = "0";
 
 	bool manual_svp = false;
