@@ -8,7 +8,7 @@ env:
   PROJECT_FILE_PATH: blur/blur.vcxproj
 
   BUILD_CONFIGURATION: Release
-  BUILD_PLATFORM: x86
+  BUILD_PLATFORM: x64
   
 jobs:
   build:
