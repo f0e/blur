@@ -7,10 +7,6 @@
 #include <stdio.h>
 
 bool console::init() {
-#ifndef _DEBUG
-	return true;
-#endif
-
 	if (!AllocConsole())
 		return false;
 

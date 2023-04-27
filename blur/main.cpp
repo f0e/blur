@@ -2,12 +2,31 @@
 
 #include "console.h"
 
+#include <shellapi.h>
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine, int nCmdShow) {
+#ifdef _DEBUG
+	// initialise debug console
 	console::init();
+#endif
+
+	// queue videos passed as arguments
+	int num_args;
+	LPWSTR* arg_list = CommandLineToArgvW(GetCommandLineW(), &num_args);
+	if (arg_list) {
+		for (int i = 1; i < num_args; i++) {
+			std::wstring path = arg_list[i];
+			if (!std::filesystem::exists(path))
+				continue;
+
+			rendering.queue_render(std::make_shared<c_render>(path));
+		}
+	}
 
 	// run gui in another thread
 	std::thread(gui::run).detach();
 
+	// run main loop
 	blur.run_gui();
 
 	return 0;
