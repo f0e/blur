@@ -1,17 +1,13 @@
 #pragma once
 
-#include <string>
-#include <cxxopts/cxxopts.hpp>
-
 #include "rendering.h"
 
 class c_blur {
 public:
 	const std::string BLUR_VERSION = "1.9";
 
-	bool using_ui = true;
 	bool verbose = true;
-	bool no_preview = false;
+	bool using_preview = false;
 
 	std::filesystem::path path;
 	bool used_installer = false;
@@ -24,8 +20,7 @@ public:
 	void remove_temp_path(const std::filesystem::path& path);
 
 public:
-	void run(int argc, char* argv[], const cxxopts::ParseResult& cmd);
-	void run_gui();
+	bool initialise(bool _verbose, bool _using_preview);
 };
 
 inline c_blur blur;

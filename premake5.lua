@@ -3,76 +3,118 @@ workspace "blur"
    system "windows"
 	architecture "x86_64"
 
-   project "blur"
-      -- specify physical files paths to import
-      files
-      {
-         "blur/**.cpp",
-         "blur/**.h", "blur/**.hpp",
-         
-         "blur/**.rc", "blur/**.ico",
-      }
+   -- basic project settings
+   language "C++"
+   cppdialect "C++latest"
+   targetdir "$(SolutionDir)bin/$(ProjectName)/$(Configuration)/"
+   objdir "!$(SolutionDir)build/$(ProjectName)/$(Configuration)/" --use the "!" prefix to force a specific directory using msvs's provided environment variables instead of premake tokens
+   characterset "Unicode"
+
+   -- build
+   rtti "On"
+
+   flags { "MultiProcessorCompile" }
+   defines { "NOMINMAX", "WIN32_LEAN_AND_MEAN", "FMT_HEADER_ONLY" }
+
+   -- vc++ directories
+   includedirs {
+      "lib",
+      "src"
+   }
+
+   libdirs {
+      "lib",
+   }
+
+   files {
+      "lib/**.h", "lib/**.hpp",
       
-      -- basic project settings
-      language "C++"
-      cppdialect "C++latest"
-      kind "WindowedApp"
-      location "blur"
-      targetname "blur"
-      targetdir "$(SolutionDir)bin/$(Configuration)/"
-      objdir "!$(SolutionDir)build/$(Configuration)/" --use the "!" prefix to force a specific directory using msvs's provided environment variables instead of premake tokens
-      characterset "Unicode"
+      "src/common/**.cpp",
+      "src/common/**.h", "src/common/**.hpp",
+      
+      "resources/**"
+   }
 
-      -- pch
-      pchheader "pch.h"
-      pchsource "blur/pch.cpp"
+   -- linker
+   links {
+      "Gdiplus"
+   }
 
-      -- vs-specific options
-      filter "action:vs*"
-         buildoptions { "/FI pch.h" }
+-- configurations
+filter "configurations:Debug"
+   symbols "Full"
+   defines { "_CONSOLE", "_DEBUG" }
 
-      -- vc++ directories
-      includedirs {
-         "$(ProjectDir)",
-         "$(ProjectDir)deps",
-         "$(ProjectDir)deps/glfw/include",
-         "$(ProjectDir)deps/freetype/include"
-      }
+filter "configurations:Release"
+   symbols "Off"
+   optimize "On"
+   defines { "NDEBUG" }
+   flags { "LinkTimeOptimization" }
 
-      libdirs {
-         "$(ProjectDir)deps",
-         "$(ProjectDir)deps/glfw/win64",
-         "$(ProjectDir)deps/freetype/win64"
-      }
+filter "configurations:ReleaseWithDebugInfo"
+   symbols "Full"
+   optimize "On"
+   defines { "NDEBUG" }
+   flags { "LinkTimeOptimization" }
 
-      -- build
-      rtti "On"
+-- projects
+project "blur-cli"
+   -- basic project settings
+   kind "ConsoleApp"
+   location "src/cli"
+   targetname "blur-cli"
 
-      flags { "MultiProcessorCompile" }
-      defines { "NOMINMAX", "WIN32_LEAN_AND_MEAN", "FMT_HEADER_ONLY" }
+   -- pch
+   pchheader "pch.h"
+   pchsource "src/cli/pch.cpp"
 
-      -- linker
-      links {
-         "opengl32",
-         "glfw3",
-         "Gdiplus",
-         "freetype",
-         "Dwmapi"
-      }
+   -- vs-specific options
+   filter "action:vs*"
+      buildoptions { "/FI pch.h" }
 
-      -- configuration specific settings
-      filter "configurations:Debug"
-         symbols "Full"
-         defines { "_CONSOLE", "_DEBUG" }
+   -- import cli files
+   files {
+      "src/cli/**.cpp",
+      "src/cli/**.h", "src/cli/**.hpp",
+   }
 
-      filter "configurations:Release"
-         symbols "Off"
-         optimize "On"
-         defines { "NDEBUG" }
-         flags { "LinkTimeOptimization" }
+project "blur-gui"
+   -- basic project settings
+   kind "WindowedApp"
+   location "src/gui"
+   targetname "blur"
 
-      filter "configurations:ReleaseWithDebugInfo"
-         symbols "Full"
-         optimize "On"
-         defines { "NDEBUG" }
-         flags { "LinkTimeOptimization" }
+   -- pch
+   pchheader "pch.h"
+   pchsource "src/gui/pch.cpp"
+
+   -- vs-specific options
+   filter "action:vs*"
+      buildoptions { "/FI pch.h" }
+
+   -- import gui files
+   files {
+      "src/gui/**.cpp",
+      "src/gui/**.h", "src/gui/**.hpp",
+
+      "lib/imgui/**.cpp",
+   }
+
+   -- vc++ directories
+   includedirs {
+      "lib/glfw/include",
+      "lib/freetype/include"
+   }
+
+   libdirs {
+      "lib/glfw/win64",
+      "lib/freetype/win64"
+   }
+
+   -- linker
+   links {
+      "opengl32",
+      "glfw3",
+      "freetype",
+      "Dwmapi"
+   }

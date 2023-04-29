@@ -89,7 +89,7 @@ void helpers::read_line_from_handle(HANDLE handle, std::function<void(std::strin
 	while (ReadFile(handle, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, nullptr) && bytesRead != 0) {
 		output.append(buffer.data(), bytesRead);
 
-		printf("output: %s\n", output.c_str());
+		debug_log("output: %s\n", output.c_str());
 
 		size_t pos = 0;
 		while ((pos = output.find('\r')) != std::string::npos) {
@@ -102,6 +102,6 @@ void helpers::read_line_from_handle(HANDLE handle, std::function<void(std::strin
 	}
 
 	if (!output.empty()) {
-		printf("leftover... %s\n", output.c_str());
+		debug_log("leftover... %s\n", output.c_str());
 	}
 };

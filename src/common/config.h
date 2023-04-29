@@ -1,6 +1,5 @@
 #pragma once
 
-
 struct s_blur_settings {
 	bool blur = true;
 	float blur_amount = 1.f;

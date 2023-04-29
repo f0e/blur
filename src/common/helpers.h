@@ -51,6 +51,15 @@ namespace helpers {
 		return enumerate_wrapper(c);
 	}
 
+	template<typename... args_t>
+	inline void debug_log(std::string_view str, args_t&&... args) {
+#ifdef _DEBUG
+		std::cout << "[debug]";
+		printf(str.data(), std::forward<args_t>(args)...);
+		putchar('\n');
+#endif
+	};
+
 	std::string trim(std::string_view str);
 	std::string random_string(int len);
 	std::vector<std::string> split_string(std::string str, const std::string& delimiter);

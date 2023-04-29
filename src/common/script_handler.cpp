@@ -1,4 +1,5 @@
 #include "script_handler.h"
+#include "helpers.h"
 
 void c_script_handler::create(const std::filesystem::path& temp_path, const std::filesystem::path& video_path, const s_blur_settings& settings) {
 	// generate random filenames

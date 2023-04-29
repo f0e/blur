@@ -82,7 +82,7 @@
 //---- Define constructor and implicit cast operators to convert back<>forth between your math types and ImVec2/ImVec4.
 // This will be inlined as part of ImVec2 and ImVec4 class declarations.
 
-#include <drawing/datatypes/datatypes.h>
+#include "../src/gui/drawing/datatypes/datatypes.h"
 
 #define IM_VEC2_CLASS_EXTRA                                     \
         ImVec2(const s_point& f) : x(f.x), y(f.y) {}  \

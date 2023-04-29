@@ -11,6 +11,8 @@ struct s_render_status {
 	int current_frame;
 	int total_frames;
 	std::chrono::steady_clock::time_point start_time;
+
+	std::string progress_string();
 };
 
 class c_render {

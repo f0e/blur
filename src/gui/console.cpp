@@ -25,19 +25,3 @@ bool console::init() {
 
 	return true;
 }
-
-void console::print(const std::string& text) {
-	std::cout << text << "\n";
-}
-
-void console::print(const std::wstring& text) {
-	std::wcout << text << "\n";
-}
-
-void console::print_line() {
-	printf("--------------------------\n");
-}
-
-void console::print_blank_line() {
-	printf("\n");
-}

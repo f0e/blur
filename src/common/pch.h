@@ -25,12 +25,10 @@
 // libs
 #include <fmt/format.h>
 #include <fmt/xchar.h>
-#include <cxxopts/cxxopts.hpp>
 
-// resources
-#include "resource.h"
-
-// other
-#include "drawing/drawing.h"
+// blur
 #include "blur.h"
 #include "helpers.h"
+
+// resources
+#include "../resources/resource.h"

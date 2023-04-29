@@ -1,6 +1,5 @@
 ﻿#include "rendering.h"
 
-#include "console.h"
 #include "script_handler.h"
 #include "preview.h"
 
@@ -12,10 +11,7 @@ void c_rendering::render_videos() {
 			current_render->render();
 		}
 		catch (const std::exception& e) {
-			console::print(e.what());
-			if (blur.using_ui) {
-				console::print_blank_line();
-			}
+			printf(e.what());
 		}
 
 		// finished rendering, delete
@@ -23,13 +19,6 @@ void c_rendering::render_videos() {
 		current_render = nullptr;
 
 		renders_queued = !queue.empty();
-
-		if (!renders_queued) {
-			if (blur.using_ui) {
-				console::print_line();
-				console::print("finished render queue, waiting for input.");
-			}
-		}
 	}
 	else {
 		std::this_thread::sleep_for(std::chrono::milliseconds(250));
@@ -86,16 +75,6 @@ c_render::c_render(const std::filesystem::path& input_path, std::optional<std::f
 
 	this->video_name = this->video_path.stem().wstring();
 	this->video_folder = this->video_path.parent_path();
-
-	if (blur.using_ui) {
-		// print message
-		if (!rendering.queue.empty()) {
-			console::print_blank_line();
-			console::print_line();
-		}
-
-		console::print(fmt::format(L"opening {} for processing", this->video_path.filename().wstring()));
-	}
 
 	// parse config file (do it now, not when rendering. nice for batch rendering the same file with different settings)
 	if (config_path.has_value())
@@ -182,7 +161,7 @@ c_render::s_render_command c_render::build_render_command() {
 		ffmpeg_command += fmt::format(L" \"{}\"", output_path.wstring());
 
 		// extra output for preview. generate low-quality preview images.
-		if (settings.preview && !blur.no_preview) {
+		if (settings.preview && blur.using_preview) {
 			ffmpeg_command += L" -map 0:v"; // copy video from first input
 			ffmpeg_command += fmt::format(L" -q:v 2 -update 1 -atomic_writing 1 -y \"{}\"", preview_path.wstring());
 		}
@@ -271,6 +250,8 @@ bool c_render::do_render(s_render_command render_command) {
 
 				if (!status.init)
 					status.init = true;
+
+				std::cout << status.progress_string() << "\n";
 			}
 		});
 	});
@@ -295,29 +276,24 @@ void c_render::render() {
 	if (output_path.empty())
 		build_output_filename();
 
-	if (blur.verbose) {
-		// console::print(fmt::format("rendering {}... (writing to {})", video_name, output_path.string()));
-		console::print_blank_line();
-	}
-
 	// create temp path
 	temp_path = blur.create_temp_path(video_folder);
 
-	if (blur.verbose) {
-		console::print(fmt::format("render settings:"));
-		console::print(fmt::format("- source video at {:.2f} timescale -", settings.input_timescale));
-		if (settings.interpolate) console::print(fmt::format("- interpolated to {}fps with {:.2f} timescale -", settings.interpolated_fps, settings.output_timescale));
-		if (settings.blur) console::print(fmt::format("- motion blurred to {}fps ({}%) -", settings.blur_output_fps, static_cast<int>(settings.blur_amount * 100)));
-		console::print(fmt::format("- rendered at {:.2f} speed with crf {} -", settings.output_timescale, settings.quality));
+	wprintf(L"Rendering '%s'\n", video_name.c_str());
 
-		console::print_line();
+	if (blur.verbose) {
+		printf("Render settings:");
+		printf("Source video at %.2f timescale\n", settings.input_timescale);
+		if (settings.interpolate) printf("Interpolated to %sfps with %.2f timescale\n", settings.interpolated_fps, settings.output_timescale);
+		if (settings.blur) printf("Motion blurred to %dfps (%d%%)\n", settings.blur_output_fps, static_cast<int>(settings.blur_amount * 100));
+		printf("Rendered at %.2f speed with crf %d\n", settings.output_timescale, settings.quality);
 	}
 
 	// create script
 	script_handler.create(temp_path, video_path, settings);
 
 	// start preview
-	if (settings.preview && !blur.no_preview) {
+	if (settings.preview && blur.using_preview) {
 		preview_path = temp_path / "preview.jpg";
 		preview.start(preview_path);
 	}
@@ -327,13 +303,11 @@ void c_render::render() {
 
 	if (do_render(render_command)) {
 		if (blur.verbose) {
-			console::print_blank_line();
-			console::print(fmt::format(L"finished rendering {}", video_name));
+			wprintf(L"Finished rendering '%s'\n", video_name.c_str());
 		}
 	}
 	else {
-		console::print_blank_line();
-		console::print(fmt::format(L"failed to render {}", video_name));
+		wprintf(L"Failed to render '%s'\n", video_name.c_str());
 	}
 
 	// remove temp path and files inside
@@ -346,4 +320,19 @@ void c_rendering::stop_rendering() {
 	// todo: gracefully stop - write partial rendered video
 	TerminateProcess(vspipe_pi.hProcess, 0);
 	TerminateProcess(ffmpeg_pi.hProcess, 0);
+}
+
+std::string s_render_status::progress_string() {
+	if (!init)
+		return "";
+
+	float progress = current_frame / (float)total_frames;
+
+	auto current_time = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> frame_duration = current_time - start_time;
+	double elapsed_time = frame_duration.count();
+
+	double calced_fps = current_frame / elapsed_time;
+
+	return fmt::format("{:.1f}% complete ({}/{}, {:.2f} fps)", progress * 100, current_frame, total_frames, calced_fps);
 }

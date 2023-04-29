@@ -1,7 +1,5 @@
 #include "config.h"
 
-#include "console.h"
-
 void c_config::create(const std::filesystem::path& filepath, s_blur_settings current_settings) {
 	std::ofstream output(filepath);
 
@@ -113,9 +111,7 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 
 	auto config_get = [&]<typename t>(const std::string & var, t & out) {
 		if (!config.contains(var)) {
-#ifdef _DEBUG
-			console::print(fmt::format("config missing variable '{}'", var));
-#endif
+			helpers::debug_log(fmt::format("config missing variable '{}'", var));
 			return;
 		}
 
@@ -131,9 +127,7 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 
 	auto config_get_str = [&](const std::string& var, std::string& out) { // todo: clean this up i cant be bothered rn
 		if (!config.contains(var)) {
-#ifdef _DEBUG
-			console::print(fmt::format("config missing variable '{}'", var));
-#endif
+			helpers::debug_log(fmt::format("config missing variable '{}'", var));
 			return;
 		}
 
@@ -208,15 +202,15 @@ s_blur_settings c_config::get_config(const std::filesystem::path& config_filepat
 	if (use_global && !local_cfg_exists && global_cfg_exists) {
 		cfg_path = global_cfg_path;
 
-		if (blur.using_ui || blur.verbose)
-			console::print("using global config");
+		if (blur.verbose)
+			printf("Using global config\n");
 	}
 	else {
 		// check if the config file exists, if not, write the default values
 		if (!local_cfg_exists) {
 			config.create(config_filepath);
 
-			console::print(fmt::format(L"configuration file not found, default config generated at {}", config_filepath.wstring()));
+			wprintf(L"Configuration file not found, default config generated at %s\n", config_filepath.wstring().c_str());
 		}
 
 		cfg_path = config_filepath;

@@ -13,8 +13,6 @@
 
 #include "drawing/drawing.h"
 
-#include "resource.h"
-
 #include <dwmapi.h>
 
 static void glfw_error_callback(int error, const char* description) {
@@ -136,15 +134,7 @@ void gui::run() {
                     auto render_status = render->get_status();
 
                     if (render_status.init) {
-                        float progress = render_status.current_frame / (float)render_status.total_frames;
-
-                        auto current_time = std::chrono::high_resolution_clock::now();
-                        std::chrono::duration<double> frame_duration = current_time - render_status.start_time;
-                        double elapsed_time = frame_duration.count();
-
-                        double calced_fps = render_status.current_frame / elapsed_time;
-
-                        draw_str_temp(fmt::format("{:.1f}% complete ({}/{}, {:.2f} fps)\n", progress * 100, render_status.current_frame, render_status.total_frames, calced_fps));
+                        draw_str_temp(render_status.progress_string());
                     }
                 }
             }
