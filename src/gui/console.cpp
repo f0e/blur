@@ -1,11 +1,5 @@
 #include "console.h"
 
-#include <fmt/chrono.h>
-
-#include <fcntl.h>
-#include <io.h>
-#include <stdio.h>
-
 bool console::init() {
 	if (!AllocConsole())
 		return false;
