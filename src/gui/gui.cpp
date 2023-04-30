@@ -35,26 +35,14 @@ void drop_callback(GLFWwindow* window, int count, const char** paths) {
 
 WNDPROC o_wnd_proc;
 static LRESULT CALLBACK wnd_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    static POINTS start_drag_pos;
     switch (msg)
     {
-    case WM_MOUSEMOVE:
-        // dragging window
-        if (wParam == MK_LBUTTON) {
-            POINTS p = MAKEPOINTS(lParam);
-            RECT rect;
-            GetWindowRect(hWnd, &rect);
-
-            rect.left += p.x - start_drag_pos.x;
-            rect.top += p.y - start_drag_pos.y;
-
-            SetWindowPos(hWnd, HWND_TOPMOST, rect.left, rect.top, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOZORDER);
-        }
-        
-        break;
-    case WM_LBUTTONDOWN:
-        start_drag_pos = MAKEPOINTS(lParam);
-        break;
+    case WM_NCHITTEST: {
+        // drag window in client area
+        LRESULT hit = DefWindowProc(hWnd, msg, wParam, lParam);
+        if (hit == HTCLIENT) hit = HTCAPTION;
+        return hit;
+    }
     }
 
     return CallWindowProc(o_wnd_proc, hWnd, msg, wParam, lParam);
