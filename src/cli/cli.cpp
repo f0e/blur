@@ -14,7 +14,7 @@ void cli::run(const cxxopts::ParseResult& cmd) {
 	std::vector<std::string> inputs, outputs, config_paths;
 
 	if (!cmd.count("input")) {
-		printf("No input files specified. Use -i or --input.");
+		printf("No input files specified. Use -i or --input.\n");
 		return;
 	}
 
@@ -23,7 +23,7 @@ void cli::run(const cxxopts::ParseResult& cmd) {
 	bool manual_output_files = cmd.count("output");
 	if (manual_output_files) {
 		if (cmd.count("input") != cmd.count("output")) {
-			printf("Input/output filename count mismatch (%zu inputs, %zu outputs).", cmd.count("input"), cmd.count("output"));
+			printf("Input/output filename count mismatch (%zu inputs, %zu outputs).\n", cmd.count("input"), cmd.count("output"));
 			return;
 		}
 
@@ -33,7 +33,7 @@ void cli::run(const cxxopts::ParseResult& cmd) {
 	bool manual_config_files = cmd.count("config-path"); // todo: cleanup redundancy ^^
 	if (manual_config_files) {
 		if (cmd.count("input") != cmd.count("config-path")) {
-			printf("Input filename/config paths count mismatch (%zu inputs, %zu config paths).", cmd.count("input"), cmd.count("config-path"));
+			printf("Input filename/config paths count mismatch (%zu inputs, %zu config paths).\n", cmd.count("input"), cmd.count("config-path"));
 			return;
 		}
 
@@ -43,7 +43,7 @@ void cli::run(const cxxopts::ParseResult& cmd) {
 		bool paths_ok = true;
 		for (const auto& path : config_paths) {
 			if (!std::filesystem::exists(path)) {
-				printf("Specified config file path '%s' not found.", path.c_str());
+				printf("Specified config file path '%s' not found.\n", path.c_str());
 				paths_ok = false;
 			}
 		}
@@ -57,7 +57,7 @@ void cli::run(const cxxopts::ParseResult& cmd) {
 		std::filesystem::path input_path = std::filesystem::absolute(inputs[i]);
 
 		if (!std::filesystem::exists(input_path)) {
-			wprintf(L"Video '%ls' was not found (wrong path?)", input_path.wstring().c_str());
+			wprintf(L"Video '%ls' was not found (wrong path?)\n", input_path.wstring().c_str());
 			return;
 		}
 
