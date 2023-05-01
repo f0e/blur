@@ -317,9 +317,11 @@ void c_render::render() {
 }
 
 void c_rendering::stop_rendering() {
-	// todo: gracefully stop - write partial rendered video
 	TerminateProcess(vspipe_pi.hProcess, 0);
-	TerminateProcess(ffmpeg_pi.hProcess, 0);
+
+	// send wm_close to ffmpeg so that it can gracefully stop
+	if (HWND hwnd = helpers::get_window(ffmpeg_pi.dwProcessId))
+		SendMessage(hwnd, WM_CLOSE, 0, 0);
 }
 
 std::string s_render_status::progress_string() {

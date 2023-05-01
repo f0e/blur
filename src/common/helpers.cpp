@@ -105,3 +105,24 @@ void helpers::read_line_from_handle(HANDLE handle, std::function<void(std::strin
 		debug_log("leftover... %s\n", output.c_str());
 	}
 };
+
+struct ProcHwnd {
+	DWORD proc_id;
+	HWND  hwnd;
+};
+BOOL CALLBACK enum_windows_proc(HWND hwnd, LPARAM lParam) {
+	DWORD processId;
+	GetWindowThreadProcessId(hwnd, &processId);
+	if (processId == ((ProcHwnd*)lParam)->proc_id) {
+		((ProcHwnd*)lParam)->hwnd = hwnd;
+		return FALSE;
+	}
+	return TRUE;
+}
+
+HWND helpers::get_window(DWORD dwProcessId) {
+	// Once the program has started you can look for the window.
+	ProcHwnd ph{ dwProcessId, 0 };
+	EnumWindows(enum_windows_proc, reinterpret_cast<LPARAM>(&ph));
+	return ph.hwnd;
+}

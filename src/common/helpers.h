@@ -77,6 +77,8 @@ namespace helpers {
 
 	void read_line_from_handle(HANDLE handle, std::function<void(std::string)> on_line_fn);
 
+	HWND get_window(DWORD dwProcessId);
+
 	template <typename TP>
 	inline std::time_t to_time_t(TP tp) {
 		using namespace std::chrono;
