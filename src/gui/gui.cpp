@@ -124,6 +124,9 @@ void gui::run() {
                     if (render_status.init) {
                         draw_str_temp(render_status.progress_string());
                     }
+                    else {
+                        draw_str_temp("initialising render...");
+                    }
                 }
             }
         }
