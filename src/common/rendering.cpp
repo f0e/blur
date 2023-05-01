@@ -284,7 +284,7 @@ void c_render::render() {
 	if (blur.verbose) {
 		printf("Render settings:\n");
 		printf("Source video at %.2f timescale\n", settings.input_timescale);
-		if (settings.interpolate) printf("Interpolated to %sfps with %.2f timescale\n", settings.interpolated_fps, settings.output_timescale);
+		if (settings.interpolate) printf("Interpolated to %sfps with %.2f timescale\n", settings.interpolated_fps.c_str(), settings.output_timescale);
 		if (settings.blur) printf("Motion blurred to %dfps (%d%%)\n", settings.blur_output_fps, static_cast<int>(settings.blur_amount * 100));
 		printf("Rendered at %.2f speed with crf %d\n", settings.output_timescale, settings.quality);
 	}
