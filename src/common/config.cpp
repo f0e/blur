@@ -122,7 +122,8 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 			ss >> std::boolalpha >> out; // boolalpha: enable true/false bool parsing
 		}
 		catch (const std::exception&) {
-			throw std::exception(fmt::format("failed to parse config variable '{}' (value: {})", var, config[var]).c_str());
+			helpers::debug_log("failed to parse config variable '{}' (value: {})", var, config[var]);
+			return;
 		}
 	};
 
@@ -171,17 +172,10 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 
 	// config_get_str("interpolation program (svp/rife/rife-ncnn)", settings.interpolation_program);
 	config_get_str("interpolation preset", settings.interpolation_preset);
-	config_get_str("interpolation algorithm", settings.interpolation_algorithm);
+	config_get("interpolation algorithm", settings.interpolation_algorithm);
 	config_get("interpolation block size", settings.interpolation_blocksize);
 	config_get_str("interpolation speed", settings.interpolation_speed);
-	config_get_str("interpolation mask area", settings.interpolation_mask_area);
-
-	// fix old configs (Im So Lazy)
-#define FIX_OLD(setting) \
-	if (settings.setting == "default") \
-		settings.setting = default_settings.setting
-
-	FIX_OLD(interpolation_algorithm);
+	config_get("interpolation mask area", settings.interpolation_mask_area);
 
 	config_get("manual svp", settings.manual_svp);
 	config_get_str("super string", settings.super_string);
@@ -219,4 +213,54 @@ s_blur_settings c_config::get_config(const std::filesystem::path& config_filepat
 	}
 
 	return parse(cfg_path);
+}
+
+nlohmann::json s_blur_settings::to_json() {
+	nlohmann::json j;
+
+	j["blur"] = this->blur;
+	j["blur_amount"] = this->blur_amount;
+	j["blur_output_fps"] = this->blur_output_fps;
+	j["blur_weighting"] = this->blur_weighting;
+
+	j["interpolate"] = this->interpolate;
+	j["interpolated_fps"] = this->interpolated_fps;
+
+	j["input_timescale"] = this->input_timescale;
+	j["output_timescale"] = this->output_timescale;
+	j["output_timescale_audio_pitch"] = this->output_timescale_audio_pitch;
+
+	j["brightness"] = this->brightness;
+	j["saturation"] = this->saturation;
+	j["contrast"] = this->contrast;
+
+	j["quality"] = this->quality;
+	j["deduplicate"] = this->deduplicate;
+	j["preview"] = this->preview;
+	j["detailed_filenames"] = this->detailed_filenames;
+
+	j["gpu_interpolation"] = this->gpu_interpolation;
+	j["gpu_rendering"] = this->gpu_rendering;
+	j["gpu_type"] = this->gpu_type;
+	j["video_container"] = this->video_container;
+	j["ffmpeg_override"] = this->ffmpeg_override;
+	j["debug"] = this->debug;
+
+	j["blur_weighting_gaussian_std_dev"] = this->blur_weighting_gaussian_std_dev;
+	j["blur_weighting_triangle_reverse"] = this->blur_weighting_triangle_reverse;
+	j["blur_weighting_bound"] = this->blur_weighting_bound;
+
+	j["interpolation_program"] = this->interpolation_program;
+	j["interpolation_preset"] = this->interpolation_preset;
+	j["interpolation_algorithm"] = this->interpolation_algorithm;
+	j["interpolation_blocksize"] = this->interpolation_blocksize;
+	j["interpolation_speed"] = this->interpolation_speed;
+	j["interpolation_mask_area"] = this->interpolation_mask_area;
+
+	j["manual_svp"] = this->manual_svp;
+	j["super_string"] = this->super_string;
+	j["vectors_string"] = this->vectors_string;
+	j["smooth_string"] = this->smooth_string;
+
+	return j;
 }

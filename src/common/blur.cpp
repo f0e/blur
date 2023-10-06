@@ -31,26 +31,33 @@ bool c_blur::initialise(bool _verbose, bool _using_preview) {
 	return true;
 }
 
-std::filesystem::path c_blur::create_temp_path(const std::filesystem::path& video_path) {
-	std::filesystem::path temp_path = video_path / "blur_temp";
+bool c_blur::create_temp_path() {
+	if (!blur.temp_path.empty())
+		return true;
 
-	// check if the path already exists
+	temp_path = std::filesystem::temp_directory_path() / "blur";
+
 	if (!std::filesystem::exists(temp_path)) {
-		// try create the path
 		if (!std::filesystem::create_directory(temp_path))
-			throw std::exception("failed to create temporary path");
+			return false;
 	}
 
-	helpers::set_hidden(temp_path);
+	// also remove temp path on program exit
+	std::atexit([] {
+		blur.remove_temp_path();
+	});
 
-	return temp_path;
+	return true;
 }
 
-void c_blur::remove_temp_path(const std::filesystem::path& path) {
-	// check if the path doesn't already exist
-	if (!std::filesystem::exists(path))
-		return;
+bool c_blur::remove_temp_path() {
+	if (blur.temp_path.empty())
+		return true;
 
-	// remove the path and all the files inside
-	std::filesystem::remove_all(path);
+	if (!std::filesystem::exists(blur.temp_path))
+		return true;
+
+	std::filesystem::remove_all(blur.temp_path);
+
+	return true;
 }

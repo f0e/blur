@@ -247,6 +247,7 @@
     <ClInclude Include="..\..\lib\imgui\imgui_internal.h" />
     <ClInclude Include="..\..\lib\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\..\lib\imgui\imstb_textedit.h" />
+    <ClInclude Include="..\..\lib\nlohmann\json.hpp" />
     <ClInclude Include="..\..\resources\resource.h" />
     <ClInclude Include="..\common\blur.h" />
     <ClInclude Include="..\common\config.h" />
@@ -254,7 +255,6 @@
     <ClInclude Include="..\common\pch.h" />
     <ClInclude Include="..\common\preview.h" />
     <ClInclude Include="..\common\rendering.h" />
-    <ClInclude Include="..\common\script_handler.h" />
     <ClInclude Include="cli.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
@@ -264,7 +264,6 @@
     <ClCompile Include="..\common\helpers.cpp" />
     <ClCompile Include="..\common\preview.cpp" />
     <ClCompile Include="..\common\rendering.cpp" />
-    <ClCompile Include="..\common\script_handler.cpp" />
     <ClCompile Include="cli.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="pch.cpp">

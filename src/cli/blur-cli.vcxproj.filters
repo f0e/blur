@@ -40,6 +40,9 @@
     <Filter Include="..\..\lib\imgui">
       <UniqueIdentifier>{DC4EE3A0-48DA-5065-51EB-D359BDF5AC65}</UniqueIdentifier>
     </Filter>
+    <Filter Include="..\..\lib\nlohmann">
+      <UniqueIdentifier>{3C0052A7-28E4-12FD-9144-0D507D47FD7E}</UniqueIdentifier>
+    </Filter>
     <Filter Include="..\..\resources">
       <UniqueIdentifier>{56A38A5D-C22E-F821-CB3F-7B16374A5422}</UniqueIdentifier>
     </Filter>
@@ -288,6 +291,9 @@
     <ClInclude Include="..\..\lib\imgui\imstb_textedit.h">
       <Filter>..\..\lib\imgui</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\lib\nlohmann\json.hpp">
+      <Filter>..\..\lib\nlohmann</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\resources\resource.h">
       <Filter>..\..\resources</Filter>
     </ClInclude>
@@ -309,9 +315,6 @@
     <ClInclude Include="..\common\rendering.h">
       <Filter>..\common</Filter>
     </ClInclude>
-    <ClInclude Include="..\common\script_handler.h">
-      <Filter>..\common</Filter>
-    </ClInclude>
     <ClInclude Include="cli.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
@@ -329,9 +332,6 @@
       <Filter>..\common</Filter>
     </ClCompile>
     <ClCompile Include="..\common\rendering.cpp">
-      <Filter>..\common</Filter>
-    </ClCompile>
-    <ClCompile Include="..\common\script_handler.cpp">
       <Filter>..\common</Filter>
     </ClCompile>
     <ClCompile Include="cli.cpp" />

@@ -35,15 +35,18 @@ struct s_blur_settings {
 
 	std::string interpolation_program = "svp";
 	std::string interpolation_preset = "weak";
-	std::string interpolation_algorithm = "13";
+	int interpolation_algorithm = 13;
 	int interpolation_blocksize = 8;
 	std::string interpolation_speed = "medium";
-	std::string interpolation_mask_area = "0";
+	int interpolation_mask_area = 0;
 
 	bool manual_svp = false;
 	std::string super_string = "";
 	std::string vectors_string = "";
 	std::string smooth_string = "";
+
+public:
+	nlohmann::json to_json();
 };
 
 const s_blur_settings default_settings;

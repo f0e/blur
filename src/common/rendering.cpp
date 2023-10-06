@@ -1,6 +1,5 @@
 ﻿#include "rendering.h"
 
-#include "script_handler.h"
 #include "preview.h"
 
 #ifdef BLUR_GUI
@@ -100,7 +99,12 @@ c_render::s_render_command c_render::build_render_command() {
 	std::wstring path_string = video_path.wstring();
 	std::replace(path_string.begin(), path_string.end(), '\\', '/');
 
-	std::wstring pipe_command = fmt::format(L"\"{}\" -c y4m -a video_path=\"{}\" -p \"{}\" -", vspipe_path, path_string, script_handler.script_path.wstring());
+	std::wstring blur_script_path = (blur.path / "lib\\blur.py").wstring();
+
+	std::stringstream settings_json_ss;
+	settings_json_ss << std::quoted(settings.to_json().dump());
+
+	std::wstring pipe_command = fmt::format(L"\"{}\" -c y4m -a video_path=\"{}\" -a settings=\"{}\" -p \"{}\" -", vspipe_path, path_string, helpers::towstring(settings_json_ss.str()), blur_script_path);
 
 	// build ffmpeg command
 	std::wstring ffmpeg_command = L'"' + ffmpeg_path + L'"';
@@ -282,9 +286,6 @@ void c_render::render() {
 	if (output_path.empty())
 		build_output_filename();
 
-	// create temp path
-	temp_path = blur.create_temp_path(video_folder);
-
 	wprintf(L"Rendering '%s'\n", video_name.c_str());
 
 #ifndef _DEBUG
@@ -307,13 +308,12 @@ void c_render::render() {
 		printf("Rendered at %.2f speed with crf %d\n", settings.output_timescale, settings.quality);
 	}
 
-	// create script
-	script_handler.create(temp_path, video_path, settings);
-
 	// start preview
 	if (settings.preview && blur.using_preview) {
-		preview_path = temp_path / "preview.jpg";
-		preview.start(preview_path);
+		if (blur.create_temp_path()) {
+			preview_path = blur.temp_path / "blur_preview.jpg";
+			preview.start(preview_path);
+		}
 	}
 
 	// render
@@ -328,10 +328,9 @@ void c_render::render() {
 		wprintf(L"Failed to render '%s'\n", video_name.c_str());
 	}
 
-	// remove temp path and files inside
-	blur.remove_temp_path(temp_path);
-
+	// stop preview
 	preview.disable();
+	blur.remove_temp_path();
 }
 
 void c_rendering::stop_rendering() {

@@ -33,18 +33,14 @@ std::vector<std::string> helpers::split_string(std::string str, const std::strin
 	return output;
 }
 
+std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+
 std::wstring helpers::towstring(const std::string& str) {
-	int length = MultiByteToWideChar(CP_UTF8, 0, str.data(), str.size(), NULL, 0);
-	std::wstring ret(length, 0);
-	MultiByteToWideChar(CP_UTF8, 0, str.data(), str.size(), &ret[0], length);
-	return ret;
+	return converter.from_bytes(str);
 }
 
 std::string helpers::tostring(const std::wstring& wstr) {
-	int length = WideCharToMultiByte(CP_UTF8, 0, wstr.data(), wstr.size(), nullptr, 0, nullptr, nullptr);
-	std::string ret(length, 0);
-	WideCharToMultiByte(CP_UTF8, 0, wstr.data(), wstr.size(), &ret[0], length, nullptr, nullptr);
-	return ret;
+	return converter.to_bytes(wstr);
 }
 
 std::string helpers::to_lower(const std::string& str) {
