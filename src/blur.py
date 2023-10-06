@@ -45,7 +45,7 @@ if settings["interpolate"]:
     split = settings["interpolated_fps"].split("x")
     if len(split) > 1:
         # contains x, is a multiplier (e.g. 5x)
-        interpolated_fps = int(video.fps * split[0])
+        interpolated_fps = video.fps * int(split[0])
     else:
         # no x, is an fps (e.g. 600)
         interpolated_fps = int(interpolated_fps)
