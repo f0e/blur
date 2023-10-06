@@ -64,13 +64,12 @@ project "blur-cli"
    location "src/cli"
    targetname "blur-cli"
 
+   defines { "BLUR_CLI" }
+
    -- pch
    pchheader "pch.h"
    pchsource "src/cli/pch.cpp"
-
-   -- vs-specific options
-   filter "action:vs*"
-      buildoptions { "/FI pch.h" }
+   forceincludes { "src/cli/pch.h" }
 
    -- import cli files
    files {
@@ -84,13 +83,12 @@ project "blur-gui"
    location "src/gui"
    targetname "blur"
 
+   defines { "BLUR_GUI" }
+
    -- pch
    pchheader "pch.h"
    pchsource "src/gui/pch.cpp"
-
-   -- vs-specific options
-   filter "action:vs*"
-      buildoptions { "/FI pch.h" }
+   forceincludes { "src/gui/pch.h" }
 
    -- import gui files
    files {
