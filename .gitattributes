@@ -1,0 +1,4 @@
+lib/* linguist-vendored
+resources/* linguist-vendored
+premake5.lua linguist-vendored
+setup.bat linguist-vendored
