@@ -1,6 +1,7 @@
 # blur installer
 
 ## requirements
+
 ```
 /dependencies
 └ /lib
@@ -18,8 +19,9 @@
      └ /vapoursynth64
        └ /plugins
          | akarin (https://github.com/AkarinVS/vapoursynth-plugin)
-         | ffms2 (x64) (https://github.com/FFMS/ffms2)
+         | avisource (x64) (https://github.com/vapoursynth/vs-avisource-obsolete)
          | libmvtools (x64) (https://github.com/dubhater/vapoursynth-mvtools)
+         | LSMASHSource (x64) (https://github.com/HomeOfAviSynthPlusEvolution/L-SMASH-Works)
          └ svpflow1 & svpflow2 (x64) (https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
 
 /redist

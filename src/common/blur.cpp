@@ -59,5 +59,7 @@ bool c_blur::remove_temp_path() {
 
 	std::filesystem::remove_all(blur.temp_path);
 
+	blur.temp_path.clear();
+
 	return true;
 }

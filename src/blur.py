@@ -17,13 +17,11 @@ settings = json.loads(vars().get("settings"))
 
 extension = video_path.suffix
 if extension != ".avi":
-    video = core.ffms2.Source(source=video_path, cache=False)
+    video = core.lsmas.LWLibavSource(source=video_path, cache=False)
 else:
     # FFmpegSource2 doesnt work with frameserver
     video = core.avisource.AVISource(video_path)
-    video = core.fmtc.matrix(clip=video, mat="601", col_fam=vs.YUV, bits=16)
-    video = core.fmtc.resample(clip=video, css="420")
-    video = core.fmtc.bitdepth(clip=video, bits=8)
+    video = core.resize.Bicubic(clip=video, format=vs.YUV420P8, matrix_s="709")
 
 # replace duplicate frames with new frames which are interpolated based off of the surrounding frames
 if settings["deduplicate"]:
@@ -36,7 +34,9 @@ if settings["deduplicate"]:
 
 # input timescale
 if settings["input_timescale"] != 1:
-    video = core.std.AssumeFPS(video, fpsnum=(video.fps * (1 / settings["input_timescale"])))
+    video = core.std.AssumeFPS(
+        video, fpsnum=(video.fps * (1 / settings["input_timescale"]))
+    )
 
 # interpolation
 if settings["interpolate"]:
@@ -52,26 +52,26 @@ if settings["interpolate"]:
 
     match settings["interpolation_program"].lower():
         case "rife":
-            pass # TODO
+            pass  # TODO
             # video = core.resize.Bicubic(video, format=vs.RGBS)
 
             # while video.fps < interpolated_fps:
             #     video = RIFE(video)
 
             # video = core.resize.Bicubic(video, format=vs.YUV420P8, matrix_s="709")
-            
+
         case "rife-ncnn":
-            pass # TODO
+            pass  # TODO
             # video = core.resize.Bicubic(video, format=vs.RGBS)
 
             # while video.fps < interpolated_fps:
             #     video = core.rife.RIFE(video)
 
             # video = core.resize.Bicubic(video, format=vs.YUV420P8, matrix_s="709")
-            
+
         case _:
             if settings["manual_svp"]:
-                pass # TODO
+                pass  # TODO
                 # todo
                 # super = core.svp1.Super(video, settings["super_string"])
                 # vectors = core.svp1.Analyse(super['clip'], super['data'], video, settings["vectors_string"])
@@ -90,11 +90,16 @@ if settings["interpolate"]:
 
                 # video_script << fmt::format("video = core.svp2.SmoothFps(video, super['clip'], super['data'], vectors['clip'], vectors['data'], {})", fixed_smooth_string) << "\n";
             else:
-                print(f"new_fps={interpolated_fps}, preset={settings['interpolation_preset']}, algorithm={settings['interpolation_algorithm']}, blocksize={settings['interpolation_blocksize']}, overlap={0}, speed={settings['interpolation_speed']}, masking={settings['interpolation_mask_area']}, gpu={settings['gpu_interpolation']}")
-                
-                video = interpolate.interpolate_svp(video, new_fps=interpolated_fps, preset=settings["interpolation_preset"],
-                                                    algorithm=settings["interpolation_algorithm"], blocksize=settings["interpolation_blocksize"],
-                                                    overlap=0, speed=settings["interpolation_speed"], masking=settings["interpolation_mask_area"], gpu=settings["gpu_interpolation"])
+                video = interpolate.interpolate_svp(
+                    video,
+                    new_fps=interpolated_fps,
+                    preset=settings["interpolation_preset"],
+                    algorithm=settings["interpolation_algorithm"],
+                    blocksize=settings["interpolation_blocksize"],
+                    overlap=0,
+                    masking=settings["interpolation_mask_area"],
+                    gpu=settings["gpu_interpolation"],
+                )
 
 # output timescale
 if settings["output_timescale"] != 1:
@@ -114,29 +119,45 @@ if settings["blur"]:
             def do_weighting_fn(blur_weighting_fn):
                 match blur_weighting_fn:
                     case "gaussian":
-                        return weighting.gaussian(blended_frames, settings["blur_weighting_gaussian_std_dev"], settings["blur_weighting_bound"])
+                        return weighting.gaussian(
+                            blended_frames,
+                            settings["blur_weighting_gaussian_std_dev"],
+                            settings["blur_weighting_bound"],
+                        )
 
                     case "gaussian_sym":
-                        return weighting.gaussianSym(blended_frames, settings["blur_weighting_gaussian_std_dev"], settings["blur_weighting_bound"])
+                        return weighting.gaussianSym(
+                            blended_frames,
+                            settings["blur_weighting_gaussian_std_dev"],
+                            settings["blur_weighting_bound"],
+                        )
 
                     case "pyramid":
-                        return weighting.pyramid(blended_frames, settings["blur_weighting_triangle_reverse"])
+                        return weighting.pyramid(
+                            blended_frames, settings["blur_weighting_triangle_reverse"]
+                        )
 
                     case "pyramid_sym":
                         return weighting.pyramidSym(blended_frames)
 
                     case "custom_weight":
-                        return weighting.divide(blended_frames, settings["blur_weighting"])
+                        return weighting.divide(
+                            blended_frames, settings["blur_weighting"]
+                        )
 
                     case "custom_function":
-                        return weighting.custom(blended_frames, settings["blur_weighting"], settings["blur_weighting_bound"])
+                        return weighting.custom(
+                            blended_frames,
+                            settings["blur_weighting"],
+                            settings["blur_weighting_bound"],
+                        )
 
                     case "equal":
                         return weighting.equal(blended_frames)
-                    
+
                     case _:
                         # check if it's a custom weighting function
-                        if blur_weighting_fn[0] == '[' and blur_weighting_fn[-1] == ']':
+                        if blur_weighting_fn[0] == "[" and blur_weighting_fn[-1] == "]":
                             return do_weighting_fn("custom_weight")
                         else:
                             return do_weighting_fn("custom_function")
@@ -154,7 +175,16 @@ if settings["blur"]:
     video = interpolate.change_fps(video, settings["blur_output_fps"])
 
 # filters
-if settings["brightness"] != 1 or settings["contrast"] != 1 or settings["saturation"] != 1:
-    video = adjust.Tweak(video, bright=settings["brightness"] - 1, cont=settings["contrast"], sat=settings["saturation"])
+if (
+    settings["brightness"] != 1
+    or settings["contrast"] != 1
+    or settings["saturation"] != 1
+):
+    video = adjust.Tweak(
+        video,
+        bright=settings["brightness"] - 1,
+        cont=settings["contrast"],
+        sat=settings["saturation"],
+    )
 
 video.set_output()

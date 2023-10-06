@@ -9,6 +9,7 @@ import math
 LEGACY_PRESETS = ["weak", "film", "smooth", "animation"]
 NEW_PRESETS = ["default", "test"]
 
+
 def generate_svp_strings(
     new_fps,
     preset="weak",
@@ -36,20 +37,10 @@ def generate_svp_strings(
     match preset:
         case "test":
             vectors_json["main"] = {
-                "search": {
-                    "type": 3,
-                    "satd": True,
-                    "coarse": {
-                        "type": 3
-                    }
-                }
+                "search": {"type": 3, "satd": True, "coarse": {"type": 3}}
             }
-        case LEGACY_PRESETS:
-            vectors_json["main"] = {"search": {
-                    "distance": 0,
-                    "coarse": {}
-                }
-            }
+        case _ if preset in LEGACY_PRESETS:
+            vectors_json["main"] = {"search": {"distance": 0, "coarse": {}}}
 
             if preset == "weak":
                 vectors_json["main"]["search"]["coarse"] = {
@@ -62,10 +53,7 @@ def generate_svp_strings(
 
     # build smooth json
     smooth_json = {
-        "rate": {
-            "num": int(new_fps),
-            "abs": True
-        },
+        "rate": {"num": int(new_fps), "abs": True},
         "algo": algorithm,
         "mask": {
             "area": masking,
@@ -74,13 +62,12 @@ def generate_svp_strings(
         "scene": {
             "blend": False,
             "mode": 0,
-            "limits": {
-                "blocks": 9999999 # dont want any scene detection stuff
-            }
-        }
+            "limits": {"blocks": 9999999},  # dont want any scene detection stuff
+        },
     }
 
     return [json.dumps(obj) for obj in [super_json, vectors_json, smooth_json]]
+
 
 def interpolate_svp(
     video,
@@ -102,12 +89,13 @@ def interpolate_svp(
         raise vs.Error(f"interpolate: '{preset}' is not a valid preset")
 
     # generate svp strings
-    [super_string, vectors_string, smooth_string] = generate_svp_strings(new_fps, preset, algorithm, blocksize, overlap, speed, masking, gpu)
+    [super_string, vectors_string, smooth_string] = generate_svp_strings(
+        new_fps, preset, algorithm, blocksize, overlap, speed, masking, gpu
+    )
 
     # interpolate
     super = core.svp1.Super(video, super_string)
-    vectors = core.svp1.Analyse(
-        super["clip"], super["data"], video, vectors_string)
+    vectors = core.svp1.Analyse(super["clip"], super["data"], video, vectors_string)
 
     return core.svp2.SmoothFps(
         video,
@@ -118,9 +106,10 @@ def interpolate_svp(
         smooth_string,
     )
 
+
 def change_fps(clip, fpsnum, fpsden=1):  # this is just directly from havsfunc
     if not isinstance(clip, vs.VideoNode):
-        raise vs.Error('ChangeFPS: This is not a clip')
+        raise vs.Error("ChangeFPS: This is not a clip")
 
     factor = (fpsnum / fpsden) * (clip.fps_den / clip.fps_num)
 
@@ -129,27 +118,65 @@ def change_fps(clip, fpsnum, fpsden=1):  # this is just directly from havsfunc
         one_frame_clip = clip[real_n] * (len(clip) + 100)
         return one_frame_clip
 
-    attribute_clip = clip.std.BlankClip(length=math.floor(
-        len(clip) * factor), fpsnum=fpsnum, fpsden=fpsden)
+    attribute_clip = clip.std.BlankClip(
+        length=math.floor(len(clip) * factor), fpsnum=fpsnum, fpsden=fpsden
+    )
     return attribute_clip.std.FrameEval(eval=frame_adjuster)
 
-def interpolate_mvtools(clip, fps=None,
-    pel=1, sharp=0,
-    blksize=4, overlap=2, search=5, searchparam=3, pelsearch=1, dct=3,
-    blend=False, ml=200):
-    if not isinstance(clip, vs.VideoNode) or clip.format.color_family not in [vs.GRAY, vs.YUV]:
+
+def interpolate_mvtools(
+    clip,
+    fps=None,
+    pel=1,
+    sharp=0,
+    blksize=4,
+    overlap=2,
+    search=5,
+    searchparam=3,
+    pelsearch=1,
+    dct=3,
+    blend=False,
+    ml=200,
+):
+    if not isinstance(clip, vs.VideoNode) or clip.format.color_family not in [
+        vs.GRAY,
+        vs.YUV,
+    ]:
         raise TypeError("JohnFPS: This is not a GRAY or YUV clip!")
-    
-    super = core.mv.Super(clip, hpad=blksize, vpad=blksize, pel=pel, rfilter=1, sharp=sharp)
 
-    analyse_args = dict(blksize=blksize, overlap=overlap, search=search, searchparam=searchparam, pelsearch=pelsearch, dct=dct)
+    super = core.mv.Super(
+        clip, hpad=blksize, vpad=blksize, pel=pel, rfilter=1, sharp=sharp
+    )
 
-    bv = core.mv.Analyse(super, isb=True,  **analyse_args)
+    analyse_args = dict(
+        blksize=blksize,
+        overlap=overlap,
+        search=search,
+        searchparam=searchparam,
+        pelsearch=pelsearch,
+        dct=dct,
+    )
+
+    bv = core.mv.Analyse(super, isb=True, **analyse_args)
     fv = core.mv.Analyse(super, isb=False, **analyse_args)
 
     return core.mv.FlowFPS(clip, super, bv, fv, num=fps, den=1, blend=blend, ml=ml)
 
-def JohnBlur(clip, num=None, den=None, pre=None, pel=None, sharp=2, blksize=16, overlap=8, blend=False, ml=200, analyse_args=None, recalculate_args=None):
+
+def JohnBlur(
+    clip,
+    num=None,
+    den=None,
+    pre=None,
+    pel=None,
+    sharp=2,
+    blksize=16,
+    overlap=8,
+    blend=False,
+    ml=200,
+    analyse_args=None,
+    recalculate_args=None,
+):
     """
     From: https://forum.doom9.org/showthread.php?p=1847109.
     Motion Protected FPS converter script by johnmeyer.
@@ -177,12 +204,14 @@ def JohnBlur(clip, num=None, den=None, pre=None, pel=None, sharp=2, blksize=16, 
     w = clip.width
     h = clip.height
 
-    if not isinstance(clip, vs.VideoNode) or clip.format.color_family not in [vs.GRAY, vs.YUV]:
+    if not isinstance(clip, vs.VideoNode) or clip.format.color_family not in [
+        vs.GRAY,
+        vs.YUV,
+    ]:
         raise TypeError("JohnFPS: This is not a GRAY or YUV clip!")
 
     if isinstance(num, float) or isinstance(den, float):
-        raise ValueError(
-            "JohnFPS: Please use exact fraction instead of float.")
+        raise ValueError("JohnFPS: Please use exact fraction instead of float.")
 
     if num is None and den is None:
         enum *= 2
@@ -196,12 +225,14 @@ def JohnBlur(clip, num=None, den=None, pre=None, pel=None, sharp=2, blksize=16, 
         eden = den
 
     if analyse_args is None:
-        analyse_args = dict(blksize=blksize, overlap=overlap,
-                            search=5, searchparam=3, dct=5)
+        analyse_args = dict(
+            blksize=blksize, overlap=overlap, search=5, searchparam=3, dct=5
+        )
 
     if recalculate_args is None:
         recalculate_args = dict(
-            blksize=blksize//2, overlap=overlap//2, search=5, dct=5, thsad=100)
+            blksize=blksize // 2, overlap=overlap // 2, search=5, dct=5, thsad=100
+        )
 
     if pre is None:
         pre = fn_RemoveGrain(clip, [22])
@@ -217,21 +248,27 @@ def JohnBlur(clip, num=None, den=None, pre=None, pel=None, sharp=2, blksize=16, 
 
     if ppp:
         cshift = 0.25 if pel == 2 else 0.375
-        pclip = nnrs.nnedi3_resample(
-            pre,  w * pel, h * pel, cshift, cshift, nns=4)
-        pclip2 = nnrs.nnedi3_resample(
-            clip, w * pel, h * pel, cshift, cshift, nns=4)
-        supero = fn_Super(clip, hpad=blksize, vpad=blksize, pel=pel,
-                   pelclip=pclip2, rfilter=1, levels=1)
-        superb = fn_Super(pre,  hpad=blksize, vpad=blksize,
-                   pel=pel, pelclip=pclip,  rfilter=4)
+        pclip = nnrs.nnedi3_resample(pre, w * pel, h * pel, cshift, cshift, nns=4)
+        pclip2 = nnrs.nnedi3_resample(clip, w * pel, h * pel, cshift, cshift, nns=4)
+        supero = fn_Super(
+            clip,
+            hpad=blksize,
+            vpad=blksize,
+            pel=pel,
+            pelclip=pclip2,
+            rfilter=1,
+            levels=1,
+        )
+        superb = fn_Super(
+            pre, hpad=blksize, vpad=blksize, pel=pel, pelclip=pclip, rfilter=4
+        )
     else:
-        supero = fn_Super(clip, hpad=blksize, vpad=blksize,
-                   pel=pel, rfilter=1, sharp=sharp, levels=1)
-        superb = fn_Super(pre,  hpad=blksize, vpad=blksize,
-                   pel=pel, rfilter=4, sharp=1)
+        supero = fn_Super(
+            clip, hpad=blksize, vpad=blksize, pel=pel, rfilter=1, sharp=sharp, levels=1
+        )
+        superb = fn_Super(pre, hpad=blksize, vpad=blksize, pel=pel, rfilter=4, sharp=1)
 
-    bv = fn_Analyse(superb, isb=True,  **analyse_args)
+    bv = fn_Analyse(superb, isb=True, **analyse_args)
     fv = fn_Analyse(superb, isb=False, **analyse_args)
     bv = fn_Recalculate(superb, bv, **recalculate_args)
     fv = fn_Recalculate(superb, fv, **recalculate_args)

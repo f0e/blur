@@ -37,7 +37,6 @@ struct s_blur_settings {
 	std::string interpolation_preset = "weak";
 	int interpolation_algorithm = 13;
 	int interpolation_blocksize = 8;
-	std::string interpolation_speed = "medium";
 	int interpolation_mask_area = 0;
 
 	bool manual_svp = false;

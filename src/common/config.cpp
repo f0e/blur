@@ -56,7 +56,6 @@ void c_config::create(const std::filesystem::path& filepath, s_blur_settings cur
 	output << "interpolation preset: " << current_settings.interpolation_preset << "\n";
 	output << "interpolation algorithm: " << current_settings.interpolation_algorithm << "\n";
 	output << "interpolation block size: " << current_settings.interpolation_blocksize << "\n";
-	output << "interpolation speed: " << current_settings.interpolation_speed << "\n";
 	output << "interpolation mask area: " << current_settings.interpolation_mask_area << "\n";
 	
 	if (current_settings.manual_svp) {
@@ -174,7 +173,6 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 	config_get_str("interpolation preset", settings.interpolation_preset);
 	config_get("interpolation algorithm", settings.interpolation_algorithm);
 	config_get("interpolation block size", settings.interpolation_blocksize);
-	config_get_str("interpolation speed", settings.interpolation_speed);
 	config_get("interpolation mask area", settings.interpolation_mask_area);
 
 	config_get("manual svp", settings.manual_svp);
@@ -254,7 +252,6 @@ nlohmann::json s_blur_settings::to_json() {
 	j["interpolation_preset"] = this->interpolation_preset;
 	j["interpolation_algorithm"] = this->interpolation_algorithm;
 	j["interpolation_blocksize"] = this->interpolation_blocksize;
-	j["interpolation_speed"] = this->interpolation_speed;
 	j["interpolation_mask_area"] = this->interpolation_mask_area;
 
 	j["manual_svp"] = this->manual_svp;

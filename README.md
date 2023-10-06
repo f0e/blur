@@ -40,7 +40,7 @@ The program can also be used in the command line, use -h or --help for more info
 
 - blur - whether or not the output video file will have motion blur
 - blur amount - if blur is enabled, this is the amount of motion blur (0 = no blur, 1 = fully blend every frame together, 1+ = more blur/ghosting)
-- blur output fps - if blur is enabled, this is the fps the output video will be
+- blur output fps - if blur is enabled, this is the fps the output video will be. can be a framerate (e.g. 600) or a multiplier (e.g. 5x)
 - blur weighting - weighting function to use when blending frames. options are listed below:
   - equal - each frame is blended equally
   - gaussian
@@ -58,6 +58,7 @@ The program can also be used in the command line, use -h or --help for more info
 ### rendering
 
 - quality - [crf](https://trac.ffmpeg.org/wiki/Encode/H.264#crf) of the output video (qp if using GPU rendering)
+- deduplicate - removes duplicate frames and generates new interpolated frames to take their place
 - preview - opens a render preview window
 - detailed filenames - adds blur settings to generated filenames
 
@@ -75,10 +76,12 @@ The program can also be used in the command line, use -h or --help for more info
 
 ### advanced rendering
 
-- gpu - enables experimental gpu accelerated rendering (likely slower)
+- gpu interpolation - uses gpu when interpolating
+- gpu rendering - uses gpu when rendering
 - gpu type (nvidia/amd/intel) - your gpu type
-- deduplicate - removes duplicate frames and generates new interpolated frames to take their place
+- video container - the output video container
 - custom ffmpeg filters - custom ffmpeg filters to be used when rendering (replaces gpu & quality options)
+- debug - shows debug window, prints commands used by blur
 
 ### advanced blur
 
@@ -102,7 +105,14 @@ The program can also be used in the command line, use -h or --help for more info
   - 11 - _[explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
   - 21 - _[explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
 
-- interpolation mask area - mask amount used when interpolating. higher values can mean static objects are blurred less, but can also result in less smooth output
+- interpolation block size - block size used for framerate interpolation. higher block size = less accurate blur, will result in spaces around non-moving objects of the frame, also renders faster. lower block size = more accurate blur, but can result in artifacting, also slower. for higher framerate input videos lower block size can be better. options:
+
+  - 4
+  - 8 (default)
+  - 16
+  - 32
+
+- interpolation mask area - mask amount used when interpolating. higher values can mean static objects are blurred less, but can also result in less smooth output (moving parts of the image can be mistaken for static parts and don't get blurred)
 
 ### manual svp override
 
@@ -123,19 +133,24 @@ Most of the default settings are what I find work the best, but some settings ca
 
 For 60fps footage:
 
-|                             |         |
-| --------------------------- | ------- |
-| For maximum blur/smoothness | 1       |
-| Medium                      | 0.5     |
-| Low                         | 0.2-0.3 |
+| intent                  | amount  |
+| ----------------------- | ------- |
+| Maximum blur/smoothness | >1      |
+| Normal blur             | 1       |
+| Medium blur             | 0.5     |
+| Low blur                | 0.2-0.3 |
 
 To preserve your old blur amount when changing framerate use the following formula:
 
 `[new blur amount] = [old blur amount] × ([new fps] / [old fps])`
 
+So normal blur at 30fps becomes 0.5, etc.
+
 ### interpolated fps
 
 Results can become worse if this is too high. In general I recommend around 5x the input fps. Also SVP seems to only be able to interpolate up to 10x the input fps, so don't bother trying anything higher than that.
+
+## Notes
 
 ### Limiting smearing
 
@@ -144,6 +159,10 @@ Using blur on 60fps footage results in clean motion blur, but occasionally leave
 ### Preventing unsmooth output
 
 If your footage contains duplicate frames then occasionally blurred frames will look out of place, making the video seem unsmooth at points. The 'deduplicate' option will automatically fill in duplicated frames with interpolated frames to prevent this from happening.
+
+### Frameserver output
+
+Blur supports rendering from frameservers. This means you can avoid having to run blur on your input videos when video editing. When rendering, simply output (make sure your project is high framerate) to the frameserver and then drag the generated AVI into blur. Note that some video editing software might limit the maximum project framerate.
 
 ---
 
@@ -159,16 +178,16 @@ If your footage contains duplicate frames then occasionally blurred frames will 
 
 ### VapourSynth plugins
 
-- [FFMS2](https://github.com/FFMS/ffms2)
-- [SVPflow 4.2.0.142](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
-- [vs-frameblender](https://github.com/f0e/vs-frameblender)
+- [adjust](https://github.com/dubhater/vapoursynth-adjust)
+- [akarin](https://github.com/AkarinVS/vapoursynth-plugin)
+- [avisource (x64)](https://github.com/vapoursynth/vs-avisource-obsolete)
+- [libmvtools (x64)](https://github.com/dubhater/vapoursynth-mvtools)
+- [LSMASHSource (x64)](https://github.com/HomeOfAviSynthPlusEvolution/L-SMASH-Works)
+- [SVPflow 4.2.0.142 (x64)](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
 - [blur plugins](https://github.com/f0e/blur/tree/master/plugins)
 
 1. Download [the latest release](https://github.com/f0e/blur/releases/latest) or build the project.
 2. Install Python
 3. Install FFmpeg and [add it to PATH](https://www.wikihow.com/Install-FFmpeg-on-Windows)
 4. Install the 64-bit version of VapourSynth
-5. Install the required VapourSynth plugins using the command "vsrepo.py install ffms2 havsfunc"
-6. Install vs-frameblender manually by downloading the x64 .dll from [here](https://github.com/f0e/vs-frameblender/releases/latest) to "VapourSynth/plugins64"
-7. Install SVPflow 4.2.0.142 manually by downloading the zip from [here](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip) and moving the files inside "lib-windows/vapoursynth/x64" to "VapourSynth/plugins64"
-8. Download the plugins in [/plugins](https://github.com/f0e/blur/tree/master/plugins) to "%appdata%/Roaming/Python/Python39/site-packages"
+5. Install the required VapourSynth plugins

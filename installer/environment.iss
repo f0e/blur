@@ -1,4 +1,4 @@
-// https://stackoverflow.com/a/46609047
+; https://stackoverflow.com/a/46609047
 [Code]
 const EnvironmentKey = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
 
