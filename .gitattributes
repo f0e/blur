@@ -1,4 +1,12 @@
+# don't include dependencies in language statistics
 lib/* linguist-vendored
+
+# or resources
 resources/* linguist-vendored
+
+# or premake
 premake5.lua linguist-vendored
 setup.bat linguist-vendored
+
+# .h files in blur are c++, not c
+*.h linguist-language=C++
