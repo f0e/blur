@@ -1,31 +1,31 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30011.22
-MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "blur", "blur.vcxproj", "{C0DFC862-79B4-4565-9400-1BD60798A485}"
+# Visual Studio Version 17
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "blur-cli", "src\cli\blur-cli.vcxproj", "{1F458D7F-0B12-E88A-342B-D63220571D19}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "blur-gui", "src\gui\blur-gui.vcxproj", "{4C578D7F-3824-E88A-613D-D6324D691D19}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
-		Debug|x86 = Debug|x86
+		ReleaseWithDebugInfo|x64 = ReleaseWithDebugInfo|x64
 		Release|x64 = Release|x64
-		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{C0DFC862-79B4-4565-9400-1BD60798A485}.Debug|x64.ActiveCfg = Debug|x64
-		{C0DFC862-79B4-4565-9400-1BD60798A485}.Debug|x64.Build.0 = Debug|x64
-		{C0DFC862-79B4-4565-9400-1BD60798A485}.Debug|x86.ActiveCfg = Debug|Win32
-		{C0DFC862-79B4-4565-9400-1BD60798A485}.Debug|x86.Build.0 = Debug|Win32
-		{C0DFC862-79B4-4565-9400-1BD60798A485}.Release|x64.ActiveCfg = Release|x64
-		{C0DFC862-79B4-4565-9400-1BD60798A485}.Release|x64.Build.0 = Release|x64
-		{C0DFC862-79B4-4565-9400-1BD60798A485}.Release|x86.ActiveCfg = Release|Win32
-		{C0DFC862-79B4-4565-9400-1BD60798A485}.Release|x86.Build.0 = Release|Win32
+		{1F458D7F-0B12-E88A-342B-D63220571D19}.Debug|x64.ActiveCfg = Debug|x64
+		{1F458D7F-0B12-E88A-342B-D63220571D19}.Debug|x64.Build.0 = Debug|x64
+		{1F458D7F-0B12-E88A-342B-D63220571D19}.ReleaseWithDebugInfo|x64.ActiveCfg = ReleaseWithDebugInfo|x64
+		{1F458D7F-0B12-E88A-342B-D63220571D19}.ReleaseWithDebugInfo|x64.Build.0 = ReleaseWithDebugInfo|x64
+		{1F458D7F-0B12-E88A-342B-D63220571D19}.Release|x64.ActiveCfg = Release|x64
+		{1F458D7F-0B12-E88A-342B-D63220571D19}.Release|x64.Build.0 = Release|x64
+		{4C578D7F-3824-E88A-613D-D6324D691D19}.Debug|x64.ActiveCfg = Debug|x64
+		{4C578D7F-3824-E88A-613D-D6324D691D19}.Debug|x64.Build.0 = Debug|x64
+		{4C578D7F-3824-E88A-613D-D6324D691D19}.ReleaseWithDebugInfo|x64.ActiveCfg = ReleaseWithDebugInfo|x64
+		{4C578D7F-3824-E88A-613D-D6324D691D19}.ReleaseWithDebugInfo|x64.Build.0 = ReleaseWithDebugInfo|x64
+		{4C578D7F-3824-E88A-613D-D6324D691D19}.Release|x64.ActiveCfg = Release|x64
+		{4C578D7F-3824-E88A-613D-D6324D691D19}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {B1A42247-71F6-4A92-B9B1-923146EBB713}
 	EndGlobalSection
 EndGlobal

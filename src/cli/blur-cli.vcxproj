@@ -1,0 +1,283 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="ReleaseWithDebugInfo|x64">
+      <Configuration>ReleaseWithDebugInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{1F458D7F-0B12-E88A-342B-D63220571D19}</ProjectGuid>
+    <IgnoreWarnCompileDuplicatedFilename>true</IgnoreWarnCompileDuplicatedFilename>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>blur-cli</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)bin\$(ProjectName)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(ProjectName)\$(Configuration)\</IntDir>
+    <TargetName>blur-cli</TargetName>
+    <TargetExt>.exe</TargetExt>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)bin\$(ProjectName)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(ProjectName)\$(Configuration)\</IntDir>
+    <TargetName>blur-cli</TargetName>
+    <TargetExt>.exe</TargetExt>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)bin\$(ProjectName)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)build\$(ProjectName)\$(Configuration)\</IntDir>
+    <TargetName>blur-cli</TargetName>
+    <TargetExt>.exe</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;FMT_HEADER_ONLY;_CONSOLE;_DEBUG;BLUR_CLI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\lib;..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>pch.h</ForcedIncludeFiles>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <Optimization>Disabled</Optimization>
+      <MinimalRebuild>false</MinimalRebuild>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;FMT_HEADER_ONLY;_CONSOLE;_DEBUG;BLUR_CLI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\lib;..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
+      <AdditionalDependencies>Gdiplus.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;FMT_HEADER_ONLY;NDEBUG;BLUR_CLI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\lib;..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>pch.h</ForcedIncludeFiles>
+      <DebugInformationFormat>None</DebugInformationFormat>
+      <Optimization>Full</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <MinimalRebuild>false</MinimalRebuild>
+      <StringPooling>true</StringPooling>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;FMT_HEADER_ONLY;NDEBUG;BLUR_CLI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\lib;..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>Gdiplus.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;FMT_HEADER_ONLY;NDEBUG;BLUR_CLI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\lib;..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>pch.h</ForcedIncludeFiles>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <Optimization>Full</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <MinimalRebuild>false</MinimalRebuild>
+      <StringPooling>true</StringPooling>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;FMT_HEADER_ONLY;NDEBUG;BLUR_CLI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\lib;..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>Gdiplus.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\lib\cxxopts\cxxopts.hpp" />
+    <ClInclude Include="..\..\lib\fmt\args.h" />
+    <ClInclude Include="..\..\lib\fmt\chrono.h" />
+    <ClInclude Include="..\..\lib\fmt\color.h" />
+    <ClInclude Include="..\..\lib\fmt\compile.h" />
+    <ClInclude Include="..\..\lib\fmt\core.h" />
+    <ClInclude Include="..\..\lib\fmt\format-inl.h" />
+    <ClInclude Include="..\..\lib\fmt\format.h" />
+    <ClInclude Include="..\..\lib\fmt\os.h" />
+    <ClInclude Include="..\..\lib\fmt\ostream.h" />
+    <ClInclude Include="..\..\lib\fmt\printf.h" />
+    <ClInclude Include="..\..\lib\fmt\ranges.h" />
+    <ClInclude Include="..\..\lib\fmt\std.h" />
+    <ClInclude Include="..\..\lib\fmt\xchar.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\config\ftconfig.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\config\ftheader.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\config\ftmodule.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\config\ftoption.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\config\ftstdlib.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\config\integer-types.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\config\mac-support.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\config\public-macros.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\freetype.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftadvanc.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftbbox.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftbdf.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftbitmap.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftbzip2.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftcache.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftchapters.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftcid.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftcolor.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftdriver.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\fterrdef.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\fterrors.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftfntfmt.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftgasp.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftglyph.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftgxval.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftgzip.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftimage.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftincrem.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftlcdfil.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftlist.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftlogging.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftlzw.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftmac.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftmm.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftmodapi.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftmoderr.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftotval.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftoutln.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftparams.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftpfr.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftrender.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftsizes.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftsnames.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftstroke.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftsynth.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftsystem.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\fttrigon.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\fttypes.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ftwinfnt.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\otsvg.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\t1tables.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\ttnameid.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\tttables.h" />
+    <ClInclude Include="..\..\lib\freetype\include\freetype\tttags.h" />
+    <ClInclude Include="..\..\lib\freetype\include\ft2build.h" />
+    <ClInclude Include="..\..\lib\glfw\include\GLFW\glfw3.h" />
+    <ClInclude Include="..\..\lib\glfw\include\GLFW\glfw3native.h" />
+    <ClInclude Include="..\..\lib\imgui\imconfig.h" />
+    <ClInclude Include="..\..\lib\imgui\imgui.h" />
+    <ClInclude Include="..\..\lib\imgui\imgui_freetype.h" />
+    <ClInclude Include="..\..\lib\imgui\imgui_impl_glfw.h" />
+    <ClInclude Include="..\..\lib\imgui\imgui_impl_opengl3.h" />
+    <ClInclude Include="..\..\lib\imgui\imgui_impl_opengl3_loader.h" />
+    <ClInclude Include="..\..\lib\imgui\imgui_internal.h" />
+    <ClInclude Include="..\..\lib\imgui\imstb_rectpack.h" />
+    <ClInclude Include="..\..\lib\imgui\imstb_textedit.h" />
+    <ClInclude Include="..\..\lib\nlohmann\json.hpp" />
+    <ClInclude Include="..\..\resources\resource.h" />
+    <ClInclude Include="..\common\blur.h" />
+    <ClInclude Include="..\common\config.h" />
+    <ClInclude Include="..\common\helpers.h" />
+    <ClInclude Include="..\common\pch.h" />
+    <ClInclude Include="..\common\preview.h" />
+    <ClInclude Include="..\common\rendering.h" />
+    <ClInclude Include="cli.h" />
+    <ClInclude Include="pch.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\common\blur.cpp" />
+    <ClCompile Include="..\common\config.cpp" />
+    <ClCompile Include="..\common\helpers.cpp" />
+    <ClCompile Include="..\common\preview.cpp" />
+    <ClCompile Include="..\common\rendering.cpp" />
+    <ClCompile Include="cli.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\resources\blur.ico" />
+    <None Include="..\..\resources\resource.aps" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\..\resources\resource.rc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
