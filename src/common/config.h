@@ -27,6 +27,7 @@ struct s_blur_settings {
 	std::string gpu_type = "nvidia";
 	std::string video_container = "mp4";
 	std::string ffmpeg_override = "";
+	bool debug = false;
 
 	float blur_weighting_gaussian_std_dev = 2.f;
 	bool blur_weighting_triangle_reverse = false;

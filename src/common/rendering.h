@@ -52,6 +52,10 @@ public:
 		return output_path;
 	}
 
+	s_blur_settings get_settings() {
+		return settings;
+	}
+
 public:
 	void render();
 

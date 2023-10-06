@@ -6,4 +6,5 @@ namespace console {
 	inline FILE* stream;
 
 	bool init();
+	bool close();
 }

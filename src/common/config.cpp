@@ -42,6 +42,7 @@ void c_config::create(const std::filesystem::path& filepath, s_blur_settings cur
 	output << "gpu type (nvidia/amd/intel): " << current_settings.gpu_type << "\n";
 	output << "video container: " << current_settings.video_container << "\n";
 	output << "custom ffmpeg filters: " << current_settings.ffmpeg_override << "\n";
+	output << "debug: " << (current_settings.debug ? "true" : "false") << "\n";
 
 	output << "\n";
 	output << "- advanced blur" << "\n";
@@ -57,7 +58,7 @@ void c_config::create(const std::filesystem::path& filepath, s_blur_settings cur
 	output << "interpolation block size: " << current_settings.interpolation_blocksize << "\n";
 	output << "interpolation speed: " << current_settings.interpolation_speed << "\n";
 	output << "interpolation mask area: " << current_settings.interpolation_mask_area << "\n";
-
+	
 	if (current_settings.manual_svp) {
 		output << "\n";
 		output << "- manual svp override" << "\n";
@@ -162,6 +163,7 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 	config_get_str("gpu type (nvidia/amd/intel)", settings.gpu_type);
 	config_get("video container", settings.video_container);
 	config_get_str("custom ffmpeg filters", settings.ffmpeg_override);
+	config_get("debug", settings.debug);
 
 	config_get("blur weighting gaussian std dev", settings.blur_weighting_gaussian_std_dev);
 	config_get("blur weighting triangle reverse", settings.blur_weighting_triangle_reverse);

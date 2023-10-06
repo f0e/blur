@@ -54,7 +54,7 @@ namespace helpers {
 	template<typename... args_t>
 	inline void debug_log(std::string_view str, args_t&&... args) {
 #ifdef _DEBUG
-		std::cout << "[debug]";
+		std::cout << "[debug] ";
 		printf(str.data(), std::forward<args_t>(args)...);
 		putchar('\n');
 #endif

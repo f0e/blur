@@ -3,6 +3,10 @@
 #include "script_handler.h"
 #include "preview.h"
 
+#ifdef BLUR_GUI
+#include <gui/console.h>
+#endif
+
 void c_rendering::render_videos() {
 	if (!queue.empty()) {
 		current_render = queue.front();
@@ -200,6 +204,7 @@ bool c_render::do_render(s_render_command render_command) {
 	vspipe_si.hStdError = hPipeWriteErr;
 
 	std::wstring vspipe_command = render_command.pipe_command;
+	wprintf(L"%s\n", vspipe_command.c_str());
 	BOOL bSuccess = CreateProcess(nullptr, vspipe_command.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &vspipe_si, &rendering.vspipe_pi);
 
 	CloseHandle(rendering.vspipe_pi.hThread);
@@ -225,6 +230,7 @@ bool c_render::do_render(s_render_command render_command) {
 	ffmpeg_si.dwFlags = STARTF_USESTDHANDLES;
 
 	std::wstring ffmpeg_command = render_command.ffmpeg_command;
+	wprintf(L"%s\n", ffmpeg_command.c_str());
 	bool success = CreateProcess(nullptr, ffmpeg_command.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &ffmpeg_si, &rendering.ffmpeg_pi);
 
 	CloseHandle(rendering.ffmpeg_pi.hThread);
@@ -280,6 +286,18 @@ void c_render::render() {
 	temp_path = blur.create_temp_path(video_folder);
 
 	wprintf(L"Rendering '%s'\n", video_name.c_str());
+
+#ifndef _DEBUG
+#ifdef BLUR_GUI
+	if (settings.debug) {
+		console::init();
+	}
+	else {
+		// todo: close console
+		// console::close();
+	}
+#endif
+#endif
 
 	if (blur.verbose) {
 		printf("Render settings:\n");
