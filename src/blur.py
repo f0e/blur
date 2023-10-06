@@ -71,24 +71,25 @@ if settings["interpolate"]:
 
         case _:
             if settings["manual_svp"]:
-                pass  # TODO
-                # todo
-                # super = core.svp1.Super(video, settings["super_string"])
-                # vectors = core.svp1.Analyse(super['clip'], super['data'], video, settings["vectors_string"])
+                super = core.svp1.Super(video, settings["super_string"])
+                vectors = core.svp1.Analyse(
+                    super["clip"], super["data"], video, settings["vectors_string"]
+                )
 
-                # # insert interpolated fps
-                # fixed_smooth_string = settings["smooth_string"]
-                # if "rate:" not in fixed_smooth_string:
-                #     fixed_smooth_string.erase(0, 1);
-                #     fixed_smooth_string.pop_back();
-                #     fixed_smooth_string = "'{rate:{num:%d,abs:true}," + fixed_smooth_string + "}' % interpolated_fps";
-                # }
-                # else {
-                #     # you're handling it i guess
-                #     fixed_smooth_string = "'" + fixed_smooth_string + "'";
-                # }
+                # insert interpolated fps
+                smooth_json = json.loads(settings["smooth_string"])
+                if "rate" not in smooth_json:
+                    smooth_json["rate"] = {"num": interpolated_fps, "abs": True}
+                smooth_str = json.dumps(smooth_json)
 
-                # video_script << fmt::format("video = core.svp2.SmoothFps(video, super['clip'], super['data'], vectors['clip'], vectors['data'], {})", fixed_smooth_string) << "\n";
+                video = core.svp2.SmoothFps(
+                    video,
+                    super["clip"],
+                    super["data"],
+                    vectors["clip"],
+                    vectors["data"],
+                    smooth_str,
+                )
             else:
                 video = interpolate.interpolate_svp(
                     video,
