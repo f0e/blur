@@ -240,9 +240,9 @@ nlohmann::json s_blur_settings::to_json() {
 	j["gpu_interpolation"] = this->gpu_interpolation;
 	j["gpu_rendering"] = this->gpu_rendering;
 	j["gpu_type"] = this->gpu_type;
-	j["video_container"] = this->video_container;
-	j["ffmpeg_override"] = this->ffmpeg_override;
-	j["debug"] = this->debug;
+	// j["video_container"] = this->video_container;
+	// j["ffmpeg_override"] = this->ffmpeg_override;
+	// j["debug"] = this->debug;
 
 	j["blur_weighting_gaussian_std_dev"] = this->blur_weighting_gaussian_std_dev;
 	j["blur_weighting_triangle_reverse"] = this->blur_weighting_triangle_reverse;
