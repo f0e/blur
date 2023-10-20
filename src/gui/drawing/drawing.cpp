@@ -38,16 +38,28 @@ bool drawing::init(GLFWwindow* glfw_window) {
 	if (!imgui.init(glfw_window))
 		return false;
 
-	// ImVector<ImWchar> ranges;
-	// ImFontGlyphRangesBuilder builder;
-	// builder.AddRanges(imgui.io->Fonts->GetGlyphRangesDefault());
-	// builder.AddRanges(imgui.io->Fonts->GetGlyphRangesChineseFull());
-	// builder.AddRanges(imgui.io->Fonts->GetGlyphRangesJapanese());
-	// builder.AddRanges(imgui.io->Fonts->GetGlyphRangesCyrillic());
-	// builder.BuildRanges(&ranges);
+	auto font_atlas = imgui.io->Fonts;
+
+	ImVector<ImWchar> glyph_ranges;
+	ImFontGlyphRangesBuilder builder;
+	builder.AddRanges(font_atlas->GetGlyphRangesDefault());
+	builder.AddRanges(font_atlas->GetGlyphRangesKorean());
+	builder.AddRanges(font_atlas->GetGlyphRangesChineseFull());
+	builder.AddRanges(font_atlas->GetGlyphRangesChineseSimplifiedCommon());
+	builder.AddRanges(font_atlas->GetGlyphRangesJapanese()); // Not exactly Shift JIS compatible?
+	builder.AddRanges(font_atlas->GetGlyphRangesCyrillic());
+	builder.AddRanges(font_atlas->GetGlyphRangesThai());
+	builder.AddRanges(font_atlas->GetGlyphRangesVietnamese());
+	constexpr ImWchar latin_ext_a[]{ 0x0100, 0x017F, 0 };
+	builder.AddRanges(latin_ext_a);
+	constexpr ImWchar latin_ext_b[]{ 0x0180, 0x024F, 0 };
+	builder.AddRanges(latin_ext_b);
+	builder.BuildRanges(&glyph_ranges);
 
 	// init fonts
-	fonts::mono.init("C:\\Windows\\Fonts\\consola.ttf", 14.f, nullptr, imgui.io->Fonts->GetGlyphRangesDefault());
+	fonts::mono.init("C:\\Windows\\Fonts\\consola.ttf", 14.f, nullptr, glyph_ranges.Data);
+
+	font_atlas->Build();
 	
 	return true;
 }
