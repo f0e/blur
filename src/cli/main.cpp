@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
 
 		cli::run(result);
 	}
-	catch (const cxxopts::OptionParseException&) {
+	catch (const cxxopts::exceptions::exception&) {
 		std::cout << "Failed to parse arguments, use -h or --help for help.";
 	}
 

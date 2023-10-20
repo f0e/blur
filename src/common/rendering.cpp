@@ -318,7 +318,7 @@ void c_render::render() {
 
 	// render
 	auto render_command = build_render_command();
-
+	
 	if (do_render(render_command)) {
 		if (blur.verbose) {
 			wprintf(L"Finished rendering '%s'\n", video_name.c_str());

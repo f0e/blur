@@ -146,3 +146,7 @@ public:
 		return x == v.x && y == v.y;
 	}
 };
+
+#define IM_VEC2_CLASS_EXTRA                                     \
+        ImVec2(const s_point& f) : x(f.x), y(f.y) {}  \
+        operator s_point() const { return s_point((int)x, (int)y); }

@@ -1,6 +1,5 @@
 workspace "blur"
    configurations { "Debug", "Release", "ReleaseWithDebugInfo" }
-   system "windows"
 	architecture "x86_64"
 
    -- basic project settings
@@ -9,26 +8,20 @@ workspace "blur"
    targetdir "$(SolutionDir)bin/$(ProjectName)/$(Configuration)/"
    objdir "!$(SolutionDir)build/$(ProjectName)/$(Configuration)/" --use the "!" prefix to force a specific directory using msvs's provided environment variables instead of premake tokens
    characterset "Unicode"
+   staticruntime "On"
 
    -- build
    rtti "On"
 
    flags { "MultiProcessorCompile" }
-   defines { "NOMINMAX", "WIN32_LEAN_AND_MEAN", "FMT_HEADER_ONLY" }
+   defines { "NOMINMAX", "FMT_HEADER_ONLY" }
 
    -- vc++ directories
    includedirs {
-      "lib",
       "src"
    }
 
-   libdirs {
-      "lib",
-   }
-
    files {
-      "lib/**.h", "lib/**.hpp",
-      
       "src/common/**.cpp",
       "src/common/**.h", "src/common/**.hpp",
       
@@ -94,25 +87,26 @@ project "blur-gui"
    files {
       "src/gui/**.cpp",
       "src/gui/**.h", "src/gui/**.hpp",
-
-      "lib/imgui/**.cpp",
-   }
-
-   -- vc++ directories
-   includedirs {
-      "lib/glfw/include",
-      "lib/freetype/include"
-   }
-
-   libdirs {
-      "lib/glfw/win64",
-      "lib/freetype/win64"
    }
 
    -- linker
    links {
       "opengl32",
       "glfw3",
-      "freetype",
       "Dwmapi"
    }
+
+-- fix vcpkg in visual studio (set triplet)
+filter "action:vs*"
+   local function vcpkg(prj)
+         premake.w('<VcpkgTriplet Condition="\'$(Platform)\'==\'x64\'">x64-windows-static</VcpkgTriplet>')
+         premake.w('<VcpkgEnabled>true</VcpkgEnabled>')
+   end
+
+   require('vstudio')
+   local vs = premake.vstudio.vc2010
+   premake.override(premake.vstudio.vc2010.elements, "globals", function(base, prj)
+         local calls = base(prj)
+         table.insertafter(calls, vs.globals, vcpkg)
+         return calls
+   end)

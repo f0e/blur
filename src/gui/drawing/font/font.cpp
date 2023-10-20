@@ -1,20 +1,17 @@
 #include "font.h"
 
-#include <imgui/imgui.h>
-#include <imgui/imgui_freetype.h>
-
-bool drawing::font::init(std::string_view path, float size, const ImFontConfig* font_cfg, const unsigned int* glyph_ranges) {
+bool drawing::font::init(const std::string& path, float size, const ImFontConfig* font_cfg, const ImWchar* glyph_ranges) {
 	ImGuiIO* io = &ImGui::GetIO();
 	m_size = size;
 
-	m_font = io->Fonts->AddFontFromFileTTF(path.data(), m_size, font_cfg, glyph_ranges);
+	m_font = io->Fonts->AddFontFromFileTTF(path.c_str(), m_size, font_cfg, glyph_ranges);
 
 	m_height = calc_size("Q").h;
 
 	return m_initialized = m_font;
 }
 
-bool drawing::font::init(unsigned char* data, size_t data_size, float size, ImFontConfig* font_cfg, const unsigned int* glyph_ranges) {
+bool drawing::font::init(unsigned char* data, size_t data_size, float size, ImFontConfig* font_cfg, const ImWchar* glyph_ranges) {
 	ImGuiIO* io = &ImGui::GetIO();
 	m_size = size;
 

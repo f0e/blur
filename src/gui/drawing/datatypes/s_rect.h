@@ -146,3 +146,7 @@ public:
 		return tmp;
 	}
 };
+
+#define IM_VEC4_CLASS_EXTRA                                                                 \
+        ImVec4(const s_rect& f) : x(f.x), y(f.y), z(f.max().x), w(f.max().y) {}   \
+        operator s_rect() const { return s_rect((int)x, (int)y, (int)z, (int)w); }

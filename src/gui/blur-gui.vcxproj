@@ -19,6 +19,8 @@
     <IgnoreWarnCompileDuplicatedFilename>true</IgnoreWarnCompileDuplicatedFilename>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>blur-gui</RootNamespace>
+    <VcpkgTriplet Condition="'$(Platform)'=='x64'">x64-windows-static</VcpkgTriplet>
+    <VcpkgEnabled>true</VcpkgEnabled>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -80,26 +82,26 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;FMT_HEADER_ONLY;_CONSOLE;_DEBUG;BLUR_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\lib;..;..\..\lib\glfw\include;..\..\lib\freetype\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>NOMINMAX;FMT_HEADER_ONLY;_CONSOLE;_DEBUG;BLUR_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ForcedIncludeFiles>pch.h</ForcedIncludeFiles>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
       <MinimalRebuild>false</MinimalRebuild>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;FMT_HEADER_ONLY;_CONSOLE;_DEBUG;BLUR_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\lib;..;..\..\lib\glfw\include;..\..\lib\freetype\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>NOMINMAX;FMT_HEADER_ONLY;_CONSOLE;_DEBUG;BLUR_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
-      <AdditionalDependencies>Gdiplus.lib;opengl32.lib;glfw3.lib;freetype.lib;Dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\lib;..\..\lib\glfw\win64;..\..\lib\freetype\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Gdiplus.lib;opengl32.lib;glfw3.lib;Dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -107,8 +109,8 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;FMT_HEADER_ONLY;NDEBUG;BLUR_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\lib;..;..\..\lib\glfw\include;..\..\lib\freetype\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>NOMINMAX;FMT_HEADER_ONLY;NDEBUG;BLUR_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ForcedIncludeFiles>pch.h</ForcedIncludeFiles>
       <DebugInformationFormat>None</DebugInformationFormat>
       <Optimization>Full</Optimization>
@@ -116,22 +118,22 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <MinimalRebuild>false</MinimalRebuild>
       <StringPooling>true</StringPooling>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;FMT_HEADER_ONLY;NDEBUG;BLUR_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\lib;..;..\..\lib\glfw\include;..\..\lib\freetype\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>NOMINMAX;FMT_HEADER_ONLY;NDEBUG;BLUR_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>Gdiplus.lib;opengl32.lib;glfw3.lib;freetype.lib;Dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\lib;..\..\lib\glfw\win64;..\..\lib\freetype\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Gdiplus.lib;opengl32.lib;glfw3.lib;Dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">
@@ -139,8 +141,8 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;FMT_HEADER_ONLY;NDEBUG;BLUR_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\lib;..;..\..\lib\glfw\include;..\..\lib\freetype\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>NOMINMAX;FMT_HEADER_ONLY;NDEBUG;BLUR_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ForcedIncludeFiles>pch.h</ForcedIncludeFiles>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Full</Optimization>
@@ -148,111 +150,30 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <MinimalRebuild>false</MinimalRebuild>
       <StringPooling>true</StringPooling>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;FMT_HEADER_ONLY;NDEBUG;BLUR_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\lib;..;..\..\lib\glfw\include;..\..\lib\freetype\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>NOMINMAX;FMT_HEADER_ONLY;NDEBUG;BLUR_GUI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>Gdiplus.lib;opengl32.lib;glfw3.lib;freetype.lib;Dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\lib;..\..\lib\glfw\win64;..\..\lib\freetype\win64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Gdiplus.lib;opengl32.lib;glfw3.lib;Dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\lib\cxxopts\cxxopts.hpp" />
-    <ClInclude Include="..\..\lib\fmt\args.h" />
-    <ClInclude Include="..\..\lib\fmt\chrono.h" />
-    <ClInclude Include="..\..\lib\fmt\color.h" />
-    <ClInclude Include="..\..\lib\fmt\compile.h" />
-    <ClInclude Include="..\..\lib\fmt\core.h" />
-    <ClInclude Include="..\..\lib\fmt\format-inl.h" />
-    <ClInclude Include="..\..\lib\fmt\format.h" />
-    <ClInclude Include="..\..\lib\fmt\os.h" />
-    <ClInclude Include="..\..\lib\fmt\ostream.h" />
-    <ClInclude Include="..\..\lib\fmt\printf.h" />
-    <ClInclude Include="..\..\lib\fmt\ranges.h" />
-    <ClInclude Include="..\..\lib\fmt\std.h" />
-    <ClInclude Include="..\..\lib\fmt\xchar.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\config\ftconfig.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\config\ftheader.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\config\ftmodule.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\config\ftoption.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\config\ftstdlib.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\config\integer-types.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\config\mac-support.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\config\public-macros.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\freetype.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftadvanc.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftbbox.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftbdf.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftbitmap.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftbzip2.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftcache.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftchapters.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftcid.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftcolor.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftdriver.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\fterrdef.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\fterrors.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftfntfmt.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftgasp.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftglyph.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftgxval.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftgzip.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftimage.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftincrem.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftlcdfil.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftlist.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftlogging.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftlzw.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftmac.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftmm.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftmodapi.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftmoderr.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftotval.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftoutln.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftparams.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftpfr.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftrender.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftsizes.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftsnames.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftstroke.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftsynth.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftsystem.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\fttrigon.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\fttypes.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ftwinfnt.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\otsvg.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\t1tables.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\ttnameid.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\tttables.h" />
-    <ClInclude Include="..\..\lib\freetype\include\freetype\tttags.h" />
-    <ClInclude Include="..\..\lib\freetype\include\ft2build.h" />
-    <ClInclude Include="..\..\lib\glfw\include\GLFW\glfw3.h" />
-    <ClInclude Include="..\..\lib\glfw\include\GLFW\glfw3native.h" />
-    <ClInclude Include="..\..\lib\imgui\imconfig.h" />
-    <ClInclude Include="..\..\lib\imgui\imgui.h" />
-    <ClInclude Include="..\..\lib\imgui\imgui_freetype.h" />
-    <ClInclude Include="..\..\lib\imgui\imgui_impl_glfw.h" />
-    <ClInclude Include="..\..\lib\imgui\imgui_impl_opengl3.h" />
-    <ClInclude Include="..\..\lib\imgui\imgui_impl_opengl3_loader.h" />
-    <ClInclude Include="..\..\lib\imgui\imgui_internal.h" />
-    <ClInclude Include="..\..\lib\imgui\imstb_rectpack.h" />
-    <ClInclude Include="..\..\lib\imgui\imstb_textedit.h" />
-    <ClInclude Include="..\..\lib\nlohmann\json.hpp" />
     <ClInclude Include="..\..\resources\resource.h" />
     <ClInclude Include="..\common\blur.h" />
+    <ClInclude Include="..\common\common_pch.h" />
     <ClInclude Include="..\common\config.h" />
     <ClInclude Include="..\common\helpers.h" />
-    <ClInclude Include="..\common\pch.h" />
     <ClInclude Include="..\common\preview.h" />
     <ClInclude Include="..\common\rendering.h" />
     <ClInclude Include="console.h" />
@@ -267,13 +188,6 @@
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\lib\imgui\imgui.cpp" />
-    <ClCompile Include="..\..\lib\imgui\imgui_draw.cpp" />
-    <ClCompile Include="..\..\lib\imgui\imgui_freetype.cpp" />
-    <ClCompile Include="..\..\lib\imgui\imgui_impl_glfw.cpp" />
-    <ClCompile Include="..\..\lib\imgui\imgui_impl_opengl3.cpp" />
-    <ClCompile Include="..\..\lib\imgui\imgui_tables.cpp" />
-    <ClCompile Include="..\..\lib\imgui\imgui_widgets.cpp" />
     <ClCompile Include="..\common\blur.cpp" />
     <ClCompile Include="..\common\config.cpp" />
     <ClCompile Include="..\common\helpers.cpp" />

@@ -1,10 +1,5 @@
 #include "drawing.h"
 
-#include <imgui/imgui.h>
-#include <imgui/imgui_impl_glfw.h>
-#include <imgui/imgui_impl_opengl3.h>
-#include <glfw/glfw3.h>
-
 constexpr double M_PI = 3.14159265358979323846;
 
 template<typename T>
@@ -43,12 +38,16 @@ bool drawing::init(GLFWwindow* glfw_window) {
 	if (!imgui.init(glfw_window))
 		return false;
 
-	ImFontConfig big_cfg;
-
-	const auto wide_glyph_ranges = imgui.io->Fonts->GetGlyphRangesWide();
+	// ImVector<ImWchar> ranges;
+	// ImFontGlyphRangesBuilder builder;
+	// builder.AddRanges(imgui.io->Fonts->GetGlyphRangesDefault());
+	// builder.AddRanges(imgui.io->Fonts->GetGlyphRangesChineseFull());
+	// builder.AddRanges(imgui.io->Fonts->GetGlyphRangesJapanese());
+	// builder.AddRanges(imgui.io->Fonts->GetGlyphRangesCyrillic());
+	// builder.BuildRanges(&ranges);
 
 	// init fonts
-	fonts::mono.init("C:\\Windows\\Fonts\\consola.ttf", 14.f, nullptr, wide_glyph_ranges);
+	fonts::mono.init("C:\\Windows\\Fonts\\consola.ttf", 14.f, nullptr, imgui.io->Fonts->GetGlyphRangesDefault());
 	
 	return true;
 }
@@ -230,13 +229,16 @@ void drawing::push_fullscreen_clip_rect() {
 }
 
 s_rect drawing::pop_clip_rect() {
-	auto current = imgui.drawlist->GetClipRect();
+	s_rect current = get_clip_rect();
 	imgui.drawlist->PopClipRect();
 	return current;
 }
 
 s_rect drawing::get_clip_rect() {
-	return imgui.drawlist->GetClipRect();
+	return s_rect(
+		imgui.drawlist->GetClipRectMin(), 
+		imgui.drawlist->GetClipRectMax()
+	);
 }
 
 void drawing::push_alpha(float alpha) {

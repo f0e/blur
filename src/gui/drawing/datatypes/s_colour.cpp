@@ -1,4 +1,5 @@
 #include "s_colour.h"
+#include "../drawing.h"
 
 uint32_t s_colour::convert() const {
 	auto ret = *this;

@@ -12,8 +12,8 @@ namespace drawing {
 		int m_height = 0;
 
 	public:
-		bool init(std::string_view path, float size, const ImFontConfig* font_cfg, const unsigned int* glyph_ranges);
-		bool init(unsigned char* data, size_t data_size, float size, ImFontConfig* font_cfg, const unsigned int* glyph_ranges);
+		bool init(const std::string& path, float size, const ImFontConfig* font_cfg, const ImWchar* glyph_ranges);
+		bool init(unsigned char* data, size_t data_size, float size, ImFontConfig* font_cfg, const ImWchar* glyph_ranges);
 
 		s_size calc_size(const std::string& text) const;
 
