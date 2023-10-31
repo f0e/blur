@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <thread>
+#include <filesystem>
 
 struct s_render_status {
 	bool finished = false;
@@ -43,6 +44,9 @@ private:
 
 public:
 	c_render(const std::filesystem::path& input_path, std::optional<std::filesystem::path> output_path = {}, std::optional<std::filesystem::path> config_path = {});
+
+	bool create_temp_path();
+	bool remove_temp_path();
 
 	std::wstring get_video_name() {
 		return video_name;

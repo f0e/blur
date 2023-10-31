@@ -87,6 +87,37 @@ c_render::c_render(const std::filesystem::path& input_path, std::optional<std::f
 
 	if (output_path.has_value())
 		this->output_path = output_path.value();
+	else {
+		// note: this uses settings, so has to be called after they're loaded
+		build_output_filename();
+	}
+}
+
+bool c_render::create_temp_path() {
+	size_t out_hash = std::hash<std::filesystem::path>()(output_path);
+
+	temp_path = std::filesystem::temp_directory_path() / std::string("blur-" + std::to_string(out_hash));
+
+	if (!std::filesystem::create_directory(temp_path))
+		return false;
+
+	blur.created_temp_paths.insert(temp_path);
+
+	return true;
+}
+
+bool c_render::remove_temp_path() {
+	// remove temp path
+	if (temp_path.empty())
+		return false;
+
+	if (!std::filesystem::exists(temp_path))
+		return false;
+
+	std::filesystem::remove_all(temp_path);
+	blur.created_temp_paths.erase(temp_path);
+
+	return true;
 }
 
 c_render::s_render_command c_render::build_render_command() {
@@ -110,7 +141,7 @@ c_render::s_render_command c_render::build_render_command() {
 	std::wstring ffmpeg_command = L'"' + ffmpeg_path + L'"';
 	{
 		// ffmpeg settings
-		ffmpeg_command += L" -loglevel error -hide_banner -stats";
+		ffmpeg_command += L" -loglevel error -hide_banner -stats -y";
 
 		// input
 		ffmpeg_command += L" -i -"; // piped output from video script
@@ -208,7 +239,7 @@ bool c_render::do_render(s_render_command render_command) {
 	vspipe_si.hStdError = hPipeWriteErr;
 
 	std::wstring vspipe_command = render_command.pipe_command;
-	wprintf(L"%s\n", vspipe_command.c_str());
+	if (settings.debug) wprintf(L"%s\n", vspipe_command.c_str());
 	BOOL bSuccess = CreateProcess(nullptr, vspipe_command.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &vspipe_si, &rendering.vspipe_pi);
 
 	CloseHandle(rendering.vspipe_pi.hThread);
@@ -234,7 +265,7 @@ bool c_render::do_render(s_render_command render_command) {
 	ffmpeg_si.dwFlags = STARTF_USESTDHANDLES;
 
 	std::wstring ffmpeg_command = render_command.ffmpeg_command;
-	wprintf(L"%s\n", ffmpeg_command.c_str());
+	if (settings.debug) wprintf(L"%s\n", ffmpeg_command.c_str());
 	bool success = CreateProcess(nullptr, ffmpeg_command.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &ffmpeg_si, &rendering.ffmpeg_pi);
 
 	CloseHandle(rendering.ffmpeg_pi.hThread);
@@ -283,9 +314,6 @@ bool c_render::do_render(s_render_command render_command) {
 }
 
 void c_render::render() {
-	if (output_path.empty())
-		build_output_filename();
-
 	wprintf(L"Rendering '%s'\n", video_name.c_str());
 
 #ifndef _DEBUG
@@ -310,8 +338,8 @@ void c_render::render() {
 
 	// start preview
 	if (settings.preview && blur.using_preview) {
-		if (blur.create_temp_path()) {
-			preview_path = blur.temp_path / "blur_preview.jpg";
+		if (create_temp_path()) {
+			preview_path = temp_path / "blur_preview.jpg";
 			preview.start(preview_path);
 		}
 	}
@@ -330,7 +358,7 @@ void c_render::render() {
 
 	// stop preview
 	preview.disable();
-	blur.remove_temp_path();
+	remove_temp_path();
 }
 
 void c_rendering::stop_rendering() {

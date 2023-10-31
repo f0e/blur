@@ -12,13 +12,11 @@ public:
 	std::filesystem::path path;
 	bool used_installer = false;
 
-	std::filesystem::path temp_path;
+	std::unordered_set<std::filesystem::path> created_temp_paths; // atexit cant take params -_-
 
 public:
 	bool initialise(bool _verbose, bool _using_preview);
-
-	bool create_temp_path();
-	bool remove_temp_path();
+	void cleanup();
 };
 
 inline c_blur blur;

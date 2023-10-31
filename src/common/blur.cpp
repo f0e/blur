@@ -28,38 +28,18 @@ bool c_blur::initialise(bool _verbose, bool _using_preview) {
 	verbose = _verbose;
 	using_preview = _using_preview;
 
-	return true;
-}
-
-bool c_blur::create_temp_path() {
-	if (!blur.temp_path.empty())
-		return true;
-
-	temp_path = std::filesystem::temp_directory_path() / "blur";
-
-	if (!std::filesystem::exists(temp_path)) {
-		if (!std::filesystem::create_directory(temp_path))
-			return false;
-	}
-
-	// also remove temp path on program exit
 	std::atexit([] {
-		blur.remove_temp_path();
+		blur.cleanup();
 	});
 
 	return true;
 }
 
-bool c_blur::remove_temp_path() {
-	if (blur.temp_path.empty())
-		return true;
+void c_blur::cleanup() {
+	for (const auto& path : created_temp_paths) {
+		if (!std::filesystem::exists(path))
+			continue;
 
-	if (!std::filesystem::exists(blur.temp_path))
-		return true;
-
-	std::filesystem::remove_all(blur.temp_path);
-
-	blur.temp_path.clear();
-
-	return true;
+		std::filesystem::remove_all(path);
+	}
 }
