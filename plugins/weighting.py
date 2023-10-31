@@ -1,16 +1,21 @@
+# modified functions taken from https://github.com/siveroo/hfr-resampler
+
 import math
 
+class InvalidCustomWeighting(Exception):
+    def __init__(self, message="Invalid custom weighting function!"):
+        self.message = message
+        super().__init__(self.message)
 
-def scaleWeights(frames):
+
+def scale_weights(frames):
     tot = sum(frames)
     return [frame / tot for frame in frames]
 
 
-# modified functions taken from https://github.com/siveroo/HFR-Resampler
-
 # returns a list of values like below:
 # [0, 1, 2, 3, ..., frames] -> [a, ..., b]
-def scaleRange(frames, a, b):
+def scale_range(frames, a, b):
     return [(x * (b - a) / (frames - 1)) + a for x in range(0, frames)]
 
 
@@ -19,16 +24,16 @@ def equal(frames):
 
 
 def gaussian(frames, standard_deviation=2, bound=[0, 2]):
-    r = scaleRange(frames, bound[0], bound[1])
+    r = scale_range(frames, bound[0], bound[1])
     val = [math.exp(-((x) ** 2) / (2 * (standard_deviation**2))) for x in r]
-    return scaleWeights(val)
+    return scale_weights(val)
 
 
-def gaussianSym(frames, standard_deviation=2, bound=[0, 2]):
+def gaussian_sym(frames, standard_deviation=2, bound=[0, 2]):
     max_abs = max(bound)
-    r = scaleRange(frames, -max_abs, max_abs)
+    r = scale_range(frames, -max_abs, max_abs)
     val = [math.exp(-((x) ** 2) / (2 * (standard_deviation**2))) for x in r]
-    return scaleWeights(val)
+    return scale_weights(val)
 
 
 def pyramid(frames, reverse=False):
@@ -37,17 +42,17 @@ def pyramid(frames, reverse=False):
         val = [x for x in range(frames, 0, -1)]
     else:
         val = [x for x in range(1, frames + 1)]
-    return scaleWeights(val)
+    return scale_weights(val)
 
 
-def pyramidSym(frames):
+def pyramid_sym(frames):
     val = [
         ((frames - 1) / 2 - abs(x - ((frames - 1) / 2)) + 1) for x in range(0, frames)
     ]
-    return scaleWeights(val)
+    return scale_weights(val)
 
 
-def funcEval(func, nums):
+def func_eval(func, nums):
     try:
         return eval(f"[({func}) for x in nums]")
     except NameError as e:
@@ -55,11 +60,11 @@ def funcEval(func, nums):
 
 
 def custom(frames, func="", bound=[0, 1]):
-    r = scaleRange(frames, bound[0], bound[1])
-    val = funcEval(func, r)
+    r = scale_range(frames, bound[0], bound[1])
+    val = func_eval(func, r)
     if min(val) < 0:
         val -= min(val)
-    return scaleWeights(val)
+    return scale_weights(val)
 
 
 # stretch the given array (weights) to a specific length (frames)
@@ -67,7 +72,7 @@ def custom(frames, func="", bound=[0, 1]):
 # result : val = [1, 1, 1, 1, 1, 2, 2, 2, 2, 2], then normalize it to [0.0667,
 # 0.0667, 0.0667, 0.0667, 0.0667, 0.1333, 0.1333, 0.1333, 0.1333, 0.1333]
 def divide(frames, weights):
-    r = scaleRange(frames, 0, len(weights) - 0.1)
+    r = scale_range(frames, 0, len(weights) - 0.1)
     val = []
     for x in range(0, frames):
         scaled_index = int(r[x])
@@ -76,4 +81,4 @@ def divide(frames, weights):
     if min(val) < 0:
         val -= min(val)
 
-    return scaleWeights(val)
+    return scale_weights(val)

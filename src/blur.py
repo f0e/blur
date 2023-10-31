@@ -118,28 +118,30 @@ if settings["blur"]:
                 blended_frames += 1
 
             def do_weighting_fn(blur_weighting_fn):
+                blur_weighting_bound = json.loads(settings["blur_weighting_bound"])
+
                 match blur_weighting_fn:
                     case "gaussian":
                         return weighting.gaussian(
                             blended_frames,
                             settings["blur_weighting_gaussian_std_dev"],
-                            settings["blur_weighting_bound"],
+                            blur_weighting_bound,
                         )
 
                     case "gaussian_sym":
-                        return weighting.gaussianSym(
+                        return weighting.gaussian_sym(
                             blended_frames,
                             settings["blur_weighting_gaussian_std_dev"],
-                            settings["blur_weighting_bound"],
+                            blur_weighting_bound,
                         )
 
                     case "pyramid":
                         return weighting.pyramid(
-                            blended_frames, settings["blur_weighting_triangle_reverse"]
+                            blended_frames, bool(settings["blur_weighting_triangle_reverse"])
                         )
 
                     case "pyramid_sym":
-                        return weighting.pyramidSym(blended_frames)
+                        return weighting.pyramid_sym(blended_frames)
 
                     case "custom_weight":
                         return weighting.divide(
