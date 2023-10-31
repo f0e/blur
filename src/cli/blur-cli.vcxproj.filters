@@ -37,7 +37,7 @@
       <Filter>..\common</Filter>
     </ClInclude>
     <ClInclude Include="cli.h" />
-    <ClInclude Include="pch.h" />
+    <ClInclude Include="cli_pch.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\common\blur.cpp">
@@ -56,8 +56,8 @@
       <Filter>..\common</Filter>
     </ClCompile>
     <ClCompile Include="cli.cpp" />
+    <ClCompile Include="cli_pch.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="pch.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\resources\blur.ico">

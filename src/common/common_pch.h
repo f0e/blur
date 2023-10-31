@@ -17,6 +17,7 @@
 #include <codecvt>
 #include <locale>
 #include <regex>
+#include <unordered_set>
 
 #include <shobjidl.h>
 

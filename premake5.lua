@@ -60,9 +60,9 @@ project "blur-cli"
    defines { "BLUR_CLI" }
 
    -- pch
-   pchheader "pch.h"
-   pchsource "src/cli/pch.cpp"
-   forceincludes { "src/cli/pch.h" }
+   pchheader "cli_pch.h"
+   pchsource "src/cli/cli_pch.cpp"
+   forceincludes { "src/cli/cli_pch.h" }
 
    -- import cli files
    files {
@@ -79,9 +79,9 @@ project "blur-gui"
    defines { "BLUR_GUI" }
 
    -- pch
-   pchheader "pch.h"
-   pchsource "src/gui/pch.cpp"
-   forceincludes { "src/gui/pch.h" }
+   pchheader "gui_pch.h"
+   pchsource "src/gui/gui_pch.cpp"
+   forceincludes { "src/gui/gui_pch.h" }
 
    -- import gui files
    files {

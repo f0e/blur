@@ -68,7 +68,7 @@
       <Filter>drawing\font</Filter>
     </ClInclude>
     <ClInclude Include="gui.h" />
-    <ClInclude Include="pch.h" />
+    <ClInclude Include="gui_pch.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\common\blur.cpp">
@@ -100,8 +100,8 @@
       <Filter>drawing\font</Filter>
     </ClCompile>
     <ClCompile Include="gui.cpp" />
+    <ClCompile Include="gui_pch.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="pch.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\resources\blur.ico">
