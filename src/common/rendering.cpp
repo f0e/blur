@@ -135,7 +135,7 @@ c_render::s_render_command c_render::build_render_command() {
 	std::stringstream settings_json_ss;
 	settings_json_ss << std::quoted(settings.to_json().dump());
 
-	std::wstring pipe_command = fmt::format(L"\"{}\" -c y4m -a video_path=\"{}\" -a settings=\"{}\" -p \"{}\" -", vspipe_path, path_string, helpers::towstring(settings_json_ss.str()), blur_script_path);
+	std::wstring pipe_command = fmt::format(L"\"{}\" -c y4m -a video_path=\"{}\" -a settings={} -p \"{}\" -", vspipe_path, path_string, helpers::towstring(settings_json_ss.str()), blur_script_path);
 
 	// build ffmpeg command
 	std::wstring ffmpeg_command = L'"' + ffmpeg_path + L'"';
