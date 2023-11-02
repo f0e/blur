@@ -133,5 +133,4 @@ void gui::run() {
     glfwTerminate();
 
     open = false;
-    rendering.stop_rendering();
 }

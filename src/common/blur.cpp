@@ -29,6 +29,7 @@ bool c_blur::initialise(bool _verbose, bool _using_preview) {
 	using_preview = _using_preview;
 
 	std::atexit([] {
+		rendering.stop_rendering();
 		blur.cleanup();
 	});
 

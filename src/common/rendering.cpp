@@ -362,6 +362,7 @@ void c_render::render() {
 }
 
 void c_rendering::stop_rendering() {
+	// stop vspipe
 	TerminateProcess(vspipe_pi.hProcess, 0);
 
 	// send wm_close to ffmpeg so that it can gracefully stop
