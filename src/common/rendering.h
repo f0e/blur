@@ -9,6 +9,7 @@
 struct s_render_status {
 	bool finished = false;
 	bool init = false;
+	bool first = true;
 	int current_frame;
 	int total_frames;
 	std::chrono::steady_clock::time_point start_time;
@@ -38,6 +39,7 @@ private:
 		std::wstring pipe_command;
 		std::wstring ffmpeg_command;
 	};
+
 	s_render_command build_render_command();
 
 	bool do_render(s_render_command render_command);
@@ -78,9 +80,6 @@ public:
 	bool renders_queued;
 
 public:
-	PROCESS_INFORMATION vspipe_pi;
-	PROCESS_INFORMATION ffmpeg_pi;
-
 	void render_videos();
 
 	void queue_render(std::shared_ptr<c_render> render);

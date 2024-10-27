@@ -26,7 +26,7 @@ namespace helpers {
 			}
 
 			constexpr std::pair<size_t, reference_type> operator*() {
-				return std::pair<size_t, reference_type>{ index, * value };
+				return std::pair<size_t, reference_type>{ index, *value };
 			}
 		};
 
@@ -67,23 +67,16 @@ namespace helpers {
 	std::string tostring(const std::wstring& wstr);
 	std::string to_lower(const std::string& str);
 
-	void set_hidden(const std::filesystem::path& path);
-
 	int exec(std::wstring command, std::wstring run_dir = L".");
 
 	bool detect_command(const std::string& command);
 
 	std::string get_executable_path();
 
-	void read_line_from_handle(HANDLE handle, std::function<void(std::string)> on_line_fn);
-
-	HWND get_window(DWORD dwProcessId);
-
-	template <typename TP>
+	template<typename TP>
 	inline std::time_t to_time_t(TP tp) {
 		using namespace std::chrono;
-		auto sctp = time_point_cast<system_clock::duration>(tp - TP::clock::now()
-			+ system_clock::now());
+		auto sctp = time_point_cast<system_clock::duration>(tp - TP::clock::now() + system_clock::now());
 		return system_clock::to_time_t(sctp);
 	}
 }

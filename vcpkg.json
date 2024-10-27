@@ -1,0 +1,22 @@
+{
+  "dependencies": [
+    {
+      "name": "boost-asio",
+      "version>=": "1.83.0"
+    },
+    {
+      "name": "boost-process",
+      "version>=": "1.83.0"
+    },
+    "fmt",
+    {
+      "name": "imgui",
+      "features": [
+        "glfw-binding",
+        "opengl3-binding"
+      ]
+    },
+    "nlohmann-json",
+    "cxxopts"
+  ]
+}

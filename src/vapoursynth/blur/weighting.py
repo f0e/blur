@@ -2,6 +2,7 @@
 
 import math
 
+
 class InvalidCustomWeighting(Exception):
     def __init__(self, message="Invalid custom weighting function!"):
         self.message = message

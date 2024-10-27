@@ -1,7 +1,6 @@
 #pragma once
 
 // std
-#include <conio.h>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
@@ -19,9 +18,14 @@
 #include <regex>
 #include <unordered_set>
 
+#ifdef _WIN32
+#include <conio.h>
 #include <shobjidl.h>
-
 #include <Windows.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
+
 
 // libs
 #include <fmt/format.h>

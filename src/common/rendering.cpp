@@ -1,7 +1,5 @@
 ﻿#include "rendering.h"
 
-#include "preview.h"
-
 #ifdef BLUR_GUI
 #include <gui/console.h>
 #endif
@@ -14,7 +12,7 @@ void c_rendering::render_videos() {
 			current_render->render();
 		}
 		catch (const std::exception& e) {
-			printf(e.what());
+			printf("%s\n", e.what());
 		}
 
 		// finished rendering, delete
@@ -130,12 +128,9 @@ c_render::s_render_command c_render::build_render_command() {
 	std::wstring path_string = video_path.wstring();
 	std::replace(path_string.begin(), path_string.end(), '\\', '/');
 
-	std::wstring blur_script_path = (blur.path / "lib\\blur.py").wstring();
+	std::wstring blur_script_path = (blur.path / "lib/blur.py").wstring();
 
-	std::stringstream settings_json_ss;
-	settings_json_ss << std::quoted(settings.to_json().dump());
-
-	std::wstring pipe_command = fmt::format(L"\"{}\" -c y4m -a video_path=\"{}\" -a settings={} -p \"{}\" -", vspipe_path, path_string, helpers::towstring(settings_json_ss.str()), blur_script_path);
+	std::wstring pipe_command = fmt::format(L"\"{}\" -p -c y4m -a video_path={} -a settings={} {} -", vspipe_path, path_string, helpers::towstring(settings.to_json().dump()), blur_script_path);
 
 	// build ffmpeg command
 	std::wstring ffmpeg_command = L'"' + ffmpeg_path + L'"';
@@ -210,107 +205,82 @@ c_render::s_render_command c_render::build_render_command() {
 }
 
 bool c_render::do_render(s_render_command render_command) {
-	SECURITY_ATTRIBUTES saAttr = { sizeof(SECURITY_ATTRIBUTES), NULL, TRUE };
+	status = s_render_status{};
+	
+	namespace bp = boost::process;
 
-	// --------------------------------
-	/////// run vspipe
-	// create stdout pipe to be used as the ffmpeg input
-	HANDLE hPipeRead, hPipeWrite;
-	if (!CreatePipe(&hPipeRead, &hPipeWrite, &saAttr, 0)) {
-		std::cerr << "Error creating pipe." << std::endl;
-		return false;
-	}
+    try {
+        boost::asio::io_context io_context;
+        bp::pipe vspipe_stdout;
+        bp::ipstream vspipe_stderr;
+        
+        if (settings.debug) {
+            std::wcout << L"VSPipe command: " << render_command.pipe_command << std::endl;
+            std::wcout << L"FFmpeg command: " << render_command.ffmpeg_command << std::endl;
+        }
 
-	// create stderr pipe to track progress
-	HANDLE hPipeReadErr, hPipeWriteErr;
-	if (!CreatePipe(&hPipeReadErr, &hPipeWriteErr, &saAttr, 0)) {
-		std::cerr << "Error creating pipe." << std::endl;
-		return false;
-	}
+        // Launch vspipe process
+        bp::child vspipe_process(
+            render_command.pipe_command,
+            bp::std_out > vspipe_stdout,
+            bp::std_err > vspipe_stderr,
+            io_context
+        );
 
-	STARTUPINFO vspipe_si;
-	SecureZeroMemory(&vspipe_si, sizeof(STARTUPINFO));
-	SecureZeroMemory(&rendering.vspipe_pi, sizeof(PROCESS_INFORMATION));
+        // Launch ffmpeg process
+        bp::child ffmpeg_process(
+            render_command.ffmpeg_command,
+            bp::std_in < vspipe_stdout,
+			bp::std_out.null(),
+			bp::std_err.null(),
+            io_context
+        );
 
-	vspipe_si.cb = sizeof(vspipe_si);
+		std::thread read_thread([&]() {
+			std::string line;
+    		char ch;
 
-	vspipe_si.dwFlags = STARTF_USESTDHANDLES;
-	vspipe_si.hStdOutput = hPipeWrite;
-	vspipe_si.hStdError = hPipeWriteErr;
+			while (ffmpeg_process.running() && vspipe_stderr.get(ch)) {
+				if (ch == '\r') {
+					static std::regex frame_regex(R"(Frame: (\d+)\/(\d+)(?: \((\d+\.\d+) fps\))?)");
+					
+					std::smatch match;
+					if (std::regex_match(line, match, frame_regex)) {
+						status.current_frame = std::stoi(match[1]);
+						status.total_frames = std::stoi(match[2]);
 
-	std::wstring vspipe_command = render_command.pipe_command;
-	if (settings.debug) wprintf(L"%s\n", vspipe_command.c_str());
-	BOOL bSuccess = CreateProcess(nullptr, vspipe_command.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &vspipe_si, &rendering.vspipe_pi);
+						if (!status.init)
+							status.init = true;
 
-	CloseHandle(rendering.vspipe_pi.hThread);
-	CloseHandle(hPipeWrite);
-	CloseHandle(hPipeWriteErr);
+						std::cout << status.progress_string() << "\n";
 
-	if (!bSuccess) {
-		CloseHandle(hPipeRead);
-		CloseHandle(hPipeReadErr);
-		CloseHandle(rendering.vspipe_pi.hProcess);
-		std::cerr << "Error creating process." << std::endl;
-		return false;
-	}
-
-	// --------------------------------
-	/////// run ffmpeg
-	STARTUPINFO ffmpeg_si;
-	SecureZeroMemory(&ffmpeg_si, sizeof(STARTUPINFO));
-	SecureZeroMemory(&rendering.ffmpeg_pi, sizeof(PROCESS_INFORMATION));
-	ffmpeg_si.cb = sizeof(ffmpeg_si);
-
-	ffmpeg_si.hStdInput = hPipeRead; // use the vspipe stdout as input (piping)
-	ffmpeg_si.dwFlags = STARTF_USESTDHANDLES;
-
-	std::wstring ffmpeg_command = render_command.ffmpeg_command;
-	if (settings.debug) wprintf(L"%s\n", ffmpeg_command.c_str());
-	bool success = CreateProcess(nullptr, ffmpeg_command.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &ffmpeg_si, &rendering.ffmpeg_pi);
-
-	CloseHandle(rendering.ffmpeg_pi.hThread);
-
-	if (!success) {
-		CloseHandle(hPipeRead);
-		CloseHandle(hPipeReadErr);
-		CloseHandle(rendering.vspipe_pi.hProcess);
-		CloseHandle(rendering.ffmpeg_pi.hProcess);
-		return false;
-	}
-
-	std::thread read_thread([&]() {
-		status.start_time = std::chrono::high_resolution_clock::now();
-
-		helpers::read_line_from_handle(hPipeReadErr, [this](std::string line) {
-			std::regex frame_regex(R"(Frame: (\d+)\/(\d+)(?: \((\d+\.\d+) fps\))?)");
-
-			std::smatch match;
-			if (std::regex_match(line, match, frame_regex)) {
-				status.current_frame = std::stoi(match[1]);
-				status.total_frames = std::stoi(match[2]);
-
-				if (!status.init)
-					status.init = true;
-
-				std::cout << status.progress_string() << "\n";
+						if (status.first) {
+							status.first = false;
+							status.start_time = std::chrono::high_resolution_clock::now();
+						}
+					}
+					
+					line.clear();
+				} else {
+					line += ch;  // Append character to the line
+				}
 			}
 		});
-	});
 
-	// wait for rendering to complete
-	WaitForSingleObject(rendering.ffmpeg_pi.hProcess, INFINITE);
+        vspipe_process.wait();
+        ffmpeg_process.wait();
 
-	// clean up
-	CloseHandle(hPipeRead);
-	CloseHandle(hPipeReadErr);
-	CloseHandle(rendering.vspipe_pi.hProcess);
-	CloseHandle(rendering.ffmpeg_pi.hProcess);
+        // Clean up
+        if (read_thread.joinable()) {
+            read_thread.join();
+        }
 
-	// stop reading thread
-	if (read_thread.joinable())
-		read_thread.join();
-
-	return true;
+        return vspipe_process.exit_code() == 0 && ffmpeg_process.exit_code() == 0;
+        
+    } catch (const boost::system::system_error& e) {
+        std::cerr << "Process error: " << e.what() << std::endl;
+        return false;
+    }
 }
 
 void c_render::render() {
@@ -336,13 +306,13 @@ void c_render::render() {
 		printf("Rendered at %.2f speed with crf %d\n", settings.output_timescale, settings.quality);
 	}
 
-	// start preview
-	if (settings.preview && blur.using_preview) {
-		if (create_temp_path()) {
-			preview_path = temp_path / "blur_preview.jpg";
-			preview.start(preview_path);
-		}
-	}
+	// // start preview
+	// if (settings.preview && blur.using_preview) {
+	// 	if (create_temp_path()) {
+	// 		preview_path = temp_path / "blur_preview.jpg";
+	// 		preview.start(preview_path);
+	// 	}
+	// }
 
 	// render
 	auto render_command = build_render_command();
@@ -356,18 +326,20 @@ void c_render::render() {
 		wprintf(L"Failed to render '%s'\n", video_name.c_str());
 	}
 
-	// stop preview
-	preview.disable();
-	remove_temp_path();
+	// // stop preview
+	// preview.disable();
+	// remove_temp_path();
 }
 
 void c_rendering::stop_rendering() {
-	// stop vspipe
-	TerminateProcess(vspipe_pi.hProcess, 0);
+	// TODO: re-add
+	
+	// // stop vspipe
+	// TerminateProcess(vspipe_pi.hProcess, 0);
 
-	// send wm_close to ffmpeg so that it can gracefully stop
-	if (HWND hwnd = helpers::get_window(ffmpeg_pi.dwProcessId))
-		SendMessage(hwnd, WM_CLOSE, 0, 0);
+	// // send wm_close to ffmpeg so that it can gracefully stop
+	// if (HWND hwnd = helpers::get_window(ffmpeg_pi.dwProcessId))
+	// 	SendMessage(hwnd, WM_CLOSE, 0, 0);
 }
 
 std::string s_render_status::progress_string() {
@@ -376,11 +348,15 @@ std::string s_render_status::progress_string() {
 
 	float progress = current_frame / (float)total_frames;
 
-	auto current_time = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double> frame_duration = current_time - start_time;
-	double elapsed_time = frame_duration.count();
+	if (first) {
+		return fmt::format("{:.1f}% complete ({}/{})", progress * 100, current_frame, total_frames);
+	} else {
+		auto current_time = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> frame_duration = current_time - start_time;
+		double elapsed_time = frame_duration.count();
 
-	double calced_fps = current_frame / elapsed_time;
+		double calced_fps = current_frame / elapsed_time;
 
-	return fmt::format("{:.1f}% complete ({}/{}, {:.2f} fps)", progress * 100, current_frame, total_frames, calced_fps);
+		return fmt::format("{:.1f}% complete ({}/{}, {:.2f} fps)", progress * 100, current_frame, total_frames, calced_fps);
+	}
 }

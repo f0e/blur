@@ -104,6 +104,8 @@ def interpolate_svp(
         vectors["clip"],
         vectors["data"],
         smooth_string,
+        src=video,
+        fps=video.fps,
     )
 
 

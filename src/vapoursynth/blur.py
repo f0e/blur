@@ -1,36 +1,38 @@
+import sys
 import vapoursynth as vs
 from vapoursynth import core
 
 # from vsrife import RIFE
 
-import adjust
-import blending
-import deduplicate
-import interpolate
-import weighting
+# import adjust
+
+import blur.blending
+import blur.deduplicate
+import blur.interpolate
+import blur.weighting
 
 import json
 from pathlib import Path
 
 video_path = Path(vars().get("video_path"))
+
 settings = json.loads(vars().get("settings"))
 
-extension = video_path.suffix
-if extension != ".avi":
-    video = core.lsmas.LWLibavSource(source=video_path, cache=False)
-else:
-    # FFmpegSource2 doesnt work with frameserver
-    video = core.avisource.AVISource(video_path)
-    video = core.resize.Bicubic(clip=video, format=vs.YUV420P8, matrix_s="709")
+video = core.bs.VideoSource(source=video_path, cachemode=0)
 
-# replace duplicate frames with new frames which are interpolated based off of the surrounding frames
 if settings["deduplicate"]:
-    video = deduplicate.fill_drops_old(video, threshold=0.001)
+    video = blur.deduplicate.fill_drops(
+        video,
+        threshold=0.001,
+        svp_preset=settings["interpolation_preset"],
+        svp_algorithm=settings["interpolation_algorithm"],
+        svp_blocksize=settings["interpolation_blocksize"],
+        svp_masking=settings["interpolation_mask_area"],
+        svp_gpu=settings["gpu_interpolation"],
+    )
 
 # if settings["deduplicate"]:
-# 	video = deduplicate.fill_drops(video, threshold=0.001, svp_preset=settings["interpolation_preset"],
-#                                 svp_algorithm=settings["interpolation_algorithm"], svp_masking=settings["interpolation_mask_area"],
-#                                 svp_gpu=settings["gpu_interpolation"])
+#     video = blur.deduplicate.fill_drops_old(video, debug=True)
 
 # input timescale
 if settings["input_timescale"] != 1:
@@ -91,7 +93,7 @@ if settings["interpolate"]:
                     smooth_str,
                 )
             else:
-                video = interpolate.interpolate_svp(
+                video = blur.interpolate.interpolate_svp(
                     video,
                     new_fps=interpolated_fps,
                     preset=settings["interpolation_preset"],
@@ -122,41 +124,42 @@ if settings["blur"]:
 
                 match blur_weighting_fn:
                     case "gaussian":
-                        return weighting.gaussian(
+                        return blur.weighting.gaussian(
                             blended_frames,
                             settings["blur_weighting_gaussian_std_dev"],
                             blur_weighting_bound,
                         )
 
                     case "gaussian_sym":
-                        return weighting.gaussian_sym(
+                        return blur.weighting.gaussian_sym(
                             blended_frames,
                             settings["blur_weighting_gaussian_std_dev"],
                             blur_weighting_bound,
                         )
 
                     case "pyramid":
-                        return weighting.pyramid(
-                            blended_frames, bool(settings["blur_weighting_triangle_reverse"])
+                        return blur.weighting.pyramid(
+                            blended_frames,
+                            bool(settings["blur_weighting_triangle_reverse"]),
                         )
 
                     case "pyramid_sym":
-                        return weighting.pyramid_sym(blended_frames)
+                        return blur.weighting.pyramid_sym(blended_frames)
 
                     case "custom_weight":
-                        return weighting.divide(
+                        return blur.weighting.divide(
                             blended_frames, settings["blur_weighting"]
                         )
 
                     case "custom_function":
-                        return weighting.custom(
+                        return blur.weighting.custom(
                             blended_frames,
                             settings["blur_weighting"],
                             settings["blur_weighting_bound"],
                         )
 
                     case "equal":
-                        return weighting.equal(blended_frames)
+                        return blur.weighting.equal(blended_frames)
 
                     case _:
                         # check if it's a custom weighting function
@@ -169,13 +172,13 @@ if settings["blur"]:
 
             # frame blend
             # video = core.misc.AverageFrames(video, [1] * blended_frames)
-            video = blending.average(video, weights)
+            video = blur.blending.average(video, weights)
 
     # if frame_gap > 0:
     #     video = core.std.SelectEvery(video, cycle=frame_gap, offsets=0)
 
     # set exact fps
-    video = interpolate.change_fps(video, settings["blur_output_fps"])
+    video = blur.interpolate.change_fps(video, settings["blur_output_fps"])
 
 # filters
 if (
@@ -183,11 +186,13 @@ if (
     or settings["contrast"] != 1
     or settings["saturation"] != 1
 ):
-    video = adjust.Tweak(
-        video,
-        bright=settings["brightness"] - 1,
-        cont=settings["contrast"],
-        sat=settings["saturation"],
-    )
+    # TODO: add back
+    pass
+    # video = adjust.Tweak(
+    #     video,
+    #     bright=settings["brightness"] - 1,
+    #     cont=settings["contrast"],
+    #     sat=settings["saturation"],
+    # )
 
 video.set_output()

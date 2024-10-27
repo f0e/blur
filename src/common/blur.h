@@ -4,7 +4,7 @@
 
 class c_blur {
 public:
-	const std::string BLUR_VERSION = "1.93";
+	const std::string BLUR_VERSION = "1.94";
 
 	bool verbose = true;
 	bool using_preview = false;

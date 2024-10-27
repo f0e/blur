@@ -1,7 +1,5 @@
 #include "cli.h"
 
-#include <common/preview.h>
-
 void cli::run(const cxxopts::ParseResult& cmd) {
 	if (!blur.initialise(
 		cmd["verbose"].as<bool>(),
@@ -54,7 +52,7 @@ void cli::run(const cxxopts::ParseResult& cmd) {
 
 	// queue videos to be rendered
 	for (size_t i = 0; i < inputs.size(); i++) {
-		std::filesystem::path input_path = std::filesystem::absolute(inputs[i]);
+		std::filesystem::path input_path = std::filesystem::canonical(inputs[i]);
 
 		if (!std::filesystem::exists(input_path)) {
 			wprintf(L"Video '%ls' was not found (wrong path?)\n", input_path.wstring().c_str());
@@ -65,10 +63,10 @@ void cli::run(const cxxopts::ParseResult& cmd) {
 		std::optional<std::filesystem::path> config_path;
 
 		if (manual_config_files)
-			config_path = std::filesystem::absolute(config_paths[i]).wstring();
+			config_path = std::filesystem::canonical(config_paths[i]).wstring();
 
 		if (manual_output_files) {
-			output_path = std::filesystem::absolute(outputs[i]);
+			output_path = std::filesystem::canonical(outputs[i]);
 
 			// create output directory if needed
 			if (!std::filesystem::exists(output_path->parent_path()))
@@ -87,5 +85,5 @@ void cli::run(const cxxopts::ParseResult& cmd) {
 	// render videos
 	rendering.render_videos();
 
-	preview.stop();
+	// preview.stop();
 }
