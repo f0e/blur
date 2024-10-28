@@ -73,10 +73,18 @@ namespace helpers {
 
 	std::string get_executable_path();
 
-	template<typename TP>
-	inline std::time_t to_time_t(TP tp) {
-		using namespace std::chrono;
-		auto sctp = time_point_cast<system_clock::duration>(tp - TP::clock::now() + system_clock::now());
-		return system_clock::to_time_t(sctp);
+	template<typename Container>
+	auto join(const Container& container, const typename Container::value_type::value_type* delimiter) {
+		using CharT = typename Container::value_type::value_type;
+		std::basic_ostringstream<CharT> result;
+
+		auto it = container.begin();
+		if (it != container.end()) {
+			result << *it++; // Add the first element without a delimiter
+		}
+		while (it != container.end()) {
+			result << delimiter << *it++;
+		}
+		return result.str();
 	}
 }

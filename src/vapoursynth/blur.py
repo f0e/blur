@@ -1,10 +1,15 @@
-import sys
 import vapoursynth as vs
 from vapoursynth import core
 
 # from vsrife import RIFE
 
 # import adjust
+
+from pathlib import Path
+import sys
+
+# add blur.py folder to path so it can reference scripts
+sys.path.insert(1, str(Path(__file__).parent))
 
 import blur.blending
 import blur.deduplicate

@@ -1,69 +1,60 @@
 #include "cli.h"
 
-void cli::run(const cxxopts::ParseResult& cmd) {
-	if (!blur.initialise(
-		cmd["verbose"].as<bool>(),
-		cmd["preview"].as<bool>()
-	)) {
-		printf("Blur failed to initialise\n");
-		return;
+bool cli::run(
+	std::vector<std::string> inputs,
+	std::vector<std::string> outputs,
+	std::vector<std::string> config_paths,
+	bool preview,
+	bool verbose
+) {
+	if (!blur.initialise(verbose, preview)) {
+		std::wcout << L"Blur failed to initialize" << std::endl;
+		return false;
 	}
 
-	std::vector<std::string> inputs, outputs, config_paths;
-
-	if (!cmd.count("input")) {
-		printf("No input files specified. Use -i or --input.\n");
-		return;
+	bool manual_output_files = !outputs.empty();
+	if (manual_output_files && inputs.size() != outputs.size()) {
+		std::wcout << L"Input/output filename count mismatch ("
+				   << inputs.size() << L" inputs, "
+				   << outputs.size() << L" outputs)." << std::endl;
+		return false;
 	}
 
-	inputs = cmd["input"].as<std::vector<std::string>>();
-
-	bool manual_output_files = cmd.count("output");
-	if (manual_output_files) {
-		if (cmd.count("input") != cmd.count("output")) {
-			printf("Input/output filename count mismatch (%zu inputs, %zu outputs).\n", cmd.count("input"), cmd.count("output"));
-			return;
-		}
-
-		outputs = cmd["output"].as<std::vector<std::string>>();
+	bool manual_config_files = !config_paths.empty();
+	if (manual_config_files && inputs.size() != config_paths.size()) {
+		std::wcout << L"Input filename/config paths count mismatch ("
+				   << inputs.size() << L" inputs, "
+				   << config_paths.size() << L" config paths)." << std::endl;
+		return false;
 	}
 
-	bool manual_config_files = cmd.count("config-path"); // todo: cleanup redundancy ^^
 	if (manual_config_files) {
-		if (cmd.count("input") != cmd.count("config-path")) {
-			printf("Input filename/config paths count mismatch (%zu inputs, %zu config paths).\n", cmd.count("input"), cmd.count("config-path"));
-			return;
-		}
-
-		config_paths = cmd["config-path"].as<std::vector<std::string>>();
-
-		// check if all configs exist
-		bool paths_ok = true;
 		for (const auto& path : config_paths) {
 			if (!std::filesystem::exists(path)) {
-				printf("Specified config file path '%s' not found.\n", path.c_str());
-				paths_ok = false;
+				// TODO: test printing works with unicode
+				std::cout << "Specified config file path '"
+						  << path
+						  << "' not found." << std::endl;
+				return false;
 			}
 		}
-
-		if (!paths_ok)
-			return;
 	}
 
-	// queue videos to be rendered
-	for (size_t i = 0; i < inputs.size(); i++) {
+	for (size_t i = 0; i < inputs.size(); ++i) {
 		std::filesystem::path input_path = std::filesystem::canonical(inputs[i]);
 
 		if (!std::filesystem::exists(input_path)) {
-			wprintf(L"Video '%ls' was not found (wrong path?)\n", input_path.wstring().c_str());
-			return;
+			// TODO: test with unicode
+			std::wcout << L"Video '" << input_path.wstring()
+					   << L"' was not found (wrong path?)" << std::endl;
+			return false;
 		}
 
 		std::optional<std::filesystem::path> output_path;
 		std::optional<std::filesystem::path> config_path;
 
 		if (manual_config_files)
-			config_path = std::filesystem::canonical(config_paths[i]).wstring();
+			config_path = std::filesystem::canonical(config_paths[i]);
 
 		if (manual_output_files) {
 			output_path = std::filesystem::canonical(outputs[i]);
@@ -75,6 +66,7 @@ void cli::run(const cxxopts::ParseResult& cmd) {
 
 		// set up render
 		auto render = std::make_shared<c_render>(input_path, output_path, config_path);
+
 		rendering.queue_render(render);
 
 		if (blur.verbose) {
@@ -86,4 +78,8 @@ void cli::run(const cxxopts::ParseResult& cmd) {
 	rendering.render_videos();
 
 	// preview.stop();
+
+	std::wcout << L"Finished rendering" << std::endl;
+
+	return true;
 }

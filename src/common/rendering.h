@@ -35,14 +35,14 @@ private:
 private:
 	void build_output_filename();
 
-	struct s_render_command {
-		std::wstring pipe_command;
-		std::wstring ffmpeg_command;
+	struct s_render_commands {
+		std::vector<std::wstring> vspipe;
+		std::vector<std::wstring> ffmpeg;
 	};
 
-	s_render_command build_render_command();
+	s_render_commands build_render_commands();
 
-	bool do_render(s_render_command render_command);
+	bool do_render(s_render_commands render_commands);
 
 public:
 	c_render(const std::filesystem::path& input_path, std::optional<std::filesystem::path> output_path = {}, std::optional<std::filesystem::path> config_path = {});

@@ -11,7 +11,7 @@ set(CMAKE_BINARY_DIR ${PROJECT_SOURCE_DIR}/build/${CMAKE_BUILD_TYPE})
 find_package(fmt CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system filesystem)
-find_package(cxxopts CONFIG REQUIRED)
+find_package(CLI11 CONFIG REQUIRED)
 
 # source files
 file(GLOB_RECURSE COMMON_SOURCES 
@@ -44,7 +44,7 @@ function(setup_target target)
         fmt::fmt
         nlohmann_json::nlohmann_json
         Boost::system Boost::filesystem
-        cxxopts::cxxopts
+        CLI11::CLI11
     )
     target_compile_definitions(${target} PRIVATE 
         NOMINMAX 
