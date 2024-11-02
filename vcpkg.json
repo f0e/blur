@@ -8,12 +8,8 @@
       "name": "boost-process",
       "version>=": "1.83.0"
     },
+    "cli11",
     "fmt",
-    {
-      "name": "imgui",
-      "features": ["glfw-binding", "opengl3-binding"]
-    },
-    "nlohmann-json",
-    "cli11"
+    "nlohmann-json"
   ]
 }

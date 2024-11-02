@@ -53,24 +53,41 @@ function(setup_target target)
     )
 endfunction()
 
-# cli
-add_executable(blur-cli 
-    ${COMMON_SOURCES}
-    ${CLI_SOURCES}
-    ${RESOURCES}
-    src/cli/cli_pch.cpp
-)
-target_precompile_headers(blur-cli PRIVATE src/cli/cli_pch.h)
-setup_target(blur-cli)
+option(BUILD_CLI "Build CLI application" OFF)
+option(BUILD_GUI "Build GUI application" ON)
 
-# # gui
-# add_executable(blur-gui WIN32
-#     ${COMMON_SOURCES}
-#     ${GUI_SOURCES}
-#     ${RESOURCES}
-#     src/gui/gui_pch.cpp
-# )
-# target_precompile_headers(blur-gui PRIVATE src/gui/gui_pch.h)
-# target_link_libraries(blur-gui PRIVATE opengl32 glfw3 Dwmapi)
-# set_target_properties(blur-gui PROPERTIES OUTPUT_NAME "blur")
-# setup_target(blur-gui)
+# cli
+if (BUILD_CLI)
+    add_executable(blur-cli 
+        ${COMMON_SOURCES}
+        ${CLI_SOURCES}
+        ${RESOURCES}
+        src/cli/cli_pch.cpp
+    )
+    target_precompile_headers(blur-cli PRIVATE src/cli/cli_pch.h)
+    setup_target(blur-cli)
+endif()
+
+# gui
+if (BUILD_GUI)
+    set(LAF_BACKEND "skia")
+    set(SKIA_DIR ${PROJECT_SOURCE_DIR}/dependencies/skia)
+    set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release-arm64)
+    set(SKIA_LIBRARY ${SKIA_LIBRARY_DIR}/libskia.a)
+
+    set(LAF_WITH_EXAMPLES OFF) # disable examples
+    set(LAF_WITH_TESTS OFF) # disable tests
+    
+    add_subdirectory(dependencies/laf)
+
+    add_executable(blur-gui WIN32
+        ${COMMON_SOURCES}
+        ${GUI_SOURCES}
+        ${RESOURCES}
+        src/gui/gui_pch.cpp
+    )
+    target_link_libraries(blur-gui PRIVATE laf-base laf-gfx laf-os)
+    target_precompile_headers(blur-gui PRIVATE src/gui/gui_pch.h)
+    set_target_properties(blur-gui PROPERTIES OUTPUT_NAME "blur")
+    setup_target(blur-gui)
+endif()

@@ -1,3 +1,5 @@
+dependencies/skia
+
 # outputs
 build/
 bin/
@@ -62,7 +64,6 @@ _deps
 .ninja_deps
 build.ninja
 rules.ninja
-
 
 ### Python ###
 # Byte-compiled / optimized / DLL files

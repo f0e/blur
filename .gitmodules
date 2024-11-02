@@ -1,0 +1,3 @@
+[submodule "dependencies/laf"]
+	path = dependencies/laf
+	url = https://github.com/aseprite/laf

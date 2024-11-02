@@ -73,6 +73,7 @@
     "unordered_set": "cpp",
     "valarray": "cpp",
     "variant": "cpp",
-    "algorithm": "cpp"
+    "algorithm": "cpp",
+    "cinttypes": "cpp"
   }
 }

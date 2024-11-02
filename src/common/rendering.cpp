@@ -7,6 +7,7 @@
 void c_rendering::render_videos() {
 	if (!queue.empty()) {
 		current_render = queue.front();
+		rendering.progress_callback();
 
 		try {
 			current_render->render();
@@ -18,6 +19,7 @@ void c_rendering::render_videos() {
 		// finished rendering, delete
 		queue.erase(queue.begin());
 		current_render = nullptr;
+		rendering.progress_callback();
 
 		renders_queued = !queue.empty();
 	}
@@ -284,6 +286,8 @@ bool c_render::do_render(s_render_commands render_commands) {
 							status.first = false;
 							status.start_time = std::chrono::high_resolution_clock::now();
 						}
+
+						rendering.progress_callback();
 					}
 
 					line.clear();
@@ -301,6 +305,8 @@ bool c_render::do_render(s_render_commands render_commands) {
 		if (read_thread.joinable()) {
 			read_thread.join();
 		}
+
+		printf("vspipe exit code: %d, ffmpeg exit code: %d\n", vspipe_process.exit_code(), ffmpeg_process.exit_code());
 
 		return vspipe_process.exit_code() == 0 && ffmpeg_process.exit_code() == 0;
 	}

@@ -77,6 +77,7 @@ private:
 public:
 	std::vector<std::shared_ptr<c_render>> queue;
 	std::shared_ptr<c_render> current_render;
+	std::function<void()> progress_callback;
 	bool renders_queued;
 
 public:
