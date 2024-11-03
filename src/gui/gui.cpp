@@ -1,14 +1,7 @@
 #include "gui.h"
 #include "tasks.h"
 #include "font.h"
-
-#include "os/skia/skia_helpers.h"
-#include "os/skia/skia_surface.h"
-#include "include/core/SkTextBlob.h"
-#include "include/utils/SkTextUtils.h"
-#include "include/core/SkFont.h"
-#include "include/core/SkTypeface.h"
-#include "include/core/SkData.h"
+#include "gui_helpers.h"
 
 const int font_height = 18;
 const int spacing = 4;
@@ -165,24 +158,10 @@ void gui::redraw_window(os::Window* window) {
 	window->invalidateRegion(gfx::Region(rc));
 }
 
-SkFont createFontFromTrueType(const unsigned char* fontData, size_t dataSize, float fontHeight) {
-	sk_sp<SkData> skData = SkData::MakeWithCopy(fontData, dataSize);
-
-	// Create a typeface from SkData
-	sk_sp<SkTypeface> typeface = SkTypeface::MakeFromData(skData);
-
-	if (!typeface) {
-		printf("failed to create font\n");
-		return SkFont();
-	}
-
-	return SkFont(typeface, SkIntToScalar(fontHeight));
-}
-
 void gui::run() {
 	auto system = os::make_system();
 
-	font = createFontFromTrueType(VT323_Regular_ttf, VT323_Regular_ttf_len, font_height);
+	font = gui_helpers::create_font_from_data(VT323_Regular_ttf, VT323_Regular_ttf_len, font_height);
 
 	system->setAppMode(os::AppMode::GUI);
 	system->handleWindowResize = redraw_window;
