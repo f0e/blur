@@ -19,6 +19,8 @@ int main(int argc, char* argv[]) {
 	try {
 		CLI11_PARSE(app, argc, argv);
 
+		printf("Hi\n");
+
 		cli::run(inputs, outputs, configPaths, preview, verbose);
 
 		return 0;
