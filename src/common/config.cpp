@@ -57,7 +57,7 @@ void c_config::create(const std::filesystem::path& filepath, s_blur_settings cur
 	output << "interpolation algorithm: " << current_settings.interpolation_algorithm << "\n";
 	output << "interpolation block size: " << current_settings.interpolation_blocksize << "\n";
 	output << "interpolation mask area: " << current_settings.interpolation_mask_area << "\n";
-	
+
 	if (current_settings.manual_svp) {
 		output << "\n";
 		output << "- manual svp override" << "\n";
@@ -109,7 +109,7 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 
 	auto config = read_config();
 
-	auto config_get = [&]<typename t>(const std::string & var, t & out) {
+	auto config_get = [&]<typename t>(const std::string& var, t& out) {
 		if (!config.contains(var)) {
 			helpers::debug_log(fmt::format("config missing variable '{}'", var));
 			return;
@@ -118,7 +118,7 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 		try {
 			std::stringstream ss(config[var]);
 			ss.exceptions(std::ios::failbit); // enable exceptions
-			ss >> std::boolalpha >> out; // boolalpha: enable true/false bool parsing
+			ss >> std::boolalpha >> out;      // boolalpha: enable true/false bool parsing
 		}
 		catch (const std::exception&) {
 			helpers::debug_log("failed to parse config variable '{}' (value: {})", var, config[var]);

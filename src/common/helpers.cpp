@@ -34,13 +34,13 @@ std::vector<std::string> helpers::split_string(std::string str, const std::strin
 }
 
 std::wstring helpers::towstring(const std::string& str) {
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-    return converter.from_bytes(str);
+	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+	return converter.from_bytes(str);
 }
 
 std::string helpers::tostring(const std::wstring& wstr) {
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-    return converter.to_bytes(wstr);
+	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+	return converter.to_bytes(wstr);
 }
 
 std::string helpers::to_lower(const std::string& str) {
@@ -66,22 +66,22 @@ bool helpers::detect_command(const std::string& command) {
 
 std::string helpers::get_executable_path() {
 #if defined(_WIN32)
-    char path[MAX_PATH];
-    GetModuleFileNameA(NULL, path, MAX_PATH);
-    return std::string(path);
+	char path[MAX_PATH];
+	GetModuleFileNameA(NULL, path, MAX_PATH);
+	return std::string(path);
 #elif defined(__linux__)
-    char path[PATH_MAX];
-    ssize_t count = readlink("/proc/self/exe", path, PATH_MAX);
-    return std::string(path, (count > 0) ? count : 0);
+	char path[PATH_MAX];
+	ssize_t count = readlink("/proc/self/exe", path, PATH_MAX);
+	return std::string(path, (count > 0) ? count : 0);
 #elif defined(__APPLE__)
-    uint32_t size = 0;
-    _NSGetExecutablePath(nullptr, &size);  // Get the required size
-    std::vector<char> path(size);
-    if (_NSGetExecutablePath(path.data(), &size) == 0) {
-        return std::string(path.data());
-    }
-    return "";
+	uint32_t size = 0;
+	_NSGetExecutablePath(nullptr, &size); // Get the required size
+	std::vector<char> path(size);
+	if (_NSGetExecutablePath(path.data(), &size) == 0) {
+		return std::string(path.data());
+	}
+	return "";
 #else
-    #error "Unsupported platform"
+#	error "Unsupported platform"
 #endif
 }
