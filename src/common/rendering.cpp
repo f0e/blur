@@ -7,7 +7,7 @@
 void c_rendering::render_videos() {
 	if (!queue.empty()) {
 		current_render = queue.front();
-		rendering.progress_callback();
+		run_callbacks();
 
 		try {
 			current_render->render();
@@ -19,7 +19,7 @@ void c_rendering::render_videos() {
 		// finished rendering, delete
 		queue.erase(queue.begin());
 		current_render = nullptr;
-		rendering.progress_callback();
+		run_callbacks();
 
 		renders_queued = !queue.empty();
 	}
@@ -287,7 +287,7 @@ bool c_render::do_render(s_render_commands render_commands) {
 							status.start_time = std::chrono::high_resolution_clock::now();
 						}
 
-						rendering.progress_callback();
+						rendering.run_callbacks();
 					}
 
 					line.clear();
