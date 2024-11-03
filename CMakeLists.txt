@@ -53,7 +53,7 @@ function(setup_target target)
     )
 endfunction()
 
-option(BUILD_CLI "Build CLI application" OFF)
+option(BUILD_CLI "Build CLI application" ON)
 option(BUILD_GUI "Build GUI application" ON)
 
 # cli
@@ -73,7 +73,6 @@ if (BUILD_GUI)
     set(LAF_BACKEND "skia")
     set(SKIA_DIR ${PROJECT_SOURCE_DIR}/dependencies/skia)
     set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release-arm64)
-    set(SKIA_LIBRARY ${SKIA_LIBRARY_DIR}/libskia.a)
 
     set(LAF_WITH_EXAMPLES OFF) # disable examples
     set(LAF_WITH_TESTS OFF) # disable tests

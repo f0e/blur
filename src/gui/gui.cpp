@@ -1,5 +1,21 @@
 #include "gui.h"
 #include "tasks.h"
+#include "font.h"
+
+#include "os/skia/skia_helpers.h"
+#include "os/skia/skia_surface.h"
+#include "include/core/SkTextBlob.h"
+#include "include/utils/SkTextUtils.h"
+#include "include/core/SkFont.h"
+#include "include/core/SkTypeface.h"
+#include "include/core/SkData.h"
+
+const int font_height = 18;
+const int spacing = 4;
+const int pad_x = 24;
+const int pad_y = 35;
+
+SkFont font;
 
 void gui::DragTarget::dragEnter(os::DragEvent& ev) {
 	// v.dropResult(os::DropOperation::None); // TODO: what does this do? is it needed?
@@ -39,7 +55,7 @@ void gui::DragTarget::drop(os::DragEvent& ev) {
 static os::WindowRef create_window(os::DragTarget& dragTarget) {
 	auto screen = os::instance()->mainScreen();
 
-	os::WindowRef window = os::instance()->makeWindow(800, 600);
+	os::WindowRef window = os::instance()->makeWindow(500, 350);
 	window->setCursor(os::NativeCursor::Arrow);
 	window->setTitle("Blur");
 	window->setDragTarget(&dragTarget);
@@ -83,36 +99,50 @@ void gui::redraw_window(os::Window* window) {
 
 	os::Paint paint;
 
-	// black background
-	paint.color(gfx::rgba(0, 0, 0, 255));
+	// background
+	int bg_shade = windowData.dragging ? 10 : 0;
+	paint.color(gfx::rgba(bg_shade, bg_shade, bg_shade, 255));
 	s->drawRect(rc, paint);
 
-	const static int spacing = 20;
-	const static int pad_x = 25;
-	const static int pad_y = 35;
+	// text
 	int y = 0;
+
 	auto draw_str_temp = [&y, &s, &paint](std::string text, gfx::Color colour = gfx::rgba(255, 255, 255, 255)) {
 		paint.color(colour);
 
-		// todo: clip string
-		os::draw_text(s, nullptr, text, gfx::Point(pad_x, pad_y + y), &paint);
+		os::TextAlign textAlign = os::TextAlign::Left;
 
-		y += spacing;
+		gfx::Point pos(pad_x, pad_y + y);
+
+		// todo: clip string
+		// os::draw_text font broken with skia bruh
+		SkTextUtils::Draw(
+			&static_cast<os::SkiaSurface*>(s)->canvas(),
+			text.c_str(),
+			text.size(),
+			SkTextEncoding::kUTF8,
+			SkIntToScalar(pos.x),
+			SkIntToScalar(pos.y),
+			font,
+			paint.skPaint(),
+			(SkTextUtils::Align)textAlign
+		);
+
+		y += font_height + spacing;
+	};
+
+	auto draw_wstr_temp = [&draw_str_temp](std::wstring text, gfx::Color colour = gfx::rgba(255, 255, 255, 255)) {
+		draw_str_temp(base::to_utf8(text), colour);
 	};
 
 	draw_str_temp("blur");
 	draw_str_temp("drop a file...");
 
-	if (windowData.dragging) {
-		draw_str_temp("drop me bro");
-	}
-
 	if (!rendering.queue.empty()) {
 		for (const auto [i, render] : helpers::enumerate(rendering.queue)) {
 			bool current = render == rendering.current_render;
 
-			std::string name_str = helpers::tostring(render->get_video_name());
-			draw_str_temp(name_str, gfx::rgba(255, 255, 255, (current ? 255 : 100)));
+			draw_wstr_temp(render->get_video_name(), gfx::rgba(255, 255, 255, (current ? 255 : 100)));
 
 			if (current) {
 				auto render_status = render->get_status();
@@ -135,8 +165,25 @@ void gui::redraw_window(os::Window* window) {
 	window->invalidateRegion(gfx::Region(rc));
 }
 
+SkFont createFontFromTrueType(const unsigned char* fontData, size_t dataSize, float fontHeight) {
+	sk_sp<SkData> skData = SkData::MakeWithCopy(fontData, dataSize);
+
+	// Create a typeface from SkData
+	sk_sp<SkTypeface> typeface = SkTypeface::MakeFromData(skData);
+
+	if (!typeface) {
+		printf("failed to create font\n");
+		return SkFont();
+	}
+
+	return SkFont(typeface, SkIntToScalar(fontHeight));
+}
+
 void gui::run() {
 	auto system = os::make_system();
+
+	font = createFontFromTrueType(VT323_Regular_ttf, VT323_Regular_ttf_len, font_height);
+
 	system->setAppMode(os::AppMode::GUI);
 	system->handleWindowResize = redraw_window;
 
