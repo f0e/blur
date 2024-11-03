@@ -1,6 +1,6 @@
 name: Build
 
-on: [push]
+on: []
 
 env:
   is_tag: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -24,9 +24,9 @@ jobs:
         uses: lukka/run-vcpkg@v7
         with:
           vcpkgDirectory: ${{ runner.workspace }}/vcpkg/
-          vcpkgTriplet: '${{ env.BUILD_PLATFORM }}-windows-static'
-          vcpkgGitCommitId: '8eb57355a4ffb410a2e94c07b4dca2dffbee8e50'
-          vcpkgArguments: 'cxxopts fmt glfw3 imgui[opengl3-binding,glfw-binding] nlohmann-json'
+          vcpkgTriplet: "${{ env.BUILD_PLATFORM }}-windows-static"
+          vcpkgGitCommitId: "8eb57355a4ffb410a2e94c07b4dca2dffbee8e50"
+          vcpkgArguments: "cxxopts fmt glfw3 imgui[opengl3-binding,glfw-binding] nlohmann-json"
 
       - name: Integrate vcpkg
         run: ${{ runner.workspace }}\vcpkg\vcpkg integrate install
