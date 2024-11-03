@@ -1,7 +1,8 @@
 #include "gui.h"
 #include "tasks.h"
-#include "font.h"
 #include "gui_helpers.h"
+
+#include "resources/font.h"
 
 const int font_height = 18;
 const int spacing = 4;
