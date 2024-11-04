@@ -1,14 +1,6 @@
 #include "console.h"
 
 #ifdef _WIN32
-#	include <windows.h>
-#elif defined(__APPLE__) || defined(__linux__)
-#	include <unistd.h>
-#	include <termios.h>
-#	include <sys/ioctl.h>
-#endif
-
-#ifdef _WIN32
 void console::cleanup() {
 	console::close();
 }

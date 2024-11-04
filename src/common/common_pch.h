@@ -18,14 +18,6 @@
 #include <regex>
 #include <unordered_set>
 
-#ifdef _WIN32
-#	include <conio.h>
-#	include <shobjidl.h>
-#	include <Windows.h>
-#elif defined(__APPLE__)
-#	include <mach-o/dyld.h>
-#endif
-
 // libs
 #include <fmt/format.h>
 #include <fmt/xchar.h>
@@ -33,6 +25,17 @@
 
 #include <boost/process.hpp>
 #include <boost/asio.hpp>
+#ifdef _WIN32
+#	include <boost/process/v1/windows.hpp>
+#endif
+
+#ifdef _WIN32
+#	include <conio.h>
+#	include <shobjidl.h>
+#	include <Windows.h>
+#elif defined(__APPLE__)
+#	include <mach-o/dyld.h>
+#endif
 
 // blur
 #include "blur.h"
