@@ -69,7 +69,7 @@ namespace helpers {
 
 	int exec(std::wstring command, std::wstring run_dir = L".");
 
-	bool detect_command(const std::string& command);
+	bool detect_program(const std::string& command);
 
 	std::string get_executable_path();
 

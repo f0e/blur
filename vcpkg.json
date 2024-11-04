@@ -10,6 +10,7 @@
     },
     "cli11",
     "fmt",
-    "nlohmann-json"
+    "nlohmann-json",
+    "zlib"
   ]
 }

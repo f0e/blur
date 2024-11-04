@@ -1,4 +1,18 @@
 cmake_minimum_required(VERSION 3.20)
+
+if(WIN32)
+    set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "")
+elseif(APPLE)
+    set(VCPKG_TARGET_TRIPLET "x64-osx" CACHE STRING "")
+elseif(UNIX)
+    set(VCPKG_TARGET_TRIPLET "x64-linux" CACHE STRING "")
+endif()
+
+# Force static runtime on Windows
+set(CMAKE_USER_MAKE_RULES_OVERRIDE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/c_flag_overrides.cmake)
+set(CMAKE_USER_MAKE_RULES_OVERRIDE_CXX ${CMAKE_CURRENT_SOURCE_DIR}/cmake/cxx_flag_overrides.cmake)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 project(blur LANGUAGES CXX)
 
 # global settings
@@ -12,6 +26,7 @@ find_package(fmt CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system filesystem)
 find_package(CLI11 CONFIG REQUIRED)
+find_package(ZLIB REQUIRED)
 
 # source files
 file(GLOB_RECURSE COMMON_SOURCES 
@@ -47,7 +62,8 @@ function(setup_target target)
         CLI11::CLI11
     )
     target_compile_definitions(${target} PRIVATE 
-        NOMINMAX 
+        NOMINMAX
+        FMT_HEADER_ONLY
         $<$<CONFIG:Debug>:_DEBUG>
         $<$<CONFIG:Release>:NDEBUG>
     )
@@ -72,8 +88,8 @@ endif()
 if (BUILD_GUI)
     set(LAF_BACKEND "skia")
     set(SKIA_DIR ${PROJECT_SOURCE_DIR}/dependencies/skia)
-    set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release-arm64)
-
+    set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release)
+    
     set(LAF_WITH_EXAMPLES OFF) # disable examples
     set(LAF_WITH_TESTS OFF) # disable tests
     
@@ -85,8 +101,14 @@ if (BUILD_GUI)
         ${RESOURCES}
         src/gui/gui_pch.cpp
     )
-    target_link_libraries(blur-gui PRIVATE laf-base laf-gfx laf-os)
+    target_link_libraries(blur-gui PRIVATE
+        laf-base
+        laf-gfx
+        laf-os
+        ZLIB::ZLIB
+    )
     target_precompile_headers(blur-gui PRIVATE src/gui/gui_pch.h)
+    set_target_properties(blur-gui PROPERTIES LINK_FLAGS "${LAF_BACKEND_LINK_FLAGS}")
     set_target_properties(blur-gui PROPERTIES OUTPUT_NAME "blur")
     setup_target(blur-gui)
 endif()

@@ -37,7 +37,10 @@ private:
 	void build_output_filename();
 
 	struct s_render_commands {
+		std::wstring vspipe_path;
 		std::vector<std::wstring> vspipe;
+		
+		std::wstring ffmpeg_path;
 		std::vector<std::wstring> ffmpeg;
 	};
 

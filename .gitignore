@@ -4,6 +4,8 @@ dependencies/skia
 build/
 bin/
 
+.vs
+
 ### C++ ###
 # Prerequisites
 *.d

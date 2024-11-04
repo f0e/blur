@@ -122,10 +122,14 @@ bool c_render::remove_temp_path() {
 }
 
 c_render::s_render_commands c_render::build_render_commands() {
-	std::wstring vspipe_path = L"vspipe", ffmpeg_path = L"ffmpeg";
+	s_render_commands commands;
+
+	commands.vspipe_path = L"vspipe";
+	commands.ffmpeg_path = L"ffmpeg";
+
 	if (blur.used_installer) {
-		vspipe_path = (blur.path / "lib\\vapoursynth\\vspipe.exe").wstring();
-		ffmpeg_path = (blur.path / "lib\\ffmpeg\\ffmpeg.exe").wstring();
+		commands.vspipe_path = (blur.path / "lib\\vapoursynth\\vspipe.exe").wstring();
+		commands.ffmpeg_path = (blur.path / "lib\\ffmpeg\\ffmpeg.exe").wstring();
 	}
 
 	std::wstring path_string = video_path.wstring();
@@ -133,11 +137,8 @@ c_render::s_render_commands c_render::build_render_commands() {
 
 	std::wstring blur_script_path = (blur.path / "lib/blur.py").wstring();
 
-	s_render_commands commands;
-
 	// Build vspipe command
 	commands.vspipe = {
-		vspipe_path,
 		L"-p",
 		L"-c",
 		L"y4m",
@@ -151,7 +152,6 @@ c_render::s_render_commands c_render::build_render_commands() {
 
 	// Build ffmpeg command
 	commands.ffmpeg = {
-		ffmpeg_path,
 		L"-loglevel",
 		L"error",
 		L"-hide_banner",
@@ -243,25 +243,33 @@ bool c_render::do_render(s_render_commands render_commands) {
 		bp::ipstream vspipe_stderr;
 
 		if (settings.debug) {
-			std::wcout << L"VSPipe command: " << helpers::join(render_commands.vspipe, L" ") << std::endl;
-			std::wcout << L"FFmpeg command: " << helpers::join(render_commands.ffmpeg, L" ") << std::endl;
+			std::wcout << L"VSPipe command: " << render_commands.vspipe_path << " " << helpers::join(render_commands.vspipe, L" ") << std::endl;
+			std::wcout << L"FFmpeg command: " << render_commands.ffmpeg_path << " " << helpers::join(render_commands.ffmpeg, L" ") << std::endl;
 		}
 
 		// Launch vspipe process
 		bp::child vspipe_process(
-			boost::process::args(render_commands.vspipe),
+			render_commands.vspipe_path,
+			bp::args(render_commands.vspipe),
 			bp::std_out > vspipe_stdout,
 			bp::std_err > vspipe_stderr,
-			io_context
+			io_context,
+#ifdef _WIN32
+			bp::windows::create_no_window
+#endif
 		);
 
 		// Launch ffmpeg process
 		bp::child ffmpeg_process(
-			boost::process::args(render_commands.ffmpeg),
+			render_commands.ffmpeg_path,
+			bp::args(render_commands.ffmpeg),
 			bp::std_in < vspipe_stdout,
 			bp::std_out.null(),
 			bp::std_err.null(),
-			io_context
+			io_context,
+#ifdef _WIN32
+			bp::windows::create_no_window
+#endif
 		);
 
 		std::thread read_thread([&]() {
@@ -307,7 +315,8 @@ bool c_render::do_render(s_render_commands render_commands) {
 			read_thread.join();
 		}
 
-		printf("vspipe exit code: %d, ffmpeg exit code: %d\n", vspipe_process.exit_code(), ffmpeg_process.exit_code());
+		if (settings.debug)
+			printf("vspipe exit code: %d, ffmpeg exit code: %d\n", vspipe_process.exit_code(), ffmpeg_process.exit_code());
 
 		return vspipe_process.exit_code() == 0 && ffmpeg_process.exit_code() == 0;
 	}

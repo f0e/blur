@@ -6,17 +6,17 @@ bool c_blur::initialise(bool _verbose, bool _using_preview) {
 
 	if (!used_installer) {
 		// didn't use installer, check if dependencies were installed
-		if (!helpers::detect_command("ffmpeg")) {
+		if (!helpers::detect_program("ffmpeg")) {
 			printf("FFmpeg could not be found\n");
 			return false;
 		}
 
-		if (!helpers::detect_command("python")) {
+		if (!helpers::detect_program("python")) {
 			printf("Python could not be found\n");
 			return false;
 		}
 
-		if (!helpers::detect_command("vspipe")) {
+		if (!helpers::detect_program("vspipe")) {
 			printf("VapourSynth could not be found\n");
 			return false;
 		}

@@ -49,7 +49,7 @@ void gui::DragTarget::drop(os::DragEvent& ev) {
 static os::WindowRef create_window(os::DragTarget& dragTarget) {
 	auto screen = os::instance()->mainScreen();
 
-	os::WindowRef window = os::instance()->makeWindow(500, 350);
+	os::WindowRef window = os::instance()->makeWindow(591, 381);
 	window->setCursor(os::NativeCursor::Arrow);
 	window->setTitle("Blur");
 	window->setDragTarget(&dragTarget);

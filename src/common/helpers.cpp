@@ -57,11 +57,17 @@ int helpers::exec(std::wstring command, std::wstring run_dir) {
 	return 0;
 }
 
-bool helpers::detect_command(const std::string& command) {
-	// todo
-	return true;
-	// auto ret = exec("where /q " + command);
-	// return ret == 0;
+bool helpers::detect_program(const std::string& program_name) {
+    namespace bp = boost::process;
+    namespace fs = boost::filesystem;
+    
+    try {
+        // search_path will throw an exception if the program is not found
+        fs::path program_path = bp::search_path(program_name);
+        return !program_path.empty();
+    } catch (const boost::process::process_error&) {
+        return false;
+    }
 }
 
 std::string helpers::get_executable_path() {
