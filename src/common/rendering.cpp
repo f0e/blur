@@ -280,7 +280,8 @@ bool c_render::do_render(s_render_commands render_commands) {
 						if (!status.init)
 							status.init = true;
 
-						std::cout << status.progress_string() << "\n";
+						status.update_progress_string();
+						std::cout << status.progress_string << "\n";
 
 						if (status.first) {
 							status.first = false;
@@ -377,14 +378,16 @@ void c_rendering::stop_rendering() {
 	// 	SendMessage(hwnd, WM_CLOSE, 0, 0);
 }
 
-std::string s_render_status::progress_string() {
-	if (!init)
-		return "";
+void s_render_status::update_progress_string() {
+	if (!init) {
+		progress_string = "";
+		return;
+	}
 
 	float progress = current_frame / (float)total_frames;
 
 	if (first) {
-		return fmt::format("{:.1f}% complete ({}/{})", progress * 100, current_frame, total_frames);
+		progress_string = fmt::format("{:.1f}% complete ({}/{})", progress * 100, current_frame, total_frames);
 	}
 	else {
 		auto current_time = std::chrono::high_resolution_clock::now();
@@ -393,6 +396,6 @@ std::string s_render_status::progress_string() {
 
 		double calced_fps = current_frame / elapsed_time;
 
-		return fmt::format("{:.1f}% complete ({}/{}, {:.2f} fps)", progress * 100, current_frame, total_frames, calced_fps);
+		progress_string = fmt::format("{:.1f}% complete ({}/{}, {:.2f} fps)", progress * 100, current_frame, total_frames, calced_fps);
 	}
 }

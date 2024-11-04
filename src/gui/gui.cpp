@@ -94,7 +94,7 @@ void gui::redraw_window(os::Window* window) {
 	os::Paint paint;
 
 	// background
-	int bg_shade = windowData.dragging ? 10 : 0;
+	int bg_shade = windowData.dragging ? 30 : 0;
 	paint.color(gfx::rgba(bg_shade, bg_shade, bg_shade, 255));
 	s->drawRect(rc, paint);
 
@@ -142,9 +142,7 @@ void gui::redraw_window(os::Window* window) {
 				auto render_status = render->get_status();
 
 				if (render_status.init) {
-					std::string progress_string = render_status.progress_string();
-
-					draw_str_temp(progress_string);
+					draw_str_temp(render_status.progress_string);
 				}
 				else {
 					draw_str_temp("initialising render...");
