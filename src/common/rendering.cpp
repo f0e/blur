@@ -253,8 +253,9 @@ bool c_render::do_render(s_render_commands render_commands) {
 			bp::args(render_commands.vspipe),
 			bp::std_out > vspipe_stdout,
 			bp::std_err > vspipe_stderr,
-			io_context,
+			io_context
 #ifdef _WIN32
+			,
 			bp::windows::create_no_window
 #endif
 		);
@@ -266,8 +267,9 @@ bool c_render::do_render(s_render_commands render_commands) {
 			bp::std_in < vspipe_stdout,
 			bp::std_out.null(),
 			bp::std_err.null(),
-			io_context,
+			io_context
 #ifdef _WIN32
+			,
 			bp::windows::create_no_window
 #endif
 		);

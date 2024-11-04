@@ -1,113 +1,135 @@
 {
-    "version": 6,
-    "configurePresets": [
-        {
-            "name": "base",
-            "hidden": true,
-            "cacheVariables": {
-                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
-            }
-        },
-        {
-            "name": "windows-base",
-            "inherits": "base",
-            "hidden": true,
-            "condition": {
-                "type": "equals",
-                "lhs": "${hostSystemName}",
-                "rhs": "Windows"
-            },
-            "generator": "Ninja",
-            "architecture": {
-                "value": "x64",
-                "strategy": "external"
-            },
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "cl",
-                "CMAKE_CXX_COMPILER": "cl"
-            },
-            "vendor": {
-                "microsoft.com/VisualStudioSettings/CMake/1.0": {
-                    "intelliSenseMode": "windows-msvc-x64"
-                }
-            }
-        },
-        {
-            "name": "unix-base",
-            "inherits": "base",
-            "hidden": true,
-            "condition": {
-                "type": "notEquals",
-                "lhs": "${hostSystemName}",
-                "rhs": "Windows"
-            },
-            "generator": "Ninja"
-        },
-        {
-            "name": "debug",
-            "inherits": [
-                "windows-base",
-                "unix-base"
-            ],
-            "displayName": "Debug Build",
-            "binaryDir": "${sourceDir}/build/debug",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "CMAKE_MSVC_RUNTIME_LIBRARY": {
-                    "type": "STRING",
-                    "value": "MultiThreadedDebugDLL"
-                }
-            }
-        },
-        {
-            "name": "release",
-            "inherits": [
-                "windows-base",
-                "unix-base"
-            ],
-            "displayName": "Release Build",
-            "binaryDir": "${sourceDir}/build/release",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_MSVC_RUNTIME_LIBRARY": {
-                    "type": "STRING",
-                    "value": "MultiThreadedDLL"
-                }
-            }
-        },
-        {
-            "name": "relwithdebinfo",
-            "inherits": [
-                "windows-base",
-                "unix-base"
-            ],
-            "displayName": "Release with Debug Info",
-            "binaryDir": "${sourceDir}/build/relwithdebinfo",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-                "CMAKE_MSVC_RUNTIME_LIBRARY": {
-                    "type": "STRING",
-                    "value": "MultiThreadedDLL"
-                }
-            }
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+      }
+    },
+    {
+      "name": "win-base",
+      "inherits": "base",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "generator": "Ninja",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "intelliSenseMode": "windows-msvc-x64"
         }
-    ],
-    "buildPresets": [
-        {
-            "name": "debug",
-            "configurePreset": "debug",
-            "jobs": 0
-        },
-        {
-            "name": "release",
-            "configurePreset": "release",
-            "jobs": 0
-        },
-        {
-            "name": "relwithdebinfo",
-            "configurePreset": "relwithdebinfo",
-            "jobs": 0
+      }
+    },
+    {
+      "name": "unix-base",
+      "inherits": "base",
+      "hidden": true,
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_MSVC_RUNTIME_LIBRARY": {
+          "type": "STRING",
+          "value": "MultiThreadedDLL"
         }
-    ]
+      },
+      "generator": "Ninja"
+    },
+    {
+      "name": "win-debug",
+      "inherits": "win-base",
+      "displayName": "Debug Build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "win-release",
+      "inherits": "win-base",
+      "displayName": "Release Build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "win-relwithdebinfo",
+      "inherits": "win-base",
+      "displayName": "Release with Debug Info",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "unix-debug",
+      "inherits": "unix-base",
+      "displayName": "Debug Build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "unix-release",
+      "inherits": "unix-base",
+      "displayName": "Release Build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "unix-relwithdebinfo",
+      "inherits": "unix-base",
+      "displayName": "Release with Debug Info",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "win-debug",
+      "configurePreset": "win-debug",
+      "jobs": 0
+    },
+    {
+      "name": "win-release",
+      "configurePreset": "win-release",
+      "jobs": 0
+    },
+    {
+      "name": "win-relwithdebinfo",
+      "configurePreset": "win-relwithdebinfo",
+      "jobs": 0
+    },
+    {
+      "name": "unix-debug",
+      "configurePreset": "unix-debug",
+      "jobs": 0
+    },
+    {
+      "name": "unix-release",
+      "configurePreset": "unix-release",
+      "jobs": 0
+    },
+    {
+      "name": "unix-relwithdebinfo",
+      "configurePreset": "unix-relwithdebinfo",
+      "jobs": 0
+    }
+  ]
 }

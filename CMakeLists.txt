@@ -1,12 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-if(WIN32)
-    set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "")
-elseif(APPLE)
-    set(VCPKG_TARGET_TRIPLET "x64-osx" CACHE STRING "")
-elseif(UNIX)
-    set(VCPKG_TARGET_TRIPLET "x64-linux" CACHE STRING "")
-endif()
+set(VCPKG_LIBRARY_LINKAGE static)
 
 # Force static runtime on Windows
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -67,46 +61,39 @@ function(setup_target target)
     )
 endfunction()
 
-option(BUILD_CLI "Build CLI application" ON)
-option(BUILD_GUI "Build GUI application" ON)
-
 # cli
-if (BUILD_CLI)
-    add_executable(blur-cli 
-        ${COMMON_SOURCES}
-        ${CLI_SOURCES}
-        ${RESOURCES}
-        src/cli/cli_pch.cpp
-    )
-    target_precompile_headers(blur-cli PRIVATE src/cli/cli_pch.h)
-    setup_target(blur-cli)
-endif()
+add_executable(blur-cli 
+    ${COMMON_SOURCES}
+    ${CLI_SOURCES}
+    ${RESOURCES}
+    src/cli/cli_pch.cpp
+)
+target_precompile_headers(blur-cli PRIVATE src/cli/cli_pch.h)
+setup_target(blur-cli)
 
 # gui
-if (BUILD_GUI)
-    set(LAF_BACKEND "skia")
-    set(SKIA_DIR ${PROJECT_SOURCE_DIR}/dependencies/skia)
-    set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release)
-    
-    set(LAF_WITH_EXAMPLES OFF) # disable examples
-    set(LAF_WITH_TESTS OFF) # disable tests
-    
-    add_subdirectory(dependencies/laf)
+set(LAF_BACKEND "skia")
+set(SKIA_DIR ${PROJECT_SOURCE_DIR}/dependencies/skia)
+set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release-arm64)
 
-    add_executable(blur-gui WIN32
-        ${COMMON_SOURCES}
-        ${GUI_SOURCES}
-        ${RESOURCES}
-        src/gui/gui_pch.cpp
-    )
-    target_link_libraries(blur-gui PRIVATE
-        laf-base
-        laf-gfx
-        laf-os
-        ZLIB::ZLIB
-    )
-    target_precompile_headers(blur-gui PRIVATE src/gui/gui_pch.h)
-    set_target_properties(blur-gui PROPERTIES LINK_FLAGS "${LAF_BACKEND_LINK_FLAGS}")
-    set_target_properties(blur-gui PROPERTIES OUTPUT_NAME "blur")
-    setup_target(blur-gui)
-endif()
+set(LAF_WITH_EXAMPLES OFF) # disable examples
+set(LAF_WITH_TESTS OFF) # disable tests
+
+add_subdirectory(dependencies/laf)
+
+add_executable(blur-gui WIN32
+    ${COMMON_SOURCES}
+    ${GUI_SOURCES}
+    ${RESOURCES}
+    src/gui/gui_pch.cpp
+)
+target_link_libraries(blur-gui PRIVATE
+    laf-base
+    laf-gfx
+    laf-os
+    ZLIB::ZLIB
+)
+target_precompile_headers(blur-gui PRIVATE src/gui/gui_pch.h)
+set_target_properties(blur-gui PROPERTIES LINK_FLAGS "${LAF_BACKEND_LINK_FLAGS}")
+set_target_properties(blur-gui PROPERTIES OUTPUT_NAME "blur")
+setup_target(blur-gui)
