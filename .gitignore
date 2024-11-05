@@ -3,6 +3,7 @@ dependencies/skia
 # outputs
 build/
 bin/
+out/
 
 .vs
 

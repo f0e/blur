@@ -4,7 +4,7 @@
 
 #include "resources/font.h"
 
-const int font_height = 18;
+const int font_height = 14;
 const int spacing = 4;
 const int pad_x = 24;
 const int pad_y = 35;
@@ -160,7 +160,7 @@ void gui::redraw_window(os::Window* window) {
 void gui::run() {
 	auto system = os::make_system();
 
-	font = gui_helpers::create_font_from_data(VT323_Regular_ttf, VT323_Regular_ttf_len, font_height);
+	font = gui_helpers::create_font_from_data(ttf_FiraCode_Regular, ttf_FiraCode_Regular_len, font_height);
 
 	system->setAppMode(os::AppMode::GUI);
 	system->handleWindowResize = redraw_window;
