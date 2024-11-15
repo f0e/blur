@@ -295,7 +295,7 @@ bool c_render::do_render(s_render_commands render_commands) {
 
 						if (status.first) {
 							status.first = false;
-							status.start_time = std::chrono::high_resolution_clock::now();
+							status.start_time = std::chrono::steady_clock::now();
 						}
 
 						rendering.run_callbacks();
@@ -401,7 +401,7 @@ void s_render_status::update_progress_string() {
 		progress_string = fmt::format("{:.1f}% complete ({}/{})", progress * 100, current_frame, total_frames);
 	}
 	else {
-		auto current_time = std::chrono::high_resolution_clock::now();
+		auto current_time = std::chrono::steady_clock::now();
 		std::chrono::duration<double> frame_duration = current_time - start_time;
 		double elapsed_time = frame_duration.count();
 
