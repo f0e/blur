@@ -99,16 +99,10 @@ elseif(WIN32)
   set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release-x64)
 endif()
 
-FetchContent_Declare(
-  skia
-  URL ${SKIA_REPOSITORY}
-      SOURCE_DIR
-      ${SKIA_DIR}
-      DOWNLOAD_EXTRACT_TIMESTAMP
-      ON)
+FetchContent_Declare(skia URL ${SKIA_REPOSITORY} SOURCE_DIR ${SKIA_DIR})
 FetchContent_GetProperties(skia)
 if(NOT skia_POPULATED)
-  FetchContent_Populate(skia)
+  FetchContent_MakeAvailable(skia)
 endif()
 
 set(LAF_WITH_EXAMPLES OFF) # disable examples
