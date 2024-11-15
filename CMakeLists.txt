@@ -87,11 +87,20 @@ if(UNIX AND NOT APPLE)
       https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-Linux-Release-x64-libstdc++.zip
   )
   set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release-x64)
-elseif(APPLE) # dont care about x64
-  set(SKIA_REPOSITORY
-      https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-macOS-Release-arm64.zip
-  )
-  set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release-arm64)
+elseif(APPLE)
+  if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64" OR CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
+    set(SKIA_REPOSITORY
+        https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-macOS-Release-arm64.zip
+    )
+    set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release-arm64)
+  elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "x86_64" OR CMAKE_OSX_ARCHITECTURES MATCHES "x86_64")
+    set(SKIA_REPOSITORY
+        https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-macOS-Release-x64.zip
+    )
+    set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release-x64)
+  else()
+    message(FATAL_ERROR "Unsupported macOS architecture: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
+  endif()
 elseif(WIN32)
   set(SKIA_REPOSITORY
       https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-Windows-Release-x64.zip
@@ -99,7 +108,12 @@ elseif(WIN32)
   set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release-x64)
 endif()
 
-FetchContent_Declare(skia URL ${SKIA_REPOSITORY} SOURCE_DIR ${SKIA_DIR})
+FetchContent_Declare(skia
+  URL ${SKIA_REPOSITORY}
+  SOURCE_DIR ${SKIA_DIR} 
+  DOWNLOAD_EXTRACT_TIMESTAMP true
+)
+
 FetchContent_GetProperties(skia)
 if(NOT skia_POPULATED)
   FetchContent_MakeAvailable(skia)
