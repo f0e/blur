@@ -87,50 +87,92 @@ bool processEvent(const os::Event& ev) {
 	return true;
 }
 
+void draw_text(os::Surface* s, const os::Paint& paint, gfx::Point pos, std::string text, os::TextAlign textAlign) {
+	// todo: clip string
+	// os::draw_text font broken with skia bruh
+	SkTextUtils::Draw(
+		&static_cast<os::SkiaSurface*>(s)->canvas(),
+		text.c_str(),
+		text.size(),
+		SkTextEncoding::kUTF8,
+		SkIntToScalar(pos.x),
+		SkIntToScalar(pos.y),
+		font,
+		paint.skPaint(),
+		(SkTextUtils::Align)textAlign
+	);
+}
+
+constexpr double ease_out_quart(double x) {
+	return 1.f - pow(1.f - x, 4.f);
+}
+
+constexpr double ease_out_expo(double x) {
+	return (x == 1) ? 1 : 1 - std::pow(2, -10 * x);
+}
+
 void gui::redraw_window(os::Window* window) {
 	os::Surface* s = window->surface();
 	const gfx::Rect rc = s->bounds();
 
-	os::Paint paint;
+	os::Paint text_paint;
+	text_paint.color(gfx::rgba(255, 255, 255, 255));
 
 	// background
-	int bg_shade = windowData.dragging ? 30 : 0;
-	paint.color(gfx::rgba(bg_shade, bg_shade, bg_shade, 255));
+	os::Paint paint;
+	paint.color(gfx::rgba(0, 0, 0, 255));
 	s->drawRect(rc, paint);
 
 	// text
-	int y = 0;
+	int text_y = 0;
 
-	auto draw_str_temp = [&y, &s, &paint](std::string text, gfx::Color colour = gfx::rgba(255, 255, 255, 255)) {
+	auto draw_str_temp = [&text_y, &s, &rc](std::string text, gfx::Color colour = gfx::rgba(255, 255, 255, 255)) {
+		os::Paint paint;
 		paint.color(colour);
 
-		os::TextAlign textAlign = os::TextAlign::Left;
+		gfx::Point pos(rc.center().x, pad_y + text_y);
+		draw_text(s, paint, pos, text, os::TextAlign::Center);
 
-		gfx::Point pos(pad_x, pad_y + y);
-
-		// todo: clip string
-		// os::draw_text font broken with skia bruh
-		SkTextUtils::Draw(
-			&static_cast<os::SkiaSurface*>(s)->canvas(),
-			text.c_str(),
-			text.size(),
-			SkTextEncoding::kUTF8,
-			SkIntToScalar(pos.x),
-			SkIntToScalar(pos.y),
-			font,
-			paint.skPaint(),
-			(SkTextUtils::Align)textAlign
-		);
-
-		y += font_height + spacing;
+		text_y += font_height + spacing;
 	};
 
 	auto draw_wstr_temp = [&draw_str_temp](std::wstring text, gfx::Color colour = gfx::rgba(255, 255, 255, 255)) {
 		draw_str_temp(base::to_utf8(text), colour);
 	};
 
-	draw_str_temp("blur");
-	draw_str_temp("drop a file...");
+	gfx::Rect drop_zone = rc;
+
+	int fill_shade = windowData.dragging ? 30 : 10;
+	paint.color(gfx::rgba(255, 255, 255, fill_shade));
+	s->drawRect(drop_zone, paint);
+
+	// paint.style(os::Paint::Style::Stroke);
+	// const int stroke_shade = 100;
+	// const int stroke_width = 2;
+	// paint.color(gfx::rgba(255, 255, 255, stroke_shade));
+	// paint.strokeWidth(stroke_width);
+	// s->drawRect(drop_zone, paint);
+
+	const int blur_stroke_width = 1;
+	const float blur_start_shade = 50;
+
+	paint.style(os::Paint::Style::Stroke);
+	paint.strokeWidth(blur_stroke_width);
+
+	gfx::Rect blur_drop_zone = drop_zone;
+	const int blur_steps = (std::min(rc.w, rc.h) / 2.f / blur_stroke_width);
+
+	for (int i = 0; i < blur_steps; i++) {
+		blur_drop_zone.shrink(blur_stroke_width);
+		int shade = std::lerp(blur_start_shade, 0, ease_out_quart(i / (float)blur_steps));
+		if (shade <= 0)
+			break;
+
+		paint.color(gfx::rgba(255, 255, 255, shade));
+		s->drawRect(blur_drop_zone, paint);
+	}
+
+	draw_text(s, text_paint, drop_zone.center(), "drop a file...", os::TextAlign::Center);
 
 	if (!rendering.queue.empty()) {
 		for (const auto [i, render] : helpers::enumerate(rendering.queue)) {
