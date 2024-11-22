@@ -8,7 +8,7 @@
 #include "resources/font.h"
 
 const int font_height = 14;
-const int spacing = 4;
+const int spacing = 8;
 const int pad_x = 24;
 const int pad_y = 35;
 
@@ -29,6 +29,7 @@ void gui::DragTarget::dragEnter(os::DragEvent& ev) {
 }
 
 void gui::DragTarget::dragLeave(os::DragEvent& ev) {
+	// todo: not triggering on windows?
 	windowData.dragPosition = ev.position();
 	windowData.dragging = false;
 
