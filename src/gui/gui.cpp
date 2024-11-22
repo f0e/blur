@@ -12,6 +12,8 @@ const int spacing = 4;
 const int pad_x = 24;
 const int pad_y = 35;
 
+bool closing = false;
+
 SkFont font;
 os::EventQueue* event_queue;
 
@@ -80,6 +82,7 @@ bool processEvent(const os::Event& ev) {
 
 		case os::Event::CloseApp:
 		case os::Event::CloseWindow:
+			closing = true;
 			return false;
 
 		case os::Event::ResizeWindow:
@@ -119,7 +122,7 @@ void gui::generate_messages_from_os_events() { // https://github.com/aseprite/as
 }
 
 void gui::event_loop() {
-	while (true) {
+	while (!closing) {
 		generate_messages_from_os_events();
 	}
 }
@@ -177,12 +180,9 @@ void gui::redraw_window(os::Window* window) {
 
 	{
 		// debug
-		static int x = 0;
+		static float x = 0;
 		static bool right = true;
-		if (right)
-			x++;
-		else
-			x--;
+		x += 500.f * delta_time * (right ? 1 : -1);
 		os::Paint paint;
 		paint.color(gfx::rgba(255, 0, 0, 50));
 		s->drawRect(gfx::Rect(x, 100, 30, 30), paint);
