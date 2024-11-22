@@ -103,8 +103,6 @@ void gui::generate_messages_from_os_events() { // https://github.com/aseprite/as
 
 	os::Event event;
 	while (true) {
-		redraw_window(window.get());
-
 		// Calculate how much time we can wait for the next message in the
 		// event queue.
 		double timeout = 0.0;
@@ -123,6 +121,7 @@ void gui::generate_messages_from_os_events() { // https://github.com/aseprite/as
 
 void gui::event_loop() {
 	while (!closing) {
+		redraw_window(window.get());
 		generate_messages_from_os_events();
 	}
 }
