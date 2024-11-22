@@ -1,6 +1,9 @@
 #include "gui.h"
+#include "gfx/color.h"
+#include "gfx/rgb.h"
 #include "tasks.h"
 #include "gui_helpers.h"
+#include "easing.h"
 
 #include "resources/font.h"
 
@@ -10,6 +13,9 @@ const int pad_x = 24;
 const int pad_y = 35;
 
 SkFont font;
+os::EventQueue* event_queue;
+
+std::chrono::high_resolution_clock::time_point last_frame_time = std::chrono::high_resolution_clock::now();
 
 void gui::DragTarget::dragEnter(os::DragEvent& ev) {
 	// v.dropResult(os::DropOperation::None); // TODO: what does this do? is it needed?
@@ -87,7 +93,42 @@ bool processEvent(const os::Event& ev) {
 	return true;
 }
 
-void draw_text(os::Surface* s, const os::Paint& paint, gfx::Point pos, std::string text, os::TextAlign textAlign) {
+void gui::generate_messages_from_os_events() { // https://github.com/aseprite/aseprite/blob/45c2a5950445c884f5d732edc02989c3fb6ab1a6/src/ui/manager.cpp#L393
+	assert(event_queue);
+
+	os::Event lastMouseMoveEvent;
+
+	os::Event event;
+	while (true) {
+		redraw_window(window.get());
+
+		// Calculate how much time we can wait for the next message in the
+		// event queue.
+		double timeout = 0.0;
+		// if (msg_queue.empty()) {
+		// 	if (!Timer::getNextTimeout(timeout)) // nothing on timer so just wait forever i guess
+		// 		timeout = os::EventQueue::kWithoutTimeout;
+		// }
+
+		event_queue->getEvent(event, timeout);
+		if (event.type() == os::Event::None)
+			break;
+
+		processEvent(event);
+	}
+}
+
+void gui::event_loop() {
+	while (true) {
+		generate_messages_from_os_events();
+	}
+}
+
+void draw_text(os::Surface* s, const gfx::Color colour, gfx::Point pos, std::string text, os::TextAlign textAlign) {
+	// todo: is creating a new paint instance every time significant to perf? shouldnt be
+	os::Paint paint;
+	paint.color(colour);
+
 	// todo: clip string
 	// os::draw_text font broken with skia bruh
 	SkTextUtils::Draw(
@@ -103,15 +144,26 @@ void draw_text(os::Surface* s, const os::Paint& paint, gfx::Point pos, std::stri
 	);
 }
 
-constexpr double ease_out_quart(double x) {
-	return 1.f - pow(1.f - x, 4.f);
-}
-
-constexpr double ease_out_expo(double x) {
-	return (x == 1) ? 1 : 1 - std::pow(2, -10 * x);
-}
-
 void gui::redraw_window(os::Window* window) {
+	static bool is_first_frame = true;
+	auto now = std::chrono::high_resolution_clock::now();
+
+	std::chrono::duration<float> delta_time_duration = now - last_frame_time;
+
+	float delta_time;
+	if (!is_first_frame) {
+		std::chrono::duration<float> delta_time_duration = now - last_frame_time;
+		delta_time = delta_time_duration.count();
+	}
+	else {
+		delta_time = 0.0f;
+		is_first_frame = false;
+	}
+
+	last_frame_time = now;
+
+	//
+
 	os::Surface* s = window->surface();
 	const gfx::Rect rc = s->bounds();
 
@@ -123,15 +175,34 @@ void gui::redraw_window(os::Window* window) {
 	paint.color(gfx::rgba(0, 0, 0, 255));
 	s->drawRect(rc, paint);
 
+	{
+		// debug
+		static int x = 0;
+		static bool right = true;
+		if (right)
+			x++;
+		else
+			x--;
+		os::Paint paint;
+		paint.color(gfx::rgba(255, 0, 0, 50));
+		s->drawRect(gfx::Rect(x, 100, 30, 30), paint);
+
+		if (right) {
+			if (x > rc.x2())
+				right = false;
+		}
+		else {
+			if (x < 0)
+				right = true;
+		}
+	}
+
 	// text
 	int text_y = 0;
 
 	auto draw_str_temp = [&text_y, &s, &rc](std::string text, gfx::Color colour = gfx::rgba(255, 255, 255, 255)) {
-		os::Paint paint;
-		paint.color(colour);
-
 		gfx::Point pos(rc.center().x, pad_y + text_y);
-		draw_text(s, paint, pos, text, os::TextAlign::Center);
+		draw_text(s, colour, pos, text, os::TextAlign::Center);
 
 		text_y += font_height + spacing;
 	};
@@ -142,7 +213,8 @@ void gui::redraw_window(os::Window* window) {
 
 	gfx::Rect drop_zone = rc;
 
-	int fill_shade = windowData.dragging ? 30 : 10;
+	static float fill_shade = 10.f;
+	fill_shade = std::lerp(fill_shade, windowData.dragging ? 30.f : 10.f, 25.f * delta_time);
 	paint.color(gfx::rgba(255, 255, 255, fill_shade));
 	s->drawRect(drop_zone, paint);
 
@@ -155,12 +227,13 @@ void gui::redraw_window(os::Window* window) {
 
 	const int blur_stroke_width = 1;
 	const float blur_start_shade = 50;
+	const float blur_screen_percent = 0.8f;
 
 	paint.style(os::Paint::Style::Stroke);
 	paint.strokeWidth(blur_stroke_width);
 
 	gfx::Rect blur_drop_zone = drop_zone;
-	const int blur_steps = (std::min(rc.w, rc.h) / 2.f / blur_stroke_width);
+	const int blur_steps = (std::min(rc.w, rc.h) / 2.f / blur_stroke_width) * blur_screen_percent;
 
 	for (int i = 0; i < blur_steps; i++) {
 		blur_drop_zone.shrink(blur_stroke_width);
@@ -172,7 +245,12 @@ void gui::redraw_window(os::Window* window) {
 		s->drawRect(blur_drop_zone, paint);
 	}
 
-	draw_text(s, text_paint, drop_zone.center(), "drop a file...", os::TextAlign::Center);
+	static float text_alpha = 0.f;
+	static float text_offset = 0.f;
+	static const float text_animation_speed = 20.f;
+	text_alpha = std::lerp(text_alpha, rendering.queue.empty() ? 1.f : 0.f, text_animation_speed * delta_time);
+	text_offset = std::lerp(text_offset, rendering.queue.empty() ? 0.f : -10.f, text_animation_speed * delta_time);
+	draw_text(s, gfx::rgba(255, 255, 255, text_alpha * 255), drop_zone.center() + gfx::Point(0, text_offset), "drop a file...", os::TextAlign::Center);
 
 	if (!rendering.queue.empty()) {
 		for (const auto [i, render] : helpers::enumerate(rendering.queue)) {
@@ -213,18 +291,7 @@ void gui::run() {
 	system->finishLaunching();
 	system->activateApp();
 
-	os::EventQueue* queue = system->eventQueue();
-	os::Event ev;
+	event_queue = system->eventQueue();
 
-	while (true) {
-		if (queue_redraw) {
-			redraw_window(window.get());
-			queue_redraw = false;
-		}
-
-		queue->getEvent(ev); // NOTE: blocking
-
-		if (!processEvent(ev))
-			break;
-	}
+	event_loop();
 }

@@ -124,12 +124,13 @@ bool c_render::remove_temp_path() {
 c_render::s_render_commands c_render::build_render_commands() {
 	s_render_commands commands;
 
-	commands.vspipe_path = L"vspipe";
-	commands.ffmpeg_path = L"ffmpeg";
-
 	if (blur.used_installer) {
 		commands.vspipe_path = (blur.path / "lib\\vapoursynth\\vspipe.exe").wstring();
 		commands.ffmpeg_path = (blur.path / "lib\\ffmpeg\\ffmpeg.exe").wstring();
+	}
+	else {
+		commands.vspipe_path = blur.vspipe_path.wstring();
+		commands.ffmpeg_path = blur.ffmpeg_path.wstring();
 	}
 
 	std::wstring path_string = video_path.wstring();

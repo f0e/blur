@@ -1,22 +1,24 @@
 #include "blur.h"
+#include "common/helpers.h"
 
 bool c_blur::initialise(bool _verbose, bool _using_preview) {
 	path = std::filesystem::path(helpers::get_executable_path()).parent_path(); // folder the exe is in
 	used_installer = std::filesystem::exists(path / "lib\\vapoursynth\\vspipe.exe") && std::filesystem::exists(path / "lib\\ffmpeg\\ffmpeg.exe");
 
 	if (!used_installer) {
-		// didn't use installer, check if dependencies were installed
-		if (!helpers::detect_program("ffmpeg")) {
+		// didn't use installer, check if dependencies are installed
+		if (auto _ffmpeg_path = helpers::get_program_path("ffmpeg")) {
+			ffmpeg_path = *_ffmpeg_path;
+		}
+		else {
 			printf("FFmpeg could not be found\n");
 			return false;
 		}
 
-		if (!helpers::detect_program("python")) {
-			printf("Python could not be found\n");
-			return false;
+		if (auto _vspipe_path = helpers::get_program_path("vspipe")) {
+			vspipe_path = *_vspipe_path;
 		}
-
-		if (!helpers::detect_program("vspipe")) {
+		else {
 			printf("VapourSynth could not be found\n");
 			return false;
 		}

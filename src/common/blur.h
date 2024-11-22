@@ -12,6 +12,9 @@ public:
 	std::filesystem::path path;
 	bool used_installer = false;
 
+	std::filesystem::path ffmpeg_path;
+	std::filesystem::path vspipe_path;
+
 	std::unordered_set<std::filesystem::path> created_temp_paths; // atexit cant take params -_-
 
 public:

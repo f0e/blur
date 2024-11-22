@@ -9,6 +9,11 @@ namespace gui {
 		void drop(os::DragEvent& ev) override;
 	};
 
+	class Message {};
+
+	typedef std::list<Message*> Messages;
+	static Messages msg_queue;
+
 	struct WindowData {
 		bool dragging = false;
 		gfx::Point dragPosition;
@@ -21,5 +26,7 @@ namespace gui {
 	inline bool queue_redraw = false;
 
 	void redraw_window(os::Window* window);
+	void generate_messages_from_os_events();
+	void event_loop();
 	void run();
 }

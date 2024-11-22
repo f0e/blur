@@ -57,17 +57,18 @@ int helpers::exec(std::wstring command, std::wstring run_dir) {
 	return 0;
 }
 
-bool helpers::detect_program(const std::string& program_name) {
-    namespace bp = boost::process;
-    namespace fs = boost::filesystem;
-    
-    try {
-        // search_path will throw an exception if the program is not found
-        fs::path program_path = bp::search_path(program_name);
-        return !program_path.empty();
-    } catch (const boost::process::process_error&) {
-        return false;
-    }
+std::optional<std::filesystem::path> helpers::get_program_path(const std::string& program_name) {
+	namespace bp = boost::process;
+	namespace fs = boost::filesystem;
+
+	try {
+		// search_path will throw an exception if the program is not found
+		fs::path program_path = bp::search_path(program_name);
+		return std::filesystem::path(program_path.string());
+	}
+	catch (const boost::process::process_error&) {
+		return {};
+	}
 }
 
 std::string helpers::get_executable_path() {
