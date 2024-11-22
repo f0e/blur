@@ -131,6 +131,47 @@ void gui::event_loop() {
 	}
 }
 
+gfx::Rect calculatePaddedRectWithAspectRatio(
+	const gfx::Rect& outer_rect,
+	int pad_left,
+	int pad_top,
+	int pad_right,
+	int pad_bottom,
+	float aspect_ratio,
+	bool center_vertically = true
+) {
+	gfx::Rect padded_rect = outer_rect;
+
+	// Apply padding
+	padded_rect.x += pad_left;
+	padded_rect.y += pad_top;
+	padded_rect.w -= (pad_left + pad_right);
+	padded_rect.h -= (pad_top + pad_bottom);
+
+	// Calculate dimensions while maintaining the aspect ratio
+	float target_width = padded_rect.h * aspect_ratio;
+	float target_height = padded_rect.w / aspect_ratio;
+
+	if (target_width <= padded_rect.w) {
+		// Adjust width to maintain aspect ratio
+		padded_rect.w = static_cast<int>(target_width);
+	}
+	else {
+		// Adjust height to maintain aspect ratio
+		padded_rect.h = static_cast<int>(target_height);
+	}
+
+	// Center horizontally
+	padded_rect.x += (outer_rect.w - padded_rect.w - pad_left - pad_right) / 2;
+
+	// Optionally center vertically
+	if (center_vertically) {
+		padded_rect.y += (outer_rect.h - padded_rect.h - pad_top - pad_bottom) / 2;
+	}
+
+	return padded_rect;
+}
+
 void draw_text(os::Surface* s, const gfx::Color colour, gfx::Point pos, std::string text, os::TextAlign textAlign) {
 	// todo: is creating a new paint instance every time significant to perf? shouldnt be
 	os::Paint paint;
@@ -265,21 +306,17 @@ void gui::redraw_window(os::Window* window) {
 			if (current) {
 				auto render_status = render->get_status();
 
-				os::SurfaceRef img_surface = os::instance()->loadRgbaSurface(render->get_preview_path().c_str());
+				os::SurfaceRef img_surface = os::instance()->loadRgbaSurface(render->get_preview_path().c_str()); // todo: dont re-load (or re-render at all) if image hasnt changed
 				if (img_surface) {
-					gfx::Rect preview_rect = rc;
-					preview_rect.y += pad_y + preview_gap;
-					preview_rect.h = rc.h - preview_rect.y - pad_y;
-					preview_rect.w = preview_rect.h * (img_surface->width() / (float)img_surface->height());
+					int pad_left = pad_x;
+					int pad_top = pad_y + preview_gap;
+					int pad_right = pad_x;
+					int pad_bottom = pad_y;
+					float aspect_ratio = img_surface->width() / static_cast<float>(img_surface->height());
 
-					// limit width
-					int max_w = rc.w - pad_x * 2;
-					if (preview_rect.w > max_w) {
-						preview_rect.w = max_w;
-						preview_rect.h = preview_rect.w * (img_surface->height() / (float)img_surface->width());
-					}
-
-					preview_rect.x = rc.center().x - preview_rect.w / 2;
+					gfx::Rect preview_rect = calculatePaddedRectWithAspectRatio(
+						rc, pad_left, pad_top, pad_right, pad_bottom, aspect_ratio
+					);
 
 					s->drawSurface(img_surface.get(), img_surface->bounds(), preview_rect);
 
