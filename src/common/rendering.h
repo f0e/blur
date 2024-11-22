@@ -39,7 +39,7 @@ private:
 	struct s_render_commands {
 		std::wstring vspipe_path;
 		std::vector<std::wstring> vspipe;
-		
+
 		std::wstring ffmpeg_path;
 		std::vector<std::wstring> ffmpeg;
 	};
@@ -71,6 +71,10 @@ public:
 
 	s_render_status get_status() {
 		return status;
+	}
+
+	std::filesystem::path get_preview_path() {
+		return preview_path;
 	}
 };
 

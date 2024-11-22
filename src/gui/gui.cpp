@@ -12,6 +12,10 @@ const int spacing = 8;
 const int pad_x = 24;
 const int pad_y = 35;
 
+const int preview_gap = font_height + 50;
+const int preview_width = 300;
+const int preview_stroke_width = 1;
+
 bool closing = false;
 
 SkFont font;
@@ -198,10 +202,10 @@ void gui::redraw_window(os::Window* window) {
 	}
 
 	// text
-	int text_y = 0;
+	int text_y = pad_y;
 
 	auto draw_str_temp = [&text_y, &s, &rc](std::string text, gfx::Color colour = gfx::rgba(255, 255, 255, 255)) {
-		gfx::Point pos(rc.center().x, pad_y + text_y);
+		gfx::Point pos(rc.center().x, text_y);
 		draw_text(s, colour, pos, text, os::TextAlign::Center);
 
 		text_y += font_height + spacing;
@@ -245,7 +249,7 @@ void gui::redraw_window(os::Window* window) {
 		s->drawRect(blur_drop_zone, paint);
 	}
 
-	static float text_alpha = 0.f;
+	static float text_alpha = 1.f;
 	static float text_offset = 0.f;
 	static const float text_animation_speed = 20.f;
 	text_alpha = std::lerp(text_alpha, rendering.queue.empty() ? 1.f : 0.f, text_animation_speed * delta_time);
@@ -260,6 +264,33 @@ void gui::redraw_window(os::Window* window) {
 
 			if (current) {
 				auto render_status = render->get_status();
+
+				os::SurfaceRef img_surface = os::instance()->loadRgbaSurface(render->get_preview_path().c_str());
+				if (img_surface) {
+					gfx::Rect preview_rect = rc;
+					preview_rect.y += pad_y + preview_gap;
+					preview_rect.h = rc.h - preview_rect.y - pad_y;
+					preview_rect.w = preview_rect.h * (img_surface->width() / (float)img_surface->height());
+
+					// limit width
+					int max_w = rc.w - pad_x * 2;
+					if (preview_rect.w > max_w) {
+						preview_rect.w = max_w;
+						preview_rect.h = preview_rect.w * (img_surface->height() / (float)img_surface->width());
+					}
+
+					preview_rect.x = rc.center().x - preview_rect.w / 2;
+
+					s->drawSurface(img_surface.get(), img_surface->bounds(), preview_rect);
+
+					if (preview_stroke_width > 0) {
+						os::Paint stroke_paint;
+						stroke_paint.style(os::Paint::Style::Stroke);
+						stroke_paint.color(gfx::rgba(255, 255, 255, 200));
+						stroke_paint.strokeWidth(preview_stroke_width);
+						s->drawRect(preview_rect.enlarge(1), stroke_paint);
+					}
+				}
 
 				if (render_status.init) {
 					draw_str_temp(render_status.progress_string);

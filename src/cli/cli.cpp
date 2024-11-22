@@ -77,8 +77,6 @@ bool cli::run(
 	// render videos
 	rendering.render_videos();
 
-	// preview.stop();
-
 	std::wcout << L"Finished rendering" << std::endl;
 
 	return true;

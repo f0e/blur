@@ -354,13 +354,12 @@ void c_render::render() {
 		printf("Rendered at %.2f speed with crf %d\n", settings.output_timescale, settings.quality);
 	}
 
-	// // start preview
-	// if (settings.preview && blur.using_preview) {
-	// 	if (create_temp_path()) {
-	// 		preview_path = temp_path / "blur_preview.jpg";
-	// 		preview.start(preview_path);
-	// 	}
-	// }
+	// start preview
+	if (settings.preview && blur.using_preview) {
+		if (create_temp_path()) {
+			preview_path = temp_path / "blur_preview.jpg";
+		}
+	}
 
 	// render
 	s_render_commands render_commands = build_render_commands();
@@ -374,9 +373,8 @@ void c_render::render() {
 		wprintf(L"Failed to render '%s'\n", video_name.c_str());
 	}
 
-	// // stop preview
-	// preview.disable();
-	// remove_temp_path();
+	// stop preview
+	remove_temp_path();
 }
 
 void c_rendering::stop_rendering() {

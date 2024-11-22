@@ -2,7 +2,7 @@
 #include "gui.h"
 
 void tasks::run() {
-	blur.initialise(false, false);
+	blur.initialise(false, true);
 
 	rendering.progress_callback = [] {
 		gui::queue_redraw = true;
