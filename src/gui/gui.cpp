@@ -1,20 +1,19 @@
 #include "gui.h"
 #include "gfx/color.h"
 #include "gfx/rgb.h"
+#include "gui/ui/render.h"
+#include "os/draw_text.h"
 #include "tasks.h"
-#include "gui_helpers.h"
 #include "easing.h"
+
+#include "ui/ui.h"
+#include "ui/utils.h"
 
 #include "resources/font.h"
 
 const int font_height = 14;
-const int spacing = 8;
 const int pad_x = 24;
 const int pad_y = 35;
-
-const int preview_gap = font_height + 50;
-const int preview_width = 300;
-const int preview_stroke_width = 1;
 
 bool closing = false;
 
@@ -131,67 +130,6 @@ void gui::event_loop() {
 	}
 }
 
-gfx::Rect calculatePaddedRectWithAspectRatio(
-	const gfx::Rect& outer_rect,
-	int pad_left,
-	int pad_top,
-	int pad_right,
-	int pad_bottom,
-	float aspect_ratio,
-	bool center_vertically = true
-) {
-	gfx::Rect padded_rect = outer_rect;
-
-	// Apply padding
-	padded_rect.x += pad_left;
-	padded_rect.y += pad_top;
-	padded_rect.w -= (pad_left + pad_right);
-	padded_rect.h -= (pad_top + pad_bottom);
-
-	// Calculate dimensions while maintaining the aspect ratio
-	float target_width = padded_rect.h * aspect_ratio;
-	float target_height = padded_rect.w / aspect_ratio;
-
-	if (target_width <= padded_rect.w) {
-		// Adjust width to maintain aspect ratio
-		padded_rect.w = static_cast<int>(target_width);
-	}
-	else {
-		// Adjust height to maintain aspect ratio
-		padded_rect.h = static_cast<int>(target_height);
-	}
-
-	// Center horizontally
-	padded_rect.x += (outer_rect.w - padded_rect.w - pad_left - pad_right) / 2;
-
-	// Optionally center vertically
-	if (center_vertically) {
-		padded_rect.y += (outer_rect.h - padded_rect.h - pad_top - pad_bottom) / 2;
-	}
-
-	return padded_rect;
-}
-
-void draw_text(os::Surface* s, const gfx::Color colour, gfx::Point pos, std::string text, os::TextAlign textAlign) {
-	// todo: is creating a new paint instance every time significant to perf? shouldnt be
-	os::Paint paint;
-	paint.color(colour);
-
-	// todo: clip string
-	// os::draw_text font broken with skia bruh
-	SkTextUtils::Draw(
-		&static_cast<os::SkiaSurface*>(s)->canvas(),
-		text.c_str(),
-		text.size(),
-		SkTextEncoding::kUTF8,
-		SkIntToScalar(pos.x),
-		SkIntToScalar(pos.y),
-		font,
-		paint.skPaint(),
-		(SkTextUtils::Align)textAlign
-	);
-}
-
 void gui::redraw_window(os::Window* window) {
 	static bool is_first_frame = true;
 	auto now = std::chrono::high_resolution_clock::now();
@@ -225,36 +163,34 @@ void gui::redraw_window(os::Window* window) {
 
 	{
 		// debug
-		static float x = 0;
+		static const int debug_box_size = 30;
+		static float x = 0.f, y = 0.f;
 		static bool right = true;
+		static bool down = true;
 		x += 500.f * delta_time * (right ? 1 : -1);
+		y += 500.f * delta_time * (down ? 1 : -1);
 		os::Paint paint;
 		paint.color(gfx::rgba(255, 0, 0, 50));
-		s->drawRect(gfx::Rect(x, 100, 30, 30), paint);
+		s->drawRect(gfx::Rect(x, y, debug_box_size, debug_box_size), paint);
 
 		if (right) {
-			if (x > rc.x2())
+			if (x + debug_box_size > rc.x2())
 				right = false;
 		}
 		else {
 			if (x < 0)
 				right = true;
 		}
+
+		if (down) {
+			if (y + debug_box_size > rc.y2())
+				down = false;
+		}
+		else {
+			if (y < 0)
+				down = true;
+		}
 	}
-
-	// text
-	int text_y = pad_y;
-
-	auto draw_str_temp = [&text_y, &s, &rc](std::string text, gfx::Color colour = gfx::rgba(255, 255, 255, 255)) {
-		gfx::Point pos(rc.center().x, text_y);
-		draw_text(s, colour, pos, text, os::TextAlign::Center);
-
-		text_y += font_height + spacing;
-	};
-
-	auto draw_wstr_temp = [&draw_str_temp](std::wstring text, gfx::Color colour = gfx::rgba(255, 255, 255, 255)) {
-		draw_str_temp(base::to_utf8(text), colour);
-	};
 
 	gfx::Rect drop_zone = rc;
 
@@ -270,74 +206,65 @@ void gui::redraw_window(os::Window* window) {
 	// paint.strokeWidth(stroke_width);
 	// s->drawRect(drop_zone, paint);
 
-	const int blur_stroke_width = 1;
-	const float blur_start_shade = 50;
-	const float blur_screen_percent = 0.8f;
+	// const int blur_stroke_width = 1;
+	// const float blur_start_shade = 50;
+	// const float blur_screen_percent = 0.8f;
 
-	paint.style(os::Paint::Style::Stroke);
-	paint.strokeWidth(blur_stroke_width);
+	// paint.style(os::Paint::Style::Stroke);
+	// paint.strokeWidth(blur_stroke_width);
 
-	gfx::Rect blur_drop_zone = drop_zone;
-	const int blur_steps = (std::min(rc.w, rc.h) / 2.f / blur_stroke_width) * blur_screen_percent;
+	// gfx::Rect blur_drop_zone = drop_zone;
+	// const int blur_steps = (std::min(rc.w, rc.h) / 2.f / blur_stroke_width) * blur_screen_percent;
 
-	for (int i = 0; i < blur_steps; i++) {
-		blur_drop_zone.shrink(blur_stroke_width);
-		int shade = std::lerp(blur_start_shade, 0, ease_out_quart(i / (float)blur_steps));
-		if (shade <= 0)
-			break;
+	// for (int i = 0; i < blur_steps; i++) {
+	// 	blur_drop_zone.shrink(blur_stroke_width);
+	// 	int shade = std::lerp(blur_start_shade, 0, ease_out_quart(i / (float)blur_steps));
+	// 	if (shade <= 0)
+	// 		break;
 
-		paint.color(gfx::rgba(255, 255, 255, shade));
-		s->drawRect(blur_drop_zone, paint);
+	// 	paint.color(gfx::rgba(255, 255, 255, shade));
+	// 	s->drawRect(blur_drop_zone, paint);
+	// }
+
+	gfx::Rect container_rect = rc;
+	container_rect.x += pad_x;
+	container_rect.w -= pad_x * 2;
+	container_rect.y += pad_y;
+	container_rect.h -= pad_y * 2;
+
+	auto container = ui::create_container(container_rect);
+
+	if (rendering.queue.empty()) {
+		ui::add_text(container, "Drop a file...", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
 	}
-
-	static float text_alpha = 1.f;
-	static float text_offset = 0.f;
-	static const float text_animation_speed = 20.f;
-	text_alpha = std::lerp(text_alpha, rendering.queue.empty() ? 1.f : 0.f, text_animation_speed * delta_time);
-	text_offset = std::lerp(text_offset, rendering.queue.empty() ? 0.f : -10.f, text_animation_speed * delta_time);
-	draw_text(s, gfx::rgba(255, 255, 255, text_alpha * 255), drop_zone.center() + gfx::Point(0, text_offset), "drop a file...", os::TextAlign::Center);
-
-	if (!rendering.queue.empty()) {
+	else {
 		for (const auto [i, render] : helpers::enumerate(rendering.queue)) {
 			bool current = render == rendering.current_render;
 
-			draw_wstr_temp(render->get_video_name(), gfx::rgba(255, 255, 255, (current ? 255 : 100)));
+			ui::add_text(container, base::to_utf8(render->get_video_name()), gfx::rgba(255, 255, 255, (current ? 255 : 100)), font, os::TextAlign::Center);
 
 			if (current) {
 				auto render_status = render->get_status();
 
-				os::SurfaceRef img_surface = os::instance()->loadRgbaSurface(render->get_preview_path().c_str()); // todo: dont re-load (or re-render at all) if image hasnt changed
-				if (img_surface) {
-					int pad_left = pad_x;
-					int pad_top = pad_y + preview_gap;
-					int pad_right = pad_x;
-					int pad_bottom = pad_y;
-					float aspect_ratio = img_surface->width() / static_cast<float>(img_surface->height());
-
-					gfx::Rect preview_rect = calculatePaddedRectWithAspectRatio(
-						rc, pad_left, pad_top, pad_right, pad_bottom, aspect_ratio
-					);
-
-					s->drawSurface(img_surface.get(), img_surface->bounds(), preview_rect);
-
-					if (preview_stroke_width > 0) {
-						os::Paint stroke_paint;
-						stroke_paint.style(os::Paint::Style::Stroke);
-						stroke_paint.color(gfx::rgba(255, 255, 255, 200));
-						stroke_paint.strokeWidth(preview_stroke_width);
-						s->drawRect(preview_rect.enlarge(1), stroke_paint);
-					}
+				std::string preview_path = render->get_preview_path().string();
+				if (preview_path != "") {
+					ui::add_image(container, preview_path, gfx::Size(container_rect.w, 200));
 				}
 
 				if (render_status.init) {
-					draw_str_temp(render_status.progress_string);
+					ui::add_text(container, render_status.progress_string, gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
+					ui::add_bar(container, render_status.current_frame / (float)render_status.total_frames, gfx::rgba(51, 51, 51, 255), gfx::rgba(255, 255, 255, 255));
 				}
 				else {
-					draw_str_temp("initialising render...");
+					ui::add_text(container, "initialising render...", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
 				}
 			}
 		}
 	}
+
+	ui::center_elements_in_container(container);
+
+	ui::render_container(s, container, 1.0f);
 
 	if (!window->isVisible())
 		window->setVisible(true);
@@ -348,7 +275,7 @@ void gui::redraw_window(os::Window* window) {
 void gui::run() {
 	auto system = os::make_system();
 
-	font = gui_helpers::create_font_from_data(ttf_FiraCode_Regular, ttf_FiraCode_Regular_len, font_height);
+	font = utils::create_font_from_data(ttf_FiraCode_Regular, ttf_FiraCode_Regular_len, font_height);
 
 	system->setAppMode(os::AppMode::GUI);
 	system->handleWindowResize = redraw_window;

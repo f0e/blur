@@ -1,6 +1,6 @@
-#include "gui_helpers.h"
+#include "utils.h"
 
-SkFont gui_helpers::create_font_from_data(const unsigned char* font_data, size_t data_size, float font_height) {
+SkFont utils::create_font_from_data(const unsigned char* font_data, size_t data_size, float font_height) {
 	sk_sp<SkData> skData = SkData::MakeWithCopy(font_data, data_size);
 
 	// Create a typeface from SkData
