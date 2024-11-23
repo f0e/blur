@@ -96,12 +96,17 @@ bool processEvent(const os::Event& ev) {
 void gui::generate_messages_from_os_events() { // https://github.com/aseprite/aseprite/blob/45c2a5950445c884f5d732edc02989c3fb6ab1a6/src/ui/manager.cpp#L393
 	assert(event_queue);
 
-	os::Event lastMouseMoveEvent;
+	static float timeout = 1.f / 60;
 
-	auto screen_handle = window->screen()->nativeHandle();
-	double rate = utils::get_display_refresh_rate(screen_handle);
+	void* screen_handle = window->screen()->nativeHandle();
+	static void* last_screen_handle = nullptr;
 
-	double timeout = 1.f / (rate + rendering_fps_pad);
+	if (screen_handle != last_screen_handle) {
+		double rate = utils::get_display_refresh_rate(screen_handle);
+		timeout = 1.f / (rate + rendering_fps_pad);
+		printf("switched screen, updated timeout. refresh rate: %.2f hz\n", rate);
+		last_screen_handle = screen_handle;
+	}
 
 	os::Event event;
 	while (true) {
