@@ -15,7 +15,6 @@ const int font_height = 14;
 const int pad_x = 24;
 const int pad_y = 35;
 
-const int rendering_fps_pad = 50;
 const float fps_smoothing = 0.95f;
 
 bool closing = false;
@@ -96,17 +95,7 @@ bool processEvent(const os::Event& ev) {
 void gui::generate_messages_from_os_events() { // https://github.com/aseprite/aseprite/blob/45c2a5950445c884f5d732edc02989c3fb6ab1a6/src/ui/manager.cpp#L393
 	assert(event_queue);
 
-	static float timeout = 1.f / 60;
-
-	void* screen_handle = window->screen()->nativeHandle();
-	static void* last_screen_handle = nullptr;
-
-	if (screen_handle != last_screen_handle) {
-		double rate = utils::get_display_refresh_rate(screen_handle);
-		timeout = 1.f / (rate + rendering_fps_pad);
-		printf("switched screen, updated timeout. refresh rate: %.2f hz\n", rate);
-		last_screen_handle = screen_handle;
-	}
+	float timeout = 0.f;
 
 	os::Event event;
 	while (true) {
@@ -133,20 +122,40 @@ void gui::event_loop() {
 }
 
 void gui::redraw_window(os::Window* window) {
-	auto now = std::chrono::high_resolution_clock::now();
+	// -- time & vsync
 
+	auto now = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float> delta_time_duration = now - last_frame_time;
 
 	float delta_time;
 	delta_time = delta_time_duration.count();
 
+	static float timeout = 1.f / 60;
+
+	void* screen_handle = window->screen()->nativeHandle();
+	static void* last_screen_handle = nullptr;
+
+	if (screen_handle != last_screen_handle) {
+		double rate = utils::get_display_refresh_rate(screen_handle);
+		timeout = 1.f / rate;
+		printf("switched screen, updated timeout. refresh rate: %.2f hz\n", rate);
+		last_screen_handle = screen_handle;
+	}
+
+	if (delta_time < timeout) {
+		// vsync
+		return;
+	}
+
+	last_frame_time = now;
+
+	// -- fps calc
+
 	float current_fps = 1.f / delta_time;
 	static float fps = current_fps;
 	fps = (fps * fps_smoothing) + (current_fps * (1.0f - fps_smoothing));
 
-	last_frame_time = now;
-
-	//
+	// -- main
 
 	os::Surface* s = window->surface();
 	const gfx::Rect rc = s->bounds();
