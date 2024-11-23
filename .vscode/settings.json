@@ -130,6 +130,7 @@
     "__string": "cpp",
     "__tuple": "cpp",
     "propagate_const": "cpp",
-    "*.inc": "cpp"
+    "*.inc": "cpp",
+    "cuchar": "cpp"
   }
 }

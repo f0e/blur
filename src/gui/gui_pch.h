@@ -14,6 +14,3 @@
 #include "include/core/SkFont.h"
 #include "include/core/SkTypeface.h"
 #include "include/core/SkData.h"
-
-// resources
-#include "../resources/resource.h"

@@ -6,32 +6,51 @@
 const int gap = 15;
 
 void ui::render_bar(os::Surface* surface, const Element* element, float anim) {
+	const int text_gap = 7;
+
 	auto& bar_data = std::get<BarElementData>(element->data);
 
-	int alpha = anim * 255;
-	if (alpha == 0)
-		return;
+	gfx::seta(bar_data.background_color, anim * gfx::geta(bar_data.background_color));
+	gfx::seta(bar_data.fill_color, anim * gfx::geta(bar_data.fill_color));
 
-	render::rounded_rect_filled(surface, element->rect, gfx::seta(bar_data.background_color, alpha), 1000.f);
+	gfx::Size text_size(0, 0);
+
+	if (bar_data.bar_text && bar_data.text_color && bar_data.font) {
+		gfx::seta(*bar_data.text_color, anim * gfx::geta(*bar_data.text_color));
+
+		gfx::Point text_pos = element->rect.origin();
+
+		text_size = render::get_text_size(*bar_data.bar_text, **bar_data.font);
+
+		text_pos.x = element->rect.x2();
+		text_pos.y += (*bar_data.font)->getSize() / 2;
+
+		render::text(surface, text_pos, *bar_data.text_color, *bar_data.bar_text, **bar_data.font, os::TextAlign::Right);
+	}
+
+	gfx::Rect bar_rect = element->rect;
+	bar_rect.w -= text_size.w + text_gap;
+
+	render::rounded_rect_filled(surface, bar_rect, bar_data.background_color, 1000.f);
 
 	if (bar_data.percent_fill > 0) {
-		gfx::Rect fill_rect = element->rect;
-		fill_rect.w = static_cast<int>(element->rect.w * bar_data.percent_fill);
-		render::rounded_rect_filled(surface, fill_rect, gfx::seta(bar_data.fill_color, alpha), 1000.f);
+		gfx::Rect fill_rect = bar_rect;
+		fill_rect.w = static_cast<int>(bar_rect.w * bar_data.percent_fill);
+		render::rounded_rect_filled(surface, fill_rect, bar_data.fill_color, 1000.f);
 	}
 }
 
 void ui::render_text(os::Surface* surface, const Element* element, float anim) {
 	auto& text_data = std::get<TextElementData>(element->data);
 
-	int alpha = anim * 255;
-	if (alpha == 0)
+	gfx::seta(text_data.color, anim * gfx::geta(text_data.color));
+	if (gfx::geta(text_data.color) == 0)
 		return;
 
 	gfx::Point text_pos = element->rect.origin();
 	text_pos.y += text_data.font.getSize() - 1;
 
-	render::text(surface, text_pos, gfx::seta(text_data.color, alpha), text_data.text, text_data.font, text_data.align);
+	render::text(surface, text_pos, text_data.color, text_data.text, text_data.font, text_data.align);
 }
 
 void ui::render_image(os::Surface* surface, const Element* element, float anim) {
@@ -73,57 +92,84 @@ void ui::init_container(Container& container, gfx::Rect rect, std::optional<gfx:
 	container.current_element_ids = {};
 }
 
-void ui::add_element(Container& container, const std::string& id, const Element& element) {
-	container.current_position.y += element.rect.h + gap;
-
-	auto element_ptr = std::make_shared<Element>(element);
+void ui::add_element(Container& container, const std::string& id, std::shared_ptr<Element> element) {
+	container.current_position.y += element->rect.h + gap;
 
 	if (!container.elements.contains(id)) {
 		container.elements[id] = {
-			element_ptr,
+			element,
 		};
 		printf("first added %s\n", id.c_str());
 	}
 	else {
 		auto& container_element = container.elements[id];
-		container_element.element = element_ptr;
+		container_element.element = element;
 	}
 
 	container.current_element_ids.push_back(id);
 }
 
-ui::Element ui::add_bar(const std::string& id, Container& container, float percent_fill, gfx::Color background_color, gfx::Color fill_color, int bar_width) {
-	Element element = {
+std::shared_ptr<ui::Element> ui::add_bar(const std::string& id, Container& container, float percent_fill, gfx::Color background_color, gfx::Color fill_color, int bar_width, std::optional<std::string> bar_text, std::optional<gfx::Color> text_color, std::optional<const SkFont*> font) {
+	auto element = std::make_shared<Element>(
 		ElementType::BAR,
 		gfx::Rect(container.current_position, gfx::Size(bar_width, 6)),
-		BarElementData{ percent_fill, background_color, fill_color },
-		render_bar,
-	};
+		BarElementData{ percent_fill, background_color, fill_color, bar_text, text_color, font },
+		render_bar
+	);
 
 	add_element(container, id, element);
 
 	return element;
 }
 
-ui::Element ui::add_text(const std::string& id, Container& container, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align) {
-	Element element = {
+std::shared_ptr<ui::Element> ui::add_text(const std::string& id, Container& container, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align) {
+	auto element = std::make_shared<Element>(
 		ElementType::TEXT,
 		gfx::Rect(container.current_position, gfx::Size(0, font.getSize())),
 		TextElementData{ text, color, font, align },
-		render_text,
-	};
+		render_text
+	);
 
 	add_element(container, id, element);
 
 	return element;
 }
 
-std::optional<ui::Element> ui::add_image(const std::string& id, Container& container, std::string image_path, gfx::Size max_size) {
-	gfx::Rect image_rect(container.current_position, max_size);
+std::optional<std::shared_ptr<ui::Element>> ui::add_image(const std::string& id, Container& container, std::string image_path, gfx::Size max_size, std::string image_id) {
+	os::SurfaceRef image_surface;
+	os::SurfaceRef last_image_surface;
 
-	os::SurfaceRef image_surface = os::instance()->loadRgbaSurface(image_path.c_str());
-	if (!image_surface)
-		return {};
+	// get existing image
+	if (container.elements.contains(id)) {
+		std::shared_ptr<Element> cached_element = container.elements[id].element;
+		auto& image_data = std::get<ImageElementData>(cached_element->data);
+		if (image_data.image_id == image_id) { // edge cases this might not work, it's using current_frame, maybe image gets written after ffmpeg reports progress? idk. good enough for now
+			image_surface = image_data.image_surface;
+		}
+		else {
+			last_image_surface = image_data.image_surface;
+		}
+	}
+
+	// load image if new
+	if (!image_surface) {
+		image_surface = os::instance()->loadRgbaSurface(image_path.c_str());
+
+		if (!image_surface) {
+			printf("%s failed to load image (id: %s)\n", id.c_str(), image_id.c_str());
+			if (last_image_surface) {
+				// use last image as fallback todo: this is a bit hacky make it better
+				image_surface = last_image_surface;
+			}
+			else {
+				return {};
+			}
+		}
+
+		printf("%s loaded image (id: %s)\n", id.c_str(), image_id.c_str());
+	}
+
+	gfx::Rect image_rect(container.current_position, max_size);
 
 	float aspect_ratio = image_surface->width() / static_cast<float>(image_surface->height());
 
@@ -147,12 +193,12 @@ std::optional<ui::Element> ui::add_image(const std::string& id, Container& conta
 		image_rect.h = static_cast<int>(max_size.w / aspect_ratio);
 	}
 
-	Element element = {
+	auto element = std::make_shared<Element>(
 		ElementType::IMAGE,
 		image_rect,
-		ImageElementData{ image_surface },
-		render_image,
-	};
+		ImageElementData{ image_path, image_surface, image_id },
+		render_image
+	);
 
 	add_element(container, id, element);
 

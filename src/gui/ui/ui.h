@@ -17,6 +17,9 @@ namespace ui {
 		float percent_fill;
 		gfx::Color background_color;
 		gfx::Color fill_color;
+		std::optional<std::string> bar_text;
+		std::optional<gfx::Color> text_color;
+		std::optional<const SkFont*> font;
 	};
 
 	struct TextElementData {
@@ -27,7 +30,9 @@ namespace ui {
 	};
 
 	struct ImageElementData {
+		std::string image_path;
 		os::SurfaceRef image_surface;
+		std::string image_id;
 	};
 
 	using ElementData = std::variant<BarElementData, TextElementData, ImageElementData>;
@@ -77,11 +82,11 @@ namespace ui {
 	void render_image(os::Surface* surface, const Element* element, float anim);
 
 	void init_container(Container& container, gfx::Rect rect, std::optional<gfx::Color> background_color = {});
-	void add_element(Container& container, const std::string& id, const Element& element);
+	void add_element(Container& container, const std::string& id, std::shared_ptr<Element> element);
 
-	Element add_bar(const std::string& id, Container& container, float percent_fill, gfx::Color background_color, gfx::Color fill_color, int bar_width);
-	Element add_text(const std::string& id, Container& container, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align = os::TextAlign::Left);
-	std::optional<Element> add_image(const std::string& id, Container& container, std::string image_path, gfx::Size max_size);
+	std::shared_ptr<Element> add_bar(const std::string& id, Container& container, float percent_fill, gfx::Color background_color, gfx::Color fill_color, int bar_width, std::optional<std::string> bar_text = {}, std::optional<gfx::Color> text_color = {}, std::optional<const SkFont*> font = {});
+	std::shared_ptr<Element> add_text(const std::string& id, Container& container, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align = os::TextAlign::Left);
+	std::optional<std::shared_ptr<Element>> add_image(const std::string& id, Container& container, std::string image_path, gfx::Size max_size, std::string image_id = ""); // use image_id to distinguish images that have the same filename and reload it (e.g. if its updated)
 
 	void center_elements_in_container(Container& container, bool horizontal = true, bool vertical = true);
 	void render_container(os::Surface* surface, Container& container, float delta_time);

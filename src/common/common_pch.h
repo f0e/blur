@@ -42,6 +42,3 @@
 // blur
 #include "blur.h"
 #include "helpers.h"
-
-// resources
-#include "../resources/resource.h"

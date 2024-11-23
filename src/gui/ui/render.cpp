@@ -1,6 +1,5 @@
 #include "render.h"
 #include "include/core/SkPaint.h"
-#include "include/core/SkPoint.h"
 #include "include/core/SkRRect.h"
 #include "os/skia/skia_surface.h"
 
@@ -47,4 +46,20 @@ void render::text(os::Surface* surface, gfx::Point pos, gfx::Color colour, std::
 		paint.skPaint(),
 		(SkTextUtils::Align)align
 	);
+}
+
+gfx::Size render::get_text_size(std::string text, const SkFont& font) {
+	// Skia paint object to calculate text metrics
+	SkPaint paint;
+
+	// Get the width of the text
+	SkScalar textWidth = font.measureText(text.c_str(), text.size(), SkTextEncoding::kUTF8);
+
+	// // Get the text metrics to calculate the height
+	// SkFontMetrics metrics;
+	// font.getMetrics(&metrics);
+	// SkScalar textHeight = metrics.fBottom - metrics.fTop; // Total height of the text (including leading)
+
+	// The result will be a width and height structure
+	return gfx::Size(SkScalarToFloat(textWidth), SkScalarToFloat(font.getSize()));
 }

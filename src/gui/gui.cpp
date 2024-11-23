@@ -1,10 +1,9 @@
 #include "gui.h"
+#include "base/system_console.h"
 #include "gfx/color.h"
-#include "gfx/rgb.h"
 #include "gui/ui/render.h"
 #include "os/draw_text.h"
 #include "tasks.h"
-#include "easing.h"
 
 #include "ui/ui.h"
 #include "ui/utils.h"
@@ -21,8 +20,6 @@ bool closing = false;
 
 SkFont font;
 os::EventQueue* event_queue;
-
-std::chrono::high_resolution_clock::time_point last_frame_time = std::chrono::high_resolution_clock::now();
 
 void gui::DragTarget::dragEnter(os::DragEvent& ev) {
 	// v.dropResult(os::DropOperation::None); // TODO: what does this do? is it needed?
@@ -93,10 +90,6 @@ bool processEvent(const os::Event& ev) {
 }
 
 void gui::generate_messages_from_os_events() { // https://github.com/aseprite/aseprite/blob/45c2a5950445c884f5d732edc02989c3fb6ab1a6/src/ui/manager.cpp#L393
-	assert(event_queue);
-
-	float timeout = 0.f;
-
 	os::Event event;
 	while (true) {
 		// Calculate how much time we can wait for the next message in the
@@ -106,7 +99,7 @@ void gui::generate_messages_from_os_events() { // https://github.com/aseprite/as
 		// 		timeout = os::EventQueue::kWithoutTimeout;
 		// }
 
-		event_queue->getEvent(event, timeout);
+		event_queue->getEvent(event, 0.0);
 		if (event.type() == os::Event::None)
 			break;
 
@@ -114,50 +107,41 @@ void gui::generate_messages_from_os_events() { // https://github.com/aseprite/as
 	}
 }
 
+const float MAX_DELTA_TIME = 1.f / 10;
+float delta_time;
+
 void gui::event_loop() {
+	using namespace std::chrono;
+
+	auto last_frame_time = steady_clock::now();
+
 	while (!closing) {
-		redraw_window(window.get());
+		auto current_time = steady_clock::now();
+		duration<float> elapsed_time = current_time - last_frame_time;
+
+		delta_time = std::min(elapsed_time.count(), MAX_DELTA_TIME);
+
+		last_frame_time = current_time;
+
 		generate_messages_from_os_events();
+		redraw_window(window.get());
+
+		std::this_thread::sleep_for(1ms);
 	}
 }
 
 void gui::redraw_window(os::Window* window) {
-	// -- time & vsync
+	static float fps = -1.f;
 
-	auto now = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<float> delta_time_duration = now - last_frame_time;
-
-	float raw_delta_time;
-	raw_delta_time = delta_time_duration.count();
-
-	static float timeout = 1.f / 60;
-
-	void* screen_handle = window->screen()->nativeHandle();
-	static void* last_screen_handle = nullptr;
-
-	if (screen_handle != last_screen_handle) {
-		double rate = utils::get_display_refresh_rate(screen_handle);
-		timeout = 1.f / rate;
-		printf("switched screen, updated timeout. refresh rate: %.2f hz\n", rate);
-		last_screen_handle = screen_handle;
+	if (delta_time <= FLT_EPSILON) {
+		delta_time = MAX_DELTA_TIME;
 	}
-
-	if (raw_delta_time < timeout) {
-		// vsync
-		return;
+	else {
+		float current_fps = 1.f / delta_time;
+		if (fps == -1.f)
+			fps = current_fps;
+		fps = (fps * fps_smoothing) + (current_fps * (1.0f - fps_smoothing));
 	}
-
-	last_frame_time = now;
-
-	// -- fps calc
-
-	float current_fps = 1.f / raw_delta_time;
-	static float fps = current_fps;
-	fps = (fps * fps_smoothing) + (current_fps * (1.0f - fps_smoothing));
-
-	// -- main
-
-	float delta_time = std::min(raw_delta_time, 1.f / 30); // cap at 30fps to prevent stutters breaking animations
 
 	os::Surface* s = window->surface();
 	const gfx::Rect rc = s->bounds();
@@ -176,8 +160,8 @@ void gui::redraw_window(os::Window* window) {
 		static float x = rc.x2() - debug_box_size, y = 100.f;
 		static bool right = false;
 		static bool down = true;
-		x += 500.f * delta_time * (right ? 1 : -1);
-		y += 500.f * delta_time * (down ? 1 : -1);
+		x += 1.f * (right ? 1 : -1);
+		y += 1.f * (down ? 1 : -1);
 		os::Paint paint;
 		paint.color(gfx::rgba(255, 0, 0, 50));
 		s->drawRect(gfx::Rect(x, y, debug_box_size, debug_box_size), paint);
@@ -261,18 +245,20 @@ void gui::redraw_window(os::Window* window) {
 				int bar_width = 300;
 
 				std::string preview_path = render->get_preview_path().string();
-				if (!preview_path.empty()) {
-					auto element = ui::add_image("preview image", container, preview_path, gfx::Size(container_rect.w, 200));
+				if (!preview_path.empty() && render_status.current_frame > 0) {
+					auto element = ui::add_image("preview image", container, preview_path, gfx::Size(container_rect.w, 200), std::to_string(render_status.current_frame));
 					if (element) {
-						bar_width = element->rect.w;
+						bar_width = (*element)->rect.w;
 					}
 				}
 
 				if (render_status.init) {
-					bar_percent = std::lerp(bar_percent, render_status.current_frame / (float)render_status.total_frames, 25.f * delta_time);
+					float render_progress = render_status.current_frame / (float)render_status.total_frames;
+					bar_percent = std::lerp(bar_percent, render_progress, 25.f * delta_time);
 
-					ui::add_bar("progress bar", container, bar_percent, gfx::rgba(51, 51, 51, 255), gfx::rgba(255, 255, 255, 255), bar_width);
-					ui::add_text("progress text", container, render_status.progress_string, gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
+					ui::add_bar("progress bar", container, bar_percent, gfx::rgba(51, 51, 51, 255), gfx::rgba(255, 255, 255, 255), bar_width, fmt::format("{:.1f}%", render_progress * 100), gfx::rgba(255, 255, 255, 255), &font);
+					ui::add_text("progress text", container, fmt::format("frame {} out of {}", render_status.current_frame, render_status.total_frames), gfx::rgba(255, 255, 255, 155), font, os::TextAlign::Center);
+					ui::add_text("progress text 2", container, fmt::format("{:.2f} frames per second", render_status.fps), gfx::rgba(255, 255, 255, 155), font, os::TextAlign::Center);
 				}
 				else {
 					ui::add_text("initialising render text", container, "Initialising render...", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
@@ -291,11 +277,13 @@ void gui::redraw_window(os::Window* window) {
 
 	ui::render_container(s, container, delta_time);
 
-	gfx::Point fps_pos(
-		rc.x2() - pad_x,
-		rc.y + pad_y
-	);
-	render::text(s, fps_pos, gfx::rgba(0, 255, 0, 255), fmt::format("{:.0f} fps", fps), font, os::TextAlign::Right);
+	if (fps != -1.f) {
+		gfx::Point fps_pos(
+			rc.x2() - pad_x,
+			rc.y + pad_y
+		);
+		render::text(s, fps_pos, gfx::rgba(0, 255, 0, 255), fmt::format("{:.0f} fps", fps), font, os::TextAlign::Right);
+	}
 
 	if (!window->isVisible())
 		window->setVisible(true);
@@ -316,6 +304,9 @@ void gui::run() {
 
 	system->finishLaunching();
 	system->activateApp();
+
+	base::SystemConsole systemConsole;
+	systemConsole.prepareShell();
 
 	event_queue = system->eventQueue();
 

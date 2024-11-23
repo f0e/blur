@@ -9,12 +9,13 @@
 struct s_render_status {
 	bool finished = false;
 	bool init = false;
-	bool first = true;
 	int current_frame;
 	int total_frames;
 	std::chrono::steady_clock::time_point start_time;
+	std::chrono::duration<double> elapsed_time;
+	float fps;
 
-	void update_progress_string();
+	void update_progress_string(bool first);
 	std::string progress_string;
 };
 

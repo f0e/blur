@@ -288,16 +288,23 @@ bool c_render::do_render(s_render_commands render_commands) {
 						status.current_frame = std::stoi(match[1]);
 						status.total_frames = std::stoi(match[2]);
 
-						if (!status.init)
+						bool first = !status.init;
+
+						if (!status.init) {
 							status.init = true;
-
-						status.update_progress_string();
-						std::cout << status.progress_string << "\n";
-
-						if (status.first) {
-							status.first = false;
-							status.start_time = std::chrono::steady_clock::now();
 						}
+						else {
+							auto current_time = std::chrono::steady_clock::now();
+							status.elapsed_time = current_time - status.start_time;
+
+							status.fps = status.current_frame / status.elapsed_time.count();
+						}
+
+						status.start_time = std::chrono::steady_clock::now();
+
+						status.update_progress_string(first);
+
+						std::cout << status.progress_string << "\n";
 
 						rendering.run_callbacks();
 					}
@@ -388,24 +395,13 @@ void c_rendering::stop_rendering() {
 	// 	SendMessage(hwnd, WM_CLOSE, 0, 0);
 }
 
-void s_render_status::update_progress_string() {
-	if (!init) {
-		progress_string = "";
-		return;
-	}
-
+void s_render_status::update_progress_string(bool first) {
 	float progress = current_frame / (float)total_frames;
 
 	if (first) {
 		progress_string = fmt::format("{:.1f}% complete ({}/{})", progress * 100, current_frame, total_frames);
 	}
 	else {
-		auto current_time = std::chrono::steady_clock::now();
-		std::chrono::duration<double> frame_duration = current_time - start_time;
-		double elapsed_time = frame_duration.count();
-
-		double calced_fps = current_frame / elapsed_time;
-
-		progress_string = fmt::format("{:.1f}% complete ({}/{}, {:.2f} fps)", progress * 100, current_frame, total_frames, calced_fps);
+		progress_string = fmt::format("{:.1f}% complete ({}/{}, {:.2f} fps)", progress * 100, current_frame, total_frames, fps);
 	}
 }

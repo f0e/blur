@@ -63,6 +63,10 @@ function(setup_target target)
             FMT_HEADER_ONLY
             $<$<CONFIG:Debug>:_DEBUG>
             $<$<CONFIG:Release>:NDEBUG>)
+  if (WIN32)
+    set(${target}
+      resources/resources_win32.rc)
+  endif()
 endfunction()
 
 # cli
