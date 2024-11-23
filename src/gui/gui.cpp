@@ -16,6 +16,9 @@ const int pad_y = 35;
 
 const float fps_smoothing = 0.95f;
 
+const float vsync_extra_fps = 50;
+const float default_delta_time = 1.f / 60;
+
 bool closing = false;
 
 SkFont font;
@@ -108,21 +111,11 @@ void gui::generate_messages_from_os_events() { // https://github.com/aseprite/as
 }
 
 const float MAX_DELTA_TIME = 1.f / 10;
-float delta_time;
 
 void gui::event_loop() {
 	using namespace std::chrono;
 
-	auto last_frame_time = steady_clock::now();
-
 	while (!closing) {
-		auto current_time = steady_clock::now();
-		duration<float> elapsed_time = current_time - last_frame_time;
-
-		delta_time = std::min(elapsed_time.count(), MAX_DELTA_TIME);
-
-		last_frame_time = current_time;
-
 		generate_messages_from_os_events();
 		redraw_window(window.get());
 
@@ -131,17 +124,45 @@ void gui::event_loop() {
 }
 
 void gui::redraw_window(os::Window* window) {
-	static float fps = -1.f;
+	static float vsync_frame_time = default_delta_time;
 
-	if (delta_time <= FLT_EPSILON) {
-		delta_time = MAX_DELTA_TIME;
+	void* screen_handle = window->screen()->nativeHandle();
+	static void* last_screen_handle = nullptr;
+
+	if (screen_handle != last_screen_handle) {
+		double rate = utils::get_display_refresh_rate(screen_handle);
+		vsync_frame_time = 1.f / (rate + vsync_extra_fps);
+		printf("switched screen, updated vsync_frame_time. refresh rate: %.2f hz\n", rate);
+		last_screen_handle = screen_handle;
+	}
+
+	auto now = std::chrono::steady_clock::now();
+	static auto last_frame_time = now;
+
+	static bool first = true;
+	float delta_time;
+	static float fps = -1.f;
+	if (first) {
+		delta_time = default_delta_time;
+		first = false;
 	}
 	else {
-		float current_fps = 1.f / delta_time;
+		float time_since_last_frame = std::chrono::duration<float>(std::chrono::steady_clock::now() - last_frame_time).count();
+
+		if (time_since_last_frame < vsync_frame_time) {
+			// vsync
+			return;
+		}
+
+		float current_fps = 1.f / time_since_last_frame;
 		if (fps == -1.f)
 			fps = current_fps;
 		fps = (fps * fps_smoothing) + (current_fps * (1.0f - fps_smoothing));
+
+		delta_time = std::min(time_since_last_frame, MAX_DELTA_TIME);
 	}
+
+	last_frame_time = now;
 
 	os::Surface* s = window->surface();
 	const gfx::Rect rc = s->bounds();
