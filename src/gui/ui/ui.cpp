@@ -9,6 +9,38 @@ gfx::Color adjust_color(const gfx::Color& color, float anim) {
 	return gfx::rgba(gfx::getr(color), gfx::getg(color), gfx::getb(color), gfx::geta(color) * anim); // seta is broken or smth i swear
 }
 
+bool has_content_changed(const ui::Element* existing, const ui::Element* new_element) {
+	if (existing->type != new_element->type)
+		return true;
+
+	switch (existing->type) {
+		case ui::ElementType::BAR: {
+			const auto& existing_data = std::get<ui::BarElementData>(existing->data);
+			const auto& new_data = std::get<ui::BarElementData>(new_element->data);
+			return existing_data.percent_fill != new_data.percent_fill ||
+			       existing_data.background_color != new_data.background_color ||
+			       existing_data.fill_color != new_data.fill_color ||
+			       existing_data.bar_text != new_data.bar_text ||
+			       existing_data.text_color != new_data.text_color;
+		}
+		case ui::ElementType::TEXT: {
+			const auto& existing_data = std::get<ui::TextElementData>(existing->data);
+			const auto& new_data = std::get<ui::TextElementData>(new_element->data);
+			return existing_data.text != new_data.text ||
+			       existing_data.color != new_data.color ||
+			       existing_data.align != new_data.align;
+		}
+		case ui::ElementType::IMAGE: {
+			const auto& existing_data = std::get<ui::ImageElementData>(existing->data);
+			const auto& new_data = std::get<ui::ImageElementData>(new_element->data);
+			return existing_data.image_id != new_data.image_id ||
+			       existing_data.image_path != new_data.image_path;
+		}
+		default:
+			return false;
+	}
+}
+
 void ui::render_bar(os::Surface* surface, const Element* element, float anim) {
 	const int text_gap = 7;
 
@@ -95,6 +127,7 @@ void ui::init_container(Container& container, gfx::Rect rect, std::optional<gfx:
 	container.background_color = background_color;
 	container.current_position = { rect.x + 10, rect.y + 10 };
 	container.current_element_ids = {};
+	container.updated = false;
 }
 
 void ui::add_element(Container& container, const std::string& id, std::shared_ptr<Element> element) {
@@ -108,6 +141,9 @@ void ui::add_element(Container& container, const std::string& id, std::shared_pt
 	}
 	else {
 		auto& container_element = container.elements[id];
+		if (container_element.element->data != element->data) {
+			container.updated = true;
+		}
 		container_element.element = element;
 	}
 
@@ -249,25 +285,41 @@ void ui::center_elements_in_container(Container& container, bool horizontal, boo
 	}
 }
 
-void ui::render_container(os::Surface* surface, Container& container, float delta_time) {
-	if (container.background_color) {
-		render::rect_filled(surface, container.rect, *container.background_color);
-	}
+bool ui::update_container(os::Surface* surface, Container& container, float delta_time) {
+	bool all_animations_complete = true;
 
 	for (auto it = container.elements.begin(); it != container.elements.end();) {
 		auto& [id, element] = *it;
 
 		bool stale = std::ranges::find(container.current_element_ids, id) == container.current_element_ids.end();
-		bool animation_complete = element.animation.update(delta_time, stale);
+		element.animation.update(delta_time, stale);
 
-		if (stale && animation_complete) {
+		if (stale && element.animation.complete) {
 			// animation complete and element stale, remove
 			printf("removed %s\n", id.c_str());
 			it = container.elements.erase(it);
 			continue;
 		}
 
-		element.element->render_fn(surface, element.element.get(), element.animation.current);
+		if (!element.animation.complete || !element.animation.rendered_complete)
+			all_animations_complete = false;
+
 		++it;
+	}
+
+	return container.updated || !all_animations_complete;
+}
+
+void ui::render_container(os::Surface* surface, Container& container) {
+	if (container.background_color) {
+		render::rect_filled(surface, container.rect, *container.background_color);
+	}
+
+	for (auto& [id, element] : container.elements) {
+		element.element->render_fn(surface, element.element.get(), element.animation.current);
+
+		if (element.animation.complete) {
+			element.animation.rendered_complete = true;
+		}
 	}
 }

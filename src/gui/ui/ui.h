@@ -20,6 +20,15 @@ namespace ui {
 		std::optional<std::string> bar_text;
 		std::optional<gfx::Color> text_color;
 		std::optional<const SkFont*> font;
+
+		bool operator==(const BarElementData& other) const {
+			return percent_fill == other.percent_fill &&
+			       background_color == other.background_color &&
+			       fill_color == other.fill_color &&
+			       bar_text == other.bar_text &&
+			       text_color == other.text_color;
+			// Skip font pointer comparison
+		}
 	};
 
 	struct TextElementData {
@@ -27,12 +36,25 @@ namespace ui {
 		gfx::Color color;
 		SkFont font;
 		os::TextAlign align;
+
+		bool operator==(const TextElementData& other) const {
+			return text == other.text &&
+			       color == other.color &&
+			       align == other.align;
+			// Skip font comparison since it might not implement ==
+		}
 	};
 
 	struct ImageElementData {
 		std::string image_path;
 		os::SurfaceRef image_surface;
 		std::string image_id;
+
+		bool operator==(const ImageElementData& other) const {
+			return image_path == other.image_path &&
+			       image_id == other.image_id;
+			// Skip image_surface comparison since it's a reference-counted pointer
+		}
 	};
 
 	using ElementData = std::variant<BarElementData, TextElementData, ImageElementData>;
@@ -40,6 +62,8 @@ namespace ui {
 	struct AnimationState {
 		float speed;
 		float current = 0.0f;
+		bool complete = false;
+		bool rendered_complete = false;
 
 		AnimationState(float _speed)
 			: speed(_speed) {}
@@ -47,12 +71,16 @@ namespace ui {
 		// delete default constructor since we always need a duration
 		AnimationState() = delete;
 
-		bool update(float delta_time, bool stale) {
+		void update(float delta_time, bool stale) {
 			float goal = !stale ? 1.f : 0.f;
+			current = std::clamp(std::lerp(current, goal, speed * delta_time), 0.f, 1.f);
 
-			current = std::lerp(current, goal, speed * delta_time);
+			bool was_complete = complete;
+			complete = abs(current - goal) < 0.01f;
 
-			return abs(current - goal) < 0.01f;
+			if (complete && !was_complete) {
+				rendered_complete = false;
+			}
 		}
 	};
 
@@ -75,6 +103,7 @@ namespace ui {
 		std::vector<std::string> current_element_ids;
 
 		gfx::Point current_position;
+		bool updated = false;
 	};
 
 	void render_bar(os::Surface* surface, const Element* element, float anim);
@@ -89,5 +118,6 @@ namespace ui {
 	std::optional<std::shared_ptr<Element>> add_image(const std::string& id, Container& container, std::string image_path, gfx::Size max_size, std::string image_id = ""); // use image_id to distinguish images that have the same filename and reload it (e.g. if its updated)
 
 	void center_elements_in_container(Container& container, bool horizontal = true, bool vertical = true);
-	void render_container(os::Surface* surface, Container& container, float delta_time);
+	bool update_container(os::Surface* surface, Container& container, float delta_time);
+	void render_container(os::Surface* surface, Container& container);
 }

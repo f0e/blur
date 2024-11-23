@@ -3,6 +3,7 @@
 #include "gfx/color.h"
 #include "gui/ui/render.h"
 #include "os/draw_text.h"
+#include "os/event_queue.h"
 #include "tasks.h"
 
 #include "ui/ui.h"
@@ -21,6 +22,7 @@ const float min_delta_time = 1.f / 10;
 const float default_delta_time = 1.f / 60;
 
 bool closing = false;
+bool actively_rendering = true;
 
 SkFont font;
 os::EventQueue* event_queue;
@@ -95,28 +97,23 @@ bool processEvent(const os::Event& ev) {
 
 void gui::generate_messages_from_os_events() { // https://github.com/aseprite/aseprite/blob/45c2a5950445c884f5d732edc02989c3fb6ab1a6/src/ui/manager.cpp#L393
 	os::Event event;
-	while (true) {
-		// Calculate how much time we can wait for the next message in the
-		// event queue.
-		// if (msg_queue.empty()) {
-		// 	if (!Timer::getNextTimeout(timeout)) // nothing on timer so just wait forever i guess
-		// 		timeout = os::EventQueue::kWithoutTimeout;
-		// }
 
-		event_queue->getEvent(event, 0.0);
-		if (event.type() == os::Event::None)
-			break;
+	double timeout;
+	if (actively_rendering)
+		timeout = 0.0;
+	else
+		timeout = 1.f / 60;
 
-		processEvent(event);
-	}
+	event_queue->getEvent(event, timeout);
+
+	processEvent(event);
 }
 
 void gui::event_loop() {
 	while (!closing) {
-		generate_messages_from_os_events();
 		redraw_window(window.get());
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		generate_messages_from_os_events();
 	}
 }
 
@@ -144,6 +141,7 @@ void gui::redraw_window(os::Window* window) {
 	auto now = std::chrono::steady_clock::now();
 	static auto last_frame_time = now;
 
+	// todo: first render in a batch might be fucked, look at progress bar skipping fully to complete instantly on 25 speed - investigate
 	static bool first = true;
 	float delta_time;
 	static float fps = -1.f;
@@ -155,7 +153,6 @@ void gui::redraw_window(os::Window* window) {
 		float time_since_last_frame = std::chrono::duration<float>(std::chrono::steady_clock::now() - last_frame_time).count();
 
 		if (time_since_last_frame < vsync_frame_time) {
-			// vsync
 			return;
 		}
 
@@ -180,41 +177,47 @@ void gui::redraw_window(os::Window* window) {
 	paint.color(gfx::rgba(0, 0, 0, 255));
 	s->drawRect(rc, paint);
 
-	{
-		// debug
-		static const int debug_box_size = 30;
-		static float x = rc.x2() - debug_box_size, y = 100.f;
-		static bool right = false;
-		static bool down = true;
-		x += 1.f * (right ? 1 : -1);
-		y += 1.f * (down ? 1 : -1);
-		os::Paint paint;
-		paint.color(gfx::rgba(255, 0, 0, 50));
-		s->drawRect(gfx::Rect(x, y, debug_box_size, debug_box_size), paint);
+	// {
+	// 	// debug
+	// 	static const int debug_box_size = 30;
+	// 	static float x = rc.x2() - debug_box_size, y = 100.f;
+	// 	static bool right = false;
+	// 	static bool down = true;
+	// 	x += 1.f * (right ? 1 : -1);
+	// 	y += 1.f * (down ? 1 : -1);
+	// 	os::Paint paint;
+	// 	paint.color(gfx::rgba(255, 0, 0, 50));
+	// 	s->drawRect(gfx::Rect(x, y, debug_box_size, debug_box_size), paint);
 
-		if (right) {
-			if (x + debug_box_size > rc.x2())
-				right = false;
-		}
-		else {
-			if (x < 0)
-				right = true;
-		}
+	// 	if (right) {
+	// 		if (x + debug_box_size > rc.x2())
+	// 			right = false;
+	// 	}
+	// 	else {
+	// 		if (x < 0)
+	// 			right = true;
+	// 	}
 
-		if (down) {
-			if (y + debug_box_size > rc.y2())
-				down = false;
-		}
-		else {
-			if (y < 0)
-				down = true;
-		}
-	}
+	// 	if (down) {
+	// 		if (y + debug_box_size > rc.y2())
+	// 			down = false;
+	// 	}
+	// 	else {
+	// 		if (y < 0)
+	// 			down = true;
+	// 	}
+	// }
+
+	bool updated = false;
 
 	gfx::Rect drop_zone = rc;
 
 	static float fill_shade = 0.f;
+
+	float last_fill_shade = fill_shade;
 	fill_shade = std::lerp(fill_shade, windowData.dragging ? 30.f : 0.f, 25.f * delta_time);
+	updated |= fill_shade != last_fill_shade;
+
 	if ((int)fill_shade > 0) {
 		paint.color(gfx::rgba(255, 255, 255, fill_shade));
 		s->drawRect(drop_zone, paint);
@@ -280,7 +283,7 @@ void gui::redraw_window(os::Window* window) {
 
 				if (render_status.init) {
 					float render_progress = render_status.current_frame / (float)render_status.total_frames;
-					bar_percent = std::lerp(bar_percent, render_progress, 25.f * delta_time);
+					bar_percent = std::lerp(bar_percent, render_progress, 5.f * delta_time);
 
 					ui::add_bar("progress bar", container, bar_percent, gfx::rgba(51, 51, 51, 255), gfx::rgba(255, 255, 255, 255), bar_width, fmt::format("{:.1f}%", render_progress * 100), gfx::rgba(255, 255, 255, 255), &font);
 					ui::add_text("progress text", container, fmt::format("frame {} out of {}", render_status.current_frame, render_status.total_frames), gfx::rgba(255, 255, 255, 155), font, os::TextAlign::Center);
@@ -301,7 +304,11 @@ void gui::redraw_window(os::Window* window) {
 
 	ui::center_elements_in_container(container);
 
-	ui::render_container(s, container, delta_time);
+	actively_rendering = ui::update_container(s, container, delta_time) || updated;
+	if (!actively_rendering)
+		return;
+
+	ui::render_container(s, container);
 
 	if (fps != -1.f) {
 		gfx::Point fps_pos(

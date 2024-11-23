@@ -25,18 +25,6 @@ SkFont utils::create_font_from_data(const unsigned char* font_data, size_t data_
 	return SkFont(typeface, SkIntToScalar(font_height));
 }
 
-#include <cstdint>
-
-#ifdef _WIN32
-#	include <windows.h>
-#elif defined(__APPLE__)
-#	include <CoreGraphics/CoreGraphics.h>
-#	include <CoreVideo/CoreVideo.h>
-#else // X11
-#	include <X11/Xlib.h>
-#	include <X11/extensions/Xrandr.h>
-#endif
-
 #ifdef _WIN32
 double utils::get_display_refresh_rate(HMONITOR hMonitor)
 #elif defined(__APPLE__)
