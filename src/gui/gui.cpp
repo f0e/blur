@@ -17,6 +17,7 @@ const int pad_y = 35;
 const float fps_smoothing = 0.95f;
 
 const float vsync_extra_fps = 50;
+const float min_delta_time = 1.f / 10;
 const float default_delta_time = 1.f / 60;
 
 bool closing = false;
@@ -110,24 +111,28 @@ void gui::generate_messages_from_os_events() { // https://github.com/aseprite/as
 	}
 }
 
-const float MAX_DELTA_TIME = 1.f / 10;
-
 void gui::event_loop() {
-	using namespace std::chrono;
-
 	while (!closing) {
 		generate_messages_from_os_events();
 		redraw_window(window.get());
 
-		std::this_thread::sleep_for(1ms);
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }
 
 void gui::redraw_window(os::Window* window) {
 	static float vsync_frame_time = default_delta_time;
 
+#ifdef _WIN32
+	HMONITOR screen_handle = (HMONITOR)window->screen()->nativeHandle();
+	static HMONITOR last_screen_handle;
+#elif defined(__APPLE__)
 	void* screen_handle = window->screen()->nativeHandle();
-	static void* last_screen_handle = nullptr;
+	static void* last_screen_handle;
+#else
+	int screen_handle = (int)window->screen()->nativeHandle();
+	static int last_screen_handle;
+#endif
 
 	if (screen_handle != last_screen_handle) {
 		double rate = utils::get_display_refresh_rate(screen_handle);
@@ -159,7 +164,7 @@ void gui::redraw_window(os::Window* window) {
 			fps = current_fps;
 		fps = (fps * fps_smoothing) + (current_fps * (1.0f - fps_smoothing));
 
-		delta_time = std::min(time_since_last_frame, MAX_DELTA_TIME);
+		delta_time = std::min(time_since_last_frame, min_delta_time);
 	}
 
 	last_frame_time = now;
