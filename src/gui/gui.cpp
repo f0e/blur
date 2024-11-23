@@ -164,8 +164,8 @@ void gui::redraw_window(os::Window* window) {
 	{
 		// debug
 		static const int debug_box_size = 30;
-		static float x = 0.f, y = 0.f;
-		static bool right = true;
+		static float x = rc.x2() - debug_box_size, y = 100.f;
+		static bool right = false;
 		static bool down = true;
 		x += 500.f * delta_time * (right ? 1 : -1);
 		y += 500.f * delta_time * (down ? 1 : -1);
@@ -224,7 +224,9 @@ void gui::redraw_window(os::Window* window) {
 
 	// 	paint.color(gfx::rgba(255, 255, 255, shade));
 	// 	s->drawRect(blur_drop_zone, paint);
-	// }
+	// }f
+
+	static ui::Container container;
 
 	gfx::Rect container_rect = rc;
 	container_rect.x += pad_x;
@@ -232,31 +234,31 @@ void gui::redraw_window(os::Window* window) {
 	container_rect.y += pad_y;
 	container_rect.h -= pad_y * 2;
 
-	auto container = ui::create_container(container_rect);
+	init_container(container, container_rect);
 
 	if (rendering.queue.empty()) {
-		ui::add_text(container, "Drop a file...", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
+		ui::add_text("drop a file text", container, "Drop a file...", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
 	}
 	else {
 		for (const auto [i, render] : helpers::enumerate(rendering.queue)) {
 			bool current = render == rendering.current_render;
 
-			ui::add_text(container, base::to_utf8(render->get_video_name()), gfx::rgba(255, 255, 255, (current ? 255 : 100)), font, os::TextAlign::Center);
+			ui::add_text("video name text", container, base::to_utf8(render->get_video_name()), gfx::rgba(255, 255, 255, (current ? 255 : 100)), font, os::TextAlign::Center);
 
 			if (current) {
 				auto render_status = render->get_status();
 
 				std::string preview_path = render->get_preview_path().string();
 				if (preview_path != "") {
-					ui::add_image(container, preview_path, gfx::Size(container_rect.w, 200));
+					ui::add_image("preview image", container, preview_path, gfx::Size(container_rect.w, 200));
 				}
 
 				if (render_status.init) {
-					ui::add_text(container, render_status.progress_string, gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
-					ui::add_bar(container, render_status.current_frame / (float)render_status.total_frames, gfx::rgba(51, 51, 51, 255), gfx::rgba(255, 255, 255, 255));
+					ui::add_text("progress text", container, render_status.progress_string, gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
+					ui::add_bar("progress bar", container, render_status.current_frame / (float)render_status.total_frames, gfx::rgba(51, 51, 51, 255), gfx::rgba(255, 255, 255, 255));
 				}
 				else {
-					ui::add_text(container, "initialising render...", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
+					ui::add_text("initialising render text", container, "initialising render...", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
 				}
 			}
 		}
@@ -264,7 +266,7 @@ void gui::redraw_window(os::Window* window) {
 
 	ui::center_elements_in_container(container);
 
-	ui::render_container(s, container, 1.0f);
+	ui::render_container(s, container, delta_time);
 
 	if (!window->isVisible())
 		window->setVisible(true);

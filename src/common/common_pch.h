@@ -16,7 +16,9 @@
 #include <codecvt>
 #include <locale>
 #include <regex>
+#include <set>
 #include <unordered_set>
+#include <ranges>
 
 // libs
 #include <fmt/format.h>
