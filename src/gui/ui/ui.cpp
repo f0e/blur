@@ -5,18 +5,22 @@
 
 const int gap = 15;
 
+gfx::Color adjust_color(const gfx::Color& color, float anim) {
+	return gfx::rgba(gfx::getr(color), gfx::getg(color), gfx::getb(color), gfx::geta(color) * anim); // seta is broken or smth i swear
+}
+
 void ui::render_bar(os::Surface* surface, const Element* element, float anim) {
 	const int text_gap = 7;
 
 	auto& bar_data = std::get<BarElementData>(element->data);
 
-	gfx::seta(bar_data.background_color, anim * gfx::geta(bar_data.background_color));
-	gfx::seta(bar_data.fill_color, anim * gfx::geta(bar_data.fill_color));
+	gfx::Color adjusted_background_color = adjust_color(bar_data.background_color, anim);
+	gfx::Color adjusted_fill_color = adjust_color(bar_data.fill_color, anim);
 
 	gfx::Size text_size(0, 0);
 
 	if (bar_data.bar_text && bar_data.text_color && bar_data.font) {
-		gfx::seta(*bar_data.text_color, anim * gfx::geta(*bar_data.text_color));
+		gfx::Color adjusted_text_color = adjust_color(*bar_data.text_color, anim);
 
 		gfx::Point text_pos = element->rect.origin();
 
@@ -25,32 +29,33 @@ void ui::render_bar(os::Surface* surface, const Element* element, float anim) {
 		text_pos.x = element->rect.x2();
 		text_pos.y += (*bar_data.font)->getSize() / 2;
 
-		render::text(surface, text_pos, *bar_data.text_color, *bar_data.bar_text, **bar_data.font, os::TextAlign::Right);
+		render::text(surface, text_pos, adjusted_text_color, *bar_data.bar_text, **bar_data.font, os::TextAlign::Right);
 	}
 
 	gfx::Rect bar_rect = element->rect;
 	bar_rect.w -= text_size.w + text_gap;
 
-	render::rounded_rect_filled(surface, bar_rect, bar_data.background_color, 1000.f);
+	render::rounded_rect_filled(surface, bar_rect, adjusted_background_color, 1000.f);
 
 	if (bar_data.percent_fill > 0) {
 		gfx::Rect fill_rect = bar_rect;
 		fill_rect.w = static_cast<int>(bar_rect.w * bar_data.percent_fill);
-		render::rounded_rect_filled(surface, fill_rect, bar_data.fill_color, 1000.f);
+		render::rounded_rect_filled(surface, fill_rect, adjusted_fill_color, 1000.f);
 	}
 }
 
 void ui::render_text(os::Surface* surface, const Element* element, float anim) {
 	auto& text_data = std::get<TextElementData>(element->data);
 
-	gfx::seta(text_data.color, anim * gfx::geta(text_data.color));
-	if (gfx::geta(text_data.color) == 0)
+	gfx::Color adjusted_color = adjust_color(text_data.color, anim);
+
+	if (gfx::geta(adjusted_color) == 0)
 		return;
 
 	gfx::Point text_pos = element->rect.origin();
 	text_pos.y += text_data.font.getSize() - 1;
 
-	render::text(surface, text_pos, text_data.color, text_data.text, text_data.font, text_data.align);
+	render::text(surface, text_pos, adjusted_color, text_data.text, text_data.font, text_data.align);
 }
 
 void ui::render_image(os::Surface* surface, const Element* element, float anim) {
