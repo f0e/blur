@@ -11,6 +11,8 @@
 
 #include "resources/font.h"
 
+#define DEBUG_BOX 1
+
 const int font_height = 14;
 const int pad_x = 24;
 const int pad_y = 35;
@@ -175,59 +177,14 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 	os::Surface* s = window->surface();
 	const gfx::Rect rc = s->bounds();
 
-	os::Paint text_paint;
-	text_paint.color(gfx::rgba(255, 255, 255, 255));
-
-	// background
-	os::Paint paint;
-	paint.color(gfx::rgba(0, 0, 0, 255));
-	s->drawRect(rc, paint);
-
-	// {
-	// 	// debug
-	// 	static const int debug_box_size = 30;
-	// 	static float x = rc.x2() - debug_box_size, y = 100.f;
-	// 	static bool right = false;
-	// 	static bool down = true;
-	// 	x += 1.f * (right ? 1 : -1);
-	// 	y += 1.f * (down ? 1 : -1);
-	// 	os::Paint paint;
-	// 	paint.color(gfx::rgba(255, 0, 0, 50));
-	// 	s->drawRect(gfx::Rect(x, y, debug_box_size, debug_box_size), paint);
-
-	// 	if (right) {
-	// 		if (x + debug_box_size > rc.x2())
-	// 			right = false;
-	// 	}
-	// 	else {
-	// 		if (x < 0)
-	// 			right = true;
-	// 	}
-
-	// 	if (down) {
-	// 		if (y + debug_box_size > rc.y2())
-	// 			down = false;
-	// 	}
-	// 	else {
-	// 		if (y < 0)
-	// 			down = true;
-	// 	}
-	// }
-
 	bool updated = false;
 
 	gfx::Rect drop_zone = rc;
 
-	static float fill_shade = 0.f;
-
-	float last_fill_shade = fill_shade;
-	fill_shade = std::lerp(fill_shade, windowData.dragging ? 30.f : 0.f, 25.f * delta_time);
-	updated |= fill_shade != last_fill_shade;
-
-	if ((int)fill_shade > 0) {
-		paint.color(gfx::rgba(255, 255, 255, fill_shade));
-		s->drawRect(drop_zone, paint);
-	}
+	static float bg_overlay_shade = 0.f;
+	float last_fill_shade = bg_overlay_shade;
+	bg_overlay_shade = std::lerp(bg_overlay_shade, windowData.dragging ? 30.f : 0.f, 25.f * delta_time);
+	updated |= bg_overlay_shade != last_fill_shade;
 
 	{
 		// const int blur_stroke_width = 1;
@@ -310,9 +267,54 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 
 	ui::center_elements_in_container(container);
 
+	bool last = actively_rendering;
 	actively_rendering = ui::update_container(s, container, delta_time) || updated || force_render;
 	if (!actively_rendering)
+		// note: DONT RENDER ANYTHING ABOVE HERE!!! todo: render queue?
 		return;
+
+	// background
+	os::Paint paint;
+	paint.color(gfx::rgba(0, 0, 0, 255));
+	s->drawRect(rc, paint);
+
+	if ((int)bg_overlay_shade > 0) {
+		paint.color(gfx::rgba(255, 255, 255, bg_overlay_shade));
+		s->drawRect(drop_zone, paint);
+	}
+
+#if DEBUG_BOX
+	{
+		// debug
+		static const int debug_box_size = 30;
+		static float x = rc.x2() - debug_box_size, y = 100.f;
+		static bool right = false;
+		static bool down = true;
+		x += 1.f * (right ? 1 : -1);
+		y += 1.f * (down ? 1 : -1);
+		os::Paint paint;
+		paint.color(gfx::rgba(255, 0, 0, 50));
+		s->drawRect(gfx::Rect(x, y, debug_box_size, debug_box_size), paint);
+
+		if (right) {
+			if (x + debug_box_size > rc.x2())
+				right = false;
+		}
+		else {
+			if (x < 0)
+				right = true;
+		}
+
+		if (down) {
+			if (y + debug_box_size > rc.y2())
+				down = false;
+		}
+		else {
+			if (y < 0)
+				down = true;
+		}
+	}
+#endif
 
 	ui::render_container(s, container);
 

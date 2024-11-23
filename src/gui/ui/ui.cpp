@@ -6,7 +6,7 @@
 const int gap = 15;
 
 gfx::Color adjust_color(const gfx::Color& color, float anim) {
-	return gfx::rgba(gfx::getr(color), gfx::getg(color), gfx::getb(color), gfx::geta(color) * anim); // seta is broken or smth i swear
+	return gfx::rgba(gfx::getr(color), gfx::getg(color), gfx::getb(color), round(gfx::geta(color) * anim)); // seta is broken or smth i swear
 }
 
 bool has_content_changed(const ui::Element* existing, const ui::Element* new_element) {
@@ -81,9 +81,6 @@ void ui::render_text(os::Surface* surface, const Element* element, float anim) {
 
 	gfx::Color adjusted_color = adjust_color(text_data.color, anim);
 
-	if (gfx::geta(adjusted_color) == 0)
-		return;
-
 	gfx::Point text_pos = element->rect.origin();
 	text_pos.y += text_data.font.getSize() - 1;
 
@@ -95,8 +92,6 @@ void ui::render_image(os::Surface* surface, const Element* element, float anim) 
 
 	int alpha = anim * 255;
 	int stroke_alpha = anim * 125;
-	if (alpha == 0 && stroke_alpha == 0)
-		return;
 
 	gfx::Rect image_rect = element->rect;
 	image_rect.shrink(3);

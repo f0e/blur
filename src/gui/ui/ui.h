@@ -76,7 +76,7 @@ namespace ui {
 			current = std::clamp(std::lerp(current, goal, speed * delta_time), 0.f, 1.f);
 
 			bool was_complete = complete;
-			complete = abs(current - goal) < 0.01f;
+			complete = abs(current - goal) < 0.001f;
 
 			if (complete && !was_complete) {
 				rendered_complete = false;
