@@ -15,6 +15,9 @@ const int font_height = 14;
 const int pad_x = 24;
 const int pad_y = 35;
 
+const int rendering_fps_pad = 50;
+const float fps_smoothing = 0.95f;
+
 bool closing = false;
 
 SkFont font;
@@ -27,22 +30,16 @@ void gui::DragTarget::dragEnter(os::DragEvent& ev) {
 
 	windowData.dragPosition = ev.position();
 	windowData.dragging = true;
-
-	redraw_window(ev.target());
 }
 
 void gui::DragTarget::dragLeave(os::DragEvent& ev) {
 	// todo: not triggering on windows?
 	windowData.dragPosition = ev.position();
 	windowData.dragging = false;
-
-	redraw_window(ev.target());
 }
 
 void gui::DragTarget::drag(os::DragEvent& ev) {
 	windowData.dragPosition = ev.position();
-
-	redraw_window(ev.target());
 }
 
 void gui::DragTarget::drop(os::DragEvent& ev) {
@@ -54,8 +51,6 @@ void gui::DragTarget::drop(os::DragEvent& ev) {
 	}
 
 	windowData.dragging = false;
-
-	redraw_window(ev.target());
 }
 
 static os::WindowRef create_window(os::DragTarget& dragTarget) {
@@ -73,7 +68,6 @@ static os::WindowRef create_window(os::DragTarget& dragTarget) {
 		window->height()
 	);
 
-	gui::redraw_window(window.get());
 	return window;
 }
 
@@ -90,7 +84,6 @@ bool processEvent(const os::Event& ev) {
 			return false;
 
 		case os::Event::ResizeWindow:
-			gui::redraw_window(ev.window().get());
 			break;
 
 		default:
@@ -105,11 +98,15 @@ void gui::generate_messages_from_os_events() { // https://github.com/aseprite/as
 
 	os::Event lastMouseMoveEvent;
 
+	auto screen_handle = window->screen()->nativeHandle();
+	double rate = utils::get_display_refresh_rate(screen_handle);
+
+	double timeout = 1.f / (rate + rendering_fps_pad);
+
 	os::Event event;
 	while (true) {
 		// Calculate how much time we can wait for the next message in the
 		// event queue.
-		double timeout = 0.0;
 		// if (msg_queue.empty()) {
 		// 	if (!Timer::getNextTimeout(timeout)) // nothing on timer so just wait forever i guess
 		// 		timeout = os::EventQueue::kWithoutTimeout;
@@ -131,20 +128,16 @@ void gui::event_loop() {
 }
 
 void gui::redraw_window(os::Window* window) {
-	static bool is_first_frame = true;
 	auto now = std::chrono::high_resolution_clock::now();
 
 	std::chrono::duration<float> delta_time_duration = now - last_frame_time;
 
 	float delta_time;
-	if (!is_first_frame) {
-		std::chrono::duration<float> delta_time_duration = now - last_frame_time;
-		delta_time = delta_time_duration.count();
-	}
-	else {
-		delta_time = 0.0f;
-		is_first_frame = false;
-	}
+	delta_time = delta_time_duration.count();
+
+	float current_fps = 1.f / delta_time;
+	static float fps = current_fps;
+	fps = (fps * fps_smoothing) + (current_fps * (1.0f - fps_smoothing));
 
 	last_frame_time = now;
 
@@ -201,32 +194,27 @@ void gui::redraw_window(os::Window* window) {
 		s->drawRect(drop_zone, paint);
 	}
 
-	// paint.style(os::Paint::Style::Stroke);
-	// const int stroke_shade = 100;
-	// const int stroke_width = 2;
-	// paint.color(gfx::rgba(255, 255, 255, stroke_shade));
-	// paint.strokeWidth(stroke_width);
-	// s->drawRect(drop_zone, paint);
+	{
+		// const int blur_stroke_width = 1;
+		// const float blur_start_shade = 50;
+		// const float blur_screen_percent = 0.8f;
 
-	// const int blur_stroke_width = 1;
-	// const float blur_start_shade = 50;
-	// const float blur_screen_percent = 0.8f;
+		// paint.style(os::Paint::Style::Stroke);
+		// paint.strokeWidth(blur_stroke_width);
 
-	// paint.style(os::Paint::Style::Stroke);
-	// paint.strokeWidth(blur_stroke_width);
+		// gfx::Rect blur_drop_zone = drop_zone;
+		// const int blur_steps = (std::min(rc.w, rc.h) / 2.f / blur_stroke_width) * blur_screen_percent;
 
-	// gfx::Rect blur_drop_zone = drop_zone;
-	// const int blur_steps = (std::min(rc.w, rc.h) / 2.f / blur_stroke_width) * blur_screen_percent;
+		// for (int i = 0; i < blur_steps; i++) {
+		// 	blur_drop_zone.shrink(blur_stroke_width);
+		// 	int shade = std::lerp(blur_start_shade, 0, ease_out_quart(i / (float)blur_steps));
+		// 	if (shade <= 0)
+		// 		break;
 
-	// for (int i = 0; i < blur_steps; i++) {
-	// 	blur_drop_zone.shrink(blur_stroke_width);
-	// 	int shade = std::lerp(blur_start_shade, 0, ease_out_quart(i / (float)blur_steps));
-	// 	if (shade <= 0)
-	// 		break;
-
-	// 	paint.color(gfx::rgba(255, 255, 255, shade));
-	// 	s->drawRect(blur_drop_zone, paint);
-	// }f
+		// 	paint.color(gfx::rgba(255, 255, 255, shade));
+		// 	s->drawRect(blur_drop_zone, paint);
+		// }
+	}
 
 	static ui::Container container;
 
@@ -256,11 +244,11 @@ void gui::redraw_window(os::Window* window) {
 				}
 
 				if (render_status.init) {
-					ui::add_text("progress text", container, render_status.progress_string, gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
 					ui::add_bar("progress bar", container, render_status.current_frame / (float)render_status.total_frames, gfx::rgba(51, 51, 51, 255), gfx::rgba(255, 255, 255, 255));
+					ui::add_text("progress text", container, render_status.progress_string, gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
 				}
 				else {
-					ui::add_text("initialising render text", container, "initialising render...", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
+					ui::add_text("initialising render text", container, "Initialising render...", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
 				}
 			}
 		}
@@ -269,6 +257,12 @@ void gui::redraw_window(os::Window* window) {
 	ui::center_elements_in_container(container);
 
 	ui::render_container(s, container, delta_time);
+
+	gfx::Point fps_pos(
+		rc.x2() - pad_x,
+		rc.y + pad_y
+	);
+	render::text(s, fps_pos, gfx::rgba(0, 255, 0, 255), fmt::format("{:.0f} fps", fps), font, os::TextAlign::Right);
 
 	if (!window->isVisible())
 		window->setVisible(true);

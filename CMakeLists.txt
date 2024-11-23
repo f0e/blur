@@ -137,6 +137,14 @@ target_link_libraries(
           laf-os
           ZLIB::ZLIB)
 target_precompile_headers(blur-gui PRIVATE src/gui/gui_pch.h)
+
+if(APPLE)
+    target_link_libraries(blur-gui PRIVATE
+        "-framework CoreVideo"
+        "-framework CoreGraphics"
+    )
+endif()
+
 set_target_properties(blur-gui PROPERTIES LINK_FLAGS
                                           "${LAF_BACKEND_LINK_FLAGS}")
 set_target_properties(blur-gui PROPERTIES OUTPUT_NAME "blur")
