@@ -4,7 +4,6 @@
 #include "gfx/size.h"
 #include "gfx/color.h"
 #include "os/draw_text.h"
-#include "os/font.h"
 
 namespace ui {
 	enum class ElementType {
@@ -89,6 +88,7 @@ namespace ui {
 		gfx::Rect rect;
 		ElementData data;
 		std::function<void(os::Surface*, const Element*, float)> render_fn;
+		bool fixed = false;
 	};
 
 	struct AnimatedElement {
@@ -102,19 +102,23 @@ namespace ui {
 		std::unordered_map<std::string, AnimatedElement> elements;
 		std::vector<std::string> current_element_ids;
 
+		int line_height = 15;
 		gfx::Point current_position;
 		bool updated = false;
+		int last_margin_bottom = 0;
 	};
 
 	void render_bar(os::Surface* surface, const Element* element, float anim);
 	void render_text(os::Surface* surface, const Element* element, float anim);
 	void render_image(os::Surface* surface, const Element* element, float anim);
 
-	void init_container(Container& container, gfx::Rect rect, std::optional<gfx::Color> background_color = {});
-	void add_element(Container& container, const std::string& id, std::shared_ptr<Element> element);
+	void init_container(Container& container, gfx::Rect rect, const SkFont& font, std::optional<gfx::Color> background_color = {});
+	void add_element(Container& container, const std::string& id, std::shared_ptr<Element> element, int margin_bottom);
+	void add_element_fixed(Container& container, const std::string& id, std::shared_ptr<Element> element);
 
 	std::shared_ptr<Element> add_bar(const std::string& id, Container& container, float percent_fill, gfx::Color background_color, gfx::Color fill_color, int bar_width, std::optional<std::string> bar_text = {}, std::optional<gfx::Color> text_color = {}, std::optional<const SkFont*> font = {});
-	std::shared_ptr<Element> add_text(const std::string& id, Container& container, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align = os::TextAlign::Left);
+	std::shared_ptr<Element> add_text(const std::string& id, Container& container, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align = os::TextAlign::Left, int margin_bottom = 7);
+	std::shared_ptr<Element> add_text_fixed(const std::string& id, Container& container, gfx::Point position, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align = os::TextAlign::Left, int margin_bottom = 7);
 	std::optional<std::shared_ptr<Element>> add_image(const std::string& id, Container& container, std::string image_path, gfx::Size max_size, std::string image_id = ""); // use image_id to distinguish images that have the same filename and reload it (e.g. if its updated)
 
 	void center_elements_in_container(Container& container, bool horizontal = true, bool vertical = true);

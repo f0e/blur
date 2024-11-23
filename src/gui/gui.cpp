@@ -11,7 +11,7 @@
 
 #include "resources/font.h"
 
-#define DEBUG_BOX 1
+#define DEBUG_RENDER 0
 
 const int font_height = 14;
 const int pad_x = 24;
@@ -28,6 +28,7 @@ bool closing = false;
 bool actively_rendering = true;
 
 SkFont font;
+SkFont header_font;
 os::EventQueue* event_queue;
 
 void gui::DragTarget::dragEnter(os::DragEvent& ev) {
@@ -152,8 +153,11 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 
 	// todo: first render in a batch might be fucked, look at progress bar skipping fully to complete instantly on 25 speed - investigate
 	static bool first = true;
-	float fps = -1.f;
 	float delta_time;
+
+#if DEBUG_RENDER
+	float fps = -1.f;
+#endif
 
 	if (first) {
 		delta_time = default_delta_time;
@@ -162,12 +166,14 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 	else {
 		float time_since_last_frame = std::chrono::duration<float>(std::chrono::steady_clock::now() - last_frame_time).count();
 
+#if DEBUG_RENDER
 		fps = 1.f / time_since_last_frame;
 
-		// float current_fps = 1.f / time_since_last_frame;
-		// if (fps == -1.f)
-		// 	fps = current_fps;
-		// fps = (fps * fps_smoothing) + (current_fps * (1.0f - fps_smoothing));
+// float current_fps = 1.f / time_since_last_frame;
+// if (fps == -1.f)
+// 	fps = current_fps;
+// fps = (fps * fps_smoothing) + (current_fps * (1.0f - fps_smoothing));
+#endif
 
 		delta_time = std::min(time_since_last_frame, min_delta_time);
 	}
@@ -216,12 +222,17 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 	container_rect.y += pad_y;
 	container_rect.h -= pad_y * 2;
 
-	init_container(container, container_rect);
+	ui::init_container(container, container_rect, font);
 
 	static float bar_percent = 0.f;
 
 	if (rendering.queue.empty()) {
 		bar_percent = 0.f;
+
+		gfx::Point title_pos = rc.center();
+		title_pos.y = pad_y + header_font.getSize();
+
+		ui::add_text_fixed("blur title text", container, title_pos, "blur", gfx::rgba(255, 255, 255, 255), header_font, os::TextAlign::Center, 15);
 		ui::add_text("drop a file text", container, "Drop a file...", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
 	}
 	else {
@@ -230,7 +241,7 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 		for (const auto [i, render] : helpers::enumerate(rendering.queue)) {
 			bool current = render == rendering.current_render;
 
-			ui::add_text("video name text", container, base::to_utf8(render->get_video_name()), gfx::rgba(255, 255, 255, (current ? 255 : 100)), font, os::TextAlign::Center);
+			ui::add_text("video name text", container, base::to_utf8(render->get_video_name()), gfx::rgba(255, 255, 255, (current ? 255 : 100)), header_font, os::TextAlign::Center, 15);
 
 			if (current) {
 				auto render_status = render->get_status();
@@ -249,7 +260,7 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 					bar_percent = std::lerp(bar_percent, render_progress, 5.f * delta_time);
 
 					ui::add_bar("progress bar", container, bar_percent, gfx::rgba(51, 51, 51, 255), gfx::rgba(255, 255, 255, 255), bar_width, fmt::format("{:.1f}%", render_progress * 100), gfx::rgba(255, 255, 255, 255), &font);
-					ui::add_text("progress text", container, fmt::format("frame {} out of {}", render_status.current_frame, render_status.total_frames), gfx::rgba(255, 255, 255, 155), font, os::TextAlign::Center);
+					ui::add_text("progress text", container, fmt::format("frame {}/{}", render_status.current_frame, render_status.total_frames), gfx::rgba(255, 255, 255, 155), font, os::TextAlign::Center);
 					ui::add_text("progress text 2", container, fmt::format("{:.2f} frames per second", render_status.fps), gfx::rgba(255, 255, 255, 155), font, os::TextAlign::Center);
 				}
 				else {
@@ -283,7 +294,7 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 		s->drawRect(drop_zone, paint);
 	}
 
-#if DEBUG_BOX
+#if DEBUG_RENDER
 	{
 		// debug
 		static const int debug_box_size = 30;
@@ -318,6 +329,7 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 
 	ui::render_container(s, container);
 
+#if DEBUG_RENDER
 	if (fps != -1.f) {
 		gfx::Point fps_pos(
 			rc.x2() - pad_x,
@@ -325,6 +337,7 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 		);
 		render::text(s, fps_pos, gfx::rgba(0, 255, 0, 255), fmt::format("{:.0f} fps", fps), font, os::TextAlign::Right);
 	}
+#endif
 
 	if (!window->isVisible())
 		window->setVisible(true);
@@ -339,7 +352,9 @@ void gui::on_resize(os::Window* window) {
 void gui::run() {
 	auto system = os::make_system();
 
-	font = utils::create_font_from_data(ttf_FiraCode_Regular, ttf_FiraCode_Regular_len, font_height);
+	font = SkFont(); // default font
+	header_font = SkFont();
+	header_font.setSize(18.f);
 
 	system->setAppMode(os::AppMode::GUI);
 	system->handleWindowResize = on_resize;

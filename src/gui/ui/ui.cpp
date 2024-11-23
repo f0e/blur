@@ -3,8 +3,6 @@
 #include "os/sampling.h"
 #include "render.h"
 
-const int gap = 15;
-
 gfx::Color adjust_color(const gfx::Color& color, float anim) {
 	return gfx::rgba(gfx::getr(color), gfx::getg(color), gfx::getb(color), round(gfx::geta(color) * anim)); // seta is broken or smth i swear
 }
@@ -117,17 +115,24 @@ void ui::render_image(os::Surface* surface, const Element* element, float anim) 
 	surface->drawRect(image_rect, stroke_paint);
 }
 
-void ui::init_container(Container& container, gfx::Rect rect, std::optional<gfx::Color> background_color) {
+void ui::init_container(Container& container, gfx::Rect rect, const SkFont& font, std::optional<gfx::Color> background_color) {
+	container.line_height = font.getSize();
 	container.rect = rect;
 	container.background_color = background_color;
-	container.current_position = { rect.x + 10, rect.y + 10 };
+	container.current_position = rect.origin(); // todo: padding
 	container.current_element_ids = {};
 	container.updated = false;
+	container.last_margin_bottom = 0;
 }
 
-void ui::add_element(Container& container, const std::string& id, std::shared_ptr<Element> element) {
-	container.current_position.y += element->rect.h + gap;
+void ui::add_element(Container& container, const std::string& id, std::shared_ptr<Element> element, int margin_bottom) {
+	container.current_position.y += element->rect.h + margin_bottom;
+	container.last_margin_bottom = margin_bottom;
 
+	add_element_fixed(container, id, element);
+}
+
+void ui::add_element_fixed(Container& container, const std::string& id, std::shared_ptr<Element> element) {
 	if (!container.elements.contains(id)) {
 		container.elements[id] = {
 			element,
@@ -153,12 +158,12 @@ std::shared_ptr<ui::Element> ui::add_bar(const std::string& id, Container& conta
 		render_bar,
 	});
 
-	add_element(container, id, element);
+	add_element(container, id, element, container.line_height);
 
 	return element;
 }
 
-std::shared_ptr<ui::Element> ui::add_text(const std::string& id, Container& container, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align) {
+std::shared_ptr<ui::Element> ui::add_text(const std::string& id, Container& container, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align, int margin_bottom) {
 	auto element = std::make_shared<Element>(Element{
 		ElementType::TEXT,
 		gfx::Rect(container.current_position, gfx::Size(0, font.getSize())),
@@ -166,7 +171,21 @@ std::shared_ptr<ui::Element> ui::add_text(const std::string& id, Container& cont
 		render_text,
 	});
 
-	add_element(container, id, element);
+	add_element(container, id, element, margin_bottom);
+
+	return element;
+}
+
+std::shared_ptr<ui::Element> ui::add_text_fixed(const std::string& id, Container& container, gfx::Point position, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align, int margin_bottom) {
+	auto element = std::make_shared<Element>(Element{
+		ElementType::TEXT,
+		gfx::Rect(position, gfx::Size(0, font.getSize())),
+		TextElementData{ text, color, font, align },
+		render_text,
+		true,
+	});
+
+	add_element_fixed(container, id, element);
 
 	return element;
 }
@@ -236,7 +255,7 @@ std::optional<std::shared_ptr<ui::Element>> ui::add_image(const std::string& id,
 		render_image,
 	});
 
-	add_element(container, id, element);
+	add_element(container, id, element, container.line_height);
 
 	return element;
 }
@@ -244,39 +263,47 @@ std::optional<std::shared_ptr<ui::Element>> ui::add_image(const std::string& id,
 void ui::center_elements_in_container(Container& container, bool horizontal, bool vertical) {
 	int total_height = container.current_position.y - container.rect.y;
 
-	// remove the last gap
-	total_height -= gap;
+	// nothing followed the last element, so remove its bottom margin
+	total_height -= container.last_margin_bottom;
 
 	int start_x = container.rect.x;
-	int start_y = container.rect.y;
+	int shift_y = 0;
 
-	// calculate the starting y position to center elements vertically
+	// Calculate the starting y position shift to center elements vertically
 	if (vertical) {
-		start_y = (container.rect.h - total_height) / 2 + container.rect.y;
+		shift_y = (container.rect.h - total_height) / 2;
 	}
 
-	// calculate the starting x position to center elements horizontally
+	// Calculate the starting x position to center elements horizontally
 	if (horizontal) {
 		int total_width = 0;
 		for (const auto& id : container.current_element_ids) {
 			auto& element = container.elements[id].element;
+
+			if (element->fixed)
+				continue;
 
 			total_width = std::max(total_width, element->rect.w);
 		}
 		start_x = (container.rect.w - total_width) / 2 + container.rect.x;
 	}
 
-	// update element positions
-	int current_y = start_y;
+	// Update element positions
 	for (const auto& id : container.current_element_ids) {
 		auto& element = container.elements[id].element;
 
-		element->rect.y = current_y;
+		if (element->fixed)
+			continue;
+
+		// Adjust y position by the calculated shift without overwriting it
+		if (vertical) {
+			element->rect.y += shift_y;
+		}
+
+		// Center x position if horizontal centering is enabled
 		if (horizontal) {
 			element->rect.x = container.rect.center().x - element->rect.w / 2;
 		}
-
-		current_y += element->rect.h + gap;
 	}
 }
 
