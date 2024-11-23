@@ -9,7 +9,7 @@
 #include "ui/ui.h"
 #include "ui/utils.h"
 
-#include "resources/font.h"
+#include "resources/fonts.h"
 
 #define DEBUG_RENDER 0
 
@@ -29,6 +29,7 @@ bool actively_rendering = true;
 
 SkFont font;
 SkFont header_font;
+SkFont smaller_header_font;
 os::EventQueue* event_queue;
 
 void gui::DragTarget::dragEnter(os::DragEvent& ev) {
@@ -241,7 +242,10 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 		for (const auto [i, render] : helpers::enumerate(rendering.queue)) {
 			bool current = render == rendering.current_render;
 
-			ui::add_text("video name text", container, base::to_utf8(render->get_video_name()), gfx::rgba(255, 255, 255, (current ? 255 : 100)), header_font, os::TextAlign::Center, 15);
+			// todo: ui concept
+			// screen start|      [faded]last_video current_video [faded]next_video next_video2 next_video3 (+5) | screen end
+			// animate sliding in as it moves along the queue
+			ui::add_text(fmt::format("video name text {}", i), container, base::to_utf8(render->get_video_name()), gfx::rgba(255, 255, 255, (current ? 255 : 100)), smaller_header_font, os::TextAlign::Center, current ? 15 : 7);
 
 			if (current) {
 				auto render_status = render->get_status();
@@ -262,12 +266,12 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 					ui::add_bar("progress bar", container, bar_percent, gfx::rgba(51, 51, 51, 255), gfx::rgba(255, 255, 255, 255), bar_width, fmt::format("{:.1f}%", render_progress * 100), gfx::rgba(255, 255, 255, 255), &font);
 					ui::add_text("progress text", container, fmt::format("frame {}/{}", render_status.current_frame, render_status.total_frames), gfx::rgba(255, 255, 255, 155), font, os::TextAlign::Center);
 					ui::add_text("progress text 2", container, fmt::format("{:.2f} frames per second", render_status.fps), gfx::rgba(255, 255, 255, 155), font, os::TextAlign::Center);
+
+					is_progress_shown = true;
 				}
 				else {
 					ui::add_text("initialising render text", container, "Initialising render...", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
 				}
-
-				is_progress_shown = true;
 			}
 		}
 
@@ -353,8 +357,9 @@ void gui::run() {
 	auto system = os::make_system();
 
 	font = SkFont(); // default font
-	header_font = SkFont();
-	header_font.setSize(18.f);
+	header_font = utils::create_font_from_data(EBGaramond_VariableFont_wght_ttf, EBGaramond_VariableFont_wght_ttf_len, 30);
+	smaller_header_font = header_font;
+	smaller_header_font.setSize(18.f);
 
 	system->setAppMode(os::AppMode::GUI);
 	system->handleWindowResize = on_resize;
