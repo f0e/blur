@@ -132,7 +132,7 @@ void gui::event_loop() {
 
 		auto frame_start = std::chrono::steady_clock::now();
 
-		redraw_window(window.get());
+		redraw_window(window.get(), false);
 		generate_messages_from_os_events();
 
 		if (actively_rendering) {
@@ -144,14 +144,15 @@ void gui::event_loop() {
 	}
 }
 
-void gui::redraw_window(os::Window* window) {
+void gui::redraw_window(os::Window* window, bool force_render) {
 	auto now = std::chrono::steady_clock::now();
 	static auto last_frame_time = now;
 
 	// todo: first render in a batch might be fucked, look at progress bar skipping fully to complete instantly on 25 speed - investigate
 	static bool first = true;
+	float fps = -1.f;
 	float delta_time;
-	static float fps = -1.f;
+
 	if (first) {
 		delta_time = default_delta_time;
 		first = false;
@@ -159,7 +160,9 @@ void gui::redraw_window(os::Window* window) {
 	else {
 		float time_since_last_frame = std::chrono::duration<float>(std::chrono::steady_clock::now() - last_frame_time).count();
 
-		float fps = 1.f / time_since_last_frame;
+		fps = 1.f / time_since_last_frame;
+
+		// float current_fps = 1.f / time_since_last_frame;
 		// if (fps == -1.f)
 		// 	fps = current_fps;
 		// fps = (fps * fps_smoothing) + (current_fps * (1.0f - fps_smoothing));
@@ -307,7 +310,7 @@ void gui::redraw_window(os::Window* window) {
 
 	ui::center_elements_in_container(container);
 
-	actively_rendering = ui::update_container(s, container, delta_time) || updated;
+	actively_rendering = ui::update_container(s, container, delta_time) || updated || force_render;
 	if (!actively_rendering)
 		return;
 
@@ -327,13 +330,17 @@ void gui::redraw_window(os::Window* window) {
 	window->invalidateRegion(gfx::Region(rc));
 }
 
+void gui::on_resize(os::Window* window) {
+	redraw_window(window, true);
+}
+
 void gui::run() {
 	auto system = os::make_system();
 
 	font = utils::create_font_from_data(ttf_FiraCode_Regular, ttf_FiraCode_Regular_len, font_height);
 
 	system->setAppMode(os::AppMode::GUI);
-	system->handleWindowResize = redraw_window;
+	system->handleWindowResize = on_resize;
 
 	DragTarget dragTarget;
 	window = create_window(dragTarget);
