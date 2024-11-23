@@ -194,10 +194,12 @@ void gui::redraw_window(os::Window* window) {
 
 	gfx::Rect drop_zone = rc;
 
-	static float fill_shade = 10.f;
-	fill_shade = std::lerp(fill_shade, windowData.dragging ? 30.f : 10.f, 25.f * delta_time);
-	paint.color(gfx::rgba(255, 255, 255, fill_shade));
-	s->drawRect(drop_zone, paint);
+	static float fill_shade = 0.f;
+	fill_shade = std::lerp(fill_shade, windowData.dragging ? 30.f : 0.f, 25.f * delta_time);
+	if ((int)fill_shade > 0) {
+		paint.color(gfx::rgba(255, 255, 255, fill_shade));
+		s->drawRect(drop_zone, paint);
+	}
 
 	// paint.style(os::Paint::Style::Stroke);
 	// const int stroke_shade = 100;

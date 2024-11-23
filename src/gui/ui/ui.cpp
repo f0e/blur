@@ -7,30 +7,46 @@ const int gap = 10;
 
 void ui::render_bar(os::Surface* surface, const Element* element, float anim) {
 	auto& bar_data = std::get<BarElementData>(element->data);
-	render::rect_filled(surface, element->rect, gfx::seta(bar_data.background_color, anim * 255));
+
+	int alpha = anim * 255;
+	if (alpha == 0)
+		return;
+
+	render::rect_filled(surface, element->rect, gfx::seta(bar_data.background_color, alpha));
 
 	if (bar_data.percent_fill > 0) {
 		gfx::Rect fill_rect = element->rect;
 		fill_rect.w = static_cast<int>(element->rect.w * bar_data.percent_fill);
-		render::rect_filled(surface, fill_rect, gfx::seta(bar_data.fill_color, anim * 255));
+		render::rect_filled(surface, fill_rect, gfx::seta(bar_data.fill_color, alpha));
 	}
 }
 
 void ui::render_text(os::Surface* surface, const Element* element, float anim) {
 	auto& text_data = std::get<TextElementData>(element->data);
+
+	int alpha = anim * 255;
+	if (alpha == 0)
+		return;
+
 	gfx::Point text_pos = element->rect.origin();
 	text_pos.y += text_data.font.getSize();
-	render::text(surface, text_pos, gfx::seta(text_data.color, anim * 255), text_data.text, text_data.font, text_data.align);
+
+	render::text(surface, text_pos, gfx::seta(text_data.color, alpha), text_data.text, text_data.font, text_data.align);
 }
 
 void ui::render_image(os::Surface* surface, const Element* element, float anim) {
 	auto& image_data = std::get<ImageElementData>(element->data);
 
+	int alpha = anim * 255;
+	int stroke_alpha = anim * 125;
+	if (alpha == 0 && stroke_alpha == 0)
+		return;
+
 	gfx::Rect image_rect = element->rect;
 	image_rect.shrink(3);
 
 	os::Paint paint;
-	paint.color(gfx::rgba(255, 255, 255, anim * 255));
+	paint.color(gfx::rgba(255, 255, 255, alpha));
 	surface->drawSurface(image_data.image_surface.get(), image_data.image_surface->bounds(), image_rect, os::Sampling(), &paint);
 
 	os::Paint stroke_paint;
@@ -38,15 +54,15 @@ void ui::render_image(os::Surface* surface, const Element* element, float anim) 
 	stroke_paint.strokeWidth(1);
 
 	image_rect.enlarge(1);
-	stroke_paint.color(gfx::rgba(155, 155, 155, 125 * anim));
+	stroke_paint.color(gfx::rgba(155, 155, 155, stroke_alpha));
 	surface->drawRect(image_rect, stroke_paint);
 
 	image_rect.enlarge(1);
-	stroke_paint.color(gfx::rgba(80, 80, 80, 125 * anim));
+	stroke_paint.color(gfx::rgba(80, 80, 80, stroke_alpha));
 	surface->drawRect(image_rect, stroke_paint);
 
 	image_rect.enlarge(1);
-	stroke_paint.color(gfx::rgba(155, 155, 155, 125 * anim));
+	stroke_paint.color(gfx::rgba(155, 155, 155, stroke_alpha));
 	surface->drawRect(image_rect, stroke_paint);
 }
 

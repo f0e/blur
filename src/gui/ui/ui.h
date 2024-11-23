@@ -60,7 +60,7 @@ namespace ui {
 
 	struct AnimatedElement {
 		std::shared_ptr<Element> element;
-		AnimationState animation = AnimationState(15.f);
+		AnimationState animation = AnimationState(25.f);
 	};
 
 	struct Container {
