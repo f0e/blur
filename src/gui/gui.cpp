@@ -127,8 +127,8 @@ void gui::redraw_window(os::Window* window) {
 	auto now = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<float> delta_time_duration = now - last_frame_time;
 
-	float delta_time;
-	delta_time = delta_time_duration.count();
+	float raw_delta_time;
+	raw_delta_time = delta_time_duration.count();
 
 	static float timeout = 1.f / 60;
 
@@ -142,7 +142,7 @@ void gui::redraw_window(os::Window* window) {
 		last_screen_handle = screen_handle;
 	}
 
-	if (delta_time < timeout) {
+	if (raw_delta_time < timeout) {
 		// vsync
 		return;
 	}
@@ -151,11 +151,13 @@ void gui::redraw_window(os::Window* window) {
 
 	// -- fps calc
 
-	float current_fps = 1.f / delta_time;
+	float current_fps = 1.f / raw_delta_time;
 	static float fps = current_fps;
 	fps = (fps * fps_smoothing) + (current_fps * (1.0f - fps_smoothing));
 
 	// -- main
+
+	float delta_time = std::min(raw_delta_time, 1.f / 30); // cap at 30fps to prevent stutters breaking animations
 
 	os::Surface* s = window->surface();
 	const gfx::Rect rc = s->bounds();
@@ -240,10 +242,15 @@ void gui::redraw_window(os::Window* window) {
 
 	init_container(container, container_rect);
 
+	static float bar_percent = 0.f;
+
 	if (rendering.queue.empty()) {
+		bar_percent = 0.f;
 		ui::add_text("drop a file text", container, "Drop a file...", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
 	}
 	else {
+		bool is_progress_shown = false;
+
 		for (const auto [i, render] : helpers::enumerate(rendering.queue)) {
 			bool current = render == rendering.current_render;
 
@@ -251,20 +258,32 @@ void gui::redraw_window(os::Window* window) {
 
 			if (current) {
 				auto render_status = render->get_status();
+				int bar_width = 300;
 
 				std::string preview_path = render->get_preview_path().string();
-				if (preview_path != "") {
-					ui::add_image("preview image", container, preview_path, gfx::Size(container_rect.w, 200));
+				if (!preview_path.empty()) {
+					auto element = ui::add_image("preview image", container, preview_path, gfx::Size(container_rect.w, 200));
+					if (element) {
+						bar_width = element->rect.w;
+					}
 				}
 
 				if (render_status.init) {
-					ui::add_bar("progress bar", container, render_status.current_frame / (float)render_status.total_frames, gfx::rgba(51, 51, 51, 255), gfx::rgba(255, 255, 255, 255));
+					bar_percent = std::lerp(bar_percent, render_status.current_frame / (float)render_status.total_frames, 25.f * delta_time);
+
+					ui::add_bar("progress bar", container, bar_percent, gfx::rgba(51, 51, 51, 255), gfx::rgba(255, 255, 255, 255), bar_width);
 					ui::add_text("progress text", container, render_status.progress_string, gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
 				}
 				else {
 					ui::add_text("initialising render text", container, "Initialising render...", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
 				}
+
+				is_progress_shown = true;
 			}
+		}
+
+		if (!is_progress_shown) {
+			bar_percent = 0.f; // Reset when no progress bar is shown
 		}
 	}
 

@@ -3,7 +3,7 @@
 #include "os/sampling.h"
 #include "render.h"
 
-const int gap = 10;
+const int gap = 15;
 
 void ui::render_bar(os::Surface* surface, const Element* element, float anim) {
 	auto& bar_data = std::get<BarElementData>(element->data);
@@ -12,12 +12,12 @@ void ui::render_bar(os::Surface* surface, const Element* element, float anim) {
 	if (alpha == 0)
 		return;
 
-	render::rect_filled(surface, element->rect, gfx::seta(bar_data.background_color, alpha));
+	render::rounded_rect_filled(surface, element->rect, gfx::seta(bar_data.background_color, alpha), 1000.f);
 
 	if (bar_data.percent_fill > 0) {
 		gfx::Rect fill_rect = element->rect;
 		fill_rect.w = static_cast<int>(element->rect.w * bar_data.percent_fill);
-		render::rect_filled(surface, fill_rect, gfx::seta(bar_data.fill_color, alpha));
+		render::rounded_rect_filled(surface, fill_rect, gfx::seta(bar_data.fill_color, alpha), 1000.f);
 	}
 }
 
@@ -29,7 +29,7 @@ void ui::render_text(os::Surface* surface, const Element* element, float anim) {
 		return;
 
 	gfx::Point text_pos = element->rect.origin();
-	text_pos.y += text_data.font.getSize();
+	text_pos.y += text_data.font.getSize() - 1;
 
 	render::text(surface, text_pos, gfx::seta(text_data.color, alpha), text_data.text, text_data.font, text_data.align);
 }
@@ -92,18 +92,20 @@ void ui::add_element(Container& container, const std::string& id, const Element&
 	container.current_element_ids.push_back(id);
 }
 
-void ui::add_bar(const std::string& id, Container& container, float percent_fill, gfx::Color background_color, gfx::Color fill_color) {
+ui::Element ui::add_bar(const std::string& id, Container& container, float percent_fill, gfx::Color background_color, gfx::Color fill_color, int bar_width) {
 	Element element = {
 		ElementType::BAR,
-		gfx::Rect(container.current_position, gfx::Size(300, 6)),
+		gfx::Rect(container.current_position, gfx::Size(bar_width, 6)),
 		BarElementData{ percent_fill, background_color, fill_color },
 		render_bar,
 	};
 
 	add_element(container, id, element);
+
+	return element;
 }
 
-void ui::add_text(const std::string& id, Container& container, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align) {
+ui::Element ui::add_text(const std::string& id, Container& container, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align) {
 	Element element = {
 		ElementType::TEXT,
 		gfx::Rect(container.current_position, gfx::Size(0, font.getSize())),
@@ -112,14 +114,16 @@ void ui::add_text(const std::string& id, Container& container, const std::string
 	};
 
 	add_element(container, id, element);
+
+	return element;
 }
 
-void ui::add_image(const std::string& id, Container& container, std::string image_path, gfx::Size max_size) {
+std::optional<ui::Element> ui::add_image(const std::string& id, Container& container, std::string image_path, gfx::Size max_size) {
 	gfx::Rect image_rect(container.current_position, max_size);
 
 	os::SurfaceRef image_surface = os::instance()->loadRgbaSurface(image_path.c_str());
 	if (!image_surface)
-		return;
+		return {};
 
 	float aspect_ratio = image_surface->width() / static_cast<float>(image_surface->height());
 
@@ -151,6 +155,8 @@ void ui::add_image(const std::string& id, Container& container, std::string imag
 	};
 
 	add_element(container, id, element);
+
+	return element;
 }
 
 void ui::center_elements_in_container(Container& container, bool horizontal, bool vertical) {
