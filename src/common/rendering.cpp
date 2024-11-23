@@ -108,17 +108,22 @@ bool c_render::create_temp_path() {
 }
 
 bool c_render::remove_temp_path() {
-	// remove temp path
 	if (temp_path.empty())
 		return false;
 
 	if (!std::filesystem::exists(temp_path))
 		return false;
 
-	std::filesystem::remove_all(temp_path);
-	blur.created_temp_paths.erase(temp_path);
+	try {
+		std::filesystem::remove_all(temp_path);
+		blur.created_temp_paths.erase(temp_path);
 
-	return true;
+		return true;
+	}
+	catch (const std::filesystem::filesystem_error& e) {
+		std::cerr << "Error removing temp path: " << e.what() << std::endl;
+		return false;
+	}
 }
 
 c_render::s_render_commands c_render::build_render_commands() {
@@ -267,7 +272,7 @@ bool c_render::do_render(s_render_commands render_commands) {
 			bp::args(render_commands.ffmpeg),
 			bp::std_in < vspipe_stdout,
 			bp::std_out.null(),
-			bp::std_err.null(),
+			// bp::std_err.null(),
 			io_context
 #ifdef _WIN32
 			,
