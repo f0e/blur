@@ -110,12 +110,12 @@ void ui::add_element(Container& container, const std::string& id, std::shared_pt
 }
 
 std::shared_ptr<ui::Element> ui::add_bar(const std::string& id, Container& container, float percent_fill, gfx::Color background_color, gfx::Color fill_color, int bar_width, std::optional<std::string> bar_text, std::optional<gfx::Color> text_color, std::optional<const SkFont*> font) {
-	auto element = std::make_shared<Element>(
+	auto element = std::make_shared<Element>(Element{
 		ElementType::BAR,
 		gfx::Rect(container.current_position, gfx::Size(bar_width, 6)),
 		BarElementData{ percent_fill, background_color, fill_color, bar_text, text_color, font },
-		render_bar
-	);
+		render_bar,
+	});
 
 	add_element(container, id, element);
 
@@ -123,12 +123,12 @@ std::shared_ptr<ui::Element> ui::add_bar(const std::string& id, Container& conta
 }
 
 std::shared_ptr<ui::Element> ui::add_text(const std::string& id, Container& container, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align) {
-	auto element = std::make_shared<Element>(
+	auto element = std::make_shared<Element>(Element{
 		ElementType::TEXT,
 		gfx::Rect(container.current_position, gfx::Size(0, font.getSize())),
 		TextElementData{ text, color, font, align },
-		render_text
-	);
+		render_text,
+	});
 
 	add_element(container, id, element);
 
@@ -193,12 +193,12 @@ std::optional<std::shared_ptr<ui::Element>> ui::add_image(const std::string& id,
 		image_rect.h = static_cast<int>(max_size.w / aspect_ratio);
 	}
 
-	auto element = std::make_shared<Element>(
+	auto element = std::make_shared<Element>(Element{
 		ElementType::IMAGE,
 		image_rect,
 		ImageElementData{ image_path, image_surface, image_id },
-		render_image
-	);
+		render_image,
+	});
 
 	add_element(container, id, element);
 
