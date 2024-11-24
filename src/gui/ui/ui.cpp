@@ -1,4 +1,6 @@
 #include "ui.h"
+#include "gui/gui.h"
+#include "os/native_cursor.h"
 #include "render.h"
 #include "keys.h"
 #include "os/draw_text.h"
@@ -117,16 +119,19 @@ void ui::render_image(os::Surface* surface, const Element* element, float anim) 
 }
 
 void ui::render_button(os::Surface* surface, const Element* element, float anim) {
-	const float button_rounding = 10.f;
+	const float button_rounding = 7.8f;
 
 	auto& button_data = std::get<ButtonElementData>(element->data);
 
 	bool hovered = element->rect.contains(keys::mouse_pos);
+	if (hovered) {
+		gui::set_cursor(os::NativeCursor::Link);
 
-	if (button_data.on_press) {
-		if (keys::is_rect_pressed(element->rect, os::Event::MouseButton::LeftButton)) {
-			(*button_data.on_press)();
-			keys::on_mouse_press_handled(os::Event::MouseButton::LeftButton);
+		if (button_data.on_press) {
+			if (keys::is_mouse_down()) {
+				(*button_data.on_press)();
+				keys::on_mouse_press_handled(os::Event::MouseButton::LeftButton);
+			}
 		}
 	}
 
@@ -134,14 +139,11 @@ void ui::render_button(os::Surface* surface, const Element* element, float anim)
 	gfx::Color adjusted_text_color = adjust_color(gfx::rgba(255, 255, 255, 255), anim);
 
 	gfx::Point text_pos = element->rect.center();
+
 	text_pos.y += button_data.font.getSize() / 2 - 1;
 	gfx::Rect cur_rect = element->rect;
 
 	// border
-	cur_rect.shrink(1);
-	render::rounded_rect_stroke(surface, cur_rect, adjust_color(gfx::rgba(100, 100, 100, 255), anim), button_rounding);
-	cur_rect.shrink(1);
-	render::rounded_rect_stroke(surface, cur_rect, adjust_color(gfx::rgba(50, 50, 50, 255), anim), button_rounding);
 	cur_rect.shrink(1);
 	render::rounded_rect_stroke(surface, cur_rect, adjust_color(gfx::rgba(100, 100, 100, 255), anim), button_rounding);
 

@@ -3,6 +3,8 @@
 #include "include/core/SkRRect.h"
 #include "os/skia/skia_surface.h"
 
+// #include "include/core/SkFontMetrics.h"
+
 // todo: is creating a new paint instance every time significant to perf? shouldnt be
 
 void render::rect_filled(os::Surface* surface, gfx::Rect rect, gfx::Color colour) {
@@ -15,6 +17,8 @@ void render::rect_filled(os::Surface* surface, gfx::Rect rect, gfx::Color colour
 void rounded_rect(os::Surface* surface, gfx::RectF rect, os::Paint paint, float rounding) {
 	if (rect.isEmpty())
 		return;
+
+	paint.antialias(true);
 
 	SkRect skia_rect;
 	if (paint.style() == os::Paint::Style::Stroke)

@@ -1,11 +1,11 @@
 #include "gui.h"
 #include "base/system_console.h"
-#include "base/time.h"
 #include "gfx/color.h"
 #include "gui/ui/render.h"
 #include "os/draw_text.h"
 #include "os/event.h"
 #include "os/event_queue.h"
+#include "os/native_cursor.h"
 #include "tasks.h"
 
 #include "ui/ui.h"
@@ -14,7 +14,8 @@
 
 #include "resources/fonts.h"
 
-#define DEBUG_RENDER 1
+#define DEBUG_RENDER         1
+#define DEBUG_RENDER_LOGGING 0
 
 const int font_height = 14;
 const int pad_x = 24;
@@ -33,6 +34,15 @@ SkFont font;
 SkFont header_font;
 SkFont smaller_header_font;
 os::EventQueue* event_queue;
+
+void gui::set_cursor(os::NativeCursor cursor) {
+	if (current_cursor != cursor) {
+		current_cursor = cursor;
+		window->setCursor(cursor);
+	}
+
+	set_cursor_this_frame = true;
+}
 
 void gui::DragTarget::dragEnter(os::DragEvent& ev) {
 	// v.dropResult(os::DropOperation::None); // TODO: what does this do? is it needed?
@@ -78,6 +88,26 @@ static os::WindowRef create_window(os::DragTarget& dragTarget) {
 	);
 
 	return window;
+}
+
+void gui::update_vsync() {
+#ifdef _WIN32
+	HMONITOR screen_handle = (HMONITOR)window->screen()->nativeHandle();
+	static HMONITOR last_screen_handle;
+#elif defined(__APPLE__)
+	void* screen_handle = window->screen()->nativeHandle();
+	static void* last_screen_handle;
+#else
+	int screen_handle = (int)window->screen()->nativeHandle();
+	static int last_screen_handle;
+#endif
+
+	if (screen_handle != last_screen_handle) {
+		double rate = utils::get_display_refresh_rate(screen_handle);
+		vsync_frame_time = 1.f / (rate + vsync_extra_fps);
+		printf("switched screen, updated vsync_frame_time. refresh rate: %.2f hz\n", rate);
+		last_screen_handle = screen_handle;
+	}
 }
 
 bool processEvent(const os::Event& ev) {
@@ -159,30 +189,14 @@ void gui::event_loop() {
 	bool to_render = true;
 
 	while (!closing) {
-#ifdef _WIN32
-		HMONITOR screen_handle = (HMONITOR)window->screen()->nativeHandle();
-		static HMONITOR last_screen_handle;
-#elif defined(__APPLE__)
-		void* screen_handle = window->screen()->nativeHandle();
-		static void* last_screen_handle;
-#else
-		int screen_handle = (int)window->screen()->nativeHandle();
-		static int last_screen_handle;
-#endif
-
-		if (screen_handle != last_screen_handle) {
-			double rate = utils::get_display_refresh_rate(screen_handle);
-			vsync_frame_time = 1.f / (rate + vsync_extra_fps);
-			printf("switched screen, updated vsync_frame_time. refresh rate: %.2f hz\n", rate);
-			last_screen_handle = screen_handle;
-		}
-
 		auto frame_start = std::chrono::steady_clock::now();
+
+		update_vsync();
 
 		bool rendered = redraw_window(window.get(), to_render); // note: rendered isn't true if rendering was forced, it's only if an animation or smth is playing
 		to_render = generate_messages_from_os_events(rendered); // true if input handled
 
-#if DEBUG_RENDER
+#if DEBUG_RENDER && DEBUG_RENDER_LOGGING
 		printf("rendered: %d, to render: %d\n", rendered, to_render);
 #endif
 
@@ -196,6 +210,8 @@ void gui::event_loop() {
 }
 
 bool gui::redraw_window(os::Window* window, bool force_render) {
+	set_cursor_this_frame = false;
+
 	auto now = std::chrono::steady_clock::now();
 	static auto last_frame_time = now;
 
@@ -279,12 +295,12 @@ bool gui::redraw_window(os::Window* window, bool force_render) {
 		title_pos.y = pad_y + header_font.getSize();
 
 		ui::add_text_fixed("blur title text", container, title_pos, "blur", gfx::rgba(255, 255, 255, 255), header_font, os::TextAlign::Center, 15);
-		ui::add_button("open a file button", container, "Open a file", font, [] {
+		ui::add_button("open file button", container, "Open files", font, [] {
 			base::paths paths;
-			utils::show_file_selector("Blur input", ".", { "mp4", "mkv" }, os::FileDialog::Type::OpenFiles, paths);
+			utils::show_file_selector("Blur input", "", {}, os::FileDialog::Type::OpenFiles, paths);
 			tasks::add_files(paths);
 		});
-		ui::add_text("drop a file text", container, "or drop a file anywhere", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
+		ui::add_text("drop file text", container, "or drop them anywhere", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
 	}
 	else {
 		bool is_progress_shown = false;
@@ -397,6 +413,11 @@ bool gui::redraw_window(os::Window* window, bool force_render) {
 		window->setVisible(true);
 
 	window->invalidateRegion(gfx::Region(rc));
+
+	// reset cursor
+	if (!set_cursor_this_frame) {
+		set_cursor(os::NativeCursor::Arrow);
+	}
 
 	return want_to_render;
 }

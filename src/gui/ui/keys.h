@@ -11,4 +11,5 @@ namespace keys {
 	void on_mouse_press_handled(os::Event::MouseButton button);
 
 	bool is_rect_pressed(gfx::Rect rect, os::Event::MouseButton button);
+	bool is_mouse_down(os::Event::MouseButton button = os::Event::MouseButton::LeftButton);
 }
