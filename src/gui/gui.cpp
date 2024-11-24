@@ -80,18 +80,27 @@ static os::WindowRef create_window(os::DragTarget& dragTarget) {
 
 bool processEvent(const os::Event& ev) {
 	switch (ev.type()) {
-		case os::Event::KeyDown:
+		case os::Event::KeyDown: {
 			if (ev.scancode() == os::kKeyEsc)
 				return false;
 			break;
+		}
 
 		case os::Event::CloseApp:
-		case os::Event::CloseWindow:
+		case os::Event::CloseWindow: {
 			closing = true;
 			return false;
+		}
 
 		case os::Event::ResizeWindow:
 			break;
+
+		case os::Event::MouseDown: {
+			base::paths paths;
+			utils::show_file_selector("Blur input", ".", { "mp4", "mkv" }, os::FileDialog::Type::OpenFiles, paths);
+			tasks::add_files(paths);
+			break;
+		}
 
 		default:
 			break;

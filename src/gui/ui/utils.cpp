@@ -105,3 +105,75 @@ double utils::get_display_refresh_rate(int screenNumber)
 	return static_cast<double>(rate);
 #endif
 }
+
+bool utils::show_file_selector( // aseprite
+	const std::string& title,
+	const std::string& initialPath,
+	const base::paths& extensions,
+	os::FileDialog::Type type,
+	base::paths& output
+) {
+	const std::string defExtension = ""; //
+
+	if (os::instance()->nativeDialogs()) {
+		os::FileDialogRef dlg =
+			os::instance()->nativeDialogs()->makeFileDialog();
+
+		if (dlg) {
+			dlg->setTitle(title);
+
+			// Must be set before setFileName() as the Linux impl might
+			// require the default extension to fix the initial file name
+			// with the default extension.
+			if (!defExtension.empty()) {
+				dlg->setDefaultExtension(defExtension);
+			}
+
+#if LAF_LINUX // As the X11 version doesn't store the default path to
+              // start navigating, we use our own
+              // get_initial_path_to_select_filename()
+			dlg->setFileName(get_initial_path_to_select_filename(initialPath));
+#else // !LAF_LINUX
+			dlg->setFileName(initialPath);
+#endif
+
+			dlg->setType(type);
+
+			for (const auto& ext : extensions)
+				dlg->addFilter(ext, ext + " files (*." + ext + ")");
+
+			auto res = dlg->show(os::instance()->defaultWindow());
+			if (res != os::FileDialog::Result::Error) {
+				if (res == os::FileDialog::Result::OK) {
+					if (type == os::FileDialog::Type::OpenFiles)
+						dlg->getMultipleFileNames(output);
+					else
+						output.push_back(dlg->fileName());
+
+#if LAF_LINUX // Save the path in the configuration file
+					if (!output.empty()) {
+						set_current_dir_for_file_selector(base::get_file_path(output[0]));
+					}
+#endif
+
+					return true;
+				}
+				else {
+					return false;
+				}
+			}
+			else {
+				// Fallback to default file selector if we weren't able to
+				// open the native dialog...
+			}
+		}
+	}
+
+	// FileSelector fileSelector(type);
+
+	// if (!defExtension.empty())
+	// 	fileSelector.setDefaultExtension(defExtension);
+
+	// return fileSelector.show(title, initialPath, extensions, output);
+	return false;
+}

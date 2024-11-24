@@ -10,4 +10,12 @@ namespace utils {
 #else
 	double get_display_refresh_rate(int screenNumber);
 #endif
+
+	bool show_file_selector(
+		const std::string& title,
+		const std::string& initialPath,
+		const base::paths& extensions,
+		os::FileDialog::Type type,
+		base::paths& output
+	);
 }
