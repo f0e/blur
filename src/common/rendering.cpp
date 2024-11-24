@@ -297,6 +297,7 @@ bool c_render::do_render(s_render_commands render_commands) {
 
 						if (!status.init) {
 							status.init = true;
+							status.start_time = std::chrono::steady_clock::now();
 						}
 						else {
 							auto current_time = std::chrono::steady_clock::now();
@@ -304,8 +305,6 @@ bool c_render::do_render(s_render_commands render_commands) {
 
 							status.fps = status.current_frame / status.elapsed_time.count();
 						}
-
-						status.start_time = std::chrono::steady_clock::now();
 
 						status.update_progress_string(first);
 
