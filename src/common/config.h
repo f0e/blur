@@ -52,7 +52,7 @@ const s_blur_settings default_settings;
 
 class c_config {
 private:
-	const std::string filename = ".blur-config.cfg";
+	const std::string filename = ".blur-config.cfg"; // todo: the . makes configs hidden on mac - is that an issue
 
 public:
 	void create(const std::filesystem::path& filepath, s_blur_settings current_settings = s_blur_settings());

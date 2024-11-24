@@ -218,6 +218,7 @@ c_render::s_render_commands c_render::build_render_commands() {
 			else if (gpu_type == "intel") {
 				commands.ffmpeg.insert(commands.ffmpeg.end(), { L"-c:v", L"h264_qsv", L"-global_quality", std::to_wstring(settings.quality), L"-preset", L"veryslow" });
 			}
+			// todo: mac
 		}
 		else {
 			commands.ffmpeg.insert(commands.ffmpeg.end(), { L"-c:v", L"libx264", L"-pix_fmt", L"yuv420p", L"-preset", L"superfast", L"-crf", std::to_wstring(settings.quality) });
