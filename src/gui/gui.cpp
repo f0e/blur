@@ -1,8 +1,10 @@
 #include "gui.h"
 #include "base/system_console.h"
+#include "base/time.h"
 #include "gfx/color.h"
 #include "gui/ui/render.h"
 #include "os/draw_text.h"
+#include "os/event.h"
 #include "os/event_queue.h"
 #include "tasks.h"
 
@@ -90,7 +92,6 @@ bool processEvent(const os::Event& ev) {
 			break;
 
 		case os::Event::MouseMove: {
-			printf("mouse move bro! %d %d\n", ev.position().x, ev.position().y);
 			keys::on_mouse_move(
 				ev.position(),
 				ev.modifiers(),
@@ -129,17 +130,29 @@ bool processEvent(const os::Event& ev) {
 }
 
 bool gui::generate_messages_from_os_events(bool rendered_last) { // https://github.com/aseprite/aseprite/blob/45c2a5950445c884f5d732edc02989c3fb6ab1a6/src/ui/manager.cpp#L393
-	os::Event event;
+	bool processed_an_event = false;
 
 	double timeout;
-	if (rendered_last)
+	if (rendered_last) // an animation is playing or something, so be quick
 		timeout = 0.0;
-	else
+	else // nothing's happening so take your time - but still be fast enough for the ui to update occasionally to see if it wants to render
 		timeout = 1.f / 60;
 
-	event_queue->getEvent(event, timeout);
+	while (true) {
+		os::Event event;
 
-	return processEvent(event);
+		event_queue->getEvent(event, timeout);
+
+		if (event.type() == os::Event::None)
+			break;
+
+		if (processEvent(event))
+			processed_an_event = true;
+
+		timeout = 0.0; // i think this is correct, allow blocking for first event but any subsequent one should be instant
+	}
+
+	return processed_an_event;
 }
 
 void gui::event_loop() {
@@ -166,7 +179,7 @@ void gui::event_loop() {
 
 		auto frame_start = std::chrono::steady_clock::now();
 
-		bool rendered = redraw_window(window.get(), to_render);
+		bool rendered = redraw_window(window.get(), to_render); // note: rendered isn't true if rendering was forced, it's only if an animation or smth is playing
 		to_render = generate_messages_from_os_events(rendered); // true if input handled
 
 #if DEBUG_RENDER
@@ -319,8 +332,8 @@ bool gui::redraw_window(os::Window* window, bool force_render) {
 
 	ui::center_elements_in_container(container);
 
-	bool want_to_render = ui::update_container(s, container, delta_time) || force_render;
-	if (!want_to_render)
+	bool want_to_render = ui::update_container(s, container, delta_time);
+	if (!want_to_render && !force_render)
 		// note: DONT RENDER ANYTHING ABOVE HERE!!! todo: render queue?
 		return false;
 
@@ -385,7 +398,7 @@ bool gui::redraw_window(os::Window* window, bool force_render) {
 
 	window->invalidateRegion(gfx::Region(rc));
 
-	return true;
+	return want_to_render;
 }
 
 void gui::on_resize(os::Window* window) {

@@ -123,8 +123,6 @@ void ui::render_button(os::Surface* surface, const Element* element, float anim)
 
 	bool hovered = element->rect.contains(keys::mouse_pos);
 
-	render::rect_filled(surface, gfx::Rect(keys::mouse_pos - 10, gfx::Size(10, 10)), gfx::rgba(0, 0, 255, 50));
-
 	if (button_data.on_press) {
 		if (keys::is_rect_pressed(element->rect, os::Event::MouseButton::LeftButton)) {
 			(*button_data.on_press)();
