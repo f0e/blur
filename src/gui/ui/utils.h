@@ -1,6 +1,8 @@
 #pragma once
 
 namespace utils {
+	gfx::Color adjust_color(const gfx::Color& color, float anim);
+
 	SkFont create_font_from_data(const unsigned char* font_data, size_t data_size, float font_height);
 
 #ifdef _WIN32

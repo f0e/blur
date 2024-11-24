@@ -11,6 +11,10 @@
 #	include <X11/extensions/Xrandr.h>
 #endif
 
+gfx::Color utils::adjust_color(const gfx::Color& color, float anim) {
+	return gfx::rgba(gfx::getr(color), gfx::getg(color), gfx::getb(color), round(gfx::geta(color) * anim)); // seta is broken or smth i swear
+}
+
 SkFont utils::create_font_from_data(const unsigned char* font_data, size_t data_size, float font_height) {
 	sk_sp<SkData> skData = SkData::MakeWithCopy(font_data, data_size);
 
