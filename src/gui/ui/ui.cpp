@@ -128,10 +128,11 @@ void ui::render_button(os::Surface* surface, const Element* element, float anim)
 	if (button_data.on_press) {
 		if (keys::is_rect_pressed(element->rect, os::Event::MouseButton::LeftButton)) {
 			(*button_data.on_press)();
+			keys::on_mouse_press_handled(os::Event::MouseButton::LeftButton);
 		}
 	}
 
-	gfx::Color adjusted_color = adjust_color(gfx::rgba(255, 255, 255, hovered ? 100 : 20), anim);
+	gfx::Color adjusted_color = adjust_color(gfx::rgba(255, 255, 255, hovered ? 75 : 20), anim); // todo: lerp hover shade
 	gfx::Color adjusted_text_color = adjust_color(gfx::rgba(255, 255, 255, 255), anim);
 
 	gfx::Point text_pos = element->rect.center();
