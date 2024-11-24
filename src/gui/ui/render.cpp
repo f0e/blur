@@ -12,6 +12,23 @@ void render::rect_filled(os::Surface* surface, gfx::Rect rect, gfx::Color colour
 	surface->drawRect(rect, paint);
 }
 
+void rounded_rect(os::Surface* surface, gfx::RectF rect, os::Paint paint, float rounding) {
+	if (rect.isEmpty())
+		return;
+
+	SkRect skia_rect;
+	if (paint.style() == os::Paint::Style::Stroke)
+		skia_rect = os::to_skia_fix(rect);
+	else
+		skia_rect = os::to_skia(rect);
+
+	SkRRect rrect;
+	rrect.setRectXY(skia_rect, rounding, rounding);
+
+	auto canvas = &static_cast<os::SkiaSurface*>(surface)->canvas();
+	canvas->drawRRect(rrect, paint.skPaint());
+}
+
 void render::rounded_rect_filled(os::Surface* surface, gfx::Rect rect, gfx::Color colour, float rounding) {
 	if (rect.isEmpty())
 		return;
@@ -19,13 +36,19 @@ void render::rounded_rect_filled(os::Surface* surface, gfx::Rect rect, gfx::Colo
 	os::Paint paint;
 	paint.color(colour);
 
-	auto skia_rect = SkRect::MakeXYWH(SkScalar(rect.x), SkScalar(rect.y), SkScalar(rect.w), SkScalar(rect.h));
+	rounded_rect(surface, rect, paint, rounding);
+}
 
-	SkRRect rrect;
-	rrect.setRectXY(skia_rect, rounding, rounding);
+void render::rounded_rect_stroke(os::Surface* surface, gfx::Rect rect, gfx::Color colour, float rounding, float stroke_width) {
+	if (rect.isEmpty())
+		return;
 
-	auto canvas = &static_cast<os::SkiaSurface*>(surface)->canvas();
-	canvas->drawRRect(rrect, paint.skPaint());
+	os::Paint paint;
+	paint.color(colour);
+	paint.style(os::Paint::Style::Stroke);
+	paint.strokeWidth(stroke_width);
+
+	rounded_rect(surface, rect, paint, rounding);
 }
 
 void render::text(os::Surface* surface, gfx::Point pos, gfx::Color colour, std::string text, const SkFont& font, os::TextAlign align) {

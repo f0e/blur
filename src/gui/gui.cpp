@@ -7,11 +7,12 @@
 #include "tasks.h"
 
 #include "ui/ui.h"
+#include "ui/keys.h"
 #include "ui/utils.h"
 
 #include "resources/fonts.h"
 
-#define DEBUG_RENDER 0
+#define DEBUG_RENDER 1
 
 const int font_height = 14;
 const int pad_x = 24;
@@ -25,7 +26,6 @@ const float default_delta_time = 1.f / 60;
 float vsync_frame_time = default_delta_time;
 
 bool closing = false;
-bool actively_rendering = true;
 
 SkFont font;
 SkFont header_font;
@@ -80,12 +80,6 @@ static os::WindowRef create_window(os::DragTarget& dragTarget) {
 
 bool processEvent(const os::Event& ev) {
 	switch (ev.type()) {
-		case os::Event::KeyDown: {
-			if (ev.scancode() == os::kKeyEsc)
-				return false;
-			break;
-		}
-
 		case os::Event::CloseApp:
 		case os::Event::CloseWindow: {
 			closing = true;
@@ -95,35 +89,62 @@ bool processEvent(const os::Event& ev) {
 		case os::Event::ResizeWindow:
 			break;
 
+		case os::Event::MouseMove: {
+			printf("mouse move bro! %d %d\n", ev.position().x, ev.position().y);
+			keys::on_mouse_move(
+				ev.position(),
+				ev.modifiers(),
+				ev.pointerType(),
+				ev.pressure()
+			);
+			return true;
+		}
+
 		case os::Event::MouseDown: {
-			base::paths paths;
-			utils::show_file_selector("Blur input", ".", { "mp4", "mkv" }, os::FileDialog::Type::OpenFiles, paths);
-			tasks::add_files(paths);
-			break;
+			keys::on_mouse_down(
+				ev.position(),
+				ev.button(),
+				ev.modifiers(),
+				ev.pointerType(),
+				ev.pressure()
+			);
+			return true;
+		}
+
+		case os::Event::MouseUp: {
+			keys::on_mouse_up(
+				ev.position(),
+				ev.button(),
+				ev.modifiers(),
+				ev.pointerType()
+			);
+			return true;
 		}
 
 		default:
 			break;
 	}
 
-	return true;
+	return false;
 }
 
-void gui::generate_messages_from_os_events() { // https://github.com/aseprite/aseprite/blob/45c2a5950445c884f5d732edc02989c3fb6ab1a6/src/ui/manager.cpp#L393
+bool gui::generate_messages_from_os_events(bool rendered_last) { // https://github.com/aseprite/aseprite/blob/45c2a5950445c884f5d732edc02989c3fb6ab1a6/src/ui/manager.cpp#L393
 	os::Event event;
 
 	double timeout;
-	if (actively_rendering)
+	if (rendered_last)
 		timeout = 0.0;
 	else
 		timeout = 1.f / 60;
 
 	event_queue->getEvent(event, timeout);
 
-	processEvent(event);
+	return processEvent(event);
 }
 
 void gui::event_loop() {
+	bool to_render = true;
+
 	while (!closing) {
 #ifdef _WIN32
 		HMONITOR screen_handle = (HMONITOR)window->screen()->nativeHandle();
@@ -145,10 +166,14 @@ void gui::event_loop() {
 
 		auto frame_start = std::chrono::steady_clock::now();
 
-		redraw_window(window.get(), false);
-		generate_messages_from_os_events();
+		bool rendered = redraw_window(window.get(), to_render);
+		to_render = generate_messages_from_os_events(rendered); // true if input handled
 
-		if (actively_rendering) {
+#if DEBUG_RENDER
+		printf("rendered: %d, to render: %d\n", rendered, to_render);
+#endif
+
+		if (rendered || to_render) {
 			auto target_time = frame_start + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
 												 std::chrono::duration<float>(vsync_frame_time)
 											 );
@@ -157,7 +182,7 @@ void gui::event_loop() {
 	}
 }
 
-void gui::redraw_window(os::Window* window, bool force_render) {
+bool gui::redraw_window(os::Window* window, bool force_render) {
 	auto now = std::chrono::steady_clock::now();
 	static auto last_frame_time = now;
 
@@ -193,14 +218,12 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 	os::Surface* s = window->surface();
 	const gfx::Rect rc = s->bounds();
 
-	bool updated = false;
-
 	gfx::Rect drop_zone = rc;
 
 	static float bg_overlay_shade = 0.f;
 	float last_fill_shade = bg_overlay_shade;
 	bg_overlay_shade = std::lerp(bg_overlay_shade, windowData.dragging ? 30.f : 0.f, 25.f * delta_time);
-	updated |= bg_overlay_shade != last_fill_shade;
+	force_render |= bg_overlay_shade != last_fill_shade;
 
 	{
 		// const int blur_stroke_width = 1;
@@ -243,7 +266,12 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 		title_pos.y = pad_y + header_font.getSize();
 
 		ui::add_text_fixed("blur title text", container, title_pos, "blur", gfx::rgba(255, 255, 255, 255), header_font, os::TextAlign::Center, 15);
-		ui::add_text("drop a file text", container, "Drop a file...", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
+		ui::add_button("open a file button", container, "Open a file", font, [] {
+			base::paths paths;
+			utils::show_file_selector("Blur input", ".", { "mp4", "mkv" }, os::FileDialog::Type::OpenFiles, paths);
+			tasks::add_files(paths);
+		});
+		ui::add_text("drop a file text", container, "or drop a file anywhere", gfx::rgba(255, 255, 255, 255), font, os::TextAlign::Center);
 	}
 	else {
 		bool is_progress_shown = false;
@@ -291,11 +319,10 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 
 	ui::center_elements_in_container(container);
 
-	bool last = actively_rendering;
-	actively_rendering = ui::update_container(s, container, delta_time) || updated || force_render;
-	if (!actively_rendering)
+	bool want_to_render = ui::update_container(s, container, delta_time) || force_render;
+	if (!want_to_render)
 		// note: DONT RENDER ANYTHING ABOVE HERE!!! todo: render queue?
-		return;
+		return false;
 
 	// background
 	os::Paint paint;
@@ -352,10 +379,13 @@ void gui::redraw_window(os::Window* window, bool force_render) {
 	}
 #endif
 
+	// todo: whats this do
 	if (!window->isVisible())
 		window->setVisible(true);
 
 	window->invalidateRegion(gfx::Region(rc));
+
+	return true;
 }
 
 void gui::on_resize(os::Window* window) {

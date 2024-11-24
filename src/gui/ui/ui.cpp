@@ -1,7 +1,8 @@
 #include "ui.h"
+#include "render.h"
+#include "keys.h"
 #include "os/draw_text.h"
 #include "os/sampling.h"
-#include "render.h"
 
 gfx::Color adjust_color(const gfx::Color& color, float anim) {
 	return gfx::rgba(gfx::getr(color), gfx::getg(color), gfx::getb(color), round(gfx::geta(color) * anim)); // seta is broken or smth i swear
@@ -113,6 +114,42 @@ void ui::render_image(os::Surface* surface, const Element* element, float anim) 
 	image_rect.enlarge(1);
 	stroke_paint.color(gfx::rgba(155, 155, 155, stroke_alpha));
 	surface->drawRect(image_rect, stroke_paint);
+}
+
+void ui::render_button(os::Surface* surface, const Element* element, float anim) {
+	const float button_rounding = 10.f;
+
+	auto& button_data = std::get<ButtonElementData>(element->data);
+
+	bool hovered = element->rect.contains(keys::mouse_pos);
+
+	render::rect_filled(surface, gfx::Rect(keys::mouse_pos - 10, gfx::Size(10, 10)), gfx::rgba(0, 0, 255, 50));
+
+	if (button_data.on_press) {
+		if (keys::is_rect_pressed(element->rect, os::Event::MouseButton::LeftButton)) {
+			(*button_data.on_press)();
+		}
+	}
+
+	gfx::Color adjusted_color = adjust_color(gfx::rgba(255, 255, 255, hovered ? 100 : 20), anim);
+	gfx::Color adjusted_text_color = adjust_color(gfx::rgba(255, 255, 255, 255), anim);
+
+	gfx::Point text_pos = element->rect.center();
+	text_pos.y += button_data.font.getSize() / 2 - 1;
+	gfx::Rect cur_rect = element->rect;
+
+	// border
+	cur_rect.shrink(1);
+	render::rounded_rect_stroke(surface, cur_rect, adjust_color(gfx::rgba(100, 100, 100, 255), anim), button_rounding);
+	cur_rect.shrink(1);
+	render::rounded_rect_stroke(surface, cur_rect, adjust_color(gfx::rgba(50, 50, 50, 255), anim), button_rounding);
+	cur_rect.shrink(1);
+	render::rounded_rect_stroke(surface, cur_rect, adjust_color(gfx::rgba(100, 100, 100, 255), anim), button_rounding);
+
+	// fill
+	render::rounded_rect_filled(surface, cur_rect, adjusted_color, button_rounding);
+
+	render::text(surface, text_pos, adjusted_text_color, button_data.text, button_data.font, os::TextAlign::Center);
 }
 
 void ui::init_container(Container& container, gfx::Rect rect, const SkFont& font, std::optional<gfx::Color> background_color) {
@@ -253,6 +290,23 @@ std::optional<std::shared_ptr<ui::Element>> ui::add_image(const std::string& id,
 		image_rect,
 		ImageElementData{ image_path, image_surface, image_id },
 		render_image,
+	});
+
+	add_element(container, id, element, container.line_height);
+
+	return element;
+}
+
+std::shared_ptr<ui::Element> ui::add_button(const std::string& id, Container& container, const std::string& text, const SkFont& font, std::optional<std::function<void()>> on_press) {
+	const gfx::Size button_padding(40, 20);
+
+	gfx::Size text_size = render::get_text_size(text, font);
+
+	auto element = std::make_shared<Element>(Element{
+		ElementType::BUTTON,
+		gfx::Rect(container.current_position, text_size + button_padding),
+		ButtonElementData{ text, font, on_press },
+		render_button,
 	});
 
 	add_element(container, id, element, container.line_height);

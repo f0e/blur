@@ -25,10 +25,10 @@ namespace gui {
 	inline os::WindowRef window;
 	inline bool queue_redraw = false;
 
-	void redraw_window(os::Window* window, bool force_render);
+	bool redraw_window(os::Window* window, bool force_render);
 	void on_resize(os::Window* window);
 
-	void generate_messages_from_os_events();
+	bool generate_messages_from_os_events(bool rendered_last);
 	void event_loop();
 
 	void run();

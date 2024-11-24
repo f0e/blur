@@ -9,7 +9,8 @@ namespace ui {
 	enum class ElementType {
 		BAR,
 		TEXT,
-		IMAGE
+		IMAGE,
+		BUTTON
 	};
 
 	struct BarElementData {
@@ -56,7 +57,19 @@ namespace ui {
 		}
 	};
 
-	using ElementData = std::variant<BarElementData, TextElementData, ImageElementData>;
+	struct ButtonElementData {
+		std::string text;
+		SkFont font;
+		std::optional<std::function<void()>> on_press;
+
+		bool operator==(const ButtonElementData& other) const {
+			return text == other.text;
+			// Skip font comparison since it might not implement ==
+			// also onpress function
+		}
+	};
+
+	using ElementData = std::variant<BarElementData, TextElementData, ImageElementData, ButtonElementData>;
 
 	struct AnimationState {
 		float speed;
@@ -111,6 +124,7 @@ namespace ui {
 	void render_bar(os::Surface* surface, const Element* element, float anim);
 	void render_text(os::Surface* surface, const Element* element, float anim);
 	void render_image(os::Surface* surface, const Element* element, float anim);
+	void render_button(os::Surface* surface, const Element* element, float anim);
 
 	void init_container(Container& container, gfx::Rect rect, const SkFont& font, std::optional<gfx::Color> background_color = {});
 	void add_element(Container& container, const std::string& id, std::shared_ptr<Element> element, int margin_bottom);
@@ -120,6 +134,7 @@ namespace ui {
 	std::shared_ptr<Element> add_text(const std::string& id, Container& container, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align = os::TextAlign::Left, int margin_bottom = 7);
 	std::shared_ptr<Element> add_text_fixed(const std::string& id, Container& container, gfx::Point position, const std::string& text, gfx::Color color, const SkFont& font, os::TextAlign align = os::TextAlign::Left, int margin_bottom = 7);
 	std::optional<std::shared_ptr<Element>> add_image(const std::string& id, Container& container, std::string image_path, gfx::Size max_size, std::string image_id = ""); // use image_id to distinguish images that have the same filename and reload it (e.g. if its updated)
+	std::shared_ptr<Element> add_button(const std::string& id, Container& container, const std::string& text, const SkFont& font, std::optional<std::function<void()>> on_press = {});
 
 	void center_elements_in_container(Container& container, bool horizontal = true, bool vertical = true);
 	bool update_container(os::Surface* surface, Container& container, float delta_time);
