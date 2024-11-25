@@ -50,7 +50,11 @@ private:
 	bool do_render(s_render_commands render_commands);
 
 public:
-	c_render(const std::filesystem::path& input_path, std::optional<std::filesystem::path> output_path = {}, std::optional<std::filesystem::path> config_path = {});
+	c_render(
+		const std::filesystem::path& input_path,
+		std::optional<std::filesystem::path> output_path = {},
+		std::optional<std::filesystem::path> config_path = {}
+	);
 
 	bool create_temp_path();
 	bool remove_temp_path();

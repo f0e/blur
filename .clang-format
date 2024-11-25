@@ -4,7 +4,8 @@
 
 # align stuff inside () semi decently
 AlignAfterOpenBracket: BlockIndent
-ColumnLimit: 0
+
+ColumnLimit: 120
 
 # fix indentation (use tabs)
 ContinuationIndentWidth: 4
@@ -51,9 +52,9 @@ AllowAllParametersOfDeclarationOnNextLine: true
 AllowShortBlocksOnASingleLine: Empty
 AllowShortCaseLabelsOnASingleLine: false
 AllowShortEnumsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: Inline
+AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: Never
-AllowShortLambdasOnASingleLine: Inline
+AllowShortLambdasOnASingleLine: Empty
 AllowShortLoopsOnASingleLine: false
 AlwaysBreakAfterReturnType: None
 AlwaysBreakTemplateDeclarations: Yes
@@ -102,3 +103,14 @@ SpacesInParentheses: false
 SpacesInSquareBrackets: false
 
 InsertNewlineAtEOF: true
+
+PenaltyReturnTypeOnItsOwnLine: 99999 # fuck off mate
+# stops
+# ```void function(...)```
+# from becoming
+# ```
+# void
+# function(
+#   ...
+# )
+# ```

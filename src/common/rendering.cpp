@@ -45,10 +45,16 @@ void c_render::build_output_filename() {
 			// stupid
 			if (this->settings.blur) {
 				if (this->settings.interpolate) {
-					extra_details = fmt::format(L"{}fps ({}, {})", this->settings.blur_output_fps, helpers::towstring(this->settings.interpolated_fps), this->settings.blur_amount);
+					extra_details = fmt::format(
+						L"{}fps ({}, {})",
+						this->settings.blur_output_fps,
+						helpers::towstring(this->settings.interpolated_fps),
+						this->settings.blur_amount
+					);
 				}
 				else {
-					extra_details = fmt::format(L"{}fps ({})", this->settings.blur_output_fps, this->settings.blur_amount);
+					extra_details =
+						fmt::format(L"{}fps ({})", this->settings.blur_output_fps, this->settings.blur_amount);
 				}
 			}
 			else {
@@ -74,7 +80,11 @@ void c_render::build_output_filename() {
 	while (std::filesystem::exists(this->output_path));
 }
 
-c_render::c_render(const std::filesystem::path& input_path, std::optional<std::filesystem::path> output_path, std::optional<std::filesystem::path> config_path) {
+c_render::c_render(
+	const std::filesystem::path& input_path,
+	std::optional<std::filesystem::path> output_path,
+	std::optional<std::filesystem::path> config_path
+) {
 	this->video_path = input_path;
 
 	this->video_name = this->video_path.stem().wstring();
@@ -144,34 +154,30 @@ c_render::s_render_commands c_render::build_render_commands() {
 	std::wstring blur_script_path = (blur.path / "lib/blur.py").wstring();
 
 	// Build vspipe command
-	commands.vspipe = {
-		L"-p",
-		L"-c",
-		L"y4m",
-		L"-a",
-		L"video_path=" + path_string,
-		L"-a",
-		L"settings=" + helpers::towstring(settings.to_json().dump()),
-		blur_script_path,
-		L"-"
-	};
+	commands.vspipe = { L"-p",
+		                L"-c",
+		                L"y4m",
+		                L"-a",
+		                L"video_path=" + path_string,
+		                L"-a",
+		                L"settings=" + helpers::towstring(settings.to_json().dump()),
+		                blur_script_path,
+		                L"-" };
 
 	// Build ffmpeg command
-	commands.ffmpeg = {
-		L"-loglevel",
-		L"error",
-		L"-hide_banner",
-		L"-stats",
-		L"-y",
-		L"-i",
-		L"-", // piped output from video script
-		L"-i",
-		video_path.wstring(), // original video (for audio)
-		L"-map",
-		L"0:v",
-		L"-map",
-		L"1:a?"
-	};
+	commands.ffmpeg = { L"-loglevel",
+		                L"error",
+		                L"-hide_banner",
+		                L"-stats",
+		                L"-y",
+		                L"-i",
+		                L"-", // piped output from video script
+		                L"-i",
+		                video_path.wstring(), // original video (for audio)
+		                L"-map",
+		                L"0:v",
+		                L"-map",
+		                L"1:a?" };
 
 	// Handle audio filters
 	std::vector<std::wstring> audio_filters;
@@ -190,11 +196,14 @@ c_render::s_render_commands c_render::build_render_commands() {
 
 	if (!audio_filters.empty()) {
 		commands.ffmpeg.push_back(L"-af");
-		commands.ffmpeg.push_back(
-			std::accumulate(std::next(audio_filters.begin()), audio_filters.end(), audio_filters[0], [](const std::wstring& a, const std::wstring& b) {
+		commands.ffmpeg.push_back(std::accumulate(
+			std::next(audio_filters.begin()),
+			audio_filters.end(),
+			audio_filters[0],
+			[](const std::wstring& a, const std::wstring& b) {
 				return a + L"," + b;
-			})
-		);
+			}
+		));
 	}
 
 	if (!settings.ffmpeg_override.empty()) {
@@ -210,22 +219,57 @@ c_render::s_render_commands c_render::build_render_commands() {
 		if (settings.gpu_rendering) {
 			std::string gpu_type = helpers::to_lower(settings.gpu_type);
 			if (gpu_type == "nvidia") {
-				commands.ffmpeg.insert(commands.ffmpeg.end(), { L"-c:v", L"h264_nvenc", L"-preset", L"p7", L"-qp", std::to_wstring(settings.quality) });
+				commands.ffmpeg.insert(
+					commands.ffmpeg.end(),
+					{ L"-c:v", L"h264_nvenc", L"-preset", L"p7", L"-qp", std::to_wstring(settings.quality) }
+				);
 			}
 			else if (gpu_type == "amd") {
-				commands.ffmpeg.insert(commands.ffmpeg.end(), { L"-c:v", L"h264_amf", L"-qp_i", std::to_wstring(settings.quality), L"-qp_b", std::to_wstring(settings.quality), L"-qp_p", std::to_wstring(settings.quality), L"-quality", L"quality" });
+				commands.ffmpeg.insert(
+					commands.ffmpeg.end(),
+					{ L"-c:v",
+				      L"h264_amf",
+				      L"-qp_i",
+				      std::to_wstring(settings.quality),
+				      L"-qp_b",
+				      std::to_wstring(settings.quality),
+				      L"-qp_p",
+				      std::to_wstring(settings.quality),
+				      L"-quality",
+				      L"quality" }
+				);
 			}
 			else if (gpu_type == "intel") {
-				commands.ffmpeg.insert(commands.ffmpeg.end(), { L"-c:v", L"h264_qsv", L"-global_quality", std::to_wstring(settings.quality), L"-preset", L"veryslow" });
+				commands.ffmpeg.insert(
+					commands.ffmpeg.end(),
+					{ L"-c:v",
+				      L"h264_qsv",
+				      L"-global_quality",
+				      std::to_wstring(settings.quality),
+				      L"-preset",
+				      L"veryslow" }
+				);
 			}
 			// todo: mac
 		}
 		else {
-			commands.ffmpeg.insert(commands.ffmpeg.end(), { L"-c:v", L"libx264", L"-pix_fmt", L"yuv420p", L"-preset", L"superfast", L"-crf", std::to_wstring(settings.quality) });
+			commands.ffmpeg.insert(
+				commands.ffmpeg.end(),
+				{ L"-c:v",
+			      L"libx264",
+			      L"-pix_fmt",
+			      L"yuv420p",
+			      L"-preset",
+			      L"superfast",
+			      L"-crf",
+			      std::to_wstring(settings.quality) }
+			);
 		}
 
 		// Audio format
-		commands.ffmpeg.insert(commands.ffmpeg.end(), { L"-c:a", L"aac", L"-b:a", L"320k", L"-movflags", L"+faststart" });
+		commands.ffmpeg.insert(
+			commands.ffmpeg.end(), { L"-c:a", L"aac", L"-b:a", L"320k", L"-movflags", L"+faststart" }
+		);
 	}
 
 	// Output path
@@ -233,7 +277,19 @@ c_render::s_render_commands c_render::build_render_commands() {
 
 	// Preview output if needed
 	if (settings.preview && blur.using_preview) {
-		commands.ffmpeg.insert(commands.ffmpeg.end(), { L"-map", L"0:v", L"-q:v", L"2", L"-update", L"1", L"-atomic_writing", L"1", L"-y", preview_path.wstring() });
+		commands.ffmpeg.insert(
+			commands.ffmpeg.end(),
+			{ L"-map",
+		      L"0:v",
+		      L"-q:v",
+		      L"2",
+		      L"-update",
+		      L"1",
+		      L"-atomic_writing",
+		      L"1",
+		      L"-y",
+		      preview_path.wstring() }
+		);
 	}
 
 	return commands;
@@ -250,8 +306,10 @@ bool c_render::do_render(s_render_commands render_commands) {
 		bp::ipstream vspipe_stderr;
 
 		if (settings.debug) {
-			std::wcout << L"VSPipe command: " << render_commands.vspipe_path << " " << helpers::join(render_commands.vspipe, L" ") << std::endl;
-			std::wcout << L"FFmpeg command: " << render_commands.ffmpeg_path << " " << helpers::join(render_commands.ffmpeg, L" ") << std::endl;
+			std::wcout << L"VSPipe command: " << render_commands.vspipe_path << " "
+					   << helpers::join(render_commands.vspipe, L" ") << std::endl;
+			std::wcout << L"FFmpeg command: " << render_commands.ffmpeg_path << " "
+					   << helpers::join(render_commands.ffmpeg, L" ") << std::endl;
 		}
 
 		// Launch vspipe process
@@ -331,7 +389,9 @@ bool c_render::do_render(s_render_commands render_commands) {
 		}
 
 		if (settings.debug)
-			printf("vspipe exit code: %d, ffmpeg exit code: %d\n", vspipe_process.exit_code(), ffmpeg_process.exit_code());
+			printf(
+				"vspipe exit code: %d, ffmpeg exit code: %d\n", vspipe_process.exit_code(), ffmpeg_process.exit_code()
+			);
 
 		return vspipe_process.exit_code() == 0 && ffmpeg_process.exit_code() == 0;
 	}
@@ -360,9 +420,17 @@ void c_render::render() {
 		printf("Render settings:\n");
 		printf("Source video at %.2f timescale\n", settings.input_timescale);
 		if (settings.interpolate)
-			printf("Interpolated to %sfps with %.2f timescale\n", settings.interpolated_fps.c_str(), settings.output_timescale);
+			printf(
+				"Interpolated to %sfps with %.2f timescale\n",
+				settings.interpolated_fps.c_str(),
+				settings.output_timescale
+			);
 		if (settings.blur)
-			printf("Motion blurred to %dfps (%d%%)\n", settings.blur_output_fps, static_cast<int>(settings.blur_amount * 100));
+			printf(
+				"Motion blurred to %dfps (%d%%)\n",
+				settings.blur_output_fps,
+				static_cast<int>(settings.blur_amount * 100)
+			);
 		printf("Rendered at %.2f speed with crf %d\n", settings.output_timescale, settings.quality);
 	}
 
@@ -407,6 +475,7 @@ void s_render_status::update_progress_string(bool first) {
 		progress_string = fmt::format("{:.1f}% complete ({}/{})", progress * 100, current_frame, total_frames);
 	}
 	else {
-		progress_string = fmt::format("{:.1f}% complete ({}/{}, {:.2f} fps)", progress * 100, current_frame, total_frames, fps);
+		progress_string =
+			fmt::format("{:.1f}% complete ({}/{}, {:.2f} fps)", progress * 100, current_frame, total_frames, fps);
 	}
 }

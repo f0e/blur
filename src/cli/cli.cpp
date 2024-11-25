@@ -14,16 +14,14 @@ bool cli::run(
 
 	bool manual_output_files = !outputs.empty();
 	if (manual_output_files && inputs.size() != outputs.size()) {
-		std::wcout << L"Input/output filename count mismatch ("
-				   << inputs.size() << L" inputs, "
-				   << outputs.size() << L" outputs)." << std::endl;
+		std::wcout << L"Input/output filename count mismatch (" << inputs.size() << L" inputs, " << outputs.size()
+				   << L" outputs)." << std::endl;
 		return false;
 	}
 
 	bool manual_config_files = !config_paths.empty();
 	if (manual_config_files && inputs.size() != config_paths.size()) {
-		std::wcout << L"Input filename/config paths count mismatch ("
-				   << inputs.size() << L" inputs, "
+		std::wcout << L"Input filename/config paths count mismatch (" << inputs.size() << L" inputs, "
 				   << config_paths.size() << L" config paths)." << std::endl;
 		return false;
 	}
@@ -32,9 +30,7 @@ bool cli::run(
 		for (const auto& path : config_paths) {
 			if (!std::filesystem::exists(path)) {
 				// TODO: test printing works with unicode
-				std::cout << "Specified config file path '"
-						  << path
-						  << "' not found." << std::endl;
+				std::cout << "Specified config file path '" << path << "' not found." << std::endl;
 				return false;
 			}
 		}
@@ -45,8 +41,7 @@ bool cli::run(
 
 		if (!std::filesystem::exists(input_path)) {
 			// TODO: test with unicode
-			std::wcout << L"Video '" << input_path.wstring()
-					   << L"' was not found (wrong path?)" << std::endl;
+			std::wcout << L"Video '" << input_path.wstring() << L"' was not found (wrong path?)" << std::endl;
 			return false;
 		}
 
@@ -70,7 +65,11 @@ bool cli::run(
 		rendering.queue_render(render);
 
 		if (blur.verbose) {
-			wprintf(L"Queued '%s' for render, outputting to '%s'\n", render->get_video_name().c_str(), render->get_output_video_path().wstring().c_str());
+			wprintf(
+				L"Queued '%s' for render, outputting to '%s'\n",
+				render->get_video_name().c_str(),
+				render->get_output_video_path().wstring().c_str()
+			);
 		}
 	}
 

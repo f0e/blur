@@ -2,7 +2,9 @@
 #include "render.h"
 #include "os/draw_text.h"
 
-void ui::init_container(Container& container, gfx::Rect rect, const SkFont& font, std::optional<gfx::Color> background_color) {
+void ui::init_container(
+	Container& container, gfx::Rect rect, const SkFont& font, std::optional<gfx::Color> background_color
+) {
 	container.line_height = font.getSize();
 	container.rect = rect;
 	container.background_color = background_color;

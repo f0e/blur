@@ -27,7 +27,8 @@ void c_config::create(const std::filesystem::path& filepath, s_blur_settings cur
 	output << "- timescale" << "\n";
 	output << "input timescale: " << current_settings.input_timescale << "\n";
 	output << "output timescale: " << current_settings.output_timescale << "\n";
-	output << "adjust timescaled audio pitch: " << (current_settings.output_timescale_audio_pitch ? "true" : "false") << "\n";
+	output << "adjust timescaled audio pitch: " << (current_settings.output_timescale_audio_pitch ? "true" : "false")
+		   << "\n";
 
 	output << "\n";
 	output << "- filters" << "\n";
@@ -47,7 +48,8 @@ void c_config::create(const std::filesystem::path& filepath, s_blur_settings cur
 	output << "\n";
 	output << "- advanced blur" << "\n";
 	output << "blur weighting gaussian std dev: " << current_settings.blur_weighting_gaussian_std_dev << "\n";
-	output << "blur weighting triangle reverse: " << (current_settings.blur_weighting_triangle_reverse ? "true" : "false") << "\n";
+	output << "blur weighting triangle reverse: "
+		   << (current_settings.blur_weighting_triangle_reverse ? "true" : "false") << "\n";
 	output << "blur weighting bound: " << current_settings.blur_weighting_bound << "\n";
 
 	output << "\n";
@@ -96,7 +98,8 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 			value = helpers::trim(value);
 
 			if (key != "custom ffmpeg filters") {
-				// remove all spaces in values (it breaks stringstream string parsing, this is a dumb workaround) todo: better solution
+				// remove all spaces in values (it breaks stringstream string parsing, this is a dumb workaround) todo:
+				// better solution
 				std::string::iterator end_pos = std::remove(value.begin(), value.end(), ' ');
 				value.erase(end_pos, value.end());
 			}
@@ -204,7 +207,9 @@ s_blur_settings c_config::get_config(const std::filesystem::path& config_filepat
 		if (!local_cfg_exists) {
 			config.create(config_filepath);
 
-			wprintf(L"Configuration file not found, default config generated at %s\n", config_filepath.wstring().c_str());
+			wprintf(
+				L"Configuration file not found, default config generated at %s\n", config_filepath.wstring().c_str()
+			);
 		}
 
 		cfg_path = config_filepath;

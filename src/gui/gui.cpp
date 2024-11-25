@@ -35,7 +35,9 @@ void gui::event_loop() {
 
 		update_vsync();
 
-		bool rendered = renderer::redraw_window(window.get(), to_render);      // note: rendered isn't true if rendering was forced, it's only if an animation or smth is playing
+		bool rendered = renderer::redraw_window(
+			window.get(), to_render
+		); // note: rendered isn't true if rendering was forced, it's only if an animation or smth is playing
 		to_render = event_handler::generate_messages_from_os_events(rendered); // true if input handled
 
 #if DEBUG_RENDER && DEBUG_RENDER_LOGGING

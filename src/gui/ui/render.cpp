@@ -43,7 +43,9 @@ void render::rounded_rect_filled(os::Surface* surface, gfx::Rect rect, gfx::Colo
 	rounded_rect(surface, rect, paint, rounding);
 }
 
-void render::rounded_rect_stroke(os::Surface* surface, gfx::Rect rect, gfx::Color colour, float rounding, float stroke_width) {
+void render::rounded_rect_stroke(
+	os::Surface* surface, gfx::Rect rect, gfx::Color colour, float rounding, float stroke_width
+) {
 	if (rect.isEmpty())
 		return;
 
@@ -55,7 +57,9 @@ void render::rounded_rect_stroke(os::Surface* surface, gfx::Rect rect, gfx::Colo
 	rounded_rect(surface, rect, paint, rounding);
 }
 
-void render::text(os::Surface* surface, gfx::Point pos, gfx::Color colour, std::string text, const SkFont& font, os::TextAlign align) {
+void render::text(
+	os::Surface* surface, gfx::Point pos, gfx::Color colour, std::string text, const SkFont& font, os::TextAlign align
+) {
 	os::Paint paint;
 	paint.color(colour);
 

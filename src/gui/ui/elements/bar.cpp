@@ -37,7 +37,17 @@ void ui::render_bar(os::Surface* surface, const Element* element, float anim) {
 	}
 }
 
-std::shared_ptr<ui::Element> ui::add_bar(const std::string& id, Container& container, float percent_fill, gfx::Color background_color, gfx::Color fill_color, int bar_width, std::optional<std::string> bar_text, std::optional<gfx::Color> text_color, std::optional<const SkFont*> font) {
+std::shared_ptr<ui::Element> ui::add_bar(
+	const std::string& id,
+	Container& container,
+	float percent_fill,
+	gfx::Color background_color,
+	gfx::Color fill_color,
+	int bar_width,
+	std::optional<std::string> bar_text,
+	std::optional<gfx::Color> text_color,
+	std::optional<const SkFont*> font
+) {
 	auto element = std::make_shared<Element>(Element{
 		ElementType::BAR,
 		gfx::Rect(container.current_position, gfx::Size(bar_width, 6)),

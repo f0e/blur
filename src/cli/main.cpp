@@ -9,8 +9,7 @@ int main(int argc, char* argv[]) {
 	bool preview = false;
 	bool verbose = false;
 
-	app.add_option("-i,--input", inputs, "Input file name(s)")
-		->required();
+	app.add_option("-i,--input", inputs, "Input file name(s)")->required();
 	app.add_option("-o,--output", outputs, "Output file name(s) (optional)");
 	app.add_option("-c,--config-path", configPaths, "Manual configuration file path(s) (optional)");
 	app.add_flag("-p,--preview", preview, "Enable preview");

@@ -3,7 +3,8 @@
 
 bool c_blur::initialise(bool _verbose, bool _using_preview) {
 	path = std::filesystem::path(helpers::get_executable_path()).parent_path(); // folder the exe is in
-	used_installer = std::filesystem::exists(path / "lib\\vapoursynth\\vspipe.exe") && std::filesystem::exists(path / "lib\\ffmpeg\\ffmpeg.exe");
+	used_installer = std::filesystem::exists(path / "lib\\vapoursynth\\vspipe.exe") &&
+	                 std::filesystem::exists(path / "lib\\ffmpeg\\ffmpeg.exe");
 
 	if (!used_installer) {
 		// didn't use installer, check if dependencies are installed

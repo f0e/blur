@@ -6,8 +6,8 @@ void tasks::run() {
 
 	rendering.progress_callback = [] {
 		if (gui::window) {
-			// idk what you're supposed to do to trigger a redraw in a separate thread!!! I dont do gui!!! this works tho :  )
-			// todo: revisit this
+			// idk what you're supposed to do to trigger a redraw in a separate thread!!! I dont do gui!!! this works
+			// tho :  ) todo: revisit this
 			os::Event event;
 			gui::window->queueEvent(event);
 		}

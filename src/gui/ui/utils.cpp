@@ -12,7 +12,9 @@
 #endif
 
 gfx::Color utils::adjust_color(const gfx::Color& color, float anim) {
-	return gfx::rgba(gfx::getr(color), gfx::getg(color), gfx::getb(color), round(gfx::geta(color) * anim)); // seta is broken or smth i swear
+	return gfx::rgba(
+		gfx::getr(color), gfx::getg(color), gfx::getb(color), round(gfx::geta(color) * anim)
+	); // seta is broken or smth i swear
 }
 
 SkFont utils::create_font_from_data(const unsigned char* font_data, size_t data_size, float font_height) {
@@ -120,8 +122,7 @@ bool utils::show_file_selector( // aseprite
 	const std::string defExtension = ""; //
 
 	if (os::instance()->nativeDialogs()) {
-		os::FileDialogRef dlg =
-			os::instance()->nativeDialogs()->makeFileDialog();
+		os::FileDialogRef dlg = os::instance()->nativeDialogs()->makeFileDialog();
 
 		if (dlg) {
 			dlg->setTitle(title);

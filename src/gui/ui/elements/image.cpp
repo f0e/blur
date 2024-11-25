@@ -11,7 +11,9 @@ void ui::render_image(os::Surface* surface, const Element* element, float anim) 
 
 	os::Paint paint;
 	paint.color(gfx::rgba(255, 255, 255, alpha));
-	surface->drawSurface(image_data.image_surface.get(), image_data.image_surface->bounds(), image_rect, os::Sampling(), &paint);
+	surface->drawSurface(
+		image_data.image_surface.get(), image_data.image_surface->bounds(), image_rect, os::Sampling(), &paint
+	);
 
 	os::Paint stroke_paint;
 	stroke_paint.style(os::Paint::Style::Stroke);
@@ -30,7 +32,9 @@ void ui::render_image(os::Surface* surface, const Element* element, float anim) 
 	surface->drawRect(image_rect, stroke_paint);
 }
 
-std::optional<std::shared_ptr<ui::Element>> ui::add_image(const std::string& id, Container& container, std::string image_path, gfx::Size max_size, std::string image_id) {
+std::optional<std::shared_ptr<ui::Element>> ui::add_image(
+	const std::string& id, Container& container, std::string image_path, gfx::Size max_size, std::string image_id
+) {
 	os::SurfaceRef image_surface;
 	os::SurfaceRef last_image_surface;
 
@@ -38,7 +42,8 @@ std::optional<std::shared_ptr<ui::Element>> ui::add_image(const std::string& id,
 	if (container.elements.contains(id)) {
 		std::shared_ptr<Element> cached_element = container.elements[id].element;
 		auto& image_data = std::get<ImageElementData>(cached_element->data);
-		if (image_data.image_id == image_id) { // edge cases this might not work, it's using current_frame, maybe image gets written after ffmpeg reports progress? idk. good enough for now
+		if (image_data.image_id == image_id) { // edge cases this might not work, it's using current_frame, maybe image
+			                                   // gets written after ffmpeg reports progress? idk. good enough for now
 			image_surface = image_data.image_surface;
 		}
 		else {
