@@ -13,23 +13,25 @@
 
 gfx::Color utils::adjust_color(const gfx::Color& color, float anim) {
 	return gfx::rgba(
-		gfx::getr(color), gfx::getg(color), gfx::getb(color), round(gfx::geta(color) * anim)
+		gfx::getr(color), gfx::getg(color), gfx::getb(color), gfx::ColorComponent(round((float)gfx::geta(color) * anim))
 	); // seta is broken or smth i swear
 }
 
 SkFont utils::create_font_from_data(const unsigned char* font_data, size_t data_size, float font_height) {
-	sk_sp<SkData> skData = SkData::MakeWithCopy(font_data, data_size);
+	sk_sp<SkData> sk_data = SkData::MakeWithCopy(font_data, data_size);
 
 	// Create a typeface from SkData
-	sk_sp<SkTypeface> typeface = SkTypeface::MakeFromData(skData);
+	sk_sp<SkTypeface> typeface = SkTypeface::MakeFromData(sk_data);
 
 	if (!typeface) {
-		printf("failed to create font\n");
-		return SkFont();
+		u::log("failed to create font");
+		return {};
 	}
 
-	return SkFont(typeface, SkIntToScalar(font_height));
+	return { typeface, SkIntToScalar(font_height) };
 }
+
+// NOLINTBEGIN
 
 #ifdef _WIN32
 double utils::get_display_refresh_rate(HMONITOR hMonitor)
@@ -54,43 +56,43 @@ double utils::get_display_refresh_rate(int screenNumber)
 
 #elif defined(__APPLE__)
 	// Get the CGDirectDisplayID using pure C API
-	uint32_t displayID = 0;
+	uint32_t display_id = 0;
 
 	// This code assumes the Obj-C++ library is using ARC
 	// The following C functions are documented and stable API
-	typedef void* (*CGSGetDisplayIDFromDisplayNameFuncPtr)(void* display);
-	static CGSGetDisplayIDFromDisplayNameFuncPtr CGSGetDisplayIDFromDisplayName =
+	using CGSGetDisplayIDFromDisplayNameFuncPtr = void* (*)(void*);
+	static auto CGSGetDisplayIDFromDisplayName =
 		(CGSGetDisplayIDFromDisplayNameFuncPtr)dlsym(RTLD_DEFAULT, "CGSGetDisplayIDFromDisplayName");
 
 	if (CGSGetDisplayIDFromDisplayName && nsScreen) {
-		displayID = (uint32_t)(uintptr_t)CGSGetDisplayIDFromDisplayName(nsScreen);
+		display_id = (uint32_t)(uintptr_t)CGSGetDisplayIDFromDisplayName(nsScreen);
 	}
 
-	if (displayID == 0) {
-		displayID = CGMainDisplayID(); // Fallback to main display
+	if (display_id == 0) {
+		display_id = CGMainDisplayID(); // Fallback to main display
 	}
 
-	CGDisplayModeRef mode = CGDisplayCopyDisplayMode(displayID);
+	CGDisplayModeRef mode = CGDisplayCopyDisplayMode(display_id);
 	if (!mode) {
 		return 0.0;
 	}
 
-	double refreshRate = CGDisplayModeGetRefreshRate(mode);
+	double refresh_rate = CGDisplayModeGetRefreshRate(mode);
 	CGDisplayModeRelease(mode);
 
 	// If refresh rate is 0, try to calculate it from the nominal refresh period
-	if (refreshRate == 0.0) {
-		CVDisplayLinkRef displayLink;
-		if (CVDisplayLinkCreateWithCGDisplay(displayID, &displayLink) == kCVReturnSuccess) {
-			const CVTime time = CVDisplayLinkGetNominalOutputVideoRefreshPeriod(displayLink);
+	if (refresh_rate == 0.0) {
+		CVDisplayLinkRef display_link = nullptr;
+		if (CVDisplayLinkCreateWithCGDisplay(display_id, &display_link) == kCVReturnSuccess) {
+			const CVTime time = CVDisplayLinkGetNominalOutputVideoRefreshPeriod(display_link);
 			if (time.timeScale > 0 && time.timeValue > 0) {
-				refreshRate = double(time.timeScale) / double(time.timeValue);
+				refresh_rate = double(time.timeScale) / double(time.timeValue);
 			}
-			CVDisplayLinkRelease(displayLink);
+			CVDisplayLinkRelease(display_link);
 		}
 	}
 
-	return refreshRate;
+	return refresh_rate;
 
 #else // X11
 	Display* display = XOpenDisplay(nullptr);
@@ -112,14 +114,16 @@ double utils::get_display_refresh_rate(int screenNumber)
 #endif
 }
 
+// NOLINTEND
+
 bool utils::show_file_selector( // aseprite
 	const std::string& title,
-	const std::string& initialPath,
+	const std::string& initial_path,
 	const base::paths& extensions,
 	os::FileDialog::Type type,
 	base::paths& output
 ) {
-	const std::string defExtension = ""; //
+	const std::string def_extension;
 
 	if (os::instance()->nativeDialogs()) {
 		os::FileDialogRef dlg = os::instance()->nativeDialogs()->makeFileDialog();
@@ -130,8 +134,8 @@ bool utils::show_file_selector( // aseprite
 			// Must be set before setFileName() as the Linux impl might
 			// require the default extension to fix the initial file name
 			// with the default extension.
-			if (!defExtension.empty()) {
-				dlg->setDefaultExtension(defExtension);
+			if (!def_extension.empty()) {
+				dlg->setDefaultExtension(def_extension);
 			}
 
 #if LAF_LINUX // As the X11 version doesn't store the default path to
@@ -139,13 +143,13 @@ bool utils::show_file_selector( // aseprite
               // get_initial_path_to_select_filename()
 			dlg->setFileName(get_initial_path_to_select_filename(initialPath));
 #else // !LAF_LINUX
-			dlg->setFileName(initialPath);
+			dlg->setFileName(initial_path);
 #endif
 
 			dlg->setType(type);
 
 			for (const auto& ext : extensions)
-				dlg->addFilter(ext, ext + " files (*." + ext + ")");
+				dlg->addFilter(ext, std::format("{} files (*.{})", ext, ext));
 
 			auto res = dlg->show(os::instance()->defaultWindow());
 			if (res != os::FileDialog::Result::Error) {
@@ -163,14 +167,12 @@ bool utils::show_file_selector( // aseprite
 
 					return true;
 				}
-				else {
-					return false;
-				}
+
+				return false;
 			}
-			else {
-				// Fallback to default file selector if we weren't able to
-				// open the native dialog...
-			}
+
+			// Fallback to default file selector if we weren't able to
+			// open the native dialog...
 		}
 	}
 

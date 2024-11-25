@@ -65,10 +65,10 @@ bool cli::run(
 		rendering.queue_render(render);
 
 		if (blur.verbose) {
-			wprintf(
-				L"Queued '%s' for render, outputting to '%s'\n",
-				render->get_video_name().c_str(),
-				render->get_output_video_path().wstring().c_str()
+			u::log(
+				L"Queued '{}' for render, outputting to '{}'",
+				render->get_video_name(),
+				render->get_output_video_path().wstring()
 			);
 		}
 	}

@@ -1,3 +1,5 @@
+#include <utility>
+
 #include "../ui.h"
 #include "../render.h"
 #include "../utils.h"
@@ -5,7 +7,7 @@
 void ui::render_bar(os::Surface* surface, const Element* element, float anim) {
 	const int text_gap = 7;
 
-	auto& bar_data = std::get<BarElementData>(element->data);
+	const auto& bar_data = std::get<BarElementData>(element->data);
 
 	gfx::Color adjusted_background_color = utils::adjust_color(bar_data.background_color, anim);
 	gfx::Color adjusted_fill_color = utils::adjust_color(bar_data.fill_color, anim);
@@ -49,10 +51,18 @@ std::shared_ptr<ui::Element> ui::add_bar(
 	std::optional<const SkFont*> font
 ) {
 	auto element = std::make_shared<Element>(Element{
-		ElementType::BAR,
-		gfx::Rect(container.current_position, gfx::Size(bar_width, 6)),
-		BarElementData{ percent_fill, background_color, fill_color, bar_text, text_color, font },
-		render_bar,
+		.type = ElementType::BAR,
+		.rect = gfx::Rect(container.current_position, gfx::Size(bar_width, 6)),
+		.data =
+			BarElementData{
+				.percent_fill = percent_fill,
+				.background_color = background_color,
+				.fill_color = fill_color,
+				.bar_text = std::move(bar_text),
+				.text_color = text_color,
+				.font = font,
+			},
+		.render_fn = render_bar,
 	});
 
 	add_element(container, id, element, container.line_height);

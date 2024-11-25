@@ -14,16 +14,16 @@
 #define DEBUG_RENDER         1
 #define DEBUG_RENDER_LOGGING 0
 
-const int font_height = 14;
-const int pad_x = 24;
-const int pad_y = 35;
+const int PAD_X = 24;
+const int PAD_Y = 35;
 
-const float fps_smoothing = 0.95f;
+const float FPS_SMOOTHING = 0.95f;
 
 void gui::renderer::init_fonts() {
 	fonts::font = SkFont(); // default font
-	fonts::header_font =
-		utils::create_font_from_data(EBGaramond_VariableFont_wght_ttf, EBGaramond_VariableFont_wght_ttf_len, 30);
+	fonts::header_font = utils::create_font_from_data(
+		EBGaramond_VariableFont_wght_ttf.data(), EBGaramond_VariableFont_wght_ttf.size(), 30
+	);
 	fonts::smaller_header_font = fonts::header_font;
 	fonts::smaller_header_font.setSize(18.f);
 }
@@ -37,6 +37,7 @@ void gui::renderer::set_cursor(os::NativeCursor cursor) {
 	set_cursor_this_frame = true;
 }
 
+// NOLINTBEGIN(readability-function-size,readability-function-cognitive-complexity)
 bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	set_cursor_this_frame = false;
 
@@ -46,11 +47,11 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	// todo: first render in a batch might be fucked, look at progress bar skipping fully to complete instantly on 25
 	// speed - investigate
 	static bool first = true;
-	float delta_time;
 
 #if DEBUG_RENDER
 	float fps = -1.f;
 #endif
+	float delta_time = NAN;
 
 	if (first) {
 		delta_time = default_delta_time;
@@ -66,7 +67,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 // float current_fps = 1.f / time_since_last_frame;
 // if (fps == -1.f)
 // 	fps = current_fps;
-// fps = (fps * fps_smoothing) + (current_fps * (1.0f - fps_smoothing));
+// fps = (fps * FPS_SMOOTHING) + (current_fps * (1.0f - FPS_SMOOTHING));
 #endif
 
 		delta_time = std::min(time_since_last_frame, min_delta_time);
@@ -75,7 +76,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	last_frame_time = now;
 
 	os::Surface* surface = window->surface();
-	const gfx::Rect rc = surface->bounds();
+	const gfx::Rect rect = surface->bounds();
 
 	static float bg_overlay_shade = 0.f;
 	float last_fill_shade = bg_overlay_shade;
@@ -84,11 +85,11 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 
 	static ui::Container container;
 
-	gfx::Rect container_rect = rc;
-	container_rect.x += pad_x;
-	container_rect.w -= pad_x * 2;
-	container_rect.y += pad_y;
-	container_rect.h -= pad_y * 2;
+	gfx::Rect container_rect = rect;
+	container_rect.x += PAD_X;
+	container_rect.w -= PAD_X * 2;
+	container_rect.y += PAD_Y;
+	container_rect.h -= PAD_Y * 2;
 
 	ui::init_container(container, container_rect, fonts::font);
 
@@ -97,8 +98,8 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	if (rendering.queue.empty()) {
 		bar_percent = 0.f;
 
-		gfx::Point title_pos = rc.center();
-		title_pos.y = pad_y + fonts::header_font.getSize();
+		gfx::Point title_pos = rect.center();
+		title_pos.y = int(PAD_Y + fonts::header_font.getSize());
 
 		ui::add_text_fixed(
 			"blur title text",
@@ -107,8 +108,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 			"blur",
 			gfx::rgba(255, 255, 255, 255),
 			fonts::header_font,
-			os::TextAlign::Center,
-			15
+			os::TextAlign::Center
 		);
 		ui::add_button("open file button", container, "Open files", fonts::font, [] {
 			base::paths paths;
@@ -127,14 +127,14 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	else {
 		bool is_progress_shown = false;
 
-		for (const auto [i, render] : helpers::enumerate(rendering.queue)) {
+		for (const auto [i, render] : u::enumerate(rendering.queue)) {
 			bool current = render == rendering.current_render;
 
 			// todo: ui concept
 			// screen start|      [faded]last_video current_video [faded]next_video next_video2 next_video3 (+5) |
 			// screen end animate sliding in as it moves along the queue
 			ui::add_text(
-				fmt::format("video name text {}", i),
+				std::format("video name text {}", i),
 				container,
 				base::to_utf8(render->get_video_name()),
 				gfx::rgba(255, 255, 255, (current ? 255 : 100)),
@@ -162,7 +162,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 				}
 
 				if (render_status.init) {
-					float render_progress = render_status.current_frame / (float)render_status.total_frames;
+					float render_progress = (float)render_status.current_frame / (float)render_status.total_frames;
 					bar_percent = std::lerp(bar_percent, render_progress, 5.f * delta_time);
 
 					ui::add_bar(
@@ -172,14 +172,14 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 						gfx::rgba(51, 51, 51, 255),
 						gfx::rgba(255, 255, 255, 255),
 						bar_width,
-						fmt::format("{:.1f}%", render_progress * 100),
+						std::format("{:.1f}%", render_progress * 100),
 						gfx::rgba(255, 255, 255, 255),
 						&fonts::font
 					);
 					ui::add_text(
 						"progress text",
 						container,
-						fmt::format("frame {}/{}", render_status.current_frame, render_status.total_frames),
+						std::format("frame {}/{}", render_status.current_frame, render_status.total_frames),
 						gfx::rgba(255, 255, 255, 155),
 						fonts::font,
 						os::TextAlign::Center
@@ -187,7 +187,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 					ui::add_text(
 						"progress text 2",
 						container,
-						fmt::format("{:.2f} frames per second", render_status.fps),
+						std::format("{:.2f} frames per second", render_status.fps),
 						gfx::rgba(255, 255, 255, 155),
 						fonts::font,
 						os::TextAlign::Center
@@ -215,22 +215,23 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 
 	ui::center_elements_in_container(container);
 
-	bool want_to_render = ui::update_container(surface, container, delta_time);
+	bool want_to_render = ui::update_container(container, delta_time);
 	if (!want_to_render && !force_render)
 		// note: DONT RENDER ANYTHING ABOVE HERE!!! todo: render queue?
 		return false;
 
 	// background
-	render::rect_filled(surface, rc, gfx::rgba(0, 0, 0, 255));
+	render::rect_filled(surface, rect, gfx::rgba(0, 0, 0, 255));
 
 	if ((int)bg_overlay_shade > 0)
-		render::rect_filled(surface, rc, gfx::rgba(255, 255, 255, bg_overlay_shade));
+		render::rect_filled(surface, rect, gfx::rgba(255, 255, 255, (gfx::ColorComponent)bg_overlay_shade));
 
 #if DEBUG_RENDER
 	{
 		// debug
 		static const int debug_box_size = 30;
-		static float x = rc.x2() - debug_box_size, y = 100.f;
+		static float x = rect.x2() - debug_box_size;
+		static float y = 100.f;
 		static bool right = false;
 		static bool down = true;
 		x += 1.f * (right ? 1 : -1);
@@ -239,7 +240,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 		render::rect_filled(surface, gfx::Rect(x, y, debug_box_size, debug_box_size), gfx::rgba(255, 0, 0, 50));
 
 		if (right) {
-			if (x + debug_box_size > rc.x2())
+			if (x + debug_box_size > rect.x2())
 				right = false;
 		}
 		else {
@@ -248,7 +249,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 		}
 
 		if (down) {
-			if (y + debug_box_size > rc.y2())
+			if (y + debug_box_size > rect.y2())
 				down = false;
 		}
 		else {
@@ -262,12 +263,12 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 
 #if DEBUG_RENDER
 	if (fps != -1.f) {
-		gfx::Point fps_pos(rc.x2() - pad_x, rc.y + pad_y);
+		gfx::Point fps_pos(rect.x2() - PAD_X, rect.y + PAD_Y);
 		render::text(
 			surface,
 			fps_pos,
 			gfx::rgba(0, 255, 0, 255),
-			fmt::format("{:.0f} fps", fps),
+			std::format("{:.0f} fps", fps),
 			fonts::font,
 			os::TextAlign::Right
 		);
@@ -278,7 +279,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	if (!window->isVisible())
 		window->setVisible(true);
 
-	window->invalidateRegion(gfx::Region(rc));
+	window->invalidateRegion(gfx::Region(rect));
 
 	// reset cursor
 	if (!set_cursor_this_frame) {
@@ -287,3 +288,5 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 
 	return want_to_render;
 }
+
+// NOLINTEND(readability-function-size,readability-function-cognitive-complexity)

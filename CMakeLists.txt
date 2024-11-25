@@ -16,7 +16,6 @@
   set(CMAKE_BINARY_DIR ${PROJECT_SOURCE_DIR}/build/${CMAKE_BUILD_TYPE})
 
   # packages
-  find_package(fmt CONFIG REQUIRED)
   find_package(nlohmann_json CONFIG REQUIRED)
   find_package(Boost REQUIRED COMPONENTS system filesystem)
   find_package(CLI11 CONFIG REQUIRED)
@@ -52,7 +51,6 @@
     target_link_libraries(
       ${target}
       PRIVATE # Gdiplus
-              fmt::fmt
               nlohmann_json::nlohmann_json
               Boost::system
               Boost::filesystem
@@ -60,7 +58,6 @@
     target_compile_definitions(
       ${target}
       PRIVATE NOMINMAX
-              FMT_HEADER_ONLY
               $<$<CONFIG:Debug>:_DEBUG>
               $<$<CONFIG:Release>:NDEBUG>)
     if (WIN32)
@@ -114,7 +111,7 @@
 
   FetchContent_Declare(skia
     URL ${SKIA_REPOSITORY}
-    SOURCE_DIR ${SKIA_DIR} 
+    SOURCE_DIR ${SKIA_DIR}
     DOWNLOAD_EXTRACT_TIMESTAMP true
   )
 

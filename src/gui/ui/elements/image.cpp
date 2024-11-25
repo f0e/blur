@@ -1,7 +1,7 @@
 #include "../ui.h"
 
 void ui::render_image(os::Surface* surface, const Element* element, float anim) {
-	auto& image_data = std::get<ImageElementData>(element->data);
+	const auto& image_data = std::get<ImageElementData>(element->data);
 
 	int alpha = anim * 255;
 	int stroke_alpha = anim * 125;
@@ -33,7 +33,11 @@ void ui::render_image(os::Surface* surface, const Element* element, float anim) 
 }
 
 std::optional<std::shared_ptr<ui::Element>> ui::add_image(
-	const std::string& id, Container& container, std::string image_path, gfx::Size max_size, std::string image_id
+	const std::string& id,
+	Container& container,
+	const std::string& image_path,
+	const gfx::Size& max_size,
+	std::string image_id
 ) {
 	os::SurfaceRef image_surface;
 	os::SurfaceRef last_image_surface;
@@ -56,7 +60,7 @@ std::optional<std::shared_ptr<ui::Element>> ui::add_image(
 		image_surface = os::instance()->loadRgbaSurface(image_path.c_str());
 
 		if (!image_surface) {
-			printf("%s failed to load image (id: %s)\n", id.c_str(), image_id.c_str());
+			u::log("{} failed to load image (id: {})", id, image_id);
 			if (last_image_surface) {
 				// use last image as fallback todo: this is a bit hacky make it better
 				image_surface = last_image_surface;
@@ -66,7 +70,7 @@ std::optional<std::shared_ptr<ui::Element>> ui::add_image(
 			}
 		}
 
-		printf("%s loaded image (id: %s)\n", id.c_str(), image_id.c_str());
+		u::log("{} loaded image (id: {})", id, image_id);
 	}
 
 	gfx::Rect image_rect(container.current_position, max_size);
@@ -94,10 +98,15 @@ std::optional<std::shared_ptr<ui::Element>> ui::add_image(
 	}
 
 	auto element = std::make_shared<Element>(Element{
-		ElementType::IMAGE,
-		image_rect,
-		ImageElementData{ image_path, image_surface, image_id },
-		render_image,
+		.type = ElementType::IMAGE,
+		.rect = image_rect,
+		.data =
+			ImageElementData{
+				.image_path = image_path,
+				.image_surface = image_surface,
+				.image_id = image_id,
+			},
+		.render_fn = render_image,
 	});
 
 	add_element(container, id, element, container.line_height);

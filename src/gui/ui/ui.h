@@ -1,12 +1,7 @@
 #pragma once
 
-#include "gfx/point.h"
-#include "gfx/size.h"
-#include "gfx/color.h"
-#include "os/draw_text.h"
-
 namespace ui {
-	enum class ElementType {
+	enum class ElementType : std::uint8_t {
 		BAR,
 		TEXT,
 		IMAGE,
@@ -71,7 +66,7 @@ namespace ui {
 		bool complete = false;
 		bool rendered_complete = false;
 
-		AnimationState(float _speed) : speed(_speed) {}
+		AnimationState(float speed) : speed(speed) {}
 
 		// delete default constructor since we always need a duration
 		AnimationState() = delete;
@@ -120,7 +115,7 @@ namespace ui {
 	void render_button(os::Surface* surface, const Element* element, float anim);
 
 	void init_container(
-		Container& container, gfx::Rect rect, const SkFont& font, std::optional<gfx::Color> background_color = {}
+		Container& container, const gfx::Rect& rect, const SkFont& font, std::optional<gfx::Color> background_color = {}
 	);
 
 	void add_element(Container& container, const std::string& id, std::shared_ptr<Element> element, int margin_bottom);
@@ -151,19 +146,18 @@ namespace ui {
 	std::shared_ptr<Element> add_text_fixed(
 		const std::string& id,
 		Container& container,
-		gfx::Point position,
+		const gfx::Point& position,
 		const std::string& text,
 		gfx::Color color,
 		const SkFont& font,
-		os::TextAlign align = os::TextAlign::Left,
-		int margin_bottom = 7
+		os::TextAlign align = os::TextAlign::Left
 	);
 
 	std::optional<std::shared_ptr<Element>> add_image(
 		const std::string& id,
 		Container& container,
-		std::string image_path,
-		gfx::Size max_size,
+		const std::string& image_path,
+		const gfx::Size& max_size,
 		std::string image_id = ""
 	); // use image_id to distinguish images that have the same filename and reload it (e.g. if its updated)
 
@@ -176,6 +170,6 @@ namespace ui {
 	);
 
 	void center_elements_in_container(Container& container, bool horizontal = true, bool vertical = true);
-	bool update_container(os::Surface* surface, Container& container, float delta_time);
+	bool update_container(Container& container, float delta_time);
 	void render_container(os::Surface* surface, Container& container);
 }

@@ -3,7 +3,7 @@
 #include "../utils.h"
 
 void ui::render_text(os::Surface* surface, const Element* element, float anim) {
-	auto& text_data = std::get<TextElementData>(element->data);
+	const auto& text_data = std::get<TextElementData>(element->data);
 
 	gfx::Color adjusted_color = utils::adjust_color(text_data.color, anim);
 
@@ -23,10 +23,16 @@ std::shared_ptr<ui::Element> ui::add_text(
 	int margin_bottom
 ) {
 	auto element = std::make_shared<Element>(Element{
-		ElementType::TEXT,
-		gfx::Rect(container.current_position, gfx::Size(0, font.getSize())),
-		TextElementData{ text, color, font, align },
-		render_text,
+		.type = ElementType::TEXT,
+		.rect = gfx::Rect(container.current_position, gfx::Size(0, font.getSize())),
+		.data =
+			TextElementData{
+				.text = text,
+				.color = color,
+				.font = font,
+				.align = align,
+			},
+		.render_fn = render_text,
 	});
 
 	add_element(container, id, element, margin_bottom);
@@ -37,19 +43,24 @@ std::shared_ptr<ui::Element> ui::add_text(
 std::shared_ptr<ui::Element> ui::add_text_fixed(
 	const std::string& id,
 	Container& container,
-	gfx::Point position,
+	const gfx::Point& position,
 	const std::string& text,
 	gfx::Color color,
 	const SkFont& font,
-	os::TextAlign align,
-	int margin_bottom
+	os::TextAlign align
 ) {
 	auto element = std::make_shared<Element>(Element{
-		ElementType::TEXT,
-		gfx::Rect(position, gfx::Size(0, font.getSize())),
-		TextElementData{ text, color, font, align },
-		render_text,
-		true,
+		.type = ElementType::TEXT,
+		.rect = gfx::Rect(position, gfx::Size(0, font.getSize())),
+		.data =
+			TextElementData{
+				.text = text,
+				.color = color,
+				.font = font,
+				.align = align,
+			},
+		.render_fn = render_text,
+		.fixed = true,
 	});
 
 	add_element_fixed(container, id, element);

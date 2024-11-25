@@ -59,26 +59,25 @@ public:
 	bool create_temp_path();
 	bool remove_temp_path();
 
-	std::wstring get_video_name() {
+	void render();
+
+	[[nodiscard]] std::wstring get_video_name() const {
 		return video_name;
 	}
 
-	std::filesystem::path get_output_video_path() {
+	[[nodiscard]] std::filesystem::path get_output_video_path() const {
 		return output_path;
 	}
 
-	s_blur_settings get_settings() {
+	[[nodiscard]] s_blur_settings get_settings() const {
 		return settings;
 	}
 
-public:
-	void render();
-
-	s_render_status get_status() {
+	[[nodiscard]] s_render_status get_status() const {
 		return status;
 	}
 
-	std::filesystem::path get_preview_path() {
+	[[nodiscard]] std::filesystem::path get_preview_path() const {
 		return preview_path;
 	}
 };

@@ -9,7 +9,6 @@
       "version>=": "1.83.0"
     },
     "cli11",
-    "fmt",
     "nlohmann-json",
     "zlib"
   ]

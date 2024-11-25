@@ -20,7 +20,7 @@ void tasks::run() {
 
 void tasks::add_files(std::vector<std::string> files) {
 	for (const auto& path : files) {
-		printf("dropped %s\n", path.c_str());
+		u::log("dropped {}", path);
 
 		rendering.queue_render(std::make_shared<c_render>(path));
 	}

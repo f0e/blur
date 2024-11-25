@@ -21,8 +21,6 @@
 #include <ranges>
 
 // libs
-#include <fmt/format.h>
-#include <fmt/xchar.h>
 #include <nlohmann/json.hpp>
 
 #include <boost/process.hpp>
@@ -41,4 +39,4 @@
 
 // blur
 #include "blur.h"
-#include "helpers.h"
+#include "utils.h"

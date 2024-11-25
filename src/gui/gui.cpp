@@ -20,9 +20,9 @@ void gui::update_vsync() {
 #endif
 
 	if (screen_handle != last_screen_handle) {
-		double rate = utils::get_display_refresh_rate(screen_handle);
-		vsync_frame_time = 1.f / (rate + vsync_extra_fps);
-		printf("switched screen, updated vsync_frame_time. refresh rate: %.2f hz\n", rate);
+		const double rate = utils::get_display_refresh_rate(screen_handle);
+		vsync_frame_time = float(1.f / (rate + vsync_extra_fps));
+		u::log("switched screen, updated vsync_frame_time. refresh rate: {:.2f} hz", rate);
 		last_screen_handle = screen_handle;
 	}
 }
@@ -35,13 +35,13 @@ void gui::event_loop() {
 
 		update_vsync();
 
-		bool rendered = renderer::redraw_window(
+		const bool rendered = renderer::redraw_window(
 			window.get(), to_render
 		); // note: rendered isn't true if rendering was forced, it's only if an animation or smth is playing
 		to_render = event_handler::generate_messages_from_os_events(rendered); // true if input handled
 
 #if DEBUG_RENDER && DEBUG_RENDER_LOGGING
-		printf("rendered: %d, to render: %d\n", rendered, to_render);
+		u::log("rendered: {}, to render: {}", rendered, to_render);
 #endif
 
 		if (rendered || to_render) {
@@ -67,8 +67,8 @@ void gui::run() {
 	system->finishLaunching();
 	system->activateApp();
 
-	base::SystemConsole systemConsole;
-	systemConsole.prepareShell();
+	base::SystemConsole system_console;
+	system_console.prepareShell();
 
 	event_queue = system->eventQueue(); // todo: move this maybe
 

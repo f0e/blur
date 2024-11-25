@@ -114,3 +114,6 @@ PenaltyReturnTypeOnItsOwnLine: 99999 # fuck off mate
 #   ...
 # )
 # ```
+---
+Language: Json
+BasedOnStyle: llvm

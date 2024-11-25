@@ -1,0 +1,32 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  # - repo: local
+  # hooks:
+  #     # keep this before clang-tidy, it generates compile_commands.json for it.
+  #     # requires the 'compiledb' tool, 'pip install compiledb'
+  #     - id: compiledb
+  #     name: compiledb
+  #     entry: compiledb
+  #     language: system
+  #     args: [--overwrite, make, -n, -B]
+  #     always_run: true
+  #     require_serial: true
+  #     pass_filenames: false
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v19.1.4
+    hooks:
+      - id: clang-format
+
+  - repo: https://github.com/f0e/clangd-tidy-pre-commit
+    rev: 8e98495c3e596fe34a205b42d0c183df2c3794c1
+    hooks:
+      - id: clangd-tidy

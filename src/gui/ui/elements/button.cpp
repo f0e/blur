@@ -1,3 +1,5 @@
+#include <utility>
+
 #include "../ui.h"
 #include "../render.h"
 #include "../utils.h"
@@ -8,7 +10,7 @@
 void ui::render_button(os::Surface* surface, const Element* element, float anim) {
 	const float button_rounding = 7.8f;
 
-	auto& button_data = std::get<ButtonElementData>(element->data);
+	const auto& button_data = std::get<ButtonElementData>(element->data);
 
 	bool hovered = element->rect.contains(keys::mouse_pos);
 	if (hovered) {
@@ -53,10 +55,15 @@ std::shared_ptr<ui::Element> ui::add_button(
 	gfx::Size text_size = render::get_text_size(text, font);
 
 	auto element = std::make_shared<Element>(Element{
-		ElementType::BUTTON,
-		gfx::Rect(container.current_position, text_size + button_padding),
-		ButtonElementData{ text, font, on_press },
-		render_button,
+		.type = ElementType::BUTTON,
+		.rect = gfx::Rect(container.current_position, text_size + button_padding),
+		.data =
+			ButtonElementData{
+				.text = text,
+				.font = font,
+				.on_press = std::move(on_press),
+			},
+		.render_fn = render_button,
 	});
 
 	add_element(container, id, element, container.line_height);

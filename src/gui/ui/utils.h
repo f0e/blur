@@ -5,6 +5,7 @@ namespace utils {
 
 	SkFont create_font_from_data(const unsigned char* font_data, size_t data_size, float font_height);
 
+	// NOLINTBEGIN
 #ifdef _WIN32
 	double get_display_refresh_rate(HMONITOR hMonitor);
 #elif defined(__APPLE__)
@@ -12,10 +13,11 @@ namespace utils {
 #else
 	double get_display_refresh_rate(int screenNumber);
 #endif
+	// NOLINTEND
 
 	bool show_file_selector(
 		const std::string& title,
-		const std::string& initialPath,
+		const std::string& initial_path,
 		const base::paths& extensions,
 		os::FileDialog::Type type,
 		base::paths& output

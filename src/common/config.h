@@ -55,7 +55,7 @@ private:
 	const std::string filename = ".blur-config.cfg"; // todo: the . makes configs hidden on mac - is that an issue
 
 public:
-	void create(const std::filesystem::path& filepath, s_blur_settings current_settings = s_blur_settings());
+	void create(const std::filesystem::path& filepath, const s_blur_settings& current_settings = s_blur_settings());
 
 	std::filesystem::path get_config_filename(const std::filesystem::path& video_folder);
 

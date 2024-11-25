@@ -3,7 +3,7 @@
 #include "os/draw_text.h"
 
 void ui::init_container(
-	Container& container, gfx::Rect rect, const SkFont& font, std::optional<gfx::Color> background_color
+	Container& container, const gfx::Rect& rect, const SkFont& font, std::optional<gfx::Color> background_color
 ) {
 	container.line_height = font.getSize();
 	container.rect = rect;
@@ -24,9 +24,9 @@ void ui::add_element(Container& container, const std::string& id, std::shared_pt
 void ui::add_element_fixed(Container& container, const std::string& id, std::shared_ptr<Element> element) {
 	if (!container.elements.contains(id)) {
 		container.elements[id] = {
-			element,
+			.element = element,
 		};
-		printf("first added %s\n", id.c_str());
+		u::log("first added {}", id);
 	}
 	else {
 		auto& container_element = container.elements[id];
@@ -86,7 +86,7 @@ void ui::center_elements_in_container(Container& container, bool horizontal, boo
 	}
 }
 
-bool ui::update_container(os::Surface* surface, Container& container, float delta_time) {
+bool ui::update_container(Container& container, float delta_time) {
 	bool all_animations_complete = true;
 
 	for (auto it = container.elements.begin(); it != container.elements.end();) {
@@ -97,7 +97,7 @@ bool ui::update_container(os::Surface* surface, Container& container, float delt
 
 		if (stale && element.animation.complete) {
 			// animation complete and element stale, remove
-			printf("removed %s\n", id.c_str());
+			u::log("removed {}", id);
 			it = container.elements.erase(it);
 			continue;
 		}

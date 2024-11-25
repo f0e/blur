@@ -1,6 +1,6 @@
 #include "config.h"
 
-void c_config::create(const std::filesystem::path& filepath, s_blur_settings current_settings) {
+void c_config::create(const std::filesystem::path& filepath, const s_blur_settings& current_settings) {
 	std::ofstream output(filepath);
 
 	output << "[blur v" << blur.BLUR_VERSION << "]" << "\n";
@@ -91,17 +91,16 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 			std::string value = line.substr(pos + 1);
 
 			// trim whitespace
-			key = helpers::trim(key);
+			key = u::trim(key);
 			if (key == "")
 				continue;
 
-			value = helpers::trim(value);
+			value = u::trim(value);
 
 			if (key != "custom ffmpeg filters") {
 				// remove all spaces in values (it breaks stringstream string parsing, this is a dumb workaround) todo:
 				// better solution
-				std::string::iterator end_pos = std::remove(value.begin(), value.end(), ' ');
-				value.erase(end_pos, value.end());
+				std::erase(value, ' ');
 			}
 
 			config[key] = value;
@@ -114,7 +113,7 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 
 	auto config_get = [&]<typename t>(const std::string& var, t& out) {
 		if (!config.contains(var)) {
-			helpers::debug_log(fmt::format("config missing variable '{}'", var));
+			u::debug_log(std::format("config missing variable '{}'", var));
 			return;
 		}
 
@@ -124,14 +123,14 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 			ss >> std::boolalpha >> out;      // boolalpha: enable true/false bool parsing
 		}
 		catch (const std::exception&) {
-			helpers::debug_log("failed to parse config variable '{}' (value: {})", var, config[var]);
+			u::debug_log("failed to parse config variable '{}' (value: {})", var, config[var]);
 			return;
 		}
 	};
 
 	auto config_get_str = [&](const std::string& var, std::string& out) { // todo: clean this up i cant be bothered rn
 		if (!config.contains(var)) {
-			helpers::debug_log(fmt::format("config missing variable '{}'", var));
+			u::debug_log(std::format("config missing variable '{}'", var));
 			return;
 		}
 
@@ -200,16 +199,14 @@ s_blur_settings c_config::get_config(const std::filesystem::path& config_filepat
 		cfg_path = global_cfg_path;
 
 		if (blur.verbose)
-			printf("Using global config\n");
+			u::log("Using global config");
 	}
 	else {
 		// check if the config file exists, if not, write the default values
 		if (!local_cfg_exists) {
 			config.create(config_filepath);
 
-			wprintf(
-				L"Configuration file not found, default config generated at %s\n", config_filepath.wstring().c_str()
-			);
+			u::log(L"Configuration file not found, default config generated at {}", config_filepath.wstring());
 		}
 
 		cfg_path = config_filepath;

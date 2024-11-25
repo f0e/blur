@@ -4,23 +4,28 @@ void keys::on_mouse_leave() {
 	mouse_pos = { -1, -1 };
 }
 
-void keys::on_mouse_move(gfx::Point position, os::KeyModifiers modifiers, os::PointerType pointerType, float pressure) {
+void keys::on_mouse_move(
+	const gfx::Point& position, os::KeyModifiers /*modifiers*/, os::PointerType /*pointer_type*/, float /*pressure*/
+) {
 	mouse_pos = position;
 }
 
 void keys::on_mouse_down(
-	gfx::Point position,
+	const gfx::Point& /*position*/,
 	os::Event::MouseButton button,
-	os::KeyModifiers modifiers,
-	os::PointerType pointerType,
-	float pressure
+	os::KeyModifiers /*modifiers*/,
+	os::PointerType /*pointer_type*/,
+	float /*pressure*/
 ) {
 	// mouse_pos = position; // TODO: assuming this is inaccurate too
 	pressed_mouse_keys.insert(button);
 }
 
 void keys::on_mouse_up(
-	gfx::Point position, os::Event::MouseButton button, os::KeyModifiers modifiers, os::PointerType pointerType
+	const gfx::Point& /*position*/,
+	os::Event::MouseButton button,
+	os::KeyModifiers /*modifiers*/,
+	os::PointerType /*pointer_type*/
 ) {
 	// mouse_pos = position; // TODO: this is inaccurate? if you press open file button move cursor off screen then
 	// close the picker there'll be a mouseup event with mouse pos still on the button
@@ -34,7 +39,7 @@ void keys::on_mouse_press_handled(os::Event::MouseButton button) {
 	pressed_mouse_keys.erase(button);
 }
 
-bool keys::is_rect_pressed(gfx::Rect rect, os::Event::MouseButton button) {
+bool keys::is_rect_pressed(const gfx::Rect& rect, os::Event::MouseButton button) {
 	return rect.contains(mouse_pos) && is_mouse_down(button);
 }
 
