@@ -16,6 +16,11 @@ bool gui::event_handler::process_event(const os::Event& ev) {
 		case os::Event::ResizeWindow:
 			break;
 
+		case os::Event::MouseLeave: {
+			keys::on_mouse_leave();
+			return true;
+		}
+
 		case os::Event::MouseMove: {
 			keys::on_mouse_move(ev.position(), ev.modifiers(), ev.pointerType(), ev.pressure());
 			return true;

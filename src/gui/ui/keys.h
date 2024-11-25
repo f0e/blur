@@ -4,6 +4,7 @@ namespace keys {
 	inline gfx::Point mouse_pos;
 	inline std::unordered_set<os::Event::MouseButton> pressed_mouse_keys;
 
+	void on_mouse_leave();
 	void on_mouse_move(gfx::Point position, os::KeyModifiers modifiers, os::PointerType pointerType, float pressure);
 	void on_mouse_down(
 		gfx::Point position,
