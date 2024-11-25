@@ -4,6 +4,7 @@
 
 // dependencies
 #include "base/paths.h"
+#include "base/system_console.h"
 #include "os/os.h"
 
 #include "os/skia/skia_helpers.h"

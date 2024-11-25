@@ -2,7 +2,8 @@
 #include "../render.h"
 #include "../utils.h"
 #include "../keys.h"
-#include "../../gui.h"
+
+#include "../../renderer.h"
 
 void ui::render_button(os::Surface* surface, const Element* element, float anim) {
 	const float button_rounding = 7.8f;
@@ -11,7 +12,7 @@ void ui::render_button(os::Surface* surface, const Element* element, float anim)
 
 	bool hovered = element->rect.contains(keys::mouse_pos);
 	if (hovered) {
-		gui::set_cursor(os::NativeCursor::Link);
+		gui::renderer::set_cursor(os::NativeCursor::Link);
 
 		if (button_data.on_press) {
 			if (keys::is_mouse_down()) {

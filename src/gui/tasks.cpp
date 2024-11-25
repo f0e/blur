@@ -5,10 +5,9 @@ void tasks::run() {
 	blur.initialise(false, true);
 
 	rendering.progress_callback = [] {
-		gui::queue_redraw = true;
-
 		if (gui::window) {
 			// idk what you're supposed to do to trigger a redraw in a separate thread!!! I dont do gui!!! this works tho :  )
+			// todo: revisit this
 			os::Event event;
 			gui::window->queueEvent(event);
 		}
