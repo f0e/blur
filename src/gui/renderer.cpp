@@ -75,37 +75,13 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 
 	last_frame_time = now;
 
-	os::Surface* s = window->surface();
-	const gfx::Rect rc = s->bounds();
-
-	gfx::Rect drop_zone = rc;
+	os::Surface* surface = window->surface();
+	const gfx::Rect rc = surface->bounds();
 
 	static float bg_overlay_shade = 0.f;
 	float last_fill_shade = bg_overlay_shade;
 	bg_overlay_shade = std::lerp(bg_overlay_shade, drag_handler::dragging ? 30.f : 0.f, 25.f * delta_time);
 	force_render |= bg_overlay_shade != last_fill_shade;
-
-	{
-		// const int blur_stroke_width = 1;
-		// const float blur_start_shade = 50;
-		// const float blur_screen_percent = 0.8f;
-
-		// paint.style(os::Paint::Style::Stroke);
-		// paint.strokeWidth(blur_stroke_width);
-
-		// gfx::Rect blur_drop_zone = drop_zone;
-		// const int blur_steps = (std::min(rc.w, rc.h) / 2.f / blur_stroke_width) * blur_screen_percent;
-
-		// for (int i = 0; i < blur_steps; i++) {
-		// 	blur_drop_zone.shrink(blur_stroke_width);
-		// 	int shade = std::lerp(blur_start_shade, 0, ease_out_quart(i / (float)blur_steps));
-		// 	if (shade <= 0)
-		// 		break;
-
-		// 	paint.color(gfx::rgba(255, 255, 255, shade));
-		// 	s->drawRect(blur_drop_zone, paint);
-		// }
-	}
 
 	static ui::Container container;
 
@@ -179,20 +155,16 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 
 	ui::center_elements_in_container(container);
 
-	bool want_to_render = ui::update_container(s, container, delta_time);
+	bool want_to_render = ui::update_container(surface, container, delta_time);
 	if (!want_to_render && !force_render)
 		// note: DONT RENDER ANYTHING ABOVE HERE!!! todo: render queue?
 		return false;
 
 	// background
-	os::Paint paint;
-	paint.color(gfx::rgba(0, 0, 0, 255));
-	s->drawRect(rc, paint);
+	render::rect_filled(surface, rc, gfx::rgba(0, 0, 0, 255));
 
-	if ((int)bg_overlay_shade > 0) {
-		paint.color(gfx::rgba(255, 255, 255, bg_overlay_shade));
-		s->drawRect(drop_zone, paint);
-	}
+	if ((int)bg_overlay_shade > 0)
+		render::rect_filled(surface, rc, gfx::rgba(255, 255, 255, bg_overlay_shade));
 
 #if DEBUG_RENDER
 	{
@@ -203,9 +175,8 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 		static bool down = true;
 		x += 1.f * (right ? 1 : -1);
 		y += 1.f * (down ? 1 : -1);
-		os::Paint paint;
-		paint.color(gfx::rgba(255, 0, 0, 50));
-		s->drawRect(gfx::Rect(x, y, debug_box_size, debug_box_size), paint);
+
+		render::rect_filled(surface, gfx::Rect(x, y, debug_box_size, debug_box_size), gfx::rgba(255, 0, 0, 50));
 
 		if (right) {
 			if (x + debug_box_size > rc.x2())
@@ -227,7 +198,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	}
 #endif
 
-	ui::render_container(s, container);
+	ui::render_container(surface, container);
 
 #if DEBUG_RENDER
 	if (fps != -1.f) {
@@ -235,7 +206,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 			rc.x2() - pad_x,
 			rc.y + pad_y
 		);
-		render::text(s, fps_pos, gfx::rgba(0, 255, 0, 255), fmt::format("{:.0f} fps", fps), fonts::font, os::TextAlign::Right);
+		render::text(surface, fps_pos, gfx::rgba(0, 255, 0, 255), fmt::format("{:.0f} fps", fps), fonts::font, os::TextAlign::Right);
 	}
 #endif
 
