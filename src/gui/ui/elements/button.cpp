@@ -22,23 +22,21 @@ void ui::render_button(os::Surface* surface, const Element* element, float anim)
 		}
 	}
 
-	gfx::Color adjusted_color =
-		utils::adjust_color(gfx::rgba(255, 255, 255, hovered ? 75 : 20), anim); // todo: lerp hover shade
+	int shade = hovered ? 40 : 20; // todo: lerp hover shade
+	gfx::Color adjusted_color = utils::adjust_color(gfx::rgba(shade, shade, shade, 255), anim);
 	gfx::Color adjusted_text_color = utils::adjust_color(gfx::rgba(255, 255, 255, 255), anim);
 
 	gfx::Point text_pos = element->rect.center();
 
 	text_pos.y += button_data.font.getSize() / 2 - 1;
-	gfx::Rect cur_rect = element->rect;
-
-	// border
-	cur_rect.shrink(1);
-	render::rounded_rect_stroke(
-		surface, cur_rect, utils::adjust_color(gfx::rgba(100, 100, 100, 255), anim), button_rounding
-	);
 
 	// fill
-	render::rounded_rect_filled(surface, cur_rect, adjusted_color, button_rounding);
+	render::rounded_rect_filled(surface, element->rect, adjusted_color, button_rounding);
+
+	// border
+	render::rounded_rect_stroke(
+		surface, element->rect, utils::adjust_color(gfx::rgba(100, 100, 100, 255), anim), button_rounding
+	);
 
 	render::text(surface, text_pos, adjusted_text_color, button_data.text, button_data.font, os::TextAlign::Center);
 }
