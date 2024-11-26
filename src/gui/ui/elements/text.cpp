@@ -13,7 +13,7 @@ void ui::render_text(os::Surface* surface, const Element* element, float anim) {
 	render::text(surface, text_pos, adjusted_color, text_data.text, text_data.font, text_data.align);
 }
 
-std::shared_ptr<ui::Element> ui::add_text(
+ui::Element& ui::add_text(
 	const std::string& id,
 	Container& container,
 	const std::string& text,
@@ -22,7 +22,7 @@ std::shared_ptr<ui::Element> ui::add_text(
 	os::TextAlign align,
 	int margin_bottom
 ) {
-	auto element = std::make_shared<Element>(Element{
+	Element element = {
 		.type = ElementType::TEXT,
 		.rect = gfx::Rect(container.current_position, gfx::Size(0, font.getSize())),
 		.data =
@@ -33,14 +33,12 @@ std::shared_ptr<ui::Element> ui::add_text(
 				.align = align,
 			},
 		.render_fn = render_text,
-	});
+	};
 
-	add_element(container, id, element, margin_bottom);
-
-	return element;
+	return *add_element(container, id, std::move(element), margin_bottom);
 }
 
-std::shared_ptr<ui::Element> ui::add_text_fixed(
+ui::Element& ui::add_text_fixed(
 	const std::string& id,
 	Container& container,
 	const gfx::Point& position,
@@ -49,7 +47,7 @@ std::shared_ptr<ui::Element> ui::add_text_fixed(
 	const SkFont& font,
 	os::TextAlign align
 ) {
-	auto element = std::make_shared<Element>(Element{
+	Element element = {
 		.type = ElementType::TEXT,
 		.rect = gfx::Rect(position, gfx::Size(0, font.getSize())),
 		.data =
@@ -61,9 +59,7 @@ std::shared_ptr<ui::Element> ui::add_text_fixed(
 			},
 		.render_fn = render_text,
 		.fixed = true,
-	});
+	};
 
-	add_element_fixed(container, id, element);
-
-	return element;
+	return *add_element(container, id, std::move(element));
 }

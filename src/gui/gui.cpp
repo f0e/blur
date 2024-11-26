@@ -21,7 +21,7 @@ void gui::update_vsync() {
 
 	if (screen_handle != last_screen_handle) {
 		const double rate = utils::get_display_refresh_rate(screen_handle);
-		vsync_frame_time = float(1.f / (rate + vsync_extra_fps));
+		vsync_frame_time = float(1.f / (rate + VSYNC_EXTRA_FPS));
 		u::log("switched screen, updated vsync_frame_time. refresh rate: {:.2f} hz", rate);
 		last_screen_handle = screen_handle;
 	}

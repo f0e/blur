@@ -1,6 +1,8 @@
 
 #include "renderer.h"
 
+#include <common/rendering.h>
+
 #include "drag_handler.h"
 #include "tasks.h"
 #include "gui.h"
@@ -54,7 +56,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	float delta_time = NAN;
 
 	if (first) {
-		delta_time = default_delta_time;
+		delta_time = DEFAULT_DELTA_TIME;
 		first = false;
 	}
 	else {
@@ -70,7 +72,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 // fps = (fps * FPS_SMOOTHING) + (current_fps * (1.0f - FPS_SMOOTHING));
 #endif
 
-		delta_time = std::min(time_since_last_frame, min_delta_time);
+		delta_time = std::min(time_since_last_frame, MIN_DELTA_TIME);
 	}
 
 	last_frame_time = now;
@@ -91,7 +93,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	container_rect.y += PAD_Y;
 	container_rect.h -= PAD_Y * 2;
 
-	ui::init_container(container, container_rect, fonts::font);
+	ui::reset_container(container, container_rect, fonts::font);
 
 	static float bar_percent = 0.f;
 

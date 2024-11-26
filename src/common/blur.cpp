@@ -1,7 +1,8 @@
 #include "blur.h"
 #include "common/utils.h"
+#include "common/rendering.h"
 
-bool c_blur::initialise(bool _verbose, bool _using_preview) {
+bool Blur::initialise(bool _verbose, bool _using_preview) {
 	path = std::filesystem::path(u::get_executable_path()).parent_path(); // folder the exe is in
 	used_installer = std::filesystem::exists(path / "lib\\vapoursynth\\vspipe.exe") &&
 	                 std::filesystem::exists(path / "lib\\ffmpeg\\ffmpeg.exe");
@@ -28,15 +29,18 @@ bool c_blur::initialise(bool _verbose, bool _using_preview) {
 	verbose = _verbose;
 	using_preview = _using_preview;
 
-	std::atexit([] {
+	int res = std::atexit([] {
 		rendering.stop_rendering();
 		blur.cleanup();
 	});
 
+	if (res)
+		DEBUG_LOG("failed to register atexit");
+
 	return true;
 }
 
-void c_blur::cleanup() {
+void Blur::cleanup() {
 	for (const auto& path : created_temp_paths) {
 		if (!std::filesystem::exists(path))
 			continue;

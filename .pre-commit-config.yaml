@@ -27,6 +27,7 @@ repos:
       - id: clang-format
 
   - repo: https://github.com/f0e/clangd-tidy-pre-commit
-    rev: 8e98495c3e596fe34a205b42d0c183df2c3794c1
+    rev: v1.0.0
     hooks:
       - id: clangd-tidy
+        args: ["-p out/build/unix-relwithdebinfo"] # TODO:!!!! fix this

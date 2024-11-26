@@ -2,7 +2,7 @@
 #include "render.h"
 #include "os/draw_text.h"
 
-void ui::init_container(
+void ui::reset_container(
 	Container& container, const gfx::Rect& rect, const SkFont& font, std::optional<gfx::Color> background_color
 ) {
 	container.line_height = font.getSize();
@@ -14,29 +14,32 @@ void ui::init_container(
 	container.last_margin_bottom = 0;
 }
 
-void ui::add_element(Container& container, const std::string& id, std::shared_ptr<Element> element, int margin_bottom) {
+ui::Element* ui::add_element(Container& container, const std::string& id, Element&& _element, int margin_bottom) {
+	auto* element = add_element(container, id, std::move(_element));
+
 	container.current_position.y += element->rect.h + margin_bottom;
 	container.last_margin_bottom = margin_bottom;
 
-	add_element_fixed(container, id, element);
+	return element;
 }
 
-void ui::add_element_fixed(Container& container, const std::string& id, std::shared_ptr<Element> element) {
-	if (!container.elements.contains(id)) {
-		container.elements[id] = {
-			.element = element,
-		};
-		u::log("first added {}", id);
-	}
-	else {
-		auto& container_element = container.elements[id];
-		if (container_element.element->data != element->data) {
+ui::Element* ui::add_element(Container& container, const std::string& id, Element&& _element) {
+	auto& container_element = container.elements[id];
+
+	if (container_element.element) {
+		if (container_element.element->data != _element.data) {
 			container.updated = true;
 		}
-		container_element.element = element;
+	}
+	else {
+		u::log("first added {}", id);
 	}
 
+	container_element.element = std::make_unique<ui::Element>(std::move(_element));
+
 	container.current_element_ids.push_back(id);
+
+	return container_element.element.get();
 }
 
 void ui::center_elements_in_container(Container& container, bool horizontal, bool vertical) {

@@ -1,9 +1,9 @@
 #include "config.h"
 
-void c_config::create(const std::filesystem::path& filepath, const s_blur_settings& current_settings) {
+void config::create(const std::filesystem::path& filepath, const BlurSettings& current_settings) {
 	std::ofstream output(filepath);
 
-	output << "[blur v" << blur.BLUR_VERSION << "]" << "\n";
+	output << "[blur v" << BLUR_VERSION << "]" << "\n";
 
 	output << "- blur" << "\n";
 	output << "blur: " << (current_settings.blur ? "true" : "false") << "\n";
@@ -70,11 +70,7 @@ void c_config::create(const std::filesystem::path& filepath, const s_blur_settin
 	}
 }
 
-std::filesystem::path c_config::get_config_filename(const std::filesystem::path& video_folder) {
-	return video_folder / filename;
-}
-
-s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
+BlurSettings config::parse(const std::filesystem::path& config_filepath) {
 	auto read_config = [&]() {
 		std::map<std::string, std::string> config = {};
 
@@ -113,7 +109,7 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 
 	auto config_get = [&]<typename t>(const std::string& var, t& out) {
 		if (!config.contains(var)) {
-			u::debug_log(std::format("config missing variable '{}'", var));
+			DEBUG_LOG("config missing variable '{}'", var);
 			return;
 		}
 
@@ -123,21 +119,21 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 			ss >> std::boolalpha >> out;      // boolalpha: enable true/false bool parsing
 		}
 		catch (const std::exception&) {
-			u::debug_log("failed to parse config variable '{}' (value: {})", var, config[var]);
+			DEBUG_LOG("failed to parse config variable '{}' (value: {})", var, config[var]);
 			return;
 		}
 	};
 
 	auto config_get_str = [&](const std::string& var, std::string& out) { // todo: clean this up i cant be bothered rn
 		if (!config.contains(var)) {
-			u::debug_log(std::format("config missing variable '{}'", var));
+			DEBUG_LOG("config missing variable '{}'", var);
 			return;
 		}
 
 		out = config[var];
 	};
 
-	s_blur_settings settings;
+	BlurSettings settings;
 
 	config_get("blur", settings.blur);
 	config_get("blur amount", settings.blur_amount);
@@ -188,10 +184,14 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 	return settings;
 }
 
-s_blur_settings c_config::get_config(const std::filesystem::path& config_filepath, bool use_global) {
+std::filesystem::path config::get_config_filename(const std::filesystem::path& video_folder) {
+	return video_folder / CONFIG_FILENAME;
+}
+
+BlurSettings config::get_config(const std::filesystem::path& config_filepath, bool use_global) {
 	bool local_cfg_exists = std::filesystem::exists(config_filepath);
 
-	auto global_cfg_path = blur.path / filename;
+	auto global_cfg_path = blur.path / CONFIG_FILENAME;
 	bool global_cfg_exists = std::filesystem::exists(global_cfg_path);
 
 	std::filesystem::path cfg_path;
@@ -204,7 +204,7 @@ s_blur_settings c_config::get_config(const std::filesystem::path& config_filepat
 	else {
 		// check if the config file exists, if not, write the default values
 		if (!local_cfg_exists) {
-			config.create(config_filepath);
+			create(config_filepath);
 
 			u::log(L"Configuration file not found, default config generated at {}", config_filepath.wstring());
 		}
@@ -215,7 +215,7 @@ s_blur_settings c_config::get_config(const std::filesystem::path& config_filepat
 	return parse(cfg_path);
 }
 
-nlohmann::json s_blur_settings::to_json() {
+nlohmann::json BlurSettings::to_json() {
 	nlohmann::json j;
 
 	j["blur"] = this->blur;

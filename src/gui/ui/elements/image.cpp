@@ -32,7 +32,7 @@ void ui::render_image(os::Surface* surface, const Element* element, float anim) 
 	surface->drawRect(image_rect, stroke_paint);
 }
 
-std::optional<std::shared_ptr<ui::Element>> ui::add_image(
+std::optional<ui::Element*> ui::add_image(
 	const std::string& id,
 	Container& container,
 	const std::string& image_path,
@@ -44,8 +44,8 @@ std::optional<std::shared_ptr<ui::Element>> ui::add_image(
 
 	// get existing image
 	if (container.elements.contains(id)) {
-		std::shared_ptr<Element> cached_element = container.elements[id].element;
-		auto& image_data = std::get<ImageElementData>(cached_element->data);
+		Element& cached_element = *container.elements[id].element;
+		auto& image_data = std::get<ImageElementData>(cached_element.data);
 		if (image_data.image_id == image_id) { // edge cases this might not work, it's using current_frame, maybe image
 			                                   // gets written after ffmpeg reports progress? idk. good enough for now
 			image_surface = image_data.image_surface;
@@ -97,7 +97,7 @@ std::optional<std::shared_ptr<ui::Element>> ui::add_image(
 		image_rect.h = static_cast<int>(max_size.w / aspect_ratio);
 	}
 
-	auto element = std::make_shared<Element>(Element{
+	Element element = {
 		.type = ElementType::IMAGE,
 		.rect = image_rect,
 		.data =
@@ -107,9 +107,7 @@ std::optional<std::shared_ptr<ui::Element>> ui::add_image(
 				.image_id = image_id,
 			},
 		.render_fn = render_image,
-	});
+	};
 
-	add_element(container, id, element, container.line_height);
-
-	return element;
+	return add_element(container, id, std::move(element), container.line_height);
 }

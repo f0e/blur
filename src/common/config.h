@@ -1,6 +1,6 @@
 #pragma once
 
-struct s_blur_settings {
+struct BlurSettings {
 	bool blur = true;
 	float blur_amount = 1.f;
 	int blur_output_fps = 60;
@@ -26,7 +26,7 @@ struct s_blur_settings {
 	bool gpu_rendering = false;
 	std::string gpu_type = "nvidia";
 	std::string video_container = "mp4";
-	std::string ffmpeg_override = "";
+	std::string ffmpeg_override;
 	bool debug = false;
 
 	float blur_weighting_gaussian_std_dev = 2.f;
@@ -40,28 +40,20 @@ struct s_blur_settings {
 	int interpolation_mask_area = 0;
 
 	bool manual_svp = false;
-	std::string super_string = "";
-	std::string vectors_string = "";
-	std::string smooth_string = "";
+	std::string super_string;
+	std::string vectors_string;
+	std::string smooth_string;
 
 public:
 	nlohmann::json to_json();
 };
 
-const s_blur_settings default_settings;
+const BlurSettings DEFAULT_SETTINGS;
+const std::string CONFIG_FILENAME = ".blur-config.cfg"; // todo: the . makes configs hidden on mac - is that an issue
 
-class c_config {
-private:
-	const std::string filename = ".blur-config.cfg"; // todo: the . makes configs hidden on mac - is that an issue
-
-public:
-	void create(const std::filesystem::path& filepath, const s_blur_settings& current_settings = s_blur_settings());
-
+namespace config {
+	void create(const std::filesystem::path& filepath, const BlurSettings& current_settings = BlurSettings());
+	BlurSettings parse(const std::filesystem::path& config_filepath);
 	std::filesystem::path get_config_filename(const std::filesystem::path& video_folder);
-
-	s_blur_settings parse(const std::filesystem::path& config_filepath);
-
-	s_blur_settings get_config(const std::filesystem::path& config_filepath, bool use_global);
+	BlurSettings get_config(const std::filesystem::path& config_filepath, bool use_global);
 };
-
-inline c_config config;

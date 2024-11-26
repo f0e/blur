@@ -43,7 +43,7 @@ void ui::render_button(os::Surface* surface, const Element* element, float anim)
 	render::text(surface, text_pos, adjusted_text_color, button_data.text, button_data.font, os::TextAlign::Center);
 }
 
-std::shared_ptr<ui::Element> ui::add_button(
+ui::Element& ui::add_button(
 	const std::string& id,
 	Container& container,
 	const std::string& text,
@@ -54,7 +54,7 @@ std::shared_ptr<ui::Element> ui::add_button(
 
 	gfx::Size text_size = render::get_text_size(text, font);
 
-	auto element = std::make_shared<Element>(Element{
+	Element element = {
 		.type = ElementType::BUTTON,
 		.rect = gfx::Rect(container.current_position, text_size + button_padding),
 		.data =
@@ -64,9 +64,7 @@ std::shared_ptr<ui::Element> ui::add_button(
 				.on_press = std::move(on_press),
 			},
 		.render_fn = render_button,
-	});
+	};
 
-	add_element(container, id, element, container.line_height);
-
-	return element;
+	return *add_element(container, id, std::move(element), container.line_height);
 }

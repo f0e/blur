@@ -93,7 +93,7 @@ namespace ui {
 	};
 
 	struct AnimatedElement {
-		std::shared_ptr<Element> element;
+		std::unique_ptr<Element> element;
 		AnimationState animation = AnimationState(25.f);
 	};
 
@@ -114,14 +114,14 @@ namespace ui {
 	void render_image(os::Surface* surface, const Element* element, float anim);
 	void render_button(os::Surface* surface, const Element* element, float anim);
 
-	void init_container(
+	void reset_container(
 		Container& container, const gfx::Rect& rect, const SkFont& font, std::optional<gfx::Color> background_color = {}
 	);
 
-	void add_element(Container& container, const std::string& id, std::shared_ptr<Element> element, int margin_bottom);
-	void add_element_fixed(Container& container, const std::string& id, std::shared_ptr<Element> element);
+	Element* add_element(Container& container, const std::string& id, Element&& _element, int margin_bottom);
+	Element* add_element(Container& container, const std::string& id, Element&& _element);
 
-	std::shared_ptr<Element> add_bar(
+	Element& add_bar(
 		const std::string& id,
 		Container& container,
 		float percent_fill,
@@ -133,7 +133,7 @@ namespace ui {
 		std::optional<const SkFont*> font = {}
 	);
 
-	std::shared_ptr<Element> add_text(
+	Element& add_text(
 		const std::string& id,
 		Container& container,
 		const std::string& text,
@@ -143,7 +143,7 @@ namespace ui {
 		int margin_bottom = 7
 	);
 
-	std::shared_ptr<Element> add_text_fixed(
+	Element& add_text_fixed(
 		const std::string& id,
 		Container& container,
 		const gfx::Point& position,
@@ -153,7 +153,7 @@ namespace ui {
 		os::TextAlign align = os::TextAlign::Left
 	);
 
-	std::optional<std::shared_ptr<Element>> add_image(
+	std::optional<Element*> add_image(
 		const std::string& id,
 		Container& container,
 		const std::string& image_path,
@@ -161,7 +161,7 @@ namespace ui {
 		std::string image_id = ""
 	); // use image_id to distinguish images that have the same filename and reload it (e.g. if its updated)
 
-	std::shared_ptr<Element> add_button(
+	Element& add_button(
 		const std::string& id,
 		Container& container,
 		const std::string& text,

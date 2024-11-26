@@ -1,10 +1,12 @@
 ﻿#include "rendering.h"
 
+#include <algorithm>
+
 #ifdef BLUR_GUI
 #	include <gui/console.h>
 #endif
 
-void c_rendering::render_videos() {
+void Rendering::render_videos() {
 	if (!queue.empty()) {
 		current_render = queue.front();
 		run_callbacks();
@@ -28,12 +30,12 @@ void c_rendering::render_videos() {
 	}
 }
 
-void c_rendering::queue_render(std::shared_ptr<c_render> render) {
+void Rendering::queue_render(std::shared_ptr<Render> render) {
 	queue.push_back(render);
 	renders_queued = true;
 }
 
-void c_render::build_output_filename() {
+void Render::build_output_filename() {
 	// build output filename
 	int num = 1;
 	do {
@@ -80,21 +82,20 @@ void c_render::build_output_filename() {
 	while (std::filesystem::exists(this->output_path));
 }
 
-c_render::c_render(
+Render::Render(
 	const std::filesystem::path& input_path,
 	std::optional<std::filesystem::path> output_path,
 	std::optional<std::filesystem::path> config_path
-) {
-	this->video_path = input_path;
-
+)
+	: video_path(input_path) {
 	this->video_name = this->video_path.stem().wstring();
 	this->video_folder = this->video_path.parent_path();
 
 	// parse config file (do it now, not when rendering. nice for batch rendering the same file with different settings)
 	if (config_path.has_value())
-		this->settings = config.get_config(output_path.value(), false); // specified config path, don't use global
+		this->settings = config::get_config(output_path.value(), false); // specified config path, don't use global
 	else
-		this->settings = config.get_config(config.get_config_filename(video_folder), true);
+		this->settings = config::get_config(config::get_config_filename(video_folder), true);
 
 	if (output_path.has_value())
 		this->output_path = output_path.value();
@@ -104,7 +105,7 @@ c_render::c_render(
 	}
 }
 
-bool c_render::create_temp_path() {
+bool Render::create_temp_path() {
 	size_t out_hash = std::hash<std::filesystem::path>()(output_path);
 
 	temp_path = std::filesystem::temp_directory_path() / std::string("blur-" + std::to_string(out_hash));
@@ -117,7 +118,7 @@ bool c_render::create_temp_path() {
 	return true;
 }
 
-bool c_render::remove_temp_path() {
+bool Render::remove_temp_path() {
 	if (temp_path.empty())
 		return false;
 
@@ -131,13 +132,13 @@ bool c_render::remove_temp_path() {
 		return true;
 	}
 	catch (const std::filesystem::filesystem_error& e) {
-		std::cerr << "Error removing temp path: " << e.what() << std::endl;
+		u::log_error("Error removing temp path: {}", e.what());
 		return false;
 	}
 }
 
-c_render::s_render_commands c_render::build_render_commands() {
-	s_render_commands commands;
+Render::RenderCommands Render::build_render_commands() {
+	RenderCommands commands;
 
 	if (blur.used_installer) {
 		commands.vspipe_path = (blur.path / "lib\\vapoursynth\\vspipe.exe").wstring();
@@ -149,7 +150,7 @@ c_render::s_render_commands c_render::build_render_commands() {
 	}
 
 	std::wstring path_string = video_path.wstring();
-	std::replace(path_string.begin(), path_string.end(), '\\', '/');
+	std::ranges::replace(path_string, '\\', '/');
 
 	std::wstring blur_script_path = (blur.path / "lib/blur.py").wstring();
 
@@ -195,7 +196,7 @@ c_render::s_render_commands c_render::build_render_commands() {
 	}
 
 	if (!audio_filters.empty()) {
-		commands.ffmpeg.push_back(L"-af");
+		commands.ffmpeg.emplace_back(L"-af");
 		commands.ffmpeg.push_back(std::accumulate(
 			std::next(audio_filters.begin()),
 			audio_filters.end(),
@@ -295,10 +296,10 @@ c_render::s_render_commands c_render::build_render_commands() {
 	return commands;
 }
 
-bool c_render::do_render(s_render_commands render_commands) {
+bool Render::do_render(RenderCommands render_commands) {
 	namespace bp = boost::process;
 
-	status = s_render_status{};
+	status = RenderStatus{};
 
 	try {
 		boost::asio::io_context io_context;
@@ -306,10 +307,8 @@ bool c_render::do_render(s_render_commands render_commands) {
 		bp::ipstream vspipe_stderr;
 
 		if (settings.debug) {
-			std::wcout << L"VSPipe command: " << render_commands.vspipe_path << " "
-					   << u::join(render_commands.vspipe, L" ") << std::endl;
-			std::wcout << L"FFmpeg command: " << render_commands.ffmpeg_path << " "
-					   << u::join(render_commands.ffmpeg, L" ") << std::endl;
+			u::log(L"VSPipe command: {} {}", render_commands.vspipe_path, u::join(render_commands.vspipe, L" "));
+			u::log(L"FFmpeg command: {} {}", render_commands.ffmpeg_path, u::join(render_commands.ffmpeg, L" "));
 		}
 
 		// Launch vspipe process
@@ -396,12 +395,12 @@ bool c_render::do_render(s_render_commands render_commands) {
 		return vspipe_process.exit_code() == 0 && ffmpeg_process.exit_code() == 0;
 	}
 	catch (const boost::system::system_error& e) {
-		std::cerr << "Process error: " << e.what() << std::endl;
+		u::log_error("Process error: {}", e.what());
 		return false;
 	}
 }
 
-void c_render::render() {
+void Render::render() {
 	u::log(L"Rendering '{}'\n", video_name);
 
 #ifndef _DEBUG
@@ -436,7 +435,7 @@ void c_render::render() {
 	}
 
 	// render
-	s_render_commands render_commands = build_render_commands();
+	RenderCommands render_commands = build_render_commands();
 
 	if (do_render(render_commands)) {
 		if (blur.verbose) {
@@ -451,7 +450,7 @@ void c_render::render() {
 	remove_temp_path();
 }
 
-void c_rendering::stop_rendering() {
+void Rendering::stop_rendering() {
 	// TODO: re-add
 
 	// // stop vspipe
@@ -462,7 +461,7 @@ void c_rendering::stop_rendering() {
 	// 	SendMessage(hwnd, WM_CLOSE, 0, 0);
 }
 
-void s_render_status::update_progress_string(bool first) {
+void RenderStatus::update_progress_string(bool first) {
 	float progress = current_frame / (float)total_frames;
 
 	if (first) {

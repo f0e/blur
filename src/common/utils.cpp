@@ -4,7 +4,7 @@ std::string u::trim(std::string_view str) {
 	str.remove_prefix(std::min(str.find_first_not_of(" \t\r\v\n"), str.size()));
 	str.remove_suffix(std::min(str.size() - str.find_last_not_of(" \t\r\v\n") - 1, str.size()));
 
-	return str.data();
+	return std::string(str);
 }
 
 std::string u::random_string(int len) {
@@ -33,6 +33,7 @@ std::vector<std::string> u::split_string(std::string str, const std::string& del
 	return output;
 }
 
+// NOLINTBEGIN gpt ass code
 std::wstring u::towstring(const std::string& str) {
 	if (str.empty())
 		return std::wstring();
@@ -73,18 +74,16 @@ std::string u::tostring(const std::wstring& wstr) {
 #endif
 }
 
+// NOLINTEND
+
 std::string u::to_lower(const std::string& str) {
 	std::string out = str;
 
-	std::for_each(out.begin(), out.end(), [](char& c) {
-		c = ::tolower(c);
+	std::ranges::for_each(out, [](char& c) {
+		c = std::tolower(c);
 	});
 
 	return out;
-}
-
-int u::exec(std::wstring command, std::wstring run_dir) {
-	return 0;
 }
 
 std::optional<std::filesystem::path> u::get_program_path(const std::string& program_name) {
@@ -101,6 +100,7 @@ std::optional<std::filesystem::path> u::get_program_path(const std::string& prog
 	}
 }
 
+// NOLINTBEGIN gpt ass code
 std::string u::get_executable_path() {
 #if defined(_WIN32)
 	char path[MAX_PATH];
@@ -122,3 +122,5 @@ std::string u::get_executable_path() {
 #	error "Unsupported platform"
 #endif
 }
+
+// NOLINTEND

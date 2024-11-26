@@ -1,6 +1,8 @@
 
 #pragma once
 
+class Render;
+
 namespace ui {
 	class Container;
 }
@@ -20,9 +22,7 @@ namespace gui::renderer {
 	void set_cursor(os::NativeCursor cursor);
 
 	namespace components {
-		void render_in_progress(
-			ui::Container& container, const c_render* render, float& bar_percent, float& delta_time
-		);
+		void render_in_progress(ui::Container& container, const Render* render, float& bar_percent, float& delta_time);
 
 	}
 

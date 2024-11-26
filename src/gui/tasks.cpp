@@ -1,4 +1,6 @@
 #include "tasks.h"
+
+#include <common/rendering.h>
 #include "gui.h"
 
 void tasks::run() {
@@ -18,10 +20,10 @@ void tasks::run() {
 	}
 }
 
-void tasks::add_files(std::vector<std::string> files) {
+void tasks::add_files(const std::vector<std::string>& files) {
 	for (const auto& path : files) {
 		u::log("dropped {}", path);
 
-		rendering.queue_render(std::make_shared<c_render>(path));
+		rendering.queue_render(std::make_shared<Render>(path));
 	}
 }

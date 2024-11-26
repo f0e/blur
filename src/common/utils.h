@@ -1,23 +1,49 @@
 #pragma once
 
-namespace u {
-	template<typename... Args>
-	void log(const std::string& format_str, Args&&... args) {
-		std::cout << std::vformat(format_str, std::make_format_args(args...)) << '\n';
-	}
-
-	template<typename... Args>
-	void log(const std::wstring& format_str, Args&&... args) {
-		std::wcout << std::vformat(format_str, std::make_wformat_args(args...)) << L'\n';
-	}
-
-	template<typename... Args>
-	void debug_log(const std::string& format_str, Args&&... args) {
 #ifdef _DEBUG
-		std::cout << "[debug] " << std::format(format_str, std::forward<Args>(args)...) << '\n';
+#	define DEBUG_LOG(...) u::log(__VA_ARGS__)
+#else
+#	define DEBUG_LOG(...) ((void)0)
 #endif
+
+namespace u {
+	inline void log(const std::string& msg) {
+		std::cout << msg << '\n';
 	}
 
+	inline void log(const std::wstring& msg) {
+		std::wcout << msg << L'\n';
+	}
+
+	template<typename... Args>
+	void log(const std::format_string<Args...> format_str, Args&&... args) {
+		std::cout << std::format(format_str, std::forward<Args>(args)...) << '\n';
+	}
+
+	template<typename... Args>
+	void log(const std::wformat_string<Args...> format_str, Args&&... args) {
+		std::wcout << std::format(format_str, std::forward<Args>(args)...) << L'\n';
+	}
+
+	inline void log_error(const std::string& msg) {
+		std::cerr << msg << '\n';
+	}
+
+	inline void log_error(const std::wstring& msg) {
+		std::wcerr << msg << L'\n';
+	}
+
+	template<typename... Args>
+	void log_error(const std::format_string<Args...> format_str, Args&&... args) {
+		std::cerr << std::format(format_str, std::forward<Args>(args)...) << '\n';
+	}
+
+	template<typename... Args>
+	void log_error(const std::wformat_string<Args...> format_str, Args&&... args) {
+		std::wcerr << std::format(format_str, std::forward<Args>(args)...) << L'\n';
+	}
+
+	// NOLINTBEGIN not my code bud
 	template<typename container_type>
 	struct enumerate_wrapper {
 		using iterator_type = std::conditional_t<
@@ -75,14 +101,14 @@ namespace u {
 		return enumerate_wrapper(c);
 	}
 
+	// NOLINTEND
+
 	std::string trim(std::string_view str);
 	std::string random_string(int len);
 	std::vector<std::string> split_string(std::string str, const std::string& delimiter);
 	std::wstring towstring(const std::string& str);
 	std::string tostring(const std::wstring& wstr);
 	std::string to_lower(const std::string& str);
-
-	int exec(std::wstring command, std::wstring run_dir = L".");
 
 	std::optional<std::filesystem::path> get_program_path(const std::string& program_name);
 

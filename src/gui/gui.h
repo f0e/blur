@@ -6,10 +6,10 @@ namespace gui {
 
 	inline bool closing = false;
 
-	const inline float vsync_extra_fps = 50;
-	const inline float min_delta_time = 1.f / 10;
-	const inline float default_delta_time = 1.f / 60;
-	inline double vsync_frame_time = default_delta_time;
+	const inline float VSYNC_EXTRA_FPS = 50;
+	const inline float MIN_DELTA_TIME = 1.f / 10;
+	const inline float DEFAULT_DELTA_TIME = 1.f / 60;
+	inline double vsync_frame_time = DEFAULT_DELTA_TIME;
 
 	void update_vsync();
 

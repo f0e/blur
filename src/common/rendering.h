@@ -6,7 +6,7 @@
 #include <thread>
 #include <filesystem>
 
-struct s_render_status {
+struct RenderStatus {
 	bool finished = false;
 	bool init = false;
 	int current_frame;
@@ -19,9 +19,9 @@ struct s_render_status {
 	std::string progress_string;
 };
 
-class c_render {
+class Render {
 private:
-	s_render_status status;
+	RenderStatus status;
 
 	std::wstring video_name;
 
@@ -32,12 +32,11 @@ private:
 	std::filesystem::path temp_path;
 	std::filesystem::path preview_path;
 
-	s_blur_settings settings;
+	BlurSettings settings;
 
-private:
 	void build_output_filename();
 
-	struct s_render_commands {
+	struct RenderCommands {
 		std::wstring vspipe_path;
 		std::vector<std::wstring> vspipe;
 
@@ -45,12 +44,12 @@ private:
 		std::vector<std::wstring> ffmpeg;
 	};
 
-	s_render_commands build_render_commands();
+	RenderCommands build_render_commands();
 
-	bool do_render(s_render_commands render_commands);
+	bool do_render(RenderCommands render_commands);
 
 public:
-	c_render(
+	Render(
 		const std::filesystem::path& input_path,
 		std::optional<std::filesystem::path> output_path = {},
 		std::optional<std::filesystem::path> config_path = {}
@@ -69,11 +68,11 @@ public:
 		return output_path;
 	}
 
-	[[nodiscard]] s_blur_settings get_settings() const {
+	[[nodiscard]] BlurSettings get_settings() const {
 		return settings;
 	}
 
-	[[nodiscard]] s_render_status get_status() const {
+	[[nodiscard]] RenderStatus get_status() const {
 		return status;
 	}
 
@@ -82,20 +81,19 @@ public:
 	}
 };
 
-class c_rendering {
+class Rendering {
 private:
 	std::unique_ptr<std::thread> thread_ptr;
 
 public:
-	std::vector<std::shared_ptr<c_render>> queue;
-	std::shared_ptr<c_render> current_render;
+	std::vector<std::shared_ptr<Render>> queue;
+	std::shared_ptr<Render> current_render;
 	std::optional<std::function<void()>> progress_callback;
 	bool renders_queued;
 
-public:
 	void render_videos();
 
-	void queue_render(std::shared_ptr<c_render> render);
+	void queue_render(std::shared_ptr<Render> render);
 
 	void stop_rendering();
 
@@ -105,4 +103,4 @@ public:
 	}
 };
 
-inline c_rendering rendering;
+inline Rendering rendering;

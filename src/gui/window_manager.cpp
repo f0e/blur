@@ -3,13 +3,13 @@
 
 #include "renderer.h"
 
-os::WindowRef gui::window_manager::create_window(os::DragTarget& dragTarget) {
+os::WindowRef gui::window_manager::create_window(os::DragTarget& drag_target) {
 	auto screen = os::instance()->mainScreen();
 
 	os::WindowRef window = os::instance()->makeWindow(591, 381);
 	window->setCursor(os::NativeCursor::Arrow);
 	window->setTitle("Blur");
-	window->setDragTarget(&dragTarget);
+	window->setDragTarget(&drag_target);
 
 	return window;
 }

@@ -1,4 +1,5 @@
 #include "cli.h"
+#include <common/rendering.h>
 
 bool cli::run(
 	std::vector<std::string> inputs,
@@ -8,21 +9,23 @@ bool cli::run(
 	bool verbose
 ) {
 	if (!blur.initialise(verbose, preview)) {
-		std::wcout << L"Blur failed to initialize" << std::endl;
+		u::log(L"Blur failed to initialize");
 		return false;
 	}
 
 	bool manual_output_files = !outputs.empty();
 	if (manual_output_files && inputs.size() != outputs.size()) {
-		std::wcout << L"Input/output filename count mismatch (" << inputs.size() << L" inputs, " << outputs.size()
-				   << L" outputs)." << std::endl;
+		u::log(L"Input/output filename count mismatch ({} inputs, {} outputs).", inputs.size(), outputs.size());
 		return false;
 	}
 
 	bool manual_config_files = !config_paths.empty();
 	if (manual_config_files && inputs.size() != config_paths.size()) {
-		std::wcout << L"Input filename/config paths count mismatch (" << inputs.size() << L" inputs, "
-				   << config_paths.size() << L" config paths)." << std::endl;
+		u::log(
+			L"Input filename/config paths count mismatch ({} inputs, {} config paths).",
+			inputs.size(),
+			config_paths.size()
+		);
 		return false;
 	}
 
@@ -30,7 +33,7 @@ bool cli::run(
 		for (const auto& path : config_paths) {
 			if (!std::filesystem::exists(path)) {
 				// TODO: test printing works with unicode
-				std::cout << "Specified config file path '" << path << "' not found." << std::endl;
+				u::log("Specified config file path '{}' not found.", path);
 				return false;
 			}
 		}
@@ -41,7 +44,7 @@ bool cli::run(
 
 		if (!std::filesystem::exists(input_path)) {
 			// TODO: test with unicode
-			std::wcout << L"Video '" << input_path.wstring() << L"' was not found (wrong path?)" << std::endl;
+			u::log(L"Video '{}' was not found (wrong path?)", input_path.wstring());
 			return false;
 		}
 
@@ -60,7 +63,7 @@ bool cli::run(
 		}
 
 		// set up render
-		auto render = std::make_shared<c_render>(input_path, output_path, config_path);
+		auto render = std::make_shared<Render>(input_path, output_path, config_path);
 
 		rendering.queue_render(render);
 
@@ -76,7 +79,7 @@ bool cli::run(
 	// render videos
 	rendering.render_videos();
 
-	std::wcout << L"Finished rendering" << std::endl;
+	u::log(L"Finished rendering");
 
 	return true;
 }

@@ -7,33 +7,35 @@
 
 // todo: is creating a new paint instance every time significant to perf? shouldnt be
 
-void render::rect_filled(os::Surface* surface, gfx::Rect rect, gfx::Color colour) {
+namespace {
+	void rounded_rect(os::Surface* surface, const gfx::RectF& rect, os::Paint paint, float rounding) {
+		if (rect.isEmpty())
+			return;
+
+		paint.antialias(true);
+
+		SkRect skia_rect{};
+		if (paint.style() == os::Paint::Style::Stroke)
+			skia_rect = os::to_skia_fix(rect);
+		else
+			skia_rect = os::to_skia(rect);
+
+		SkRRect rrect;
+		rrect.setRectXY(skia_rect, rounding, rounding);
+
+		auto* canvas = &static_cast<os::SkiaSurface*>(surface)->canvas();
+		canvas->drawRRect(rrect, paint.skPaint());
+	}
+}
+
+void render::rect_filled(os::Surface* surface, const gfx::Rect& rect, gfx::Color colour) {
 	os::Paint paint;
 	paint.color(colour);
 
 	surface->drawRect(rect, paint);
 }
 
-void rounded_rect(os::Surface* surface, gfx::RectF rect, os::Paint paint, float rounding) {
-	if (rect.isEmpty())
-		return;
-
-	paint.antialias(true);
-
-	SkRect skia_rect;
-	if (paint.style() == os::Paint::Style::Stroke)
-		skia_rect = os::to_skia_fix(rect);
-	else
-		skia_rect = os::to_skia(rect);
-
-	SkRRect rrect;
-	rrect.setRectXY(skia_rect, rounding, rounding);
-
-	auto canvas = &static_cast<os::SkiaSurface*>(surface)->canvas();
-	canvas->drawRRect(rrect, paint.skPaint());
-}
-
-void render::rounded_rect_filled(os::Surface* surface, gfx::Rect rect, gfx::Color colour, float rounding) {
+void render::rounded_rect_filled(os::Surface* surface, const gfx::Rect& rect, gfx::Color colour, float rounding) {
 	if (rect.isEmpty())
 		return;
 
@@ -44,7 +46,7 @@ void render::rounded_rect_filled(os::Surface* surface, gfx::Rect rect, gfx::Colo
 }
 
 void render::rounded_rect_stroke(
-	os::Surface* surface, gfx::Rect rect, gfx::Color colour, float rounding, float stroke_width
+	os::Surface* surface, const gfx::Rect& rect, gfx::Color colour, float rounding, float stroke_width
 ) {
 	if (rect.isEmpty())
 		return;
@@ -58,7 +60,12 @@ void render::rounded_rect_stroke(
 }
 
 void render::text(
-	os::Surface* surface, gfx::Point pos, gfx::Color colour, std::string text, const SkFont& font, os::TextAlign align
+	os::Surface* surface,
+	const gfx::Point& pos,
+	gfx::Color colour,
+	const std::string& text,
+	const SkFont& font,
+	os::TextAlign align
 ) {
 	os::Paint paint;
 	paint.color(colour);
@@ -79,12 +86,12 @@ void render::text(
 	);
 }
 
-gfx::Size render::get_text_size(std::string text, const SkFont& font) {
+gfx::Size render::get_text_size(const std::string& text, const SkFont& font) {
 	// Skia paint object to calculate text metrics
 	SkPaint paint;
 
 	// Get the width of the text
-	SkScalar textWidth = font.measureText(text.c_str(), text.size(), SkTextEncoding::kUTF8);
+	SkScalar text_width = font.measureText(text.c_str(), text.size(), SkTextEncoding::kUTF8);
 
 	// // Get the text metrics to calculate the height
 	// SkFontMetrics metrics;
@@ -92,5 +99,5 @@ gfx::Size render::get_text_size(std::string text, const SkFont& font) {
 	// SkScalar textHeight = metrics.fBottom - metrics.fTop; // Total height of the text (including leading)
 
 	// The result will be a width and height structure
-	return gfx::Size(SkScalarToFloat(textWidth), SkScalarToFloat(font.getSize()));
+	return gfx::Size(SkScalarToFloat(text_width), SkScalarToFloat(font.getSize()));
 }

@@ -2,5 +2,5 @@
 
 namespace tasks {
 	void run();
-	void add_files(std::vector<std::string> files);
+	void add_files(const std::vector<std::string>& files);
 }
