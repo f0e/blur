@@ -229,9 +229,6 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	// background
 	render::rect_filled(surface, rect, gfx::rgba(0, 0, 0, 255));
 
-	if ((int)bg_overlay_shade > 0)
-		render::rect_filled(surface, rect, gfx::rgba(255, 255, 255, (gfx::ColorComponent)bg_overlay_shade));
-
 #if DEBUG_RENDER
 	{
 		// debug
@@ -266,6 +263,10 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 #endif
 
 	ui::render_container(surface, container);
+
+	// file drop overlay
+	if ((int)bg_overlay_shade > 0)
+		render::rect_filled(surface, rect, gfx::rgba(255, 255, 255, (gfx::ColorComponent)bg_overlay_shade));
 
 #if DEBUG_RENDER
 	if (fps != -1.f) {
