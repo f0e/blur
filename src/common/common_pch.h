@@ -1,5 +1,7 @@
 #pragma once
 
+// NOLINTBEGIN(misc-include-cleaner)
+
 // std
 #include <cstdio>
 #include <fstream>
@@ -40,3 +42,5 @@
 // blur
 #include "blur.h"
 #include "utils.h"
+
+// NOLINTEND(misc-include-cleaner)
