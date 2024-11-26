@@ -21,18 +21,18 @@ struct RenderStatus {
 
 class Render {
 private:
-	RenderStatus status;
+	RenderStatus m_status;
 
-	std::wstring video_name;
+	std::wstring m_video_name;
 
-	std::filesystem::path video_path;
-	std::filesystem::path video_folder;
+	std::filesystem::path m_video_path;
+	std::filesystem::path m_video_folder;
 
-	std::filesystem::path output_path;
-	std::filesystem::path temp_path;
-	std::filesystem::path preview_path;
+	std::filesystem::path m_output_path;
+	std::filesystem::path m_temp_path;
+	std::filesystem::path m_preview_path;
 
-	BlurSettings settings;
+	BlurSettings m_settings;
 
 	void build_output_filename();
 
@@ -50,9 +50,9 @@ private:
 
 public:
 	Render(
-		const std::filesystem::path& input_path,
-		std::optional<std::filesystem::path> output_path = {},
-		std::optional<std::filesystem::path> config_path = {}
+		std::filesystem::path input_path,
+		const std::optional<std::filesystem::path>& output_path = {},
+		const std::optional<std::filesystem::path>& config_path = {}
 	);
 
 	bool create_temp_path();
@@ -61,45 +61,65 @@ public:
 	void render();
 
 	[[nodiscard]] std::wstring get_video_name() const {
-		return video_name;
+		return m_video_name;
 	}
 
 	[[nodiscard]] std::filesystem::path get_output_video_path() const {
-		return output_path;
+		return m_output_path;
 	}
 
 	[[nodiscard]] BlurSettings get_settings() const {
-		return settings;
+		return m_settings;
 	}
 
 	[[nodiscard]] RenderStatus get_status() const {
-		return status;
+		return m_status;
 	}
 
 	[[nodiscard]] std::filesystem::path get_preview_path() const {
-		return preview_path;
+		return m_preview_path;
 	}
 };
 
 class Rendering {
 private:
-	std::unique_ptr<std::thread> thread_ptr;
+	std::unique_ptr<std::thread> m_thread_ptr;
+	std::optional<std::function<void()>> m_progress_callback;
+	std::vector<std::unique_ptr<Render>> m_queue;
+	Render* m_current_render = nullptr;
+
+	std::mutex m_lock;
 
 public:
-	std::vector<std::shared_ptr<Render>> queue;
-	std::shared_ptr<Render> current_render;
-	std::optional<std::function<void()>> progress_callback;
-	bool renders_queued;
-
 	void render_videos();
 
-	void queue_render(std::shared_ptr<Render> render);
+	Render& queue_render(Render&& render);
 
 	void stop_rendering();
 
+	const std::vector<std::unique_ptr<Render>>& get_queue() {
+		return m_queue;
+	}
+
+	const Render* get_current_render() {
+		return m_current_render;
+	}
+
+	void set_progress_callback(std::function<void()>&& callback) {
+		m_progress_callback = std::move(callback);
+	}
+
 	void run_callbacks() {
-		if (progress_callback)
-			(*progress_callback)();
+		if (m_progress_callback)
+			(*m_progress_callback)();
+	}
+
+	void lock() {
+		m_lock.lock();
+	}
+
+	void unlock() {
+		m_lock.unlock();
 	}
 };
 

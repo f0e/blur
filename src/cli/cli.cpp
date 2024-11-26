@@ -63,15 +63,13 @@ bool cli::run(
 		}
 
 		// set up render
-		auto render = std::make_shared<Render>(input_path, output_path, config_path);
-
-		rendering.queue_render(render);
+		auto render = rendering.queue_render(Render(input_path, output_path, config_path));
 
 		if (blur.verbose) {
 			u::log(
 				L"Queued '{}' for render, outputting to '{}'",
-				render->get_video_name(),
-				render->get_output_video_path().wstring()
+				render.get_video_name(),
+				render.get_output_video_path().wstring()
 			);
 		}
 	}

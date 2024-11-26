@@ -7,61 +7,69 @@
 #endif
 
 void Rendering::render_videos() {
-	if (!queue.empty()) {
-		current_render = queue.front();
+	if (!m_queue.empty()) {
+		lock();
+		{
+			m_current_render = m_queue.front().get();
+		}
+		unlock();
+
 		run_callbacks();
 
 		try {
-			current_render->render();
+			m_current_render->render();
 		}
 		catch (const std::exception& e) {
 			u::log(e.what());
 		}
 
 		// finished rendering, delete
-		queue.erase(queue.begin());
-		current_render = nullptr;
-		run_callbacks();
+		lock();
+		{
+			m_queue.erase(m_queue.begin());
+			m_current_render = nullptr;
+		}
+		unlock();
 
-		renders_queued = !queue.empty();
+		run_callbacks();
 	}
 	else {
 		std::this_thread::sleep_for(std::chrono::milliseconds(250));
 	}
 }
 
-void Rendering::queue_render(std::shared_ptr<Render> render) {
-	queue.push_back(render);
-	renders_queued = true;
+Render& Rendering::queue_render(Render&& render) {
+	m_queue.push_back(std::make_unique<Render>(std::move(render)));
+	return *m_queue.back();
 }
 
 void Render::build_output_filename() {
 	// build output filename
 	int num = 1;
 	do {
-		std::wstring output_filename = this->video_name + L" - blur";
+		std::wstring output_filename = this->m_video_name + L" - blur";
 
-		if (this->settings.detailed_filenames) {
+		if (this->m_settings.detailed_filenames) {
 			std::wstring extra_details;
 
 			// stupid
-			if (this->settings.blur) {
-				if (this->settings.interpolate) {
+			if (this->m_settings.blur) {
+				if (this->m_settings.interpolate) {
 					extra_details = std::format(
 						L"{}fps ({}, {})",
-						this->settings.blur_output_fps,
-						u::towstring(this->settings.interpolated_fps),
-						this->settings.blur_amount
+						this->m_settings.blur_output_fps,
+						u::towstring(this->m_settings.interpolated_fps),
+						this->m_settings.blur_amount
 					);
 				}
 				else {
 					extra_details =
-						std::format(L"{}fps ({})", this->settings.blur_output_fps, this->settings.blur_amount);
+						std::format(L"{}fps ({})", this->m_settings.blur_output_fps, this->m_settings.blur_amount);
 				}
 			}
 			else {
-				if (this->settings.interpolate) {
-					extra_details = std::format(L"{}fps", u::towstring(this->settings.interpolated_fps));
+				if (this->m_settings.interpolate) {
+					extra_details = std::format(L"{}fps", u::towstring(this->m_settings.interpolated_fps));
 				}
 			}
 
@@ -73,32 +81,32 @@ void Render::build_output_filename() {
 		if (num > 1)
 			output_filename += std::format(L" ({})", num);
 
-		output_filename += L"." + u::towstring(this->settings.video_container);
+		output_filename += L"." + u::towstring(this->m_settings.video_container);
 
-		this->output_path = this->video_folder / output_filename;
+		this->m_output_path = this->m_video_folder / output_filename;
 
 		num++;
 	}
-	while (std::filesystem::exists(this->output_path));
+	while (std::filesystem::exists(this->m_output_path));
 }
 
 Render::Render(
-	const std::filesystem::path& input_path,
-	std::optional<std::filesystem::path> output_path,
-	std::optional<std::filesystem::path> config_path
+	std::filesystem::path input_path,
+	const std::optional<std::filesystem::path>& output_path,
+	const std::optional<std::filesystem::path>& config_path
 )
-	: video_path(input_path) {
-	this->video_name = this->video_path.stem().wstring();
-	this->video_folder = this->video_path.parent_path();
+	: m_video_path(std::move(input_path)) {
+	this->m_video_name = this->m_video_path.stem().wstring();
+	this->m_video_folder = this->m_video_path.parent_path();
 
 	// parse config file (do it now, not when rendering. nice for batch rendering the same file with different settings)
 	if (config_path.has_value())
-		this->settings = config::get_config(output_path.value(), false); // specified config path, don't use global
+		this->m_settings = config::get_config(output_path.value(), false); // specified config path, don't use global
 	else
-		this->settings = config::get_config(config::get_config_filename(video_folder), true);
+		this->m_settings = config::get_config(config::get_config_filename(m_video_folder), true);
 
 	if (output_path.has_value())
-		this->output_path = output_path.value();
+		this->m_output_path = output_path.value();
 	else {
 		// note: this uses settings, so has to be called after they're loaded
 		build_output_filename();
@@ -106,28 +114,28 @@ Render::Render(
 }
 
 bool Render::create_temp_path() {
-	size_t out_hash = std::hash<std::filesystem::path>()(output_path);
+	size_t out_hash = std::hash<std::filesystem::path>()(m_output_path);
 
-	temp_path = std::filesystem::temp_directory_path() / std::string("blur-" + std::to_string(out_hash));
+	m_temp_path = std::filesystem::temp_directory_path() / std::string("blur-" + std::to_string(out_hash));
 
-	if (!std::filesystem::create_directory(temp_path))
+	if (!std::filesystem::create_directory(m_temp_path))
 		return false;
 
-	blur.created_temp_paths.insert(temp_path);
+	blur.created_temp_paths.insert(m_temp_path);
 
 	return true;
 }
 
 bool Render::remove_temp_path() {
-	if (temp_path.empty())
+	if (m_temp_path.empty())
 		return false;
 
-	if (!std::filesystem::exists(temp_path))
+	if (!std::filesystem::exists(m_temp_path))
 		return false;
 
 	try {
-		std::filesystem::remove_all(temp_path);
-		blur.created_temp_paths.erase(temp_path);
+		std::filesystem::remove_all(m_temp_path);
+		blur.created_temp_paths.erase(m_temp_path);
 
 		return true;
 	}
@@ -149,7 +157,7 @@ Render::RenderCommands Render::build_render_commands() {
 		commands.ffmpeg_path = blur.ffmpeg_path.wstring();
 	}
 
-	std::wstring path_string = video_path.wstring();
+	std::wstring path_string = m_video_path.wstring();
 	std::ranges::replace(path_string, '\\', '/');
 
 	std::wstring blur_script_path = (blur.path / "lib/blur.py").wstring();
@@ -161,7 +169,7 @@ Render::RenderCommands Render::build_render_commands() {
 		                L"-a",
 		                L"video_path=" + path_string,
 		                L"-a",
-		                L"settings=" + u::towstring(settings.to_json().dump()),
+		                L"settings=" + u::towstring(m_settings.to_json().dump()),
 		                blur_script_path,
 		                L"-" };
 
@@ -174,7 +182,7 @@ Render::RenderCommands Render::build_render_commands() {
 		                L"-i",
 		                L"-", // piped output from video script
 		                L"-i",
-		                video_path.wstring(), // original video (for audio)
+		                m_video_path.wstring(), // original video (for audio)
 		                L"-map",
 		                L"0:v",
 		                L"-map",
@@ -182,16 +190,16 @@ Render::RenderCommands Render::build_render_commands() {
 
 	// Handle audio filters
 	std::vector<std::wstring> audio_filters;
-	if (settings.input_timescale != 1.f) {
-		audio_filters.push_back(std::format(L"asetrate=48000*{}", (1 / settings.input_timescale)));
+	if (m_settings.input_timescale != 1.f) {
+		audio_filters.push_back(std::format(L"asetrate=48000*{}", (1 / m_settings.input_timescale)));
 	}
 
-	if (settings.output_timescale != 1.f) {
-		if (settings.output_timescale_audio_pitch) {
-			audio_filters.push_back(std::format(L"asetrate=48000*{}", settings.output_timescale));
+	if (m_settings.output_timescale != 1.f) {
+		if (m_settings.output_timescale_audio_pitch) {
+			audio_filters.push_back(std::format(L"asetrate=48000*{}", m_settings.output_timescale));
 		}
 		else {
-			audio_filters.push_back(std::format(L"atempo={}", settings.output_timescale));
+			audio_filters.push_back(std::format(L"atempo={}", m_settings.output_timescale));
 		}
 	}
 
@@ -207,9 +215,9 @@ Render::RenderCommands Render::build_render_commands() {
 		));
 	}
 
-	if (!settings.ffmpeg_override.empty()) {
+	if (!m_settings.ffmpeg_override.empty()) {
 		// Split override string into individual arguments
-		std::wistringstream iss(u::towstring(settings.ffmpeg_override));
+		std::wistringstream iss(u::towstring(m_settings.ffmpeg_override));
 		std::wstring token;
 		while (iss >> token) {
 			commands.ffmpeg.push_back(token);
@@ -217,12 +225,12 @@ Render::RenderCommands Render::build_render_commands() {
 	}
 	else {
 		// Video format
-		if (settings.gpu_rendering) {
-			std::string gpu_type = u::to_lower(settings.gpu_type);
+		if (m_settings.gpu_rendering) {
+			std::string gpu_type = u::to_lower(m_settings.gpu_type);
 			if (gpu_type == "nvidia") {
 				commands.ffmpeg.insert(
 					commands.ffmpeg.end(),
-					{ L"-c:v", L"h264_nvenc", L"-preset", L"p7", L"-qp", std::to_wstring(settings.quality) }
+					{ L"-c:v", L"h264_nvenc", L"-preset", L"p7", L"-qp", std::to_wstring(m_settings.quality) }
 				);
 			}
 			else if (gpu_type == "amd") {
@@ -231,11 +239,11 @@ Render::RenderCommands Render::build_render_commands() {
 					{ L"-c:v",
 				      L"h264_amf",
 				      L"-qp_i",
-				      std::to_wstring(settings.quality),
+				      std::to_wstring(m_settings.quality),
 				      L"-qp_b",
-				      std::to_wstring(settings.quality),
+				      std::to_wstring(m_settings.quality),
 				      L"-qp_p",
-				      std::to_wstring(settings.quality),
+				      std::to_wstring(m_settings.quality),
 				      L"-quality",
 				      L"quality" }
 				);
@@ -246,7 +254,7 @@ Render::RenderCommands Render::build_render_commands() {
 					{ L"-c:v",
 				      L"h264_qsv",
 				      L"-global_quality",
-				      std::to_wstring(settings.quality),
+				      std::to_wstring(m_settings.quality),
 				      L"-preset",
 				      L"veryslow" }
 				);
@@ -263,7 +271,7 @@ Render::RenderCommands Render::build_render_commands() {
 			      L"-preset",
 			      L"superfast",
 			      L"-crf",
-			      std::to_wstring(settings.quality) }
+			      std::to_wstring(m_settings.quality) }
 			);
 		}
 
@@ -274,10 +282,10 @@ Render::RenderCommands Render::build_render_commands() {
 	}
 
 	// Output path
-	commands.ffmpeg.push_back(output_path.wstring());
+	commands.ffmpeg.push_back(m_output_path.wstring());
 
 	// Preview output if needed
-	if (settings.preview && blur.using_preview) {
+	if (m_settings.preview && blur.using_preview) {
 		commands.ffmpeg.insert(
 			commands.ffmpeg.end(),
 			{ L"-map",
@@ -289,7 +297,7 @@ Render::RenderCommands Render::build_render_commands() {
 		      L"-atomic_writing",
 		      L"1",
 		      L"-y",
-		      preview_path.wstring() }
+		      m_preview_path.wstring() }
 		);
 	}
 
@@ -299,14 +307,14 @@ Render::RenderCommands Render::build_render_commands() {
 bool Render::do_render(RenderCommands render_commands) {
 	namespace bp = boost::process;
 
-	status = RenderStatus{};
+	m_status = RenderStatus{};
 
 	try {
 		boost::asio::io_context io_context;
 		bp::pipe vspipe_stdout;
 		bp::ipstream vspipe_stderr;
 
-		if (settings.debug) {
+		if (m_settings.debug) {
 			u::log(L"VSPipe command: {} {}", render_commands.vspipe_path, u::join(render_commands.vspipe, L" "));
 			u::log(L"FFmpeg command: {} {}", render_commands.ffmpeg_path, u::join(render_commands.ffmpeg, L" "));
 		}
@@ -340,7 +348,7 @@ bool Render::do_render(RenderCommands render_commands) {
 
 		std::thread read_thread([&]() {
 			std::string line;
-			char ch;
+			char ch = 0;
 
 			while (ffmpeg_process.running() && vspipe_stderr.get(ch)) {
 				if (ch == '\r') {
@@ -348,25 +356,25 @@ bool Render::do_render(RenderCommands render_commands) {
 
 					std::smatch match;
 					if (std::regex_match(line, match, frame_regex)) {
-						status.current_frame = std::stoi(match[1]);
-						status.total_frames = std::stoi(match[2]);
+						m_status.current_frame = std::stoi(match[1]);
+						m_status.total_frames = std::stoi(match[2]);
 
-						bool first = !status.init;
+						bool first = !m_status.init;
 
-						if (!status.init) {
-							status.init = true;
-							status.start_time = std::chrono::steady_clock::now();
+						if (!m_status.init) {
+							m_status.init = true;
+							m_status.start_time = std::chrono::steady_clock::now();
 						}
 						else {
 							auto current_time = std::chrono::steady_clock::now();
-							status.elapsed_time = current_time - status.start_time;
+							m_status.elapsed_time = current_time - m_status.start_time;
 
-							status.fps = status.current_frame / status.elapsed_time.count();
+							m_status.fps = m_status.current_frame / m_status.elapsed_time.count();
 						}
 
-						status.update_progress_string(first);
+						m_status.update_progress_string(first);
 
-						u::log(status.progress_string);
+						u::log(m_status.progress_string);
 
 						rendering.run_callbacks();
 					}
@@ -387,7 +395,7 @@ bool Render::do_render(RenderCommands render_commands) {
 			read_thread.join();
 		}
 
-		if (settings.debug)
+		if (m_settings.debug)
 			u::log(
 				"vspipe exit code: {}, ffmpeg exit code: {}", vspipe_process.exit_code(), ffmpeg_process.exit_code()
 			);
@@ -401,7 +409,7 @@ bool Render::do_render(RenderCommands render_commands) {
 }
 
 void Render::render() {
-	u::log(L"Rendering '{}'\n", video_name);
+	u::log(L"Rendering '{}'\n", m_video_name);
 
 #ifndef _DEBUG
 #	ifdef BLUR_GUI
@@ -417,20 +425,24 @@ void Render::render() {
 
 	if (blur.verbose) {
 		u::log("Render settings:");
-		u::log("Source video at {:.2f} timescale", settings.input_timescale);
-		if (settings.interpolate)
-			u::log("Interpolated to {}fps with {:.2f} timescale", settings.interpolated_fps, settings.output_timescale);
-		if (settings.blur)
+		u::log("Source video at {:.2f} timescale", m_settings.input_timescale);
+		if (m_settings.interpolate)
 			u::log(
-				"Motion blurred to {}fps ({}%)", settings.blur_output_fps, static_cast<int>(settings.blur_amount * 100)
+				"Interpolated to {}fps with {:.2f} timescale", m_settings.interpolated_fps, m_settings.output_timescale
 			);
-		u::log("Rendered at {:.2f} speed with crf {}", settings.output_timescale, settings.quality);
+		if (m_settings.blur)
+			u::log(
+				"Motion blurred to {}fps ({}%)",
+				m_settings.blur_output_fps,
+				static_cast<int>(m_settings.blur_amount * 100)
+			);
+		u::log("Rendered at {:.2f} speed with crf {}", m_settings.output_timescale, m_settings.quality);
 	}
 
 	// start preview
-	if (settings.preview && blur.using_preview) {
+	if (m_settings.preview && blur.using_preview) {
 		if (create_temp_path()) {
-			preview_path = temp_path / "blur_preview.jpg";
+			m_preview_path = m_temp_path / "blur_preview.jpg";
 		}
 	}
 
@@ -439,11 +451,11 @@ void Render::render() {
 
 	if (do_render(render_commands)) {
 		if (blur.verbose) {
-			u::log(L"Finished rendering '{}'", video_name);
+			u::log(L"Finished rendering '{}'", m_video_name);
 		}
 	}
 	else {
-		u::log(L"Failed to render '{}'", video_name);
+		u::log(L"Failed to render '{}'", m_video_name);
 	}
 
 	// stop preview

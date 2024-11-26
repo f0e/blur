@@ -23,6 +23,7 @@ namespace {
 		SkRRect rrect;
 		rrect.setRectXY(skia_rect, rounding, rounding);
 
+		// NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast) aseprite code
 		auto* canvas = &static_cast<os::SkiaSurface*>(surface)->canvas();
 		canvas->drawRRect(rrect, paint.skPaint());
 	}
@@ -74,6 +75,7 @@ void render::text(
 
 	// os::draw_text font broken with skia bruh - need to call skia func directly
 	SkTextUtils::Draw(
+		// NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast) aseprite code
 		&static_cast<os::SkiaSurface*>(surface)->canvas(),
 		text.c_str(),
 		text.size(),
@@ -99,5 +101,6 @@ gfx::Size render::get_text_size(const std::string& text, const SkFont& font) {
 	// SkScalar textHeight = metrics.fBottom - metrics.fTop; // Total height of the text (including leading)
 
 	// The result will be a width and height structure
-	return gfx::Size(SkScalarToFloat(text_width), SkScalarToFloat(font.getSize()));
+	return { SkScalarTruncToInt(text_width),
+		     SkScalarTruncToInt(font.getSize()) }; // todo: SkScalarTruncToInt rounds i think, should i just cast to int
 }

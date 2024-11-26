@@ -97,7 +97,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 
 	static float bar_percent = 0.f;
 
-	if (rendering.queue.empty()) {
+	if (rendering.get_queue().empty()) {
 		bar_percent = 0.f;
 
 		gfx::Point title_pos = rect.center();
@@ -129,86 +129,90 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	else {
 		bool is_progress_shown = false;
 
-		for (const auto [i, render] : u::enumerate(rendering.queue)) {
-			bool current = render == rendering.current_render;
+		rendering.lock();
+		{
+			for (const auto [i, render] : u::enumerate(rendering.get_queue())) {
+				bool current = render.get() == rendering.get_current_render();
 
-			// todo: ui concept
-			// screen start|      [faded]last_video current_video [faded]next_video next_video2 next_video3 (+5) |
-			// screen end animate sliding in as it moves along the queue
-			ui::add_text(
-				std::format("video name text {}", i),
-				container,
-				base::to_utf8(render->get_video_name()),
-				gfx::rgba(255, 255, 255, (current ? 255 : 100)),
-				fonts::smaller_header_font,
-				os::TextAlign::Center,
-				current ? 15 : 7
-			);
+				// todo: ui concept
+				// screen start|      [faded]last_video current_video [faded]next_video next_video2 next_video3 (+5) |
+				// screen end animate sliding in as it moves along the queue
+				ui::add_text(
+					std::format("video name text {}", i),
+					container,
+					base::to_utf8(render->get_video_name()),
+					gfx::rgba(255, 255, 255, (current ? 255 : 100)),
+					fonts::smaller_header_font,
+					os::TextAlign::Center,
+					current ? 15 : 7
+				);
 
-			if (current) {
-				auto render_status = render->get_status();
-				int bar_width = 300;
+				if (current) {
+					auto render_status = render->get_status();
+					int bar_width = 300;
 
-				std::string preview_path = render->get_preview_path().string();
-				if (!preview_path.empty() && render_status.current_frame > 0) {
-					auto element = ui::add_image(
-						"preview image",
-						container,
-						preview_path,
-						gfx::Size(container_rect.w, 200),
-						std::to_string(render_status.current_frame)
-					);
-					if (element) {
-						bar_width = (*element)->rect.w;
+					std::string preview_path = render->get_preview_path().string();
+					if (!preview_path.empty() && render_status.current_frame > 0) {
+						auto element = ui::add_image(
+							"preview image",
+							container,
+							preview_path,
+							gfx::Size(container_rect.w, 200),
+							std::to_string(render_status.current_frame)
+						);
+						if (element) {
+							bar_width = (*element)->rect.w;
+						}
 					}
-				}
 
-				if (render_status.init) {
-					float render_progress = (float)render_status.current_frame / (float)render_status.total_frames;
-					bar_percent = std::lerp(bar_percent, render_progress, 5.f * delta_time);
+					if (render_status.init) {
+						float render_progress = (float)render_status.current_frame / (float)render_status.total_frames;
+						bar_percent = std::lerp(bar_percent, render_progress, 5.f * delta_time);
 
-					ui::add_bar(
-						"progress bar",
-						container,
-						bar_percent,
-						gfx::rgba(51, 51, 51, 255),
-						gfx::rgba(255, 255, 255, 255),
-						bar_width,
-						std::format("{:.1f}%", render_progress * 100),
-						gfx::rgba(255, 255, 255, 255),
-						&fonts::font
-					);
-					ui::add_text(
-						"progress text",
-						container,
-						std::format("frame {}/{}", render_status.current_frame, render_status.total_frames),
-						gfx::rgba(255, 255, 255, 155),
-						fonts::font,
-						os::TextAlign::Center
-					);
-					ui::add_text(
-						"progress text 2",
-						container,
-						std::format("{:.2f} frames per second", render_status.fps),
-						gfx::rgba(255, 255, 255, 155),
-						fonts::font,
-						os::TextAlign::Center
-					);
+						ui::add_bar(
+							"progress bar",
+							container,
+							bar_percent,
+							gfx::rgba(51, 51, 51, 255),
+							gfx::rgba(255, 255, 255, 255),
+							bar_width,
+							std::format("{:.1f}%", render_progress * 100),
+							gfx::rgba(255, 255, 255, 255),
+							&fonts::font
+						);
+						ui::add_text(
+							"progress text",
+							container,
+							std::format("frame {}/{}", render_status.current_frame, render_status.total_frames),
+							gfx::rgba(255, 255, 255, 155),
+							fonts::font,
+							os::TextAlign::Center
+						);
+						ui::add_text(
+							"progress text 2",
+							container,
+							std::format("{:.2f} frames per second", render_status.fps),
+							gfx::rgba(255, 255, 255, 155),
+							fonts::font,
+							os::TextAlign::Center
+						);
 
-					is_progress_shown = true;
-				}
-				else {
-					ui::add_text(
-						"initialising render text",
-						container,
-						"Initialising render...",
-						gfx::rgba(255, 255, 255, 255),
-						fonts::font,
-						os::TextAlign::Center
-					);
+						is_progress_shown = true;
+					}
+					else {
+						ui::add_text(
+							"initialising render text",
+							container,
+							"Initialising render...",
+							gfx::rgba(255, 255, 255, 255),
+							fonts::font,
+							os::TextAlign::Center
+						);
+					}
 				}
 			}
 		}
+		rendering.unlock();
 
 		if (!is_progress_shown) {
 			bar_percent = 0.f; // Reset when no progress bar is shown
