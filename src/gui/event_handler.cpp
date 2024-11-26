@@ -38,6 +38,9 @@ bool gui::event_handler::process_event(const os::Event& event) {
 			return true;
 		}
 
+			// todo: need to handle ui inputs in here rather than on render, if you have 1 fps and click something
+			// between frames it wont register for example
+
 		default:
 			break;
 	}

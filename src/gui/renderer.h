@@ -1,7 +1,7 @@
 
 #pragma once
 
-class Render;
+#include "common/rendering.h"
 
 namespace ui {
 	class Container;
@@ -16,6 +16,8 @@ namespace gui::renderer {
 
 	inline os::NativeCursor current_cursor;
 	inline bool set_cursor_this_frame = false;
+
+	inline std::optional<Render> current_render_copy;
 
 	void init_fonts();
 

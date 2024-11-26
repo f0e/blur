@@ -67,6 +67,10 @@ public:
 
 	void render();
 
+	[[nodiscard]] uint32_t get_render_id() const {
+		return m_render_id;
+	}
+
 	[[nodiscard]] std::wstring get_video_name() const {
 		return m_video_name;
 	}
@@ -91,9 +95,11 @@ public:
 class Rendering {
 private:
 	std::unique_ptr<std::thread> m_thread_ptr;
-	std::optional<std::function<void()>> m_progress_callback;
 	std::vector<std::unique_ptr<Render>> m_queue;
-	Render* m_current_render = nullptr;
+	std::optional<uint32_t> m_current_render_id;
+
+	std::optional<std::function<void()>> m_progress_callback;
+	std::optional<std::function<void()>> m_current_render_changed_callback;
 
 	std::mutex m_lock;
 
@@ -108,17 +114,35 @@ public:
 		return m_queue;
 	}
 
-	const Render* get_current_render() {
-		return m_current_render;
+	std::optional<Render*> get_current_render() {
+		for (const auto& render : m_queue) {
+			if (render->get_render_id() == m_current_render_id)
+				return { render.get() };
+		}
+
+		return {};
+	}
+
+	std::optional<uint32_t> get_current_render_id() {
+		return m_current_render_id;
 	}
 
 	void set_progress_callback(std::function<void()>&& callback) {
 		m_progress_callback = std::move(callback);
 	}
 
-	void run_callbacks() {
+	void set_current_render_changed_callback(std::function<void()>&& callback) {
+		m_current_render_changed_callback = std::move(callback);
+	}
+
+	void call_progress_callback() {
 		if (m_progress_callback)
 			(*m_progress_callback)();
+	}
+
+	void call_current_render_changed_callback() {
+		if (m_current_render_changed_callback)
+			(*m_current_render_changed_callback)();
 	}
 
 	void lock() {

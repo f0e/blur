@@ -2,22 +2,33 @@
 
 #include <common/rendering.h>
 #include "gui.h"
+#include "gui/renderer.h"
 
 void tasks::run() {
 	blur.initialise(false, true);
 
 	rendering.set_progress_callback([] {
-		if (gui::window) {
-			// copy the current render so that by the time ui updates it isn't deleted - i want to see 100% progress
-			// instead of fading out at 90%
-			gui::current_render_copy =
-				rendering.get_current_render() ? std::make_optional(*rendering.get_current_render()) : std::nullopt;
+		if (!gui::window)
+			return;
 
-			// idk what you're supposed to do to trigger a redraw in a separate thread!!! I dont do gui!!! this works
-			// tho :  ) todo: revisit this
-			os::Event event;
-			gui::window->queueEvent(event);
+		std::optional<Render*> current_render_opt = rendering.get_current_render();
+		if (current_render_opt) {
+			Render& current_render = **current_render_opt;
+
+			RenderStatus status = current_render.get_status();
+			if (status.finished) {
+				u::log("current render is finished, copying it so its final state can be displayed once by gui");
+
+				// its about to be deleted, store a copy to be rendered at least once
+				gui::renderer::current_render_copy = current_render;
+				gui::to_render = true;
+			}
 		}
+
+		// idk what you're supposed to do to trigger a redraw in a separate thread!!! I dont do gui!!! this works
+		// tho :  ) todo: revisit this
+		os::Event event;
+		gui::window->queueEvent(event);
 	});
 
 	while (true) {

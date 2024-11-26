@@ -8,16 +8,19 @@
 
 void Rendering::render_videos() {
 	if (!m_queue.empty()) {
+		auto& render = m_queue.front();
+
 		lock();
 		{
-			m_current_render = m_queue.front().get();
+			m_current_render_id = render->get_render_id();
 		}
 		unlock();
 
-		run_callbacks(); // todo: are these redundant
+		rendering.call_progress_callback();
+		rendering.call_current_render_changed_callback();
 
 		try {
-			m_current_render->render();
+			render->render();
 		}
 		catch (const std::exception& e) {
 			u::log(e.what());
@@ -27,11 +30,12 @@ void Rendering::render_videos() {
 		lock();
 		{
 			m_queue.erase(m_queue.begin());
-			m_current_render = nullptr;
+			m_current_render_id.reset();
 		}
 		unlock();
 
-		run_callbacks(); // todo: are these redundant
+		rendering.call_progress_callback();
+		rendering.call_current_render_changed_callback();
 	}
 	else {
 		std::this_thread::sleep_for(std::chrono::milliseconds(250));
@@ -39,8 +43,7 @@ void Rendering::render_videos() {
 }
 
 Render& Rendering::queue_render(Render&& render) {
-	m_queue.push_back(std::make_unique<Render>(std::move(render)));
-	return *m_queue.back();
+	return *m_queue.emplace_back(std::make_unique<Render>(std::move(render)));
 }
 
 void Render::build_output_filename() {
@@ -97,7 +100,7 @@ Render::Render(
 )
 	: m_video_path(std::move(input_path)) {
 	// set id note: is this silly? seems elegant but i might be missing some edge case
-	static uint32_t current_render_id = 0;
+	static uint32_t current_render_id = 1; // 0 is null
 	m_render_id = current_render_id++;
 
 	this->m_video_name = this->m_video_path.stem().wstring();
@@ -329,7 +332,7 @@ void Render::update_progress(int current_frame, int total_frames) {
 
 	u::log(m_status.progress_string);
 
-	rendering.run_callbacks();
+	rendering.call_progress_callback();
 }
 
 bool Render::do_render(RenderCommands render_commands) {
@@ -410,6 +413,8 @@ bool Render::do_render(RenderCommands render_commands) {
 			u::log(
 				"vspipe exit code: {}, ffmpeg exit code: {}", vspipe_process.exit_code(), ffmpeg_process.exit_code()
 			);
+
+		m_status.finished = true;
 
 		bool success = vspipe_process.exit_code() == 0 && ffmpeg_process.exit_code() == 0;
 

@@ -28,8 +28,6 @@ void gui::update_vsync() {
 }
 
 void gui::event_loop() {
-	bool to_render = true;
-
 	while (!closing) {
 		auto frame_start = std::chrono::steady_clock::now();
 
