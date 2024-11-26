@@ -14,7 +14,7 @@ void Rendering::render_videos() {
 		}
 		unlock();
 
-		run_callbacks();
+		run_callbacks(); // todo: are these redundant
 
 		try {
 			m_current_render->render();
@@ -31,7 +31,7 @@ void Rendering::render_videos() {
 		}
 		unlock();
 
-		run_callbacks();
+		run_callbacks(); // todo: are these redundant
 	}
 	else {
 		std::this_thread::sleep_for(std::chrono::milliseconds(250));
@@ -96,6 +96,10 @@ Render::Render(
 	const std::optional<std::filesystem::path>& config_path
 )
 	: m_video_path(std::move(input_path)) {
+	// set id note: is this silly? seems elegant but i might be missing some edge case
+	static uint32_t current_render_id = 0;
+	m_render_id = current_render_id++;
+
 	this->m_video_name = this->m_video_path.stem().wstring();
 	this->m_video_folder = this->m_video_path.parent_path();
 
@@ -304,6 +308,30 @@ Render::RenderCommands Render::build_render_commands() {
 	return commands;
 }
 
+void Render::update_progress(int current_frame, int total_frames) {
+	m_status.current_frame = current_frame;
+	m_status.total_frames = total_frames;
+
+	bool first = !m_status.init;
+
+	if (!m_status.init) {
+		m_status.init = true;
+		m_status.start_time = std::chrono::steady_clock::now();
+	}
+	else {
+		auto current_time = std::chrono::steady_clock::now();
+		m_status.elapsed_time = current_time - m_status.start_time;
+
+		m_status.fps = m_status.current_frame / m_status.elapsed_time.count();
+	}
+
+	m_status.update_progress_string(first);
+
+	u::log(m_status.progress_string);
+
+	rendering.run_callbacks();
+}
+
 bool Render::do_render(RenderCommands render_commands) {
 	namespace bp = boost::process;
 
@@ -356,27 +384,10 @@ bool Render::do_render(RenderCommands render_commands) {
 
 					std::smatch match;
 					if (std::regex_match(line, match, frame_regex)) {
-						m_status.current_frame = std::stoi(match[1]);
-						m_status.total_frames = std::stoi(match[2]);
+						int current_frame = std::stoi(match[1]);
+						int total_frames = std::stoi(match[2]);
 
-						bool first = !m_status.init;
-
-						if (!m_status.init) {
-							m_status.init = true;
-							m_status.start_time = std::chrono::steady_clock::now();
-						}
-						else {
-							auto current_time = std::chrono::steady_clock::now();
-							m_status.elapsed_time = current_time - m_status.start_time;
-
-							m_status.fps = m_status.current_frame / m_status.elapsed_time.count();
-						}
-
-						m_status.update_progress_string(first);
-
-						u::log(m_status.progress_string);
-
-						rendering.run_callbacks();
+						update_progress(current_frame, total_frames);
 					}
 
 					line.clear();
@@ -400,7 +411,13 @@ bool Render::do_render(RenderCommands render_commands) {
 				"vspipe exit code: {}, ffmpeg exit code: {}", vspipe_process.exit_code(), ffmpeg_process.exit_code()
 			);
 
-		return vspipe_process.exit_code() == 0 && ffmpeg_process.exit_code() == 0;
+		bool success = vspipe_process.exit_code() == 0 && ffmpeg_process.exit_code() == 0;
+
+		// final progress update, let ppl know it's fully done if it isn't captured already
+		if (success)
+			update_progress(m_status.total_frames, m_status.total_frames);
+
+		return success;
 	}
 	catch (const boost::system::system_error& e) {
 		u::log_error("Process error: {}", e.what());

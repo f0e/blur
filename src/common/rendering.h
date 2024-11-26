@@ -21,6 +21,8 @@ struct RenderStatus {
 
 class Render {
 private:
+	uint32_t m_render_id;
+
 	RenderStatus m_status;
 
 	std::wstring m_video_name;
@@ -46,6 +48,7 @@ private:
 
 	RenderCommands build_render_commands();
 
+	void update_progress(int current_frame, int total_frames);
 	bool do_render(RenderCommands render_commands);
 
 public:
@@ -54,6 +57,10 @@ public:
 		const std::optional<std::filesystem::path>& output_path = {},
 		const std::optional<std::filesystem::path>& config_path = {}
 	);
+
+	bool operator==(const Render& other) const {
+		return m_render_id == other.m_render_id;
+	}
 
 	bool create_temp_path();
 	bool remove_temp_path();

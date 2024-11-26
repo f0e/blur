@@ -132,7 +132,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 		rendering.lock();
 		{
 			for (const auto [i, render] : u::enumerate(rendering.get_queue())) {
-				bool current = render.get() == rendering.get_current_render();
+				bool current = current_render_copy && *current_render_copy == *render;
 
 				// todo: ui concept
 				// screen start|      [faded]last_video current_video [faded]next_video next_video2 next_video3 (+5) |
