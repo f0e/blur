@@ -13,11 +13,14 @@
 
 #include "resources/fonts.h"
 
-#define DEBUG_RENDER         1
+#define DEBUG_RENDER         0
 #define DEBUG_RENDER_LOGGING 0
 
 const int PAD_X = 24;
 const int PAD_Y = 35;
+
+const int NOTIFICATIONS_PAD_X = 10;
+const int NOTIFICATIONS_PAD_Y = 10;
 
 const float FPS_SMOOTHING = 0.95f;
 
@@ -175,6 +178,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	force_render |= bg_overlay_shade != last_fill_shade;
 
 	static ui::Container container;
+	static ui::Container notification_container;
 
 	gfx::Rect container_rect = rect;
 	container_rect.x += PAD_X;
@@ -183,6 +187,14 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	container_rect.h -= PAD_Y * 2;
 
 	ui::reset_container(container, container_rect, fonts::font);
+
+	gfx::Rect notification_container_rect = rect;
+	notification_container_rect.w = 230;
+	notification_container_rect.x = rect.x2() - notification_container_rect.w - NOTIFICATIONS_PAD_X;
+	notification_container_rect.h = 300;
+	notification_container_rect.y = NOTIFICATIONS_PAD_Y;
+
+	ui::reset_container(notification_container, notification_container_rect, fonts::font);
 
 	static float bar_percent = 0.f;
 
@@ -258,7 +270,19 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 
 	ui::center_elements_in_container(container);
 
-	bool want_to_render = ui::update_container(container, delta_time);
+	for (auto it = notifications.begin(); it != notifications.end();) {
+		ui::add_notification(std::format("notification {}", it->id), notification_container, it->text, fonts::font);
+
+		if (now > it->end_time)
+			it = notifications.erase(it);
+		else
+			++it;
+	}
+
+	bool want_to_render = false;
+	want_to_render |= ui::update_container(notification_container, delta_time);
+	want_to_render |= ui::update_container(container, delta_time);
+
 	if (!want_to_render && !force_render)
 		// note: DONT RENDER ANYTHING ABOVE HERE!!! todo: render queue?
 		return false;
@@ -300,6 +324,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 #endif
 
 	ui::render_container(surface, container);
+	ui::render_container(surface, notification_container);
 
 	// file drop overlay
 	if ((int)bg_overlay_shade > 0)
@@ -334,3 +359,12 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 }
 
 // NOLINTEND(readability-function-size,readability-function-cognitive-complexity)
+
+void gui::renderer::on_render_finished(Render* render, bool success) {
+	notifications.emplace_back(Notification{
+		.end_time = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+														   std::chrono::duration<float>(NOTIFICATION_LENGTH)
+													   ), // jesus
+		.text = std::format("Render '{}' {}", base::to_utf8(render->get_video_name()), success ? "finished" : "failed"),
+	});
+}

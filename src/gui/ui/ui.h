@@ -5,7 +5,8 @@ namespace ui {
 		BAR,
 		TEXT,
 		IMAGE,
-		BUTTON
+		BUTTON,
+		NOTIFICATION
 	};
 
 	struct BarElementData {
@@ -24,13 +25,13 @@ namespace ui {
 	};
 
 	struct TextElementData {
-		std::string text;
+		std::vector<std::string> lines;
 		gfx::Color color;
 		SkFont font;
 		os::TextAlign align;
 
 		bool operator==(const TextElementData& other) const {
-			return text == other.text && color == other.color && align == other.align;
+			return lines == other.lines && color == other.color && align == other.align;
 			// Skip font comparison since it might not implement ==
 		}
 	};
@@ -58,7 +59,19 @@ namespace ui {
 		}
 	};
 
-	using ElementData = std::variant<BarElementData, TextElementData, ImageElementData, ButtonElementData>;
+	struct NotificationElementData {
+		std::vector<std::string> lines;
+		SkFont font;
+		int line_height;
+
+		bool operator==(const NotificationElementData& other) const {
+			return lines == other.lines && line_height == other.line_height;
+			// Skip font comparison since it might not implement ==
+		}
+	};
+
+	using ElementData =
+		std::variant<BarElementData, TextElementData, ImageElementData, ButtonElementData, NotificationElementData>;
 
 	struct AnimationState {
 		float speed;
@@ -113,13 +126,16 @@ namespace ui {
 	void render_text(os::Surface* surface, const Element* element, float anim);
 	void render_image(os::Surface* surface, const Element* element, float anim);
 	void render_button(os::Surface* surface, const Element* element, float anim);
+	void render_notification(os::Surface* surface, const Element* element, float anim);
 
 	void reset_container(
 		Container& container, const gfx::Rect& rect, const SkFont& font, std::optional<gfx::Color> background_color = {}
 	);
 
-	Element* add_element(Container& container, const std::string& id, Element&& _element, int margin_bottom);
-	Element* add_element(Container& container, const std::string& id, Element&& _element);
+	Element* add_element(
+		Container& container, const std::string& id, Element&& _element, int margin_bottom, float animation_speed = 25.f
+	);
+	Element* add_element(Container& container, const std::string& id, Element&& _element, float animation_speed = 25.f);
 
 	Element& add_bar(
 		const std::string& id,
@@ -168,6 +184,8 @@ namespace ui {
 		const SkFont& font,
 		std::optional<std::function<void()>> on_press = {}
 	);
+
+	Element& add_notification(const std::string& id, Container& container, const std::string& text, const SkFont& font);
 
 	void center_elements_in_container(Container& container, bool horizontal = true, bool vertical = true);
 	bool update_container(Container& container, float delta_time);

@@ -10,7 +10,29 @@ void ui::render_text(os::Surface* surface, const Element* element, float anim) {
 	gfx::Point text_pos = element->rect.origin();
 	text_pos.y += text_data.font.getSize() - 1;
 
-	render::text(surface, text_pos, adjusted_color, text_data.text, text_data.font, text_data.align);
+	for (const auto& line : text_data.lines) {
+		render::text(surface, text_pos, adjusted_color, line, text_data.font, text_data.align);
+		text_pos.y += text_data.font.getSize();
+	}
+}
+
+// just so i dont have to copy this stuff twice
+namespace {
+	struct WrappedText {
+		std::vector<std::string> lines;
+		int text_height;
+	};
+
+	WrappedText wrap_text(ui::Container& container, const std::string& text, const SkFont& font) {
+		int text_height = font.getSize();
+		std::vector<std::string> lines = render::wrap_text(text, container.rect.size(), font);
+		text_height *= lines.size(); // todo: line spacing
+
+		return {
+			.lines = lines,
+			.text_height = text_height,
+		};
+	}
 }
 
 ui::Element& ui::add_text(
@@ -22,12 +44,14 @@ ui::Element& ui::add_text(
 	os::TextAlign align,
 	int margin_bottom
 ) {
+	auto wrapped_text = wrap_text(container, text, font);
+
 	Element element = {
 		.type = ElementType::TEXT,
-		.rect = gfx::Rect(container.current_position, gfx::Size(0, font.getSize())),
+		.rect = gfx::Rect(container.current_position, gfx::Size(0, wrapped_text.text_height)),
 		.data =
 			TextElementData{
-				.text = text,
+				.lines = wrapped_text.lines,
 				.color = color,
 				.font = font,
 				.align = align,
@@ -47,12 +71,14 @@ ui::Element& ui::add_text_fixed(
 	const SkFont& font,
 	os::TextAlign align
 ) {
+	auto wrapped_text = wrap_text(container, text, font);
+
 	Element element = {
 		.type = ElementType::TEXT,
-		.rect = gfx::Rect(position, gfx::Size(0, font.getSize())),
+		.rect = gfx::Rect(position, gfx::Size(0, wrapped_text.text_height)),
 		.data =
 			TextElementData{
-				.text = text,
+				.lines = wrapped_text.lines,
 				.color = color,
 				.font = font,
 				.align = align,

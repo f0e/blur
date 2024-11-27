@@ -2,10 +2,6 @@
 
 #include "config.h"
 
-#include <vector>
-#include <thread>
-#include <filesystem>
-
 struct RenderStatus {
 	bool finished = false;
 	bool init = false;
@@ -65,7 +61,7 @@ public:
 	bool create_temp_path();
 	bool remove_temp_path();
 
-	void render();
+	bool render();
 
 	[[nodiscard]] uint32_t get_render_id() const {
 		return m_render_id;
@@ -99,7 +95,7 @@ private:
 	std::optional<uint32_t> m_current_render_id;
 
 	std::optional<std::function<void()>> m_progress_callback;
-	std::optional<std::function<void()>> m_current_render_changed_callback;
+	std::optional<std::function<void(Render*, bool)>> m_render_finished_callback;
 
 	std::mutex m_lock;
 
@@ -131,8 +127,8 @@ public:
 		m_progress_callback = std::move(callback);
 	}
 
-	void set_current_render_changed_callback(std::function<void()>&& callback) {
-		m_current_render_changed_callback = std::move(callback);
+	void set_render_finished_callback(std::function<void(Render*, bool)>&& callback) {
+		m_render_finished_callback = std::move(callback);
 	}
 
 	void call_progress_callback() {
@@ -140,9 +136,9 @@ public:
 			(*m_progress_callback)();
 	}
 
-	void call_current_render_changed_callback() {
-		if (m_current_render_changed_callback)
-			(*m_current_render_changed_callback)();
+	void call_render_finished_callback(Render* render, bool success) {
+		if (m_render_finished_callback)
+			(*m_render_finished_callback)(render, success);
 	}
 
 	void lock() {

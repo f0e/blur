@@ -31,6 +31,10 @@ void tasks::run() {
 		gui::window->queueEvent(event);
 	});
 
+	rendering.set_render_finished_callback([](Render* render, bool success) {
+		gui::renderer::on_render_finished(render, success);
+	});
+
 	while (true) {
 		rendering.render_videos();
 	}

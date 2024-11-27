@@ -16,4 +16,7 @@ namespace render {
 	);
 
 	gfx::Size get_text_size(const std::string& text, const SkFont& font);
+	std::vector<std::string> wrap_text(
+		const std::string& text, const gfx::Size& dimensions, const SkFont& font, int line_height = 0
+	);
 }

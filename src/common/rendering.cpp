@@ -9,6 +9,7 @@
 void Rendering::render_videos() {
 	if (!m_queue.empty()) {
 		auto& render = m_queue.front();
+		auto* render_ptr = render.get();
 
 		lock();
 		{
@@ -17,14 +18,18 @@ void Rendering::render_videos() {
 		unlock();
 
 		rendering.call_progress_callback();
-		rendering.call_current_render_changed_callback();
 
+		bool render_success = false;
 		try {
-			render->render();
+			render_success = render->render();
 		}
 		catch (const std::exception& e) {
 			u::log(e.what());
 		}
+
+		rendering.call_render_finished_callback(
+			render_ptr, render_success
+		); // note: cant do render.get() here cause compiler optimisations break it somehow (So lit)
 
 		// finished rendering, delete
 		lock();
@@ -35,7 +40,6 @@ void Rendering::render_videos() {
 		unlock();
 
 		rendering.call_progress_callback();
-		rendering.call_current_render_changed_callback();
 	}
 	else {
 		std::this_thread::sleep_for(std::chrono::milliseconds(250));
@@ -43,7 +47,11 @@ void Rendering::render_videos() {
 }
 
 Render& Rendering::queue_render(Render&& render) {
-	return *m_queue.emplace_back(std::make_unique<Render>(std::move(render)));
+	lock();
+	auto& added = *m_queue.emplace_back(std::make_unique<Render>(std::move(render)));
+	unlock();
+
+	return added;
 }
 
 void Render::build_output_filename() {
@@ -430,7 +438,7 @@ bool Render::do_render(RenderCommands render_commands) {
 	}
 }
 
-void Render::render() {
+bool Render::render() {
 	u::log(L"Rendering '{}'\n", m_video_name);
 
 #ifndef _DEBUG
@@ -471,7 +479,9 @@ void Render::render() {
 	// render
 	RenderCommands render_commands = build_render_commands();
 
-	if (do_render(render_commands)) {
+	bool render_success = do_render(render_commands);
+
+	if (render_success) {
 		if (blur.verbose) {
 			u::log(L"Finished rendering '{}'", m_video_name);
 		}
@@ -482,6 +492,8 @@ void Render::render() {
 
 	// stop preview
 	remove_temp_path();
+
+	return render_success;
 }
 
 void Rendering::stop_rendering() {

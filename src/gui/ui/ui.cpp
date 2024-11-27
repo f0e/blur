@@ -14,8 +14,10 @@ void ui::reset_container(
 	container.last_margin_bottom = 0;
 }
 
-ui::Element* ui::add_element(Container& container, const std::string& id, Element&& _element, int margin_bottom) {
-	auto* element = add_element(container, id, std::move(_element));
+ui::Element* ui::add_element(
+	Container& container, const std::string& id, Element&& _element, int margin_bottom, float animation_speed
+) {
+	auto* element = add_element(container, id, std::move(_element), animation_speed);
 
 	container.current_position.y += element->rect.h + margin_bottom;
 	container.last_margin_bottom = margin_bottom;
@@ -23,23 +25,24 @@ ui::Element* ui::add_element(Container& container, const std::string& id, Elemen
 	return element;
 }
 
-ui::Element* ui::add_element(Container& container, const std::string& id, Element&& _element) {
-	auto& container_element = container.elements[id];
+ui::Element* ui::add_element(Container& container, const std::string& id, Element&& _element, float animation_speed) {
+	auto& animated_element = container.elements[id];
 
-	if (container_element.element) {
-		if (container_element.element->data != _element.data) {
+	if (animated_element.element) {
+		if (animated_element.element->data != _element.data) {
 			container.updated = true;
 		}
 	}
 	else {
 		u::log("first added {}", id);
+		animated_element.animation = AnimationState(animation_speed);
 	}
 
-	container_element.element = std::make_unique<ui::Element>(std::move(_element));
+	animated_element.element = std::make_unique<ui::Element>(std::move(_element));
 
 	container.current_element_ids.push_back(id);
 
-	return container_element.element.get();
+	return animated_element.element.get();
 }
 
 void ui::center_elements_in_container(Container& container, bool horizontal, bool vertical) {

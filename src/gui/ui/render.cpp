@@ -104,3 +104,86 @@ gfx::Size render::get_text_size(const std::string& text, const SkFont& font) {
 	return { SkScalarTruncToInt(text_width),
 		     SkScalarTruncToInt(font.getSize()) }; // todo: SkScalarTruncToInt rounds i think, should i just cast to int
 }
+
+// NOLINTBEGIN(readability-function-size,readability-function-cognitive-complexity) ai code idc
+std::vector<std::string> render::wrap_text(
+	const std::string& text, const gfx::Size& dimensions, const SkFont& font, int line_height
+) {
+	std::vector<std::string> lines;
+	std::istringstream words_stream(text);
+	std::string word;
+	std::string current_line;
+
+	int space_width = get_text_size(" ", font).w;
+	int total_height = 0;
+	int current_line_width = 0;
+	bool truncated = false;
+
+	// Precompute ellipsis width
+	int ellipsis_width = get_text_size("...", font).w;
+
+	// Use provided line height or fall back to font's height
+	auto get_line_height = [&](const std::string& line) {
+		return line_height > 0 ? line_height : get_text_size(line, font).h;
+	};
+
+	while (words_stream >> word) {
+		auto word_size = get_text_size(word, font);
+		int new_line_width = current_line_width + (current_line_width > 0 ? space_width : 0) + word_size.w;
+
+		// Check if word fits in current line
+		if (new_line_width <= dimensions.w) {
+			if (!current_line.empty()) {
+				current_line += " ";
+			}
+			current_line += word;
+			current_line_width = new_line_width;
+		}
+		else {
+			// Commit current line
+			if (!current_line.empty()) {
+				lines.push_back(std::move(current_line));
+				total_height += get_line_height(lines.back());
+			}
+
+			// Stop if adding another line exceeds height
+			if (total_height + get_line_height(word) > dimensions.h) {
+				truncated = true;
+				break;
+			}
+
+			// Start new line
+			current_line = word;
+			current_line_width = word_size.w;
+		}
+	}
+
+	// Add last line if it fits
+	if (!current_line.empty() && total_height + get_line_height(current_line) <= dimensions.h) {
+		lines.push_back(std::move(current_line));
+	}
+
+	// If text was truncated, modify the last line to add ellipsis
+	if (truncated && !lines.empty()) {
+		// Trim the last line to fit ellipsis
+		auto& last_line = lines.back();
+		while (!last_line.empty()) {
+			int current_width = get_text_size(last_line, font).w;
+			if (current_width + ellipsis_width <= dimensions.w) {
+				last_line += "...";
+				break;
+			}
+			// Remove last word
+			auto last_space = last_line.find_last_of(' ');
+			if (last_space == std::string::npos) {
+				last_line.clear();
+				break;
+			}
+			last_line = last_line.substr(0, last_space);
+		}
+	}
+
+	return lines;
+}
+
+// NOLINTEND(readability-function-size,readability-function-cognitive-complexity)

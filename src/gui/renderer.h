@@ -14,6 +14,17 @@ namespace gui::renderer {
 		inline SkFont smaller_header_font;
 	}
 
+	inline uint32_t current_notification_id = 0;
+
+	struct Notification {
+		std::chrono::steady_clock::time_point end_time;
+		std::string text;
+		uint32_t id = current_notification_id++;
+	};
+
+	inline std::vector<Notification> notifications;
+	inline const float NOTIFICATION_LENGTH = 4.f;
+
 	inline os::NativeCursor current_cursor;
 	inline bool set_cursor_this_frame = false;
 
@@ -29,4 +40,6 @@ namespace gui::renderer {
 	}
 
 	bool redraw_window(os::Window* window, bool force_render);
+
+	void on_render_finished(Render* render, bool success);
 }
