@@ -13,16 +13,26 @@ void ui::render_notification(os::Surface* surface, const Element* element, float
 
 	const auto& notification_data = std::get<NotificationElementData>(element->data);
 
-	gfx::Color adjusted_color = utils::adjust_color(gfx::rgba(0, 35, 0, 255), anim);
-	gfx::Color adjusted_text_color = utils::adjust_color(gfx::rgba(100, 255, 100, 255), anim);
+	gfx::Color notification_color = 0;
+	gfx::Color border_color = 0;
+	gfx::Color text_color = 0;
+
+	if (notification_data.success) {
+		notification_color = utils::adjust_color(gfx::rgba(0, 35, 0, 255), anim);
+		border_color = utils::adjust_color(gfx::rgba(80, 100, 80, 255), anim);
+		text_color = utils::adjust_color(gfx::rgba(100, 255, 100, 255), anim);
+	}
+	else {
+		notification_color = utils::adjust_color(gfx::rgba(35, 0, 0, 255), anim);
+		border_color = utils::adjust_color(gfx::rgba(100, 80, 80, 255), anim);
+		text_color = utils::adjust_color(gfx::rgba(255, 100, 100, 255), anim);
+	}
 
 	// fill
-	render::rounded_rect_filled(surface, element->rect, adjusted_color, rounding);
+	render::rounded_rect_filled(surface, element->rect, notification_color, rounding);
 
 	// border
-	render::rounded_rect_stroke(
-		surface, element->rect, utils::adjust_color(gfx::rgba(100, 100, 100, 255), anim), rounding
-	);
+	render::rounded_rect_stroke(surface, element->rect, border_color, rounding);
 
 	gfx::Point text_pos = element->rect.origin();
 	text_pos.y += notification_data.font.getSize();
@@ -30,13 +40,13 @@ void ui::render_notification(os::Surface* surface, const Element* element, float
 	text_pos.y += NOTIFICATION_TEXT_PADDING.h;
 
 	for (const auto& line : notification_data.lines) {
-		render::text(surface, text_pos, adjusted_text_color, line, notification_data.font);
+		render::text(surface, text_pos, text_color, line, notification_data.font);
 		text_pos.y += notification_data.line_height;
 	}
 }
 
 ui::Element& ui::add_notification(
-	const std::string& id, Container& container, const std::string& text, const SkFont& font
+	const std::string& id, Container& container, const std::string& text, bool success, const SkFont& font
 ) {
 	gfx::Size notification_size = { 230, 50 };
 	const int line_height = font.getSize() + 5;
@@ -55,6 +65,7 @@ ui::Element& ui::add_notification(
 		.data =
 			NotificationElementData{
 				.lines = lines,
+				.success = success,
 				.font = font,
 				.line_height = line_height,
 			},

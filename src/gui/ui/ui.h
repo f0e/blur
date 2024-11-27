@@ -61,11 +61,12 @@ namespace ui {
 
 	struct NotificationElementData {
 		std::vector<std::string> lines;
+		bool success;
 		SkFont font;
 		int line_height;
 
 		bool operator==(const NotificationElementData& other) const {
-			return lines == other.lines && line_height == other.line_height;
+			return lines == other.lines && success == other.success && line_height == other.line_height;
 			// Skip font comparison since it might not implement ==
 		}
 	};
@@ -185,7 +186,9 @@ namespace ui {
 		std::optional<std::function<void()>> on_press = {}
 	);
 
-	Element& add_notification(const std::string& id, Container& container, const std::string& text, const SkFont& font);
+	Element& add_notification(
+		const std::string& id, Container& container, const std::string& text, bool success, const SkFont& font
+	);
 
 	void center_elements_in_container(Container& container, bool horizontal = true, bool vertical = true);
 	bool update_container(Container& container, float delta_time);

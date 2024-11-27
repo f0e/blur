@@ -271,7 +271,9 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	ui::center_elements_in_container(container);
 
 	for (auto it = notifications.begin(); it != notifications.end();) {
-		ui::add_notification(std::format("notification {}", it->id), notification_container, it->text, fonts::font);
+		ui::add_notification(
+			std::format("notification {}", it->id), notification_container, it->text, it->success, fonts::font
+		);
 
 		if (now > it->end_time)
 			it = notifications.erase(it);
@@ -366,5 +368,6 @@ void gui::renderer::on_render_finished(Render* render, bool success) {
 														   std::chrono::duration<float>(NOTIFICATION_LENGTH)
 													   ), // jesus
 		.text = std::format("Render '{}' {}", base::to_utf8(render->get_video_name()), success ? "finished" : "failed"),
+		.success = success,
 	});
 }

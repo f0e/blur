@@ -19,6 +19,7 @@ namespace gui::renderer {
 	struct Notification {
 		std::chrono::steady_clock::time_point end_time;
 		std::string text;
+		bool success;
 		uint32_t id = current_notification_id++;
 	};
 
