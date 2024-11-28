@@ -26,6 +26,7 @@ const float FPS_SMOOTHING = 0.95f;
 
 void gui::renderer::init_fonts() {
 	fonts::font = SkFont(); // default font
+
 	fonts::header_font = utils::create_font_from_data(
 		EBGaramond_VariableFont_wght_ttf.data(), EBGaramond_VariableFont_wght_ttf.size(), 30
 	);
@@ -476,39 +477,91 @@ void gui::renderer::components::configs::options(ui::Container& container, BlurS
 void gui::renderer::components::configs::preview(ui::Container& container, BlurSettings& settings) {
 	static BlurSettings previewed_settings;
 	static bool first = true;
+
+	static auto debounce_time = std::chrono::milliseconds(50);
+	auto now = std::chrono::steady_clock::now();
+	static auto last_render_time = now;
+
 	static size_t preview_id = 0;
 	static std::filesystem::path preview_path;
 	static bool loading = false;
+	static std::mutex preview_mutex;
 
-	if (settings != previewed_settings || first) {
-		if (first)
+	auto render_preview = [&] {
+		if (first) {
 			first = false;
+		}
+		else {
+			if (settings == previewed_settings && !first)
+				return;
+
+			if (now - last_render_time < debounce_time)
+				return;
+		}
+
+		u::log("generating config preview");
 
 		previewed_settings = settings;
-		loading = true;
+		last_render_time = now;
+
+		{
+			std::lock_guard<std::mutex> lock(preview_mutex);
+			loading = true;
+		}
 
 		std::thread([&] {
-			for (auto& render : renders) {
-				render->kill();
+			FrameRender* render = nullptr;
+
+			{
+				std::lock_guard<std::mutex> lock(render_mutex);
+
+				// stop ongoing renders early, a new render's coming bro
+				for (auto& render : renders) {
+					render->stop();
+				}
+
+				renders.emplace_back(std::make_unique<FrameRender>());
+				render = renders.back().get();
 			}
 
-			auto& render = *renders.emplace_back(std::make_unique<FrameRender>());
+			auto res = render->render(blur.path / "sample_video.mp4", settings);
 
-			auto res = render.render("sample_video.mp4", settings);
-			preview_path = res.output_path;
-			preview_id++;
-			loading = false;
+			if (res.success) {
+				std::lock_guard<std::mutex> lock(preview_mutex);
+				preview_id++;
+
+				blur.remove_temp_path(preview_path.parent_path());
+
+				preview_path = res.output_path;
+				loading = false;
+
+				u::log("config preview finished rendering");
+			}
+
+			render->set_can_delete();
 		}).detach();
+	};
+
+	render_preview();
+
+	// remove finished renders
+	{
+		std::lock_guard<std::mutex> lock(render_mutex);
+		std::erase_if(renders, [](const auto& render) {
+			return render->can_delete();
+		});
 	}
 
-	auto element = ui::add_image(
-		"config preview image",
-		container,
-		preview_path,
-		container.rect.size(),
-		std::to_string(preview_id),
-		gfx::rgba(255, 255, 255, loading ? 100 : 255)
-	);
+	if (!preview_path.empty() && std::filesystem::exists(preview_path)) {
+		auto element = ui::add_image(
+			"config preview image",
+			container,
+			preview_path,
+			container.rect.size(),
+			std::to_string(preview_id),
+			gfx::rgba(255, 255, 255, loading ? 100 : 255)
+		);
+	}
 }
 
 void gui::renderer::components::configs::screen(
@@ -577,6 +630,7 @@ void gui::renderer::components::configs::screen(
 		ui::set_next_same_line(nav_container);
 		ui::add_button("restore defaults button", nav_container, "Restore defaults", fonts::font, [&] {
 			settings = BlurSettings();
+			parse_interp();
 		});
 	}
 

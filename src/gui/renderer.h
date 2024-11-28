@@ -71,6 +71,7 @@ namespace gui::renderer {
 			inline int interpolated_fps = 1200;
 
 			inline std::vector<std::unique_ptr<FrameRender>> renders;
+			inline std::mutex render_mutex;
 
 			void options(ui::Container& container, BlurSettings& settings);
 			void preview(ui::Container& container, BlurSettings& settings);

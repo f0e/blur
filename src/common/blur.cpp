@@ -34,19 +34,70 @@ bool Blur::initialise(bool _verbose, bool _using_preview) {
 		blur.cleanup();
 	});
 
-	if (res)
+	if (res != 0)
 		DEBUG_LOG("failed to register atexit");
 
-	config::create(config::get_global_config_path(), DEFAULT_SETTINGS);
+	auto global_config_path = config::get_global_config_path();
+	if (!std::filesystem::exists(global_config_path))
+		config::create(global_config_path, DEFAULT_SETTINGS);
+
+	initialise_base_temp_path();
 
 	return true;
 }
 
-void Blur::cleanup() {
-	for (const auto& path : created_temp_paths) {
-		if (!std::filesystem::exists(path))
+void Blur::initialise_base_temp_path() {
+	temp_path = std::filesystem::temp_directory_path() / APPLICATION_NAME;
+	int i = 0;
+	while (true) {
+		if (std::filesystem::exists(temp_path)) {
+			temp_path = std::filesystem::temp_directory_path() / std::format("{}-{}", APPLICATION_NAME, ++i);
 			continue;
+		}
 
-		std::filesystem::remove_all(path);
+		std::filesystem::create_directory(temp_path);
+		break;
+	}
+}
+
+void Blur::cleanup() {
+	u::log("removing temp path {}", temp_path.string());
+	std::filesystem::remove_all(temp_path); // todo: is this unsafe lol
+}
+
+std::optional<std::filesystem::path> Blur::create_temp_path(const std::string& folder_name) {
+	auto temp_dir = temp_path / folder_name;
+
+	if (std::filesystem::exists(temp_dir)) {
+		u::log("temp dir {} already exists, clearing and re-creating", temp_path.string());
+		remove_temp_path(temp_dir);
+	}
+
+	u::log("trying to make temp dir {}", temp_dir.string());
+
+	if (!std::filesystem::create_directory(temp_dir))
+		return {};
+
+	u::log("created temp dir {}", temp_dir.string());
+
+	return temp_dir;
+}
+
+bool Blur::remove_temp_path(const std::filesystem::path& temp_path) {
+	if (temp_path.empty())
+		return false;
+
+	if (!std::filesystem::exists(temp_path))
+		return false;
+
+	try {
+		std::filesystem::remove_all(temp_path);
+		u::log("removed temp dir {}", temp_path.string());
+
+		return true;
+	}
+	catch (const std::filesystem::filesystem_error& e) {
+		u::log_error("Error removing temp path: {}", e.what());
+		return false;
 	}
 }

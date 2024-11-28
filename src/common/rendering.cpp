@@ -125,33 +125,16 @@ Render::Render(
 bool Render::create_temp_path() {
 	size_t out_hash = std::hash<std::filesystem::path>()(m_output_path);
 
-	m_temp_path = std::filesystem::temp_directory_path() / std::string("blur-" + std::to_string(out_hash));
+	auto temp_path = blur.create_temp_path(std::to_string(out_hash));
 
-	if (!std::filesystem::create_directory(m_temp_path))
-		return false;
+	if (temp_path)
+		m_temp_path = *temp_path;
 
-	blur.created_temp_paths.insert(m_temp_path);
-
-	return true;
+	return temp_path.has_value();
 }
 
 bool Render::remove_temp_path() {
-	if (m_temp_path.empty())
-		return false;
-
-	if (!std::filesystem::exists(m_temp_path))
-		return false;
-
-	try {
-		std::filesystem::remove_all(m_temp_path);
-		blur.created_temp_paths.erase(m_temp_path);
-
-		return true;
-	}
-	catch (const std::filesystem::filesystem_error& e) {
-		u::log_error("Error removing temp path: {}", e.what());
-		return false;
-	}
+	return blur.remove_temp_path(m_temp_path);
 }
 
 RenderCommands Render::build_render_commands() {
