@@ -12,7 +12,7 @@
 #include "ui/utils.h"
 #include "ui/render.h"
 
-#include "resources/fonts.h"
+#include "resources/fonts/eb_garamond.h"
 
 #define DEBUG_RENDER 1
 
