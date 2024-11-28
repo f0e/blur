@@ -7,6 +7,8 @@
 
 #include "ui/utils.h"
 
+#define DEBUG_RENDER_LOGGING 0
+
 void gui::update_vsync() {
 #ifdef _WIN32
 	HMONITOR screen_handle = (HMONITOR)window->screen()->nativeHandle();
@@ -28,31 +30,40 @@ void gui::update_vsync() {
 }
 
 void gui::event_loop() {
+	bool rendered_last = false;
+
 	while (!closing) {
 		auto frame_start = std::chrono::steady_clock::now();
 
 		update_vsync();
 
+		to_render = event_handler::handle_events(rendered_last); // true if input handled
+
 		const bool rendered = renderer::redraw_window(
 			window.get(), to_render
 		); // note: rendered isn't true if rendering was forced, it's only if an animation or smth is playing
-		to_render = event_handler::generate_messages_from_os_events(rendered); // true if input handled
 
-#if DEBUG_RENDER && DEBUG_RENDER_LOGGING
+#if DEBUG_RENDER_LOGGING
 		u::log("rendered: {}, to render: {}", rendered, to_render);
 #endif
 
+		// vsync
 		if (rendered || to_render) {
+			rendered_last = true;
+
 			auto target_time = frame_start + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
 												 std::chrono::duration<float>(vsync_frame_time)
 											 );
 			std::this_thread::sleep_until(target_time);
 		}
+		else {
+			rendered_last = false;
+		}
 	}
 }
 
 void gui::run() {
-	auto system = os::make_system();
+	system = os::make_system();
 
 	renderer::init_fonts();
 

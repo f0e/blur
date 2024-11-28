@@ -96,7 +96,9 @@
       "inherits": "unix-base",
       "displayName": "Release with Debug Info",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_FLAGS": "-O0",
+        "CMAKE_C_FLAGS": "-O0"
       }
     }
   ],

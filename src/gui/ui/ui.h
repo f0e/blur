@@ -6,7 +6,11 @@ namespace ui {
 		TEXT,
 		IMAGE,
 		BUTTON,
-		NOTIFICATION
+		NOTIFICATION,
+		SLIDER,
+		TEXT_INPUT,
+		CHECKBOX,
+		DROPDOWN
 	};
 
 	struct BarElementData {
@@ -37,12 +41,13 @@ namespace ui {
 	};
 
 	struct ImageElementData {
-		std::string image_path;
+		std::filesystem::path image_path;
 		os::SurfaceRef image_surface;
 		std::string image_id;
+		gfx::Color image_color;
 
 		bool operator==(const ImageElementData& other) const {
-			return image_path == other.image_path && image_id == other.image_id;
+			return image_path == other.image_path && image_id == other.image_id && image_color == other.image_color;
 			// Skip image_surface comparison since it's a reference-counted pointer
 		}
 	};
@@ -59,57 +64,144 @@ namespace ui {
 		}
 	};
 
+	enum class NotificationType {
+		INFO,
+		SUCCESS,
+		ERROR
+	};
+
 	struct NotificationElementData {
 		std::vector<std::string> lines;
-		bool success;
+		NotificationType type;
 		SkFont font;
 		int line_height;
 
 		bool operator==(const NotificationElementData& other) const {
-			return lines == other.lines && success == other.success && line_height == other.line_height;
+			return lines == other.lines && type == other.type && line_height == other.line_height;
 			// Skip font comparison since it might not implement ==
 		}
 	};
 
-	using ElementData =
-		std::variant<BarElementData, TextElementData, ImageElementData, ButtonElementData, NotificationElementData>;
+	struct SliderElementData {
+		std::variant<int, float> min_value;
+		std::variant<int, float> max_value;
+		std::variant<int*, float*> current_value;
+		std::string label_format;
+		SkFont font;
+		std::optional<std::function<void(const std::variant<int*, float*>&)>> on_change;
+		float precision;
+		std::string tooltip;
+
+		bool operator==(const SliderElementData& other) const {
+			return min_value == other.min_value && max_value == other.max_value &&
+			       current_value == other.current_value && label_format == other.label_format &&
+			       precision == other.precision && tooltip == other.tooltip;
+			// Skip font comparison since it might not implement ==
+		}
+	};
+
+	struct TextInputElementData {
+		std::string* text;
+		std::string placeholder;
+		SkFont font;
+		std::optional<std::function<void(const std::string&)>> on_change;
+
+		bool operator==(const TextInputElementData& other) const {
+			return text == other.text && placeholder == other.placeholder;
+			// Skip font comparison since it might not implement ==
+			// and on_change
+		}
+	};
+
+	struct CheckboxElementData {
+		std::string label;
+		bool* checked;
+		SkFont font;
+		std::optional<std::function<void(bool)>> on_change;
+
+		bool operator==(const CheckboxElementData& other) const {
+			return label == other.label && checked == other.checked;
+			// Skip font comparison since it might not implement ==
+			// and on_change
+		}
+	};
+
+	struct DropdownElementData {
+		std::string label;
+		std::vector<std::string> options;
+		std::string* selected;
+		SkFont font;
+		std::optional<std::function<void(std::string*)>> on_change;
+
+		bool operator==(const DropdownElementData& other) const {
+			return label == other.label && options == other.options && selected == other.selected;
+			// Skip font comparison since it might not implement ==
+			// and on_change
+		}
+	};
+
+	using ElementData = std::variant<
+		BarElementData,
+		TextElementData,
+		ImageElementData,
+		ButtonElementData,
+		NotificationElementData,
+		SliderElementData,
+		TextInputElementData,
+		CheckboxElementData,
+		DropdownElementData>;
 
 	struct AnimationState {
 		float speed;
-		float current = 0.0f;
+		float current = 0.f;
+		float goal = 0.f;
 		bool complete = false;
-		bool rendered_complete = false;
 
-		AnimationState(float speed) : speed(speed) {}
+		AnimationState(float speed, float value) : speed(speed), current(value), goal(value) {}
 
 		// delete default constructor since we always need a duration
 		AnimationState() = delete;
 
-		void update(float delta_time, bool stale) {
-			float goal = !stale ? 1.f : 0.f;
+		void set_goal(float goal) {
+			this->goal = goal;
+		}
+
+		bool update(float delta_time) {
+			float old_current = current;
 			current = std::clamp(std::lerp(current, goal, speed * delta_time), 0.f, 1.f);
+			if (abs(current - goal) < 0.001f)
+				current = goal;
 
-			bool was_complete = complete;
-			complete = abs(current - goal) < 0.001f;
+			complete = current == goal;
 
-			if (complete && !was_complete) {
-				rendered_complete = false;
-			}
+			return current != old_current;
 		}
 	};
+
+	struct AnimationInitialisation {
+		float speed;
+		float value = 0.f;
+	};
+
+	struct AnimatedElement;
+
+	struct Container;
 
 	struct Element {
 		ElementType type;
 		gfx::Rect rect;
 		ElementData data;
-		std::function<void(os::Surface*, const Element*, float)> render_fn;
+		std::function<void(const Container&, os::Surface*, const AnimatedElement&)> render_fn;
+		std::optional<std::function<bool(const Container&, AnimatedElement&)>> update_fn;
 		bool fixed = false;
 	};
 
 	struct AnimatedElement {
 		std::unique_ptr<Element> element;
-		AnimationState animation = AnimationState(25.f);
+		std::unordered_map<size_t, AnimationState> animations;
 	};
+
+	const inline AnimationInitialisation DEFAULT_ANIMATION = { .speed = 25.f };
 
 	struct Container {
 		gfx::Rect rect;
@@ -121,22 +213,56 @@ namespace ui {
 		gfx::Point current_position;
 		bool updated = false;
 		int last_margin_bottom = 0;
+
+		float scroll_y = 0.f;
 	};
 
-	void render_bar(os::Surface* surface, const Element* element, float anim);
-	void render_text(os::Surface* surface, const Element* element, float anim);
-	void render_image(os::Surface* surface, const Element* element, float anim);
-	void render_button(os::Surface* surface, const Element* element, float anim);
-	void render_notification(os::Surface* surface, const Element* element, float anim);
+	inline auto hasher = std::hash<std::string>{};
+
+	inline AnimatedElement* active_element = nullptr;
+
+	void render_bar(const Container& container, os::Surface* surface, const AnimatedElement& element);
+
+	void render_text(const Container& container, os::Surface* surface, const AnimatedElement& element);
+
+	void render_image(const Container& container, os::Surface* surface, const AnimatedElement& element);
+
+	void render_button(const Container& container, os::Surface* surface, const AnimatedElement& element);
+	bool update_button(const Container& container, AnimatedElement& element);
+
+	void render_notification(const Container& container, os::Surface* surface, const AnimatedElement& element);
+
+	void render_slider(const Container& container, os::Surface* surface, const AnimatedElement& element);
+	bool update_slider(const Container& container, AnimatedElement& element);
+
+	void render_text_input(const Container& container, os::Surface* surface, const AnimatedElement& element);
+	bool update_text_input(const Container& container, AnimatedElement& element);
+
+	void render_checkbox(const Container& container, os::Surface* surface, const AnimatedElement& element);
+	bool update_checkbox(const Container& container, AnimatedElement& element);
+
+	void render_dropdown(const Container& container, os::Surface* surface, const AnimatedElement& element);
+	bool update_dropdown(const Container& container, AnimatedElement& element);
 
 	void reset_container(
-		Container& container, const gfx::Rect& rect, const SkFont& font, std::optional<gfx::Color> background_color = {}
+		Container& container, const gfx::Rect& rect, int line_height, std::optional<gfx::Color> background_color = {}
 	);
 
 	Element* add_element(
-		Container& container, const std::string& id, Element&& _element, int margin_bottom, float animation_speed = 25.f
+		Container& container,
+		const std::string& id,
+		Element&& _element,
+		int margin_bottom,
+		const std::unordered_map<size_t, AnimationInitialisation>& animations = { { hasher("main"),
+	                                                                                DEFAULT_ANIMATION } }
 	);
-	Element* add_element(Container& container, const std::string& id, Element&& _element, float animation_speed = 25.f);
+	Element* add_element(
+		Container& container,
+		const std::string& id,
+		Element&& _element,
+		const std::unordered_map<size_t, AnimationInitialisation>& animations = { { hasher("main"),
+	                                                                                DEFAULT_ANIMATION } }
+	);
 
 	Element& add_bar(
 		const std::string& id,
@@ -156,8 +282,7 @@ namespace ui {
 		const std::string& text,
 		gfx::Color color,
 		const SkFont& font,
-		os::TextAlign align = os::TextAlign::Left,
-		int margin_bottom = 7
+		os::TextAlign align = os::TextAlign::Left
 	);
 
 	Element& add_text_fixed(
@@ -173,9 +298,10 @@ namespace ui {
 	std::optional<Element*> add_image(
 		const std::string& id,
 		Container& container,
-		const std::string& image_path,
+		const std::filesystem::path& image_path,
 		const gfx::Size& max_size,
-		std::string image_id = ""
+		std::string image_id = "",
+		gfx::Color image_color = gfx::rgba(255, 255, 255, 255)
 	); // use image_id to distinguish images that have the same filename and reload it (e.g. if its updated)
 
 	Element& add_button(
@@ -187,10 +313,61 @@ namespace ui {
 	);
 
 	Element& add_notification(
-		const std::string& id, Container& container, const std::string& text, bool success, const SkFont& font
+		const std::string& id, Container& container, const std::string& text, NotificationType type, const SkFont& font
 	);
 
+	Element& add_slider(
+		const std::string& id,
+		Container& container,
+		const std::variant<int, float>& min_value,
+		const std::variant<int, float>& max_value,
+		std::variant<int*, float*> value,
+		const std::string& label_format,
+		const SkFont& font,
+		std::optional<std::function<void(const std::variant<int*, float*>&)>> on_change = {},
+		float precision = 0.f,
+		const std::string& tooltip = ""
+	);
+
+	Element& add_text_input(
+		const std::string& id,
+		Container& container,
+		std::string& text,
+		const std::string& placeholder,
+		const SkFont& font,
+		std::optional<std::function<void(const std::string&)>> on_change = {}
+	);
+
+	Element& add_checkbox(
+		const std::string& id,
+		Container& container,
+		const std::string& label,
+		bool& checked,
+		const SkFont& font,
+		std::optional<std::function<void(bool)>> on_change = {}
+	);
+
+	Element& add_dropdown(
+		const std::string& id,
+		Container& container,
+		const std::string& label,
+		const std::vector<std::string>& options,
+		std::string& selected,
+		const SkFont& font,
+		std::optional<std::function<void(std::string*)>> on_change = {}
+	);
+
+	void add_spacing(Container& container, int spacing);
+
+	void set_next_same_line(Container& container);
+
 	void center_elements_in_container(Container& container, bool horizontal = true, bool vertical = true);
-	bool update_container(Container& container, float delta_time);
+
+	std::vector<decltype(Container::elements)::iterator> get_sorted_container_elements(Container& container);
+
+	bool update_container_input(Container& container);
+	bool update_container_frame(Container& container, float delta_time);
+	void on_update_end();
+
 	void render_container(os::Surface* surface, Container& container);
 }

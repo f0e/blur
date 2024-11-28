@@ -1,11 +1,5 @@
 ﻿#include "rendering.h"
 
-#include <algorithm>
-
-#ifdef BLUR_GUI
-#	include <gui/console.h>
-#endif
-
 void Rendering::render_videos() {
 	if (!m_queue.empty()) {
 		auto& render = m_queue.front();
@@ -160,7 +154,7 @@ bool Render::remove_temp_path() {
 	}
 }
 
-Render::RenderCommands Render::build_render_commands() {
+RenderCommands Render::build_render_commands() {
 	RenderCommands commands;
 
 	if (blur.used_installer) {
@@ -205,16 +199,18 @@ Render::RenderCommands Render::build_render_commands() {
 
 	// Handle audio filters
 	std::vector<std::wstring> audio_filters;
-	if (m_settings.input_timescale != 1.f) {
-		audio_filters.push_back(std::format(L"asetrate=48000*{}", (1 / m_settings.input_timescale)));
-	}
-
-	if (m_settings.output_timescale != 1.f) {
-		if (m_settings.output_timescale_audio_pitch) {
-			audio_filters.push_back(std::format(L"asetrate=48000*{}", m_settings.output_timescale));
+	if (m_settings.timescale) {
+		if (m_settings.input_timescale != 1.f) {
+			audio_filters.push_back(std::format(L"asetrate=48000*{}", (1 / m_settings.input_timescale)));
 		}
-		else {
-			audio_filters.push_back(std::format(L"atempo={}", m_settings.output_timescale));
+
+		if (m_settings.output_timescale != 1.f) {
+			if (m_settings.output_timescale_audio_pitch) {
+				audio_filters.push_back(std::format(L"asetrate=48000*{}", m_settings.output_timescale));
+			}
+			else {
+				audio_filters.push_back(std::format(L"atempo={}", m_settings.output_timescale));
+			}
 		}
 	}
 
@@ -440,18 +436,6 @@ bool Render::do_render(RenderCommands render_commands) {
 
 bool Render::render() {
 	u::log(L"Rendering '{}'\n", m_video_name);
-
-#ifndef _DEBUG
-#	ifdef BLUR_GUI
-	if (settings.debug) {
-		console::init();
-	}
-	else {
-		// todo: close console
-		// console::close();
-	}
-#	endif
-#endif
 
 	if (blur.verbose) {
 		u::log("Render settings:");

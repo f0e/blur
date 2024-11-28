@@ -1,36 +1,52 @@
 #include "keys.h"
 
-void keys::on_mouse_leave() {
-	mouse_pos = { -1, -1 };
+bool keys::process_event(const os::Event& event) {
+	switch (event.type()) {
+		case os::Event::MouseLeave: {
+			mouse_pos = { -1, -1 };
+			return true;
+		}
+
+		case os::Event::MouseMove: {
+			mouse_pos = event.position();
+			return true;
+		}
+
+		case os::Event::MouseDoubleClick:
+		case os::Event::MouseDown: {
+			// mouse_pos = position; // TODO: assuming this is inaccurate too
+			pressed_mouse_keys.insert(event.button());
+			return true;
+		}
+
+		case os::Event::MouseUp: {
+			// mouse_pos = position; // TODO: this is inaccurate? if you press open file button move cursor off screen
+			// then close the picker there'll be a mouseup event with mouse pos still on the button
+			pressed_mouse_keys.erase(event.button());
+			return true;
+		}
+
+		case os::Event::KeyDown: {
+			pressed_keys.emplace_back(KeyPress{
+				.scancode = event.scancode(),
+				.modifiers = event.modifiers(),
+				.unicode_char = (char)event.unicodeChar(),
+				.repeat = event.repeat(),
+			});
+			return true;
+		}
+
+		case os::Event::MouseWheel: {
+			scroll_delta = event.wheelDelta().y;
+			return true;
+		}
+
+		default:
+			return false;
+	}
 }
 
-void keys::on_mouse_move(
-	const gfx::Point& position, os::KeyModifiers /*modifiers*/, os::PointerType /*pointer_type*/, float /*pressure*/
-) {
-	mouse_pos = position;
-}
-
-void keys::on_mouse_down(
-	const gfx::Point& /*position*/,
-	os::Event::MouseButton button,
-	os::KeyModifiers /*modifiers*/,
-	os::PointerType /*pointer_type*/,
-	float /*pressure*/
-) {
-	// mouse_pos = position; // TODO: assuming this is inaccurate too
-	pressed_mouse_keys.insert(button);
-}
-
-void keys::on_mouse_up(
-	const gfx::Point& /*position*/,
-	os::Event::MouseButton button,
-	os::KeyModifiers /*modifiers*/,
-	os::PointerType /*pointer_type*/
-) {
-	// mouse_pos = position; // TODO: this is inaccurate? if you press open file button move cursor off screen then
-	// close the picker there'll be a mouseup event with mouse pos still on the button
-	pressed_mouse_keys.erase(button);
-}
+void keys::on_input_end() {}
 
 void keys::on_mouse_press_handled(os::Event::MouseButton button) {
 	// somethings been pressed, count it as we're not pressing the button anymore

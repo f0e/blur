@@ -4,10 +4,11 @@
 #include "../render.h"
 #include "../utils.h"
 
-void ui::render_bar(os::Surface* surface, const Element* element, float anim) {
+void ui::render_bar(const Container& container, os::Surface* surface, const AnimatedElement& element) {
 	const int text_gap = 7;
 
-	const auto& bar_data = std::get<BarElementData>(element->data);
+	const auto& bar_data = std::get<BarElementData>(element.element->data);
+	float anim = element.animations.at(hasher("main")).current;
 
 	gfx::Color adjusted_background_color = utils::adjust_color(bar_data.background_color, anim);
 	gfx::Color adjusted_fill_color = utils::adjust_color(bar_data.fill_color, anim);
@@ -17,17 +18,17 @@ void ui::render_bar(os::Surface* surface, const Element* element, float anim) {
 	if (bar_data.bar_text && bar_data.text_color && bar_data.font) {
 		gfx::Color adjusted_text_color = utils::adjust_color(*bar_data.text_color, anim);
 
-		gfx::Point text_pos = element->rect.origin();
+		gfx::Point text_pos = element.element->rect.origin();
 
 		text_size = render::get_text_size(*bar_data.bar_text, **bar_data.font);
 
-		text_pos.x = element->rect.x2();
+		text_pos.x = element.element->rect.x2();
 		text_pos.y += (*bar_data.font)->getSize() / 2;
 
 		render::text(surface, text_pos, adjusted_text_color, *bar_data.bar_text, **bar_data.font, os::TextAlign::Right);
 	}
 
-	gfx::Rect bar_rect = element->rect;
+	gfx::Rect bar_rect = element.element->rect;
 	bar_rect.w -= text_size.w + text_gap;
 
 	render::rounded_rect_filled(surface, bar_rect, adjusted_background_color, 1000.f);

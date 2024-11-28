@@ -25,6 +25,7 @@ void config::create(const std::filesystem::path& filepath, const BlurSettings& c
 
 	output << "\n";
 	output << "- timescale" << "\n";
+	output << "timescale: " << (current_settings.timescale ? "true" : "false") << "\n";
 	output << "input timescale: " << current_settings.input_timescale << "\n";
 	output << "output timescale: " << current_settings.output_timescale << "\n";
 	output << "adjust timescaled audio pitch: " << (current_settings.output_timescale_audio_pitch ? "true" : "false")
@@ -32,6 +33,7 @@ void config::create(const std::filesystem::path& filepath, const BlurSettings& c
 
 	output << "\n";
 	output << "- filters" << "\n";
+	output << "filters: " << (current_settings.filters ? "true" : "false") << "\n";
 	output << "brightness: " << current_settings.brightness << "\n";
 	output << "saturation: " << current_settings.saturation << "\n";
 	output << "contrast: " << current_settings.contrast << "\n";
@@ -143,6 +145,7 @@ BlurSettings config::parse(const std::filesystem::path& config_filepath) {
 	config_get("interpolate", settings.interpolate);
 	config_get_str("interpolated fps", settings.interpolated_fps);
 
+	config_get("filters", settings.filters);
 	config_get("brightness", settings.brightness);
 	config_get("saturation", settings.saturation);
 	config_get("contrast", settings.contrast);
@@ -152,6 +155,7 @@ BlurSettings config::parse(const std::filesystem::path& config_filepath) {
 	config_get("preview", settings.preview);
 	config_get("detailed filenames", settings.detailed_filenames);
 
+	config_get("timescale", settings.timescale);
 	config_get("input timescale", settings.input_timescale);
 	config_get("output timescale", settings.output_timescale);
 	config_get("adjust timescaled audio pitch", settings.output_timescale_audio_pitch);
@@ -169,8 +173,8 @@ BlurSettings config::parse(const std::filesystem::path& config_filepath) {
 
 	// config_get_str("interpolation program (svp/rife/rife-ncnn)", settings.interpolation_program);
 	config_get_str("interpolation preset", settings.interpolation_preset);
-	config_get("interpolation algorithm", settings.interpolation_algorithm);
-	config_get("interpolation block size", settings.interpolation_blocksize);
+	config_get_str("interpolation algorithm", settings.interpolation_algorithm);
+	config_get_str("interpolation block size", settings.interpolation_blocksize);
 	config_get("interpolation mask area", settings.interpolation_mask_area);
 
 	config_get("manual svp", settings.manual_svp);
@@ -184,8 +188,27 @@ BlurSettings config::parse(const std::filesystem::path& config_filepath) {
 	return settings;
 }
 
+BlurSettings config::parse_global_config() {
+	return parse(get_global_config_path());
+}
+
+std::filesystem::path config::get_global_config_path() {
+	return blur.path / CONFIG_FILENAME;
+}
+
 std::filesystem::path config::get_config_filename(const std::filesystem::path& video_folder) {
 	return video_folder / CONFIG_FILENAME;
+}
+
+BlurSettings config::get_global_config() {
+	auto global_cfg_path = get_global_config_path();
+	bool global_cfg_exists = std::filesystem::exists(global_cfg_path);
+
+	if (!global_cfg_exists) {
+		create(global_cfg_path);
+	}
+
+	return parse(global_cfg_path);
 }
 
 BlurSettings config::get_config(const std::filesystem::path& config_filepath, bool use_global) {
@@ -215,7 +238,7 @@ BlurSettings config::get_config(const std::filesystem::path& config_filepath, bo
 	return parse(cfg_path);
 }
 
-nlohmann::json BlurSettings::to_json() {
+nlohmann::json BlurSettings::to_json() const {
 	nlohmann::json j;
 
 	j["blur"] = this->blur;
@@ -226,10 +249,12 @@ nlohmann::json BlurSettings::to_json() {
 	j["interpolate"] = this->interpolate;
 	j["interpolated_fps"] = this->interpolated_fps;
 
+	j["timescale"] = this->timescale;
 	j["input_timescale"] = this->input_timescale;
 	j["output_timescale"] = this->output_timescale;
 	j["output_timescale_audio_pitch"] = this->output_timescale_audio_pitch;
 
+	j["filters"] = this->filters;
 	j["brightness"] = this->brightness;
 	j["saturation"] = this->saturation;
 	j["contrast"] = this->contrast;

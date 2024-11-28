@@ -40,10 +40,11 @@ if settings["deduplicate"]:
 #     video = blur.deduplicate.fill_drops_old(video, debug=True)
 
 # input timescale
-if settings["input_timescale"] != 1:
-    video = core.std.AssumeFPS(
-        video, fpsnum=(video.fps * (1 / settings["input_timescale"]))
-    )
+if settings["timescale"]:
+    if settings["input_timescale"] != 1:
+        video = core.std.AssumeFPS(
+            video, fpsnum=(video.fps * (1 / settings["input_timescale"]))
+        )
 
 # interpolation
 if settings["interpolate"]:
@@ -102,16 +103,19 @@ if settings["interpolate"]:
                     video,
                     new_fps=interpolated_fps,
                     preset=settings["interpolation_preset"],
-                    algorithm=settings["interpolation_algorithm"],
-                    blocksize=settings["interpolation_blocksize"],
+                    algorithm=int(settings["interpolation_algorithm"]),
+                    blocksize=int(settings["interpolation_blocksize"]),
                     overlap=0,
                     masking=settings["interpolation_mask_area"],
                     gpu=settings["gpu_interpolation"],
                 )
 
 # output timescale
-if settings["output_timescale"] != 1:
-    video = core.std.AssumeFPS(video, fpsnum=(video.fps * settings["output_timescale"]))
+if settings["timescale"]:
+    if settings["output_timescale"] != 1:
+        video = core.std.AssumeFPS(
+            video, fpsnum=(video.fps * settings["output_timescale"])
+        )
 
 # blurring
 if settings["blur"]:
@@ -186,18 +190,19 @@ if settings["blur"]:
     video = blur.interpolate.change_fps(video, settings["blur_output_fps"])
 
 # filters
-if (
-    settings["brightness"] != 1
-    or settings["contrast"] != 1
-    or settings["saturation"] != 1
-):
-    # TODO: add back
-    pass
-    # video = adjust.Tweak(
-    #     video,
-    #     bright=settings["brightness"] - 1,
-    #     cont=settings["contrast"],
-    #     sat=settings["saturation"],
-    # )
+if settings["filters"]:
+    if (
+        settings["brightness"] != 1
+        or settings["contrast"] != 1
+        or settings["saturation"] != 1
+    ):
+        # TODO: add back
+        pass
+        # video = adjust.Tweak(
+        #     video,
+        #     bright=settings["brightness"] - 1,
+        #     cont=settings["contrast"],
+        #     sat=settings["saturation"],
+        # )
 
 video.set_output()

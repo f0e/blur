@@ -3,7 +3,7 @@
 #include "include/core/SkRRect.h"
 #include "os/skia/skia_surface.h"
 
-// #include "include/core/SkFontMetrics.h"
+#include "include/core/SkFontMetrics.h"
 
 // todo: is creating a new paint instance every time significant to perf? shouldnt be
 
@@ -36,6 +36,15 @@ void render::rect_filled(os::Surface* surface, const gfx::Rect& rect, gfx::Color
 	surface->drawRect(rect, paint);
 }
 
+void render::rect_stroke(os::Surface* surface, const gfx::Rect& rect, gfx::Color colour, float stroke_width) {
+	os::Paint paint;
+	paint.color(colour);
+	paint.style(os::Paint::Style::Stroke);
+	paint.strokeWidth(stroke_width);
+
+	surface->drawRect(rect, paint);
+}
+
 void render::rounded_rect_filled(os::Surface* surface, const gfx::Rect& rect, gfx::Color colour, float rounding) {
 	if (rect.isEmpty())
 		return;
@@ -58,6 +67,18 @@ void render::rounded_rect_stroke(
 	paint.strokeWidth(stroke_width);
 
 	rounded_rect(surface, rect, paint, rounding);
+}
+
+void render::line(
+	os::Surface* surface, const gfx::Point& point1, const gfx::Point& point2, gfx::Color colour, float thickness
+) {
+	os::Paint paint;
+	paint.color(colour);
+
+	paint.antialias(true);
+	paint.strokeWidth(thickness);
+
+	surface->drawLine(point1, point2, paint);
 }
 
 void render::text(
@@ -88,6 +109,45 @@ void render::text(
 	);
 }
 
+void render::push_clip_rect(os::Surface* surface, const gfx::Rect& rect) {
+	if (clip_rects.empty())
+		surface->saveClip();
+
+	clip_rects.push(rect);
+	surface->clipRect(rect);
+}
+
+void render::pop_clip_rect(os::Surface* surface) {
+	assert(!clip_rects.empty() && "mismatched push/pop clip rect");
+
+	clip_rects.pop();
+
+	if (clip_rects.empty()) {
+		surface->restoreClip();
+		return;
+	}
+
+	const auto& rect = clip_rects.top();
+	surface->clipRect(rect);
+}
+
+// gfx::Size render::get_text_size(const std::string& text, const SkFont& font) {
+// 	// Skia paint object to calculate text metrics
+// 	SkPaint paint;
+
+// 	// Get the width of the text
+// 	SkScalar text_width = font.measureText(text.c_str(), text.size(), SkTextEncoding::kUTF8);
+
+// 	// // Get the text metrics to calculate the height
+// 	// SkFontMetrics metrics;
+// 	// font.getMetrics(&metrics);
+// 	// SkScalar textHeight = metrics.fBottom - metrics.fTop; // Total height of the text (including leading)
+
+// 	// The result will be a width and height structure
+// 	return { SkScalarTruncToInt(text_width),
+// 		     SkScalarTruncToInt(font.getSize()) }; // todo: SkScalarTruncToInt rounds i think, should i just cast to int
+// }
+
 gfx::Size render::get_text_size(const std::string& text, const SkFont& font) {
 	// Skia paint object to calculate text metrics
 	SkPaint paint;
@@ -95,14 +155,15 @@ gfx::Size render::get_text_size(const std::string& text, const SkFont& font) {
 	// Get the width of the text
 	SkScalar text_width = font.measureText(text.c_str(), text.size(), SkTextEncoding::kUTF8);
 
-	// // Get the text metrics to calculate the height
-	// SkFontMetrics metrics;
-	// font.getMetrics(&metrics);
-	// SkScalar textHeight = metrics.fBottom - metrics.fTop; // Total height of the text (including leading)
+	// Get the text metrics to calculate the height
+	SkFontMetrics metrics;
+	font.getMetrics(&metrics);
+	// SkScalar text_height = metrics.fBottom - metrics.fTop; // Total height of the text (including leading)
+	// float total_height = SkScalarAbs(metrics.fAscent) + metrics.fDescent + metrics.fLeading;
+	int text_height = ceil(metrics.fCapHeight); // good enough - todo: maybe should be round
 
 	// The result will be a width and height structure
-	return { SkScalarTruncToInt(text_width),
-		     SkScalarTruncToInt(font.getSize()) }; // todo: SkScalarTruncToInt rounds i think, should i just cast to int
+	return { SkScalarTruncToInt(text_width), text_height };
 }
 
 // NOLINTBEGIN(readability-function-size,readability-function-cognitive-complexity) ai code idc

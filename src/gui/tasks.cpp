@@ -3,6 +3,7 @@
 #include <common/rendering.h>
 #include "gui.h"
 #include "gui/renderer.h"
+#include "gui/ui/ui.h"
 
 void tasks::run() {
 	blur.initialise(false, true);
@@ -41,9 +42,17 @@ void tasks::run() {
 }
 
 void tasks::add_files(const std::vector<std::string>& files) {
-	for (const auto& path : files) {
+	for (const std::string& path : files) {
 		u::log("dropped {}", path);
 
-		rendering.queue_render(Render(path));
+		Render render(path);
+
+		if (gui::renderer::screen != gui::renderer::Screens::MAIN)
+			gui::renderer::add_notification(
+				std::format("Queued '{}' for rendering", base::to_utf8(render.get_video_name())),
+				ui::NotificationType::INFO
+			);
+
+		rendering.queue_render(std::move(render));
 	}
 }

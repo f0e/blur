@@ -2,6 +2,8 @@
 #pragma once
 
 #include "common/rendering.h"
+#include "common/rendering_frame.h"
+#include "ui/ui.h"
 
 namespace ui {
 	class Container;
@@ -19,7 +21,7 @@ namespace gui::renderer {
 	struct Notification {
 		std::chrono::steady_clock::time_point end_time;
 		std::string text;
-		bool success;
+		ui::NotificationType type;
 		uint32_t id = current_notification_id++;
 	};
 
@@ -35,12 +37,58 @@ namespace gui::renderer {
 
 	void set_cursor(os::NativeCursor cursor);
 
+	enum class Screens {
+		MAIN,
+		CONFIG
+	};
+
+	inline Screens screen = Screens::MAIN;
+
+	inline ui::Container main_container;
+	inline ui::Container config_container;
+	inline ui::Container config_preview_container;
+	inline ui::Container notification_container;
+	inline ui::Container nav_container;
+
 	namespace components {
-		void render_in_progress(ui::Container& container, const Render* render, float& bar_percent, float& delta_time);
+		void render(
+			ui::Container& container,
+			const Render& render,
+			bool current,
+			float delta_time,
+			bool& is_progress_shown,
+			float& bar_percent
+		);
+
+		void main_screen(ui::Container& container, float delta_time);
+
+		namespace configs { // naming it configs to avoid conflict with common lol
+			inline BlurSettings settings;
+			inline BlurSettings current_global_settings;
+
+			inline bool interpolate_scale = true;
+			inline float interpolated_fps_mult = 5.f;
+			inline int interpolated_fps = 1200;
+
+			inline std::vector<std::unique_ptr<FrameRender>> renders;
+
+			void options(ui::Container& container, BlurSettings& settings);
+			void preview(ui::Container& container, BlurSettings& settings);
+			void screen(ui::Container& container, ui::Container& preview_container, float delta_time);
+		}
 
 	}
 
 	bool redraw_window(os::Window* window, bool force_render);
+
+	void add_notification(
+		const std::string& text, ui::NotificationType type, std::chrono::steady_clock::time_point end_time
+	);
+	void add_notification(
+		const std::string& text,
+		ui::NotificationType type,
+		std::chrono::duration<float> duration = std::chrono::duration<float>(NOTIFICATION_LENGTH)
+	);
 
 	void on_render_finished(Render* render, bool success);
 }

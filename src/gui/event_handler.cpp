@@ -2,6 +2,7 @@
 #include "event_handler.h"
 
 #include "gui.h"
+#include "renderer.h"
 
 #include "ui/keys.h"
 
@@ -13,42 +14,27 @@ bool gui::event_handler::process_event(const os::Event& event) {
 			return false;
 		}
 
-		case os::Event::ResizeWindow:
-			break;
-
-		case os::Event::MouseLeave: {
-			keys::on_mouse_leave();
-			return true;
-		}
-
-		case os::Event::MouseMove: {
-			keys::on_mouse_move(event.position(), event.modifiers(), event.pointerType(), event.pressure());
-			return true;
-		}
-
-		case os::Event::MouseDown: {
-			keys::on_mouse_down(
-				event.position(), event.button(), event.modifiers(), event.pointerType(), event.pressure()
-			);
-			return true;
-		}
-
-		case os::Event::MouseUp: {
-			keys::on_mouse_up(event.position(), event.button(), event.modifiers(), event.pointerType());
-			return true;
-		}
-
-			// todo: need to handle ui inputs in here rather than on render, if you have 1 fps and click something
-			// between frames it wont register for example
-
 		default:
 			break;
 	}
 
-	return false;
+	bool updated = false;
+
+	if (keys::process_event(event)) {
+		updated |= ui::update_container_input(renderer::notification_container);
+		updated |= ui::update_container_input(renderer::nav_container);
+
+		updated |= ui::update_container_input(renderer::main_container);
+		updated |= ui::update_container_input(renderer::config_container);
+		updated |= ui::update_container_input(renderer::config_preview_container);
+	}
+
+	keys::on_input_end();
+
+	return updated;
 }
 
-bool gui::event_handler::generate_messages_from_os_events(bool rendered_last
+bool gui::event_handler::handle_events(bool rendered_last
 ) { // https://github.com/aseprite/aseprite/blob/45c2a5950445c884f5d732edc02989c3fb6ab1a6/src/ui/manager.cpp#L393
 	const static int default_tickrate = 60;
 	const static double default_timeout = 1.f / default_tickrate;

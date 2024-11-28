@@ -1,16 +1,21 @@
 #include "../ui.h"
 
-void ui::render_image(os::Surface* surface, const Element* element, float anim) {
-	const auto& image_data = std::get<ImageElementData>(element->data);
+#include "gui/ui/utils.h"
+
+void ui::render_image(const Container& container, os::Surface* surface, const AnimatedElement& element) {
+	static const float rounding = 7.8f;
+
+	const auto& image_data = std::get<ImageElementData>(element.element->data);
+	float anim = element.animations.at(hasher("main")).current;
 
 	int alpha = anim * 255;
 	int stroke_alpha = anim * 125;
 
-	gfx::Rect image_rect = element->rect;
+	gfx::Rect image_rect = element.element->rect;
 	image_rect.shrink(3);
 
 	os::Paint paint;
-	paint.color(gfx::rgba(255, 255, 255, alpha));
+	paint.color(utils::adjust_color(image_data.image_color, anim));
 	surface->drawSurface(
 		image_data.image_surface.get(), image_data.image_surface->bounds(), image_rect, os::Sampling(), &paint
 	);
@@ -35,9 +40,10 @@ void ui::render_image(os::Surface* surface, const Element* element, float anim) 
 std::optional<ui::Element*> ui::add_image(
 	const std::string& id,
 	Container& container,
-	const std::string& image_path,
+	const std::filesystem::path& image_path,
 	const gfx::Size& max_size,
-	std::string image_id
+	std::string image_id,
+	gfx::Color image_color
 ) {
 	os::SurfaceRef image_surface;
 	os::SurfaceRef last_image_surface;
@@ -105,6 +111,7 @@ std::optional<ui::Element*> ui::add_image(
 				.image_path = image_path,
 				.image_surface = image_surface,
 				.image_id = image_id,
+				.image_color = image_color,
 			},
 		.render_fn = render_image,
 	};

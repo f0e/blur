@@ -37,6 +37,8 @@ bool Blur::initialise(bool _verbose, bool _using_preview) {
 	if (res)
 		DEBUG_LOG("failed to register atexit");
 
+	config::create(config::get_global_config_path(), DEFAULT_SETTINGS);
+
 	return true;
 }
 

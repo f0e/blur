@@ -7,40 +7,52 @@
 
 #include "../../renderer.h"
 
-void ui::render_button(os::Surface* surface, const Element* element, float anim) {
+void ui::render_button(const Container& container, os::Surface* surface, const AnimatedElement& element) {
 	const float button_rounding = 7.8f;
 
-	const auto& button_data = std::get<ButtonElementData>(element->data);
+	const auto& button_data = std::get<ButtonElementData>(element.element->data);
+	float anim = element.animations.at(hasher("main")).current;
+	float hover_anim = element.animations.at(hasher("hover")).current;
 
-	bool hovered = element->rect.contains(keys::mouse_pos);
-	if (hovered) {
-		gui::renderer::set_cursor(os::NativeCursor::Link);
-
-		if (button_data.on_press) {
-			if (keys::is_mouse_down()) {
-				(*button_data.on_press)();
-				keys::on_mouse_press_handled(os::Event::MouseButton::LeftButton);
-			}
-		}
-	}
-
-	int shade = hovered ? 40 : 20; // todo: lerp hover shade
+	int shade = 20 + (20 * hover_anim);
 	gfx::Color adjusted_color = utils::adjust_color(gfx::rgba(shade, shade, shade, 255), anim);
 	gfx::Color adjusted_text_color = utils::adjust_color(gfx::rgba(255, 255, 255, 255), anim);
 
-	gfx::Point text_pos = element->rect.center();
+	gfx::Point text_pos = element.element->rect.center();
 
 	text_pos.y += button_data.font.getSize() / 2 - 1;
 
 	// fill
-	render::rounded_rect_filled(surface, element->rect, adjusted_color, button_rounding);
+	render::rounded_rect_filled(surface, element.element->rect, adjusted_color, button_rounding);
 
 	// border
 	render::rounded_rect_stroke(
-		surface, element->rect, utils::adjust_color(gfx::rgba(100, 100, 100, 255), anim), button_rounding
+		surface, element.element->rect, utils::adjust_color(gfx::rgba(100, 100, 100, 255), anim), button_rounding
 	);
 
 	render::text(surface, text_pos, adjusted_text_color, button_data.text, button_data.font, os::TextAlign::Center);
+}
+
+bool ui::update_button(const Container& container, AnimatedElement& element) {
+	const auto& button_data = std::get<ButtonElementData>(element.element->data);
+
+	auto& anim = element.animations.at(hasher("hover"));
+
+	bool hovered = element.element->rect.contains(keys::mouse_pos);
+	anim.set_goal(hovered ? 1.f : 0.f);
+
+	if (hovered) {
+		if (button_data.on_press) {
+			if (keys::is_mouse_down()) {
+				(*button_data.on_press)();
+				keys::on_mouse_press_handled(os::Event::MouseButton::LeftButton);
+
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 ui::Element& ui::add_button(
@@ -64,7 +76,17 @@ ui::Element& ui::add_button(
 				.on_press = std::move(on_press),
 			},
 		.render_fn = render_button,
+		.update_fn = update_button,
 	};
 
-	return *add_element(container, id, std::move(element), container.line_height);
+	return *add_element(
+		container,
+		id,
+		std::move(element),
+		container.line_height,
+		{
+			{ hasher("main"), { .speed = 25.f } },
+			{ hasher("hover"), { .speed = 40.f } },
+		}
+	);
 }

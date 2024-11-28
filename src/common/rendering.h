@@ -2,6 +2,14 @@
 
 #include "config.h"
 
+struct RenderCommands {
+	std::wstring vspipe_path;
+	std::vector<std::wstring> vspipe;
+
+	std::wstring ffmpeg_path;
+	std::vector<std::wstring> ffmpeg;
+};
+
 struct RenderStatus {
 	bool finished = false;
 	bool init = false;
@@ -33,14 +41,6 @@ private:
 	BlurSettings m_settings;
 
 	void build_output_filename();
-
-	struct RenderCommands {
-		std::wstring vspipe_path;
-		std::vector<std::wstring> vspipe;
-
-		std::wstring ffmpeg_path;
-		std::vector<std::wstring> ffmpeg;
-	};
 
 	RenderCommands build_render_commands();
 
