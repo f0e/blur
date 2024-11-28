@@ -64,7 +64,7 @@ namespace ui {
 		}
 	};
 
-	enum class NotificationType {
+	enum class NotificationType : uint8_t {
 		INFO,
 		SUCCESS,
 		ERROR
@@ -199,6 +199,7 @@ namespace ui {
 	struct AnimatedElement {
 		std::unique_ptr<Element> element;
 		std::unordered_map<size_t, AnimationState> animations;
+		int z_index = 0;
 	};
 
 	const inline AnimationInitialisation DEFAULT_ANIMATION = { .speed = 25.f };

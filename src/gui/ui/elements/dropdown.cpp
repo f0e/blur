@@ -147,6 +147,7 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 			active = true;
 		}
 
+		element.z_index = active ? 1 : 0;
 		expand_anim.set_goal(active ? 1.f : 0.f);
 	};
 

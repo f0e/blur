@@ -24,6 +24,39 @@ namespace {
 	int get_max_scroll(const ui::Container& container) {
 		return get_content_height(container) - container.rect.h;
 	}
+
+	void render_scrollbar(os::Surface* surface, const ui::Container& container) {
+		if (!can_scroll(container))
+			return;
+
+		// Calculate total content height
+		float total_content_height = get_content_height(container);
+
+		// Calculate visible area height
+		float visible_height = container.rect.h;
+
+		// Calculate scrollbar height proportional to visible vs total content
+		float scrollbar_height = (visible_height / total_content_height) * visible_height;
+
+		// Calculate scrollbar vertical position
+		float scrollbar_y = container.rect.y + ((container.scroll_y / total_content_height) * visible_height);
+
+		// Create scrollbar rectangle
+		gfx::Rect scrollbar_rect(
+			container.rect.x + container.rect.w - 8, // Position near right edge
+			scrollbar_y,
+			3, // Thin width
+			scrollbar_height
+		);
+
+		// Render scrollbar with slight transparency
+		render::rounded_rect_filled(
+			surface,
+			scrollbar_rect,
+			gfx::rgba(255, 255, 255, 155),
+			2.f // Slight rounding
+		);
+	}
 }
 
 void ui::reset_container(
@@ -152,7 +185,7 @@ void ui::center_elements_in_container(Container& container, bool horizontal, boo
 		}
 
 		// Calculate starting x to center the entire group
-		int start_group_x = container.rect.center().x - total_width / 2;
+		int start_group_x = container.rect.center().x - (total_width / 2);
 
 		// Reposition elements
 		for (size_t i = 0; i < group_elements.size(); ++i) {
@@ -182,14 +215,10 @@ std::vector<decltype(ui::Container::elements)::iterator> ui::get_sorted_containe
 		}
 	}
 
+	// Sort elements by animatedelement.z_index (higher = first)
 	std::ranges::stable_sort(sorted_elements, [](const auto& lhs, const auto& rhs) {
-		// Prioritize dropdown elements
-		if (lhs->second.element->type == ElementType::DROPDOWN && rhs->second.element->type != ElementType::DROPDOWN)
-			return true;
-		if (lhs->second.element->type != ElementType::DROPDOWN && rhs->second.element->type == ElementType::DROPDOWN)
-			return false;
-
-		return false;
+		// Compare z_index values in descending order
+		return lhs->second.z_index > rhs->second.z_index;
 	});
 
 	return sorted_elements;
@@ -306,39 +335,6 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 	}
 
 	return container.updated || need_to_render_animation_update;
-}
-
-void render_scrollbar(os::Surface* surface, const ui::Container& container) {
-	if (!can_scroll(container))
-		return;
-
-	// Calculate total content height
-	float total_content_height = get_content_height(container);
-
-	// Calculate visible area height
-	float visible_height = container.rect.h;
-
-	// Calculate scrollbar height proportional to visible vs total content
-	float scrollbar_height = (visible_height / total_content_height) * visible_height;
-
-	// Calculate scrollbar vertical position
-	float scrollbar_y = container.rect.y + (container.scroll_y / total_content_height) * visible_height;
-
-	// Create scrollbar rectangle
-	gfx::Rect scrollbar_rect(
-		container.rect.x + container.rect.w - 8, // Position near right edge
-		scrollbar_y,
-		3, // Thin width
-		scrollbar_height
-	);
-
-	// Render scrollbar with slight transparency
-	render::rounded_rect_filled(
-		surface,
-		scrollbar_rect,
-		gfx::rgba(255, 255, 255, 155),
-		2.f // Slight rounding
-	);
 }
 
 void ui::render_container(os::Surface* surface, Container& container) {
