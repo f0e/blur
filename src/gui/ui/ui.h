@@ -10,7 +10,8 @@ namespace ui {
 		SLIDER,
 		TEXT_INPUT,
 		CHECKBOX,
-		DROPDOWN
+		DROPDOWN,
+		SEPARATOR
 	};
 
 	struct BarElementData {
@@ -67,7 +68,7 @@ namespace ui {
 	enum class NotificationType : uint8_t {
 		INFO,
 		SUCCESS,
-		ERROR
+		NOTIF_ERROR
 	};
 
 	struct NotificationElementData {
@@ -245,6 +246,8 @@ namespace ui {
 	void render_dropdown(const Container& container, os::Surface* surface, const AnimatedElement& element);
 	bool update_dropdown(const Container& container, AnimatedElement& element);
 
+	void render_separator(const Container& container, os::Surface* surface, const AnimatedElement& element);
+
 	void reset_container(
 		Container& container, const gfx::Rect& rect, int line_height, std::optional<gfx::Color> background_color = {}
 	);
@@ -357,6 +360,8 @@ namespace ui {
 		const SkFont& font,
 		std::optional<std::function<void(std::string*)>> on_change = {}
 	);
+
+	Element& add_separator(const std::string& id, Container& container);
 
 	void add_spacing(Container& container, int spacing);
 

@@ -63,7 +63,7 @@ std::optional<ui::Element*> ui::add_image(
 
 	// load image if new
 	if (!image_surface) {
-		image_surface = os::instance()->loadRgbaSurface(image_path.c_str());
+		image_surface = os::instance()->loadRgbaSurface(image_path.string().c_str());
 
 		if (!image_surface) {
 			u::log("{} failed to load image (id: {})", id, image_id);

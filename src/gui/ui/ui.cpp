@@ -205,19 +205,14 @@ void ui::center_elements_in_container(Container& container, bool horizontal, boo
 }
 
 std::vector<decltype(ui::Container::elements)::iterator> ui::get_sorted_container_elements(Container& container) {
-	// Create a sorted vector of element iterators
 	std::vector<decltype(container.elements)::iterator> sorted_elements;
 	sorted_elements.reserve(container.elements.size());
+
 	for (auto it = container.elements.begin(); it != container.elements.end(); ++it) {
-		// Only process elements in current_element_ids
-		if (std::ranges::find(container.current_element_ids, it->first) != container.current_element_ids.end()) {
-			sorted_elements.push_back(it);
-		}
+		sorted_elements.push_back(it);
 	}
 
-	// Sort elements by animatedelement.z_index (higher = first)
 	std::ranges::stable_sort(sorted_elements, [](const auto& lhs, const auto& rhs) {
-		// Compare z_index values in descending order
 		return lhs->second.z_index > rhs->second.z_index;
 	});
 
@@ -232,6 +227,10 @@ bool ui::update_container_input(Container& container) {
 	for (auto& it : sorted_elements) {
 		const auto& id = it->first;
 		auto& element = it->second;
+
+		bool stale = std::ranges::find(container.current_element_ids, id) == container.current_element_ids.end();
+		if (stale)
+			continue;
 
 		if (active_element && &element != active_element)
 			continue;

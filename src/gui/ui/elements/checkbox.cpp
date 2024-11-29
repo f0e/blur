@@ -11,7 +11,7 @@
 
 const float checkbox_rounding = 4.0f;
 const float checkbox_size = 20.0f;
-const int label_gap = 10;
+const int label_gap = 8;
 
 void ui::render_checkbox(const Container& container, os::Surface* surface, const AnimatedElement& element) {
 	const auto& checkbox_data = std::get<CheckboxElementData>(element.element->data);

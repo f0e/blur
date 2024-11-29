@@ -20,25 +20,29 @@ void ui::render_notification(const Container& container, os::Surface* surface, c
 
 	switch (notification_data.type) {
 		case NotificationType::SUCCESS: {
-			notification_color = utils::adjust_color(gfx::rgba(0, 35, 0, 255), anim);
-			border_color = utils::adjust_color(gfx::rgba(80, 100, 80, 255), anim);
-			text_color = utils::adjust_color(gfx::rgba(100, 255, 100, 255), anim);
+			notification_color = gfx::rgba(0, 35, 0, 255);
+			border_color = gfx::rgba(80, 100, 80, 255);
+			text_color = gfx::rgba(100, 255, 100, 255);
 			break;
 		}
-		case NotificationType::ERROR: {
-			notification_color = utils::adjust_color(gfx::rgba(35, 0, 0, 255), anim);
-			border_color = utils::adjust_color(gfx::rgba(100, 80, 80, 255), anim);
-			text_color = utils::adjust_color(gfx::rgba(255, 100, 100, 255), anim);
+		case NotificationType::NOTIF_ERROR: {
+			notification_color = gfx::rgba(35, 0, 0, 255);
+			border_color = gfx::rgba(100, 80, 80, 255);
+			text_color = gfx::rgba(255, 100, 100, 255);
 			break;
 		}
 		case NotificationType::INFO:
 		default: {
-			notification_color = utils::adjust_color(gfx::rgba(35, 35, 35, 255), anim);
-			border_color = utils::adjust_color(gfx::rgba(100, 100, 100, 255), anim);
-			text_color = utils::adjust_color(gfx::rgba(255, 255, 255, 255), anim);
+			notification_color = gfx::rgba(35, 35, 35, 255);
+			border_color = gfx::rgba(100, 100, 100, 255);
+			text_color = gfx::rgba(255, 255, 255, 255);
 			break;
 		}
 	};
+
+	notification_color = utils::adjust_color(notification_color, anim);
+	border_color = utils::adjust_color(border_color, anim);
+	text_color = utils::adjust_color(text_color, anim);
 
 	// fill
 	render::rounded_rect_filled(surface, element.element->rect, notification_color, rounding);

@@ -217,7 +217,13 @@ void gui::renderer::components::configs::options(ui::Container& container, BlurS
 	static const gfx::Color section_color = gfx::rgba(155, 155, 155, 255);
 	static const int section_spacing = 1;
 
+	bool first_section = true;
 	auto section_component = [&](std::string label, bool* setting = nullptr) {
+		if (!first_section)
+			ui::add_separator(std::format("section {} separator", label), container);
+		else
+			first_section = false;
+
 		if (setting) {
 			ui::add_checkbox(std::format("section {}", label), container, label, *setting, fonts::smaller_header_font);
 		}
@@ -537,7 +543,7 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 				loading = false;
 
 				if (!res.success) {
-					add_notification("Failed to generate config preview", ui::NotificationType::ERROR);
+					add_notification("Failed to generate config preview", ui::NotificationType::NOTIF_ERROR);
 				}
 			}
 
@@ -884,6 +890,6 @@ void gui::renderer::add_notification(
 void gui::renderer::on_render_finished(Render* render, bool success) {
 	add_notification(
 		std::format("Render '{}' {}", base::to_utf8(render->get_video_name()), success ? "finished" : "failed"),
-		success ? ui::NotificationType::SUCCESS : ui::NotificationType::ERROR
+		success ? ui::NotificationType::SUCCESS : ui::NotificationType::NOTIF_ERROR
 	);
 }

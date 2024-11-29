@@ -38,6 +38,10 @@ bool keys::process_event(const os::Event& event) {
 
 		case os::Event::MouseWheel: {
 			scroll_delta = event.wheelDelta().y;
+
+			if (!event.preciseWheel())
+				scroll_delta *= 100.f;
+
 			return true;
 		}
 
