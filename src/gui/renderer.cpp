@@ -206,15 +206,11 @@ void gui::renderer::components::main_screen(ui::Container& container, float delt
 	}
 }
 
-bool loaded_config = false;
-
-namespace gui::renderer::components::configs {
-	static void set_interpolated_fps() {
-		if (interpolate_scale)
-			settings.interpolated_fps = std::format("{}x", interpolated_fps_mult);
-		else
-			settings.interpolated_fps = std::to_string(interpolated_fps);
-	}
+void gui::renderer::components::configs::set_interpolated_fps() {
+	if (interpolate_scale)
+		settings.interpolated_fps = std::format("{}x", interpolated_fps_mult);
+	else
+		settings.interpolated_fps = std::to_string(interpolated_fps);
 }
 
 void gui::renderer::components::configs::options(ui::Container& container, BlurSettings& settings) {
@@ -432,9 +428,7 @@ void gui::renderer::components::configs::options(ui::Container& container, BlurS
 		"1", "2", "11", "13", "21", "23",
 	};
 
-	static const std::vector<std::string> interpolation_block_sizes = {
-		"4", "8", "16", "32", "64", // todo: is 64 real
-	};
+	static const std::vector<std::string> interpolation_block_sizes = { "4", "8", "16", "32" };
 
 	ui::add_dropdown(
 		"interpolation preset dropdown",
@@ -474,6 +468,7 @@ void gui::renderer::components::configs::options(ui::Container& container, BlurS
 	);
 }
 
+// NOLINTBEGIN(readability-function-cognitive-complexity) todo: refactor
 void gui::renderer::components::configs::preview(ui::Container& container, BlurSettings& settings) {
 	static BlurSettings previewed_settings;
 	static bool first = true;
@@ -533,9 +528,17 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 				blur.remove_temp_path(preview_path.parent_path());
 
 				preview_path = res.output_path;
-				loading = false;
 
 				u::log("config preview finished rendering");
+			}
+
+			if (render == renders.back().get())
+			{ // todo: this should be correct right? any cases where this doesn't work?
+				loading = false;
+
+				if (!res.success) {
+					add_notification("Failed to generate config preview", ui::NotificationType::ERROR);
+				}
 			}
 
 			render->set_can_delete();
@@ -564,8 +567,10 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 	}
 }
 
+// NOLINTEND(readability-function-cognitive-complexity)
+
 void gui::renderer::components::configs::screen(
-	ui::Container& config_container, ui::Container& preview_container, float delta_time
+	ui::Container& config_container, ui::Container& preview_container, float /*delta_time*/
 ) {
 	auto parse_interp = [&] {
 		try {
@@ -640,6 +645,7 @@ void gui::renderer::components::configs::screen(
 }
 
 // NOLINTBEGIN(readability-function-size,readability-function-cognitive-complexity)
+
 bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	set_cursor_this_frame = false;
 
@@ -735,7 +741,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 
 			ui::center_elements_in_container(main_container);
 
-			loaded_config = false;
+			components::configs::loaded_config = false;
 
 			break;
 		}

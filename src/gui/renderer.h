@@ -37,7 +37,7 @@ namespace gui::renderer {
 
 	void set_cursor(os::NativeCursor cursor);
 
-	enum class Screens {
+	enum class Screens : uint8_t {
 		MAIN,
 		CONFIG
 	};
@@ -66,12 +66,16 @@ namespace gui::renderer {
 			inline BlurSettings settings;
 			inline BlurSettings current_global_settings;
 
+			inline bool loaded_config = false;
+
 			inline bool interpolate_scale = true;
 			inline float interpolated_fps_mult = 5.f;
 			inline int interpolated_fps = 1200;
 
 			inline std::vector<std::unique_ptr<FrameRender>> renders;
 			inline std::mutex render_mutex;
+
+			void set_interpolated_fps();
 
 			void options(ui::Container& container, BlurSettings& settings);
 			void preview(ui::Container& container, BlurSettings& settings);
