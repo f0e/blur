@@ -53,7 +53,7 @@ namespace {
 		render::rounded_rect_filled(
 			surface,
 			scrollbar_rect,
-			gfx::rgba(255, 255, 255, 155),
+			gfx::rgba(255, 255, 255, 50),
 			2.f // Slight rounding
 		);
 	}
@@ -95,6 +95,8 @@ ui::Element* ui::add_element(
 	const std::unordered_map<size_t, AnimationInitialisation>& animations
 ) {
 	auto& animated_element = container.elements[id];
+
+	_element.orig_rect = _element.rect;
 
 	if (animated_element.element) {
 		if (animated_element.element->data != _element.data) {
@@ -202,6 +204,10 @@ void ui::center_elements_in_container(Container& container, bool horizontal, boo
 			}
 		}
 	}
+
+	// update original rects for scrolling
+	for (auto& [id, element] : container.elements)
+		element.element->orig_rect = element.element->rect;
 }
 
 std::vector<decltype(ui::Container::elements)::iterator> ui::get_sorted_container_elements(Container& container) {
@@ -269,16 +275,14 @@ void ui::on_update_end() {
 bool ui::update_container_frame(Container& container, float delta_time) {
 	bool need_to_render_animation_update = false;
 
-	if (container.scroll_y != 0.f) {
-		if (can_scroll(container)) {
-			int max_scroll = get_max_scroll(container);
+	if (container.scroll_y != 0.f && can_scroll(container)) {
+		int max_scroll = get_max_scroll(container);
 
-			container.scroll_y += keys::scroll_delta;
-			if (container.scroll_y < 0)
-				container.scroll_y = 0.f;
-			else if (container.scroll_y > max_scroll)
-				container.scroll_y = max_scroll;
-		}
+		container.scroll_y += keys::scroll_delta;
+		if (container.scroll_y < 0)
+			container.scroll_y = 0.f;
+		else if (container.scroll_y > max_scroll)
+			container.scroll_y = max_scroll;
 	}
 	else {
 		container.scroll_y = 0.f;
@@ -312,7 +316,7 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 		auto& [id, element] = *it;
 
 		// hacky, idc.
-		element.element->rect.y -= container.scroll_y;
+		element.element->rect.y = element.element->orig_rect.y - container.scroll_y;
 
 		auto& main_animation = element.animations.at(hasher("main"));
 

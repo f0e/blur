@@ -4,6 +4,8 @@ bool keys::process_event(const os::Event& event) {
 	switch (event.type()) {
 		case os::Event::MouseLeave: {
 			mouse_pos = { -1, -1 };
+			pressed_mouse_keys.clear(
+			); // fix mouseup not being registered when left the window todo: handle this properly
 			return true;
 		}
 

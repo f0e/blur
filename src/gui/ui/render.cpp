@@ -1,9 +1,10 @@
 #include "render.h"
-#include "include/core/SkPaint.h"
-#include "include/core/SkRRect.h"
-#include "os/skia/skia_surface.h"
+#include <include/core/SkPaint.h>
+#include <include/core/SkRRect.h>
+#include <os/skia/skia_surface.h>
 
-#include "include/core/SkFontMetrics.h"
+#include <include/core/SkFontMetrics.h>
+#include <include/effects/SkGradientShader.h>
 
 // todo: is creating a new paint instance every time significant to perf? shouldnt be
 
@@ -34,6 +35,82 @@ void render::rect_filled(os::Surface* surface, const gfx::Rect& rect, gfx::Color
 	paint.color(colour);
 
 	surface->drawRect(rect, paint);
+}
+
+void render::rect_filled_gradient(
+	os::Surface* surface,
+	const gfx::Rect& rect,
+	const std::vector<gfx::Point>& gradient_direction,
+	const std::vector<gfx::Color>& colors,
+	const std::vector<float>& positions,
+	SkTileMode tile_mode
+) {
+	if (!surface || gradient_direction.size() != 2 || colors.size() < 2 || colors.size() != positions.size()) {
+		return; // Ensure valid input
+	}
+
+	// Convert gfx::Point to SkPoint using os::to_skia
+	std::vector<SkPoint> skia_points;
+	skia_points.reserve(gradient_direction.size());
+	for (const auto& point : gradient_direction)
+		skia_points.push_back(SkPoint(point.x, point.y));
+
+	// Convert gfx::Color to SkColor using os::to_skia
+	std::vector<SkColor> skia_colors;
+	skia_colors.reserve(colors.size());
+	for (const auto& color : colors)
+		skia_colors.push_back(os::to_skia(color));
+
+	// Create gradient shader using the converted vectors
+	SkMatrix matrix = SkMatrix::I();
+	auto shader = SkGradientShader::MakeLinear(
+		skia_points.data(), skia_colors.data(), positions.data(), skia_colors.size(), tile_mode, 0, &matrix
+	);
+
+	SkPaint paint;
+	paint.setShader(shader);
+
+	// Convert gfx::Rect to SkRect
+	SkRect skia_rect = os::to_skia(gfx::RectF(rect));
+
+	// Draw the rectangle on the surface's canvas
+	auto* canvas = &static_cast<os::SkiaSurface*>(surface)->canvas();
+	canvas->drawRect(skia_rect, paint);
+}
+
+void render::rect_filled_gradient(
+	os::Surface* surface,
+	const gfx::Rect& rect,
+	GradientDirection direction,
+	const std::vector<gfx::Color>& colors,
+	const std::vector<float>& positions,
+	SkTileMode tile_mode
+) {
+	gfx::Point start;
+	gfx::Point end;
+
+	switch (direction) {
+		case GradientDirection::GRADIENT_LEFT:
+			start = gfx::Point(rect.x + rect.w, rect.y);
+			end = gfx::Point(rect.x, rect.y);
+			break;
+		case GradientDirection::GRADIENT_RIGHT:
+			start = gfx::Point(rect.x, rect.y);
+			end = gfx::Point(rect.x + rect.w, rect.y);
+			break;
+		case GradientDirection::GRADIENT_UP:
+			start = gfx::Point(rect.x, rect.y + rect.h);
+			end = gfx::Point(rect.x, rect.y);
+			break;
+		case GradientDirection::GRADIENT_DOWN:
+			start = gfx::Point(rect.x, rect.y);
+			end = gfx::Point(rect.x, rect.y + rect.h);
+			break;
+	}
+
+	std::vector<gfx::Point> gradient_direction = { start, end };
+
+	rect_filled_gradient(surface, rect, gradient_direction, colors, positions, tile_mode);
 }
 
 void render::rect_stroke(os::Surface* surface, const gfx::Rect& rect, gfx::Color colour, float stroke_width) {
@@ -155,15 +232,18 @@ gfx::Size render::get_text_size(const std::string& text, const SkFont& font) {
 	// Get the width of the text
 	SkScalar text_width = font.measureText(text.c_str(), text.size(), SkTextEncoding::kUTF8);
 
-	// Get the text metrics to calculate the height
-	SkFontMetrics metrics;
+	// The result will be a width and height structure
+	return { SkScalarTruncToInt(text_width), get_font_height(font) };
+}
+
+int render::get_font_height(const SkFont& font) {
+	SkFontMetrics metrics{};
 	font.getMetrics(&metrics);
 	// SkScalar text_height = metrics.fBottom - metrics.fTop; // Total height of the text (including leading)
 	// float total_height = SkScalarAbs(metrics.fAscent) + metrics.fDescent + metrics.fLeading;
 	int text_height = ceil(metrics.fCapHeight); // good enough - todo: maybe should be round
 
-	// The result will be a width and height structure
-	return { SkScalarTruncToInt(text_width), text_height };
+	return text_height;
 }
 
 // NOLINTBEGIN(readability-function-size,readability-function-cognitive-complexity) ai code idc

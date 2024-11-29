@@ -101,6 +101,9 @@ void gui::renderer::components::render(
 			gfx::rgba(255, 255, 255, 255),
 			&fonts::font
 		);
+
+		auto old_line_height = container.line_height; // todo: push/pop line height
+		container.line_height = 9;
 		ui::add_text(
 			"progress text",
 			container,
@@ -117,6 +120,7 @@ void gui::renderer::components::render(
 			fonts::font,
 			os::TextAlign::Center
 		);
+		container.line_height = old_line_height;
 
 		is_progress_shown = true;
 	}
@@ -215,28 +219,23 @@ void gui::renderer::components::configs::set_interpolated_fps() {
 
 void gui::renderer::components::configs::options(ui::Container& container, BlurSettings& settings) {
 	static const gfx::Color section_color = gfx::rgba(155, 155, 155, 255);
-	static const int section_spacing = 1;
 
 	bool first_section = true;
 	auto section_component = [&](std::string label, bool* setting = nullptr) {
-		if (!first_section)
+		if (!first_section) {
 			ui::add_separator(std::format("section {} separator", label), container);
+		}
 		else
 			first_section = false;
 
 		if (setting) {
-			ui::add_checkbox(std::format("section {}", label), container, label, *setting, fonts::smaller_header_font);
+			ui::add_checkbox(std::format("section {}", label), container, label, *setting, fonts::font);
 		}
 		else {
-			ui::add_text(
-				std::format("section {}", label),
-				container,
-				label,
-				gfx::rgba(255, 255, 255, 255),
-				fonts::smaller_header_font
-			);
+			// ui::add_text(
+			// 	std::format("section {}", label), container, label, gfx::rgba(255, 255, 255, 255), fonts::font
+			// );
 		}
-		ui::add_spacing(container, section_spacing);
 	};
 
 	/*
@@ -543,7 +542,10 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 				loading = false;
 
 				if (!res.success) {
-					add_notification("Failed to generate config preview", ui::NotificationType::NOTIF_ERROR);
+					if (res.error_message == "Input path does not exist")
+						add_notification("Couldn't open sample video", ui::NotificationType::NOTIF_ERROR);
+					else
+						add_notification("Failed to generate config preview", ui::NotificationType::NOTIF_ERROR);
 				}
 			}
 
@@ -571,6 +573,16 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 			gfx::rgba(255, 255, 255, loading ? 100 : 255)
 		);
 	}
+	else {
+		ui::add_text(
+			"loading config preview text",
+			container,
+			"Loading config preview...",
+			gfx::rgba(255, 255, 255, 100),
+			fonts::font,
+			os::TextAlign::Center
+		);
+	}
 }
 
 // NOLINTEND(readability-function-cognitive-complexity)
@@ -582,7 +594,6 @@ void gui::renderer::components::configs::screen(
 		try {
 			auto split = u::split_string(settings.interpolated_fps, "x");
 			if (split.size() > 1) {
-				u::log("its mult interp fps: {} ({})", settings.interpolated_fps, split[0]);
 				interpolated_fps_mult = std::stof(split[0]);
 				interpolate_scale = true;
 			}
@@ -720,7 +731,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	gfx::Rect config_container_rect = container_rect;
 	config_container_rect.w = 200 + PAD_X * 2;
 
-	ui::reset_container(config_container, config_container_rect, fonts::font.getSize());
+	ui::reset_container(config_container, config_container_rect, 9);
 
 	gfx::Rect config_preview_container_rect = container_rect;
 	config_preview_container_rect.x = config_container_rect.x2() + config_page_container_gap;

@@ -195,6 +195,7 @@ namespace ui {
 		std::function<void(const Container&, os::Surface*, const AnimatedElement&)> render_fn;
 		std::optional<std::function<bool(const Container&, AnimatedElement&)>> update_fn;
 		bool fixed = false;
+		gfx::Rect orig_rect;
 	};
 
 	struct AnimatedElement {
@@ -222,6 +223,8 @@ namespace ui {
 	inline auto hasher = std::hash<std::string>{};
 
 	inline AnimatedElement* active_element = nullptr;
+
+	inline const auto highlight_color = gfx::rgba(133, 24, 16, 255);
 
 	void render_bar(const Container& container, os::Surface* surface, const AnimatedElement& element);
 

@@ -24,6 +24,7 @@ public:
 	struct RenderResponse {
 		bool success;
 		std::filesystem::path output_path;
+		std::string error_message;
 	};
 
 	bool create_temp_path();

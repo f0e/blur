@@ -112,6 +112,8 @@ bool FrameRender::do_render(RenderCommands render_commands, const BlurSettings& 
 		bool success =
 			ffmpeg_process.exit_code() == 0; // vspipe_process.exit_code() == 0 && ffmpeg_process.exit_code() == 0;
 
+		// todo: check why vspipe isnt returning 0
+
 		if (!success)
 			remove_temp_path();
 
@@ -142,14 +144,22 @@ bool FrameRender::remove_temp_path() {
 }
 
 FrameRender::RenderResponse FrameRender::render(const std::filesystem::path& input_path, const BlurSettings& settings) {
+	if (!std::filesystem::exists(input_path)) {
+		return {
+			.success = false,
+			.error_message = "Input path does not exist",
+		};
+	}
+
 	if (!create_temp_path()) {
 		u::log("failed to make temp path");
 		return {
 			.success = false,
+			.error_message = "Failed to make temp path",
 		};
 	}
 
-	std::filesystem::path output_path = m_temp_path / "render.jpg";
+	std::filesystem::path output_path = m_temp_path / "render.png";
 
 	// render
 	RenderCommands render_commands = build_render_commands(input_path, output_path, settings);

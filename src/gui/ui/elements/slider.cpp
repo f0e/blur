@@ -6,16 +6,49 @@
 #include "../../renderer.h"
 
 const float slider_rounding = 4.0f;
-const float handle_width = 10.0f;
-const int track_height = 5;
-const int line_height_add = 5;
+const float handle_width = 10;
+const int track_height = 4;
+const int line_height_add = 7;
+const int track_label_gap = 10;
+
+namespace {
+	struct SliderPositions {
+		gfx::Point label_pos;
+		gfx::Point tooltip_pos;
+		gfx::Rect track_rect;
+	};
+
+	SliderPositions get_slider_positions(const ui::AnimatedElement& element, const ui::SliderElementData& slider_data) {
+		int text_size = render::get_font_height(slider_data.font);
+
+		gfx::Point label_pos = element.element->rect.origin();
+		label_pos.y += text_size;
+
+		gfx::Rect track_rect = element.element->rect;
+		track_rect.y = label_pos.y + track_label_gap;
+		track_rect.h = track_height;
+
+		gfx::Point tooltip_pos = label_pos;
+		if (slider_data.tooltip != "") {
+			tooltip_pos.y += line_height_add;
+			tooltip_pos.y += text_size;
+
+			// shift track rect down
+			track_rect.y += tooltip_pos.y - label_pos.y;
+		}
+
+		return {
+			.label_pos = label_pos,
+			.tooltip_pos = tooltip_pos,
+			.track_rect = track_rect,
+		};
+	}
+}
 
 void ui::render_slider(const Container& container, os::Surface* surface, const AnimatedElement& element) {
 	const auto& slider_data = std::get<SliderElementData>(element.element->data);
 	float anim = element.animations.at(hasher("main")).current;
 	float hover_anim = element.animations.at(hasher("hover")).current;
-
-	int line_height = slider_data.font.getSize();
 
 	// Determine current value and range based on type
 	float min_val = std::visit(
@@ -45,39 +78,13 @@ void ui::render_slider(const Container& container, os::Surface* surface, const A
 	int track_shade = 40 + (20 * hover_anim);
 	gfx::Color track_color = utils::adjust_color(gfx::rgba(track_shade, track_shade, track_shade, 255), anim);
 
-	int fill_shade = 55 + (55 * hover_anim);
-	gfx::Color filled_color = utils::adjust_color(gfx::rgba(fill_shade, fill_shade, fill_shade, 255), anim);
+	gfx::Color filled_color = utils::adjust_color(highlight_color, anim);
 	gfx::Color handle_border_color = utils::adjust_color(gfx::rgba(0, 0, 0, 50), anim);
 
 	gfx::Color text_color = utils::adjust_color(gfx::rgba(255, 255, 255, 255), anim);
 	gfx::Color tooltip_color = utils::adjust_color(gfx::rgba(125, 125, 125, 255), anim);
 
-	// render::rect_filled(surface, element.element->rect, gfx::rgba(255, 0, 0, 100));
-
-	gfx::Rect track_rect = element.element->rect;
-	track_rect.shrink(handle_width / 2);
-	track_rect.y = track_rect.y2() - handle_width / 2;
-	track_rect.h = track_height;
-
-	// Draw track
-	render::rounded_rect_filled(surface, track_rect, track_color, slider_rounding);
-
-	// Draw filled portion
-	gfx::Rect filled_rect = track_rect;
-	filled_rect.w *= clamped_progress;
-	render::rounded_rect_filled(surface, filled_rect, filled_color, slider_rounding);
-
-	// Calculate handle position
-	if (progress >= 0.f && progress <= 1.f) {
-		float handle_x = track_rect.x + (track_rect.w * clamped_progress) - (handle_width / 2);
-		gfx::Rect handle_rect(handle_x, track_rect.y - ((handle_width - track_height) / 2), handle_width, handle_width);
-
-		// Draw handle
-		auto tmp = handle_rect;
-		tmp.enlarge(1);
-		render::rounded_rect_filled(surface, tmp, handle_border_color, handle_width);
-		render::rounded_rect_filled(surface, handle_rect, filled_color, handle_width);
-	}
+	auto positions = get_slider_positions(element, slider_data);
 
 	std::string label;
 	std::visit(
@@ -87,25 +94,44 @@ void ui::render_slider(const Container& container, os::Surface* surface, const A
 		slider_data.current_value
 	);
 
-	gfx::Point label_pos = element.element->rect.origin();
-	label_pos.y += slider_data.font.getSize();
+	render::text(surface, positions.label_pos, text_color, label, slider_data.font, os::TextAlign::Left);
 
-	render::text(surface, label_pos, text_color, label, slider_data.font, os::TextAlign::Left);
+	if (slider_data.tooltip != "") {
+		render::text(
+			surface, positions.tooltip_pos, tooltip_color, slider_data.tooltip, slider_data.font, os::TextAlign::Left
+		);
+	}
 
-	label_pos.y += line_height_add;
-	label_pos.y += slider_data.font.getSize();
+	// Draw track
+	render::rect_filled(surface, positions.track_rect, track_color);
 
-	render::text(surface, label_pos, tooltip_color, slider_data.tooltip, slider_data.font, os::TextAlign::Left);
+	// Draw filled portion
+	gfx::Rect filled_rect = positions.track_rect;
+	filled_rect.w *= clamped_progress;
+	render::rect_filled(surface, filled_rect, filled_color);
+
+	// Calculate handle position
+	if (progress >= 0.f && progress <= 1.f) {
+		float handle_x = positions.track_rect.x + (positions.track_rect.w * clamped_progress) - (handle_width / 2);
+		gfx::Rect handle_rect(
+			handle_x, positions.track_rect.y - ((handle_width - track_height) / 2), handle_width, handle_width
+		);
+
+		// Draw handle
+		auto tmp = handle_rect;
+		tmp.enlarge(1);
+		render::rounded_rect_filled(surface, tmp, handle_border_color, handle_width);
+		render::rounded_rect_filled(surface, handle_rect, filled_color, handle_width);
+	}
+
+	// render::rect_stroke(surface, element.element->rect, gfx::rgba(255, 0, 0, 100));
 }
 
 bool ui::update_slider(const Container& container, AnimatedElement& element) {
 	auto& slider_data = std::get<SliderElementData>(element.element->data);
 	auto& hover_anim = element.animations.at(hasher("hover"));
 
-	gfx::Rect track_rect = element.element->rect;
-	track_rect.shrink(handle_width / 2);
-	track_rect.y = track_rect.y2();
-	track_rect.h = track_height;
+	auto positions = get_slider_positions(element, slider_data);
 
 	bool hovered = element.element->rect.contains(keys::mouse_pos);
 	bool active = active_element == &element;
@@ -131,7 +157,7 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 
 	if (active_element == &element) {
 		if (keys::is_mouse_down()) {
-			float mouse_progress = (keys::mouse_pos.x - track_rect.x) / (float)track_rect.w;
+			float mouse_progress = (keys::mouse_pos.x - positions.track_rect.x) / (float)positions.track_rect.w;
 			mouse_progress = std::clamp(mouse_progress, 0.0f, 1.0f);
 
 			float new_val = min_val + (mouse_progress * (max_val - min_val));
@@ -177,7 +203,7 @@ ui::Element& ui::add_slider(
 ) {
 	int line_height = font.getSize();
 
-	gfx::Size slider_size(200, line_height + (handle_width * 2));
+	gfx::Size slider_size(200, line_height + track_label_gap + track_height);
 	if (tooltip != "")
 		slider_size.h += line_height_add + line_height;
 

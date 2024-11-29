@@ -7,11 +7,9 @@
 
 #include "../../renderer.h"
 
-#include "include/core/SkFontMetrics.h"
-
-const float checkbox_rounding = 4.0f;
-const float checkbox_size = 20.0f;
-const int label_gap = 8;
+const float checkbox_rounding = 1.0f;
+const float checkbox_size = 7.0f;
+const int label_gap = 5;
 
 void ui::render_checkbox(const Container& container, os::Surface* surface, const AnimatedElement& element) {
 	const auto& checkbox_data = std::get<CheckboxElementData>(element.element->data);
@@ -27,40 +25,22 @@ void ui::render_checkbox(const Container& container, os::Surface* surface, const
 
 	// Checkbox border and check mark colors
 	gfx::Color border_color = utils::adjust_color(gfx::rgba(100, 100, 100, 255), anim);
-	gfx::Color check_color = utils::adjust_color(gfx::rgba(255, 255, 255, 255), anim * check_anim);
+	gfx::Color check_color = utils::adjust_color(highlight_color, anim * check_anim);
+
+	// render::rect_stroke(surface, element.element->rect, gfx::rgba(255, 0, 0, 255));
 
 	// Calculate checkbox rect (centered vertically with text)
 	gfx::Rect checkbox_rect = element.element->rect;
 	checkbox_rect.w = checkbox_size;
 	checkbox_rect.h = checkbox_size;
+	checkbox_rect.y += (element.element->rect.h - checkbox_size) / 2;
 
-	// Render checkbox background
-	render::rounded_rect_filled(surface, checkbox_rect, bg_color, checkbox_rounding);
+	// checkbox
+	render::rect_filled(surface, checkbox_rect, bg_color);
+	render::rect_stroke(surface, checkbox_rect, border_color);
 
-	// Render checkbox border
-	render::rounded_rect_stroke(surface, checkbox_rect, border_color, checkbox_rounding);
-
-	// Render checkmark if checked
-	if (check_anim > 0.1f) {
-		gfx::Point center = checkbox_rect.center();
-		float check_size = checkbox_size * 0.6f;
-
-		// Draw checkmark lines
-		render::line(
-			surface,
-			gfx::Point(center.x - check_size / 2, center.y),
-			gfx::Point(center.x, center.y + check_size / 2),
-			check_color,
-			2.0f
-		);
-		render::line(
-			surface,
-			gfx::Point(center.x, center.y + check_size / 2),
-			gfx::Point(center.x + check_size / 2, center.y - check_size / 2),
-			check_color,
-			2.0f
-		);
-	}
+	// checked
+	render::rect_filled(surface, checkbox_rect, check_color);
 
 	// Render label text
 	gfx::Point text_pos = element.element->rect.origin();

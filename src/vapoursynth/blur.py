@@ -30,9 +30,9 @@ if settings["deduplicate"]:
         video,
         threshold=0.001,
         svp_preset=settings["interpolation_preset"],
-        svp_algorithm=settings["interpolation_algorithm"],
-        svp_blocksize=settings["interpolation_blocksize"],
-        svp_masking=settings["interpolation_mask_area"],
+        svp_algorithm=int(settings["interpolation_algorithm"]),
+        svp_blocksize=int(settings["interpolation_blocksize"]),
+        svp_masking=int(settings["interpolation_mask_area"]),
         svp_gpu=settings["gpu_interpolation"],
     )
 
@@ -106,7 +106,7 @@ if settings["interpolate"]:
                     algorithm=int(settings["interpolation_algorithm"]),
                     blocksize=int(settings["interpolation_blocksize"]),
                     overlap=0,
-                    masking=settings["interpolation_mask_area"],
+                    masking=int(settings["interpolation_mask_area"]),
                     gpu=settings["gpu_interpolation"],
                 )
 
