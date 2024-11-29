@@ -1,6 +1,9 @@
   cmake_minimum_required(VERSION 3.20)
 
   set(VCPKG_LIBRARY_LINKAGE static)
+  if (WIN32)
+      set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "")
+  endif()
 
   # Force static runtime on Windows
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
