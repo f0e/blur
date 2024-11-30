@@ -37,11 +37,12 @@ void gui::event_loop() {
 
 		update_vsync();
 
-		to_render = event_handler::handle_events(rendered_last); // true if input handled
+		to_render |= event_handler::handle_events(rendered_last); // true if input handled
 
 		const bool rendered = renderer::redraw_window(
 			window.get(), to_render
 		); // note: rendered isn't true if rendering was forced, it's only if an animation or smth is playing
+		to_render = false;
 
 #if DEBUG_RENDER_LOGGING
 		u::log("rendered: {}, to render: {}", rendered, to_render);
@@ -51,10 +52,14 @@ void gui::event_loop() {
 		if (rendered || to_render) {
 			rendered_last = true;
 
+#ifdef WIN32
+			u::sleep(vsync_frame_time); // killllll windowwssssss
+#else
 			auto target_time = frame_start + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
 												 std::chrono::duration<float>(vsync_frame_time)
 											 );
 			std::this_thread::sleep_until(target_time);
+#endif
 		}
 		else {
 			rendered_last = false;

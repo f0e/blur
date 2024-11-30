@@ -88,7 +88,7 @@ void gui::renderer::components::render(
 
 	if (render_status.init) {
 		float render_progress = (float)render_status.current_frame / (float)render_status.total_frames;
-		bar_percent = std::lerp(bar_percent, render_progress, 5.f * delta_time);
+		bar_percent = u::lerp(bar_percent, render_progress, 5.f * delta_time, 0.001f);
 
 		ui::add_bar(
 			"progress bar",
@@ -705,7 +705,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 
 	static float bg_overlay_shade = 0.f;
 	float last_fill_shade = bg_overlay_shade;
-	bg_overlay_shade = std::lerp(bg_overlay_shade, drag_handler::dragging ? 30.f : 0.f, 25.f * delta_time);
+	bg_overlay_shade = u::lerp(bg_overlay_shade, drag_handler::dragging ? 30.f : 0.f, 25.f * delta_time);
 	force_render |= bg_overlay_shade != last_fill_shade;
 
 	gfx::Rect container_rect = rect;

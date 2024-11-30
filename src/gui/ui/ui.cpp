@@ -22,7 +22,7 @@ namespace {
 	}
 
 	int get_max_scroll(const ui::Container& container) {
-		return get_content_height(container) - container.rect.h;
+		return std::max(get_content_height(container) - container.rect.h, 0);
 	}
 
 	void render_scrollbar(os::Surface* surface, const ui::Container& container) {
@@ -263,19 +263,12 @@ bool ui::update_container_input(Container& container) {
 	if (keys::scroll_delta != 0.f) {
 		if (container.rect.contains(keys::mouse_pos)) {
 			if (can_scroll(container)) {
-				int max_scroll = get_max_scroll(container);
+				float last_scroll_speed_y = container.scroll_speed_y;
 
-				float last_scroll_y = container.scroll_y;
-				container.scroll_y += keys::scroll_delta;
-
-				if (container.scroll_y < 0)
-					container.scroll_y = 0.f;
-				else if (container.scroll_y > max_scroll)
-					container.scroll_y = max_scroll;
-
+				container.scroll_speed_y += keys::scroll_delta;
 				keys::scroll_delta = 0.f;
 
-				updated = container.scroll_y != last_scroll_y;
+				updated = container.scroll_speed_y != last_scroll_speed_y;
 			}
 		}
 	}
@@ -290,41 +283,39 @@ void ui::on_update_end() {
 bool ui::update_container_frame(Container& container, float delta_time) {
 	bool need_to_render_animation_update = false;
 
-	if (container.scroll_y != 0.f && can_scroll(container)) {
-		int max_scroll = get_max_scroll(container);
+	// animate scroll
+	float last_scroll_y = container.scroll_y;
 
-		container.scroll_y += keys::scroll_delta;
-		if (container.scroll_y < 0)
-			container.scroll_y = 0.f;
-		else if (container.scroll_y > max_scroll)
-			container.scroll_y = max_scroll;
+	const int scroll_speed_reset_speed = 17.f;
+	const int scroll_speed_overscroll_reset_speed = 25.f;
+	const int scroll_overscroll_reset_speed = 10.f;
+
+	if (can_scroll(container)) {
+		// clamp scroll
+		int max_scroll = get_max_scroll(container);
+		if (container.scroll_y < 0) {
+			container.scroll_speed_y =
+				u::lerp(container.scroll_speed_y, 0.f, scroll_speed_overscroll_reset_speed * delta_time);
+			container.scroll_y = u::lerp(container.scroll_y, 0.f, scroll_overscroll_reset_speed * delta_time);
+		}
+		else if (container.scroll_y > max_scroll) {
+			container.scroll_speed_y =
+				u::lerp(container.scroll_speed_y, 0.f, scroll_speed_overscroll_reset_speed * delta_time);
+			container.scroll_y = u::lerp(container.scroll_y, max_scroll, scroll_overscroll_reset_speed * delta_time);
+		}
+
+		if (container.scroll_speed_y != 0.f) {
+			container.scroll_y += container.scroll_speed_y * delta_time;
+			container.scroll_speed_y = u::lerp(container.scroll_speed_y, 0.f, scroll_speed_reset_speed * delta_time);
+		}
 	}
-	else {
+	else if (container.scroll_y != 0.f) {
+		// no longer scrollable but scroll set, reset it
 		container.scroll_y = 0.f;
 	}
 
-	// overscroll (YOUVE BESTED ME todo: try again. probably easy with mouse but on trackpad its a bitch)
-	// if (can_scroll(container)) {
-	// 	static const float scroll_slowdown = 15.f;
-	// 	static const float scroll_overscroll_multiplier = 0.4f;
-	// 	static const float scroll_overscroll_reset_speed = 15.f;
-
-	// 	float last_scroll_y = last_scroll_y;
-
-	// 	float goal = -1.f;
-	// 	if (container.scroll_y <= 0.f)
-	// 		goal = 0.f;
-	// 	else if (container.scroll_y >= max_scroll)
-	// 		goal = max_scroll;
-
-	// 	if (goal != -1.f) {
-	// 		container.scroll_y = std::lerp(container.scroll_y, goal, 100.f * delta_time);
-	// 		// if (abs(container.scroll_y - goal) < 0.001f)
-	// 		// 	container.scroll_y = goal;
-	// 	}
-
-	// 	need_to_render_animation_update = container.scroll_y != last_scroll_y;
-	// }
+	if (container.scroll_y != last_scroll_y)
+		need_to_render_animation_update |= true;
 
 	// update elements
 	for (auto it = container.elements.begin(); it != container.elements.end();) {

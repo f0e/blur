@@ -169,9 +169,7 @@ namespace ui {
 
 		bool update(float delta_time) {
 			float old_current = current;
-			current = std::clamp(std::lerp(current, goal, speed * delta_time), 0.f, 1.f);
-			if (abs(current - goal) < 0.001f)
-				current = goal;
+			current = std::clamp(u::lerp(current, goal, speed * delta_time, 0.001f), 0.f, 1.f);
 
 			complete = current == goal;
 
@@ -218,6 +216,7 @@ namespace ui {
 		int last_margin_bottom = 0;
 
 		float scroll_y = 0.f;
+		float scroll_speed_y = 0.f;
 	};
 
 	inline auto hasher = std::hash<std::string>{};

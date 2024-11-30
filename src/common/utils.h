@@ -114,6 +114,12 @@ namespace u {
 
 	std::string get_executable_path();
 
+	float lerp(
+		float value, float target, float speed, float snap_offset = 0.01f
+	); // if animations are jumping at the end then lower snap offset. todo: maybe dynamically generate it somehow
+
+	void sleep(double seconds); // https://blog.bearcats.nl/perfect-sleep-function/ kill windows
+
 	template<typename Container>
 	auto join(const Container& container, const typename Container::value_type::value_type* delimiter) {
 		using CharT = typename Container::value_type::value_type;
