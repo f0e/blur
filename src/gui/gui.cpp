@@ -17,8 +17,8 @@ void gui::update_vsync() {
 	void* screen_handle = window->screen()->nativeHandle();
 	static void* last_screen_handle;
 #else
-	int screen_handle = (int)window->screen()->nativeHandle();
-	static int last_screen_handle;
+	intptr_t screen_handle = (intptr_t)window->screen()->nativeHandle();
+	static intptr_t last_screen_handle;
 #endif
 
 	if (screen_handle != last_screen_handle) {

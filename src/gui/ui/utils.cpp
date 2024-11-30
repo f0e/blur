@@ -38,7 +38,7 @@ double utils::get_display_refresh_rate(HMONITOR hMonitor)
 #elif defined(__APPLE__)
 double utils::get_display_refresh_rate(void* nsScreen) // Take NSScreen* as void* to avoid Obj-C++ dependency
 #else
-double utils::get_display_refresh_rate(int screenNumber)
+double utils::get_display_refresh_rate(intptr_t screenNumber)
 #endif
 {
 #ifdef _WIN32
@@ -138,13 +138,13 @@ bool utils::show_file_selector( // aseprite
 				dlg->setDefaultExtension(def_extension);
 			}
 
-#if LAF_LINUX // As the X11 version doesn't store the default path to
-              // start navigating, we use our own
-              // get_initial_path_to_select_filename()
-			dlg->setFileName(get_initial_path_to_select_filename(initialPath));
-#else // !LAF_LINUX
-			dlg->setFileName(initial_path);
-#endif
+			// #if LAF_LINUX // As the X11 version doesn't store the default path to
+			//               // start navigating, we use our own
+			//               // get_initial_path_to_select_filename()
+			// 			dlg->setFileName(get_initial_path_to_select_filename(initialPath));
+			// #else // !LAF_LINUX
+			// 			dlg->setFileName(initial_path);
+			// #endif
 
 			dlg->setType(type);
 
@@ -159,11 +159,11 @@ bool utils::show_file_selector( // aseprite
 					else
 						output.push_back(dlg->fileName());
 
-#if LAF_LINUX // Save the path in the configuration file
-					if (!output.empty()) {
-						set_current_dir_for_file_selector(base::get_file_path(output[0]));
-					}
-#endif
+					// #if LAF_LINUX // Save the path in the configuration file
+					// 					if (!output.empty()) {
+					// 						set_current_dir_for_file_selector(base::get_file_path(output[0]));
+					// 					}
+					// #endif
 
 					return true;
 				}

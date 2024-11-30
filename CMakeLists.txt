@@ -55,10 +55,12 @@ function(setup_target target)
     ${target}
     PRIVATE nlohmann_json::nlohmann_json
             Boost::system
-            Boost::filesystem)
+            Boost::filesystem
+            Threads::Threads)
   target_compile_definitions(
     ${target}
     PRIVATE NOMINMAX
+            BOOST_FILESYSTEM_NO_LIB BOOST_FILESYSTEM_STATIC_LINK=1 CLI11_COMPILE
             $<$<CONFIG:Debug>:_DEBUG>
             $<$<CONFIG:Release>:NDEBUG>)
   if (WIN32)

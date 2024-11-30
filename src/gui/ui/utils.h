@@ -11,7 +11,7 @@ namespace utils {
 #elif defined(__APPLE__)
 	double get_display_refresh_rate(void* nsScreen);
 #else
-	double get_display_refresh_rate(int screenNumber);
+	double get_display_refresh_rate(intptr_t screenNumber);
 #endif
 	// NOLINTEND
 
