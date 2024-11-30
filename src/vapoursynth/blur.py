@@ -15,6 +15,7 @@ import blur.blending
 import blur.deduplicate
 import blur.interpolate
 import blur.weighting
+import blur.adjust
 
 import json
 from pathlib import Path
@@ -196,13 +197,11 @@ if settings["filters"]:
         or settings["contrast"] != 1
         or settings["saturation"] != 1
     ):
-        # TODO: add back
-        pass
-        # video = adjust.Tweak(
-        #     video,
-        #     bright=settings["brightness"] - 1,
-        #     cont=settings["contrast"],
-        #     sat=settings["saturation"],
-        # )
+        video = blur.adjust.Tweak(
+            video,
+            bright=settings["brightness"] - 1,
+            cont=settings["contrast"],
+            sat=settings["saturation"],
+        )
 
 video.set_output()
