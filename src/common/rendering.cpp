@@ -409,6 +409,10 @@ bool Render::do_render(RenderCommands render_commands) {
 		if (success)
 			update_progress(m_status.total_frames, m_status.total_frames);
 
+		std::chrono::duration<float> elapsed_time = std::chrono::steady_clock::now() - m_status.start_time;
+		float elapsed_seconds = elapsed_time.count();
+		u::log("render finished in {:.2f}s", elapsed_seconds);
+
 		return success;
 	}
 	catch (const boost::system::system_error& e) {
