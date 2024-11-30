@@ -61,20 +61,14 @@ jobs:
             esac
           fi | tee -a $GITHUB_OUTPUT
 
-      - name: debug1
-        run: ls
-
       # Configure the project
       - name: Configure CMake
         run: cmake --preset ${{ steps.select-preset.outputs.preset }}
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
-      - name: debug2
-        run: ls
-
       # Build the project
       - name: Build
-        run: cmake --build --preset ${{ steps.select-preset.outputs.preset }}
+        run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }}
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
