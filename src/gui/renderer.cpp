@@ -88,7 +88,7 @@ void gui::renderer::components::render(
 
 	if (render_status.init) {
 		float render_progress = (float)render_status.current_frame / (float)render_status.total_frames;
-		bar_percent = u::lerp(bar_percent, render_progress, 5.f * delta_time, 0.001f);
+		bar_percent = u::lerp(bar_percent, render_progress, 5.f * delta_time, 0.005f);
 
 		ui::add_bar(
 			"progress bar",
