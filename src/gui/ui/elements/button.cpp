@@ -86,7 +86,7 @@ ui::Element& ui::add_button(
 		container.line_height,
 		{
 			{ hasher("main"), { .speed = 25.f } },
-			{ hasher("hover"), { .speed = 40.f } },
+			{ hasher("hover"), { .speed = 80.f } },
 		}
 	);
 }

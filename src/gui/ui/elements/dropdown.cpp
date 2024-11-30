@@ -24,7 +24,10 @@ struct OptionsRect {
 
 namespace {
 	OptionsRect get_options_rect(
-		const ui::Container& container, const ui::AnimatedElement& element, const ui::DropdownElementData& dropdown_data
+		const ui::Container& container,
+		const ui::AnimatedElement& element,
+		const ui::DropdownElementData& dropdown_data,
+		float anim = 1.f
 	) {
 		float option_line_height = dropdown_data.font.getSize() + OPTION_LINE_HEIGHT_ADD;
 
@@ -33,8 +36,13 @@ namespace {
 		options_rect.h = option_line_height * dropdown_data.options.size() + OPTIONS_PADDING.h * 2;
 
 		// if it'll pass the end of the container open upwards
-		if (options_rect.y2() > container.rect.y2())
+		if (options_rect.y2() > container.rect.y2()) {
+			options_rect.h *= anim;
 			options_rect.y -= options_rect.h + option_line_height + OPTIONS_GAP;
+		}
+		else {
+			options_rect.h *= anim;
+		}
 
 		return {
 			.rect = options_rect,
@@ -50,12 +58,14 @@ void ui::render_dropdown(const Container& container, os::Surface* surface, const
 	float expand_anim = element.animations.at(hasher("expand")).current;
 
 	// Background color
-	int background_shade = 20 + (20 * hover_anim);
+	int background_shade = 15 + (10 * hover_anim);
+	int border_shade = 70;
+
 	gfx::Color adjusted_color =
 		utils::adjust_color(gfx::rgba(background_shade, background_shade, background_shade, 255), anim);
 	gfx::Color text_color = utils::adjust_color(gfx::rgba(255, 255, 255, 255), anim);
 	gfx::Color selected_text_color = utils::adjust_color(gfx::rgba(255, 100, 100, 255), anim);
-	gfx::Color border_color = utils::adjust_color(gfx::rgba(100, 100, 100, 255), anim);
+	gfx::Color border_color = utils::adjust_color(gfx::rgba(border_shade, border_shade, border_shade, 255), anim);
 
 	gfx::Point label_pos = element.element->rect.origin();
 	label_pos.y += dropdown_data.font.getSize();
@@ -89,14 +99,15 @@ void ui::render_dropdown(const Container& container, os::Surface* surface, const
 
 	// Render dropdown options if expanded
 	if (active_element == &element) {
-		auto options_rect = get_options_rect(container, element, dropdown_data);
+		auto options_rect = get_options_rect(container, element, dropdown_data, expand_anim);
 
-		gfx::Color option_color = utils::adjust_color(gfx::rgba(20, 20, 20, 255), anim);
-		gfx::Color option_border_color = utils::adjust_color(gfx::rgba(100, 100, 100, 255), anim);
+		gfx::Color option_color = utils::adjust_color(gfx::rgba(15, 15, 15, 255), anim);
+		gfx::Color option_border_color =
+			utils::adjust_color(gfx::rgba(border_shade, border_shade, border_shade, 255), anim);
 		render::rounded_rect_filled(surface, options_rect.rect, option_color, DROPDOWN_ROUNDING);
 		render::rounded_rect_stroke(surface, options_rect.rect, option_border_color, DROPDOWN_ROUNDING);
 
-		render::push_clip_rect(surface, surface->bounds()); // options_rect.rect);
+		render::push_clip_rect(surface, options_rect.rect);
 
 		// Render options
 		gfx::Point option_text_pos = options_rect.rect.origin();
@@ -234,7 +245,7 @@ ui::Element& ui::add_dropdown(
 		container.line_height,
 		{
 			{ hasher("main"), { .speed = 25.f } },
-			{ hasher("hover"), { .speed = 40.f } },
+			{ hasher("hover"), { .speed = 80.f } },
 			{ hasher("expand"), { .speed = 40.f } },
 		}
 	);

@@ -425,7 +425,7 @@ ui::Element& ui::add_text_input(
 		container.line_height,
 		{
 			{ hasher("main"), { .speed = 25.f } },
-			{ hasher("hover"), { .speed = 25.f } },
+			{ hasher("hover"), { .speed = 80.f } },
 			{ hasher("focus"), { .speed = 25.f } },
 		}
 	);

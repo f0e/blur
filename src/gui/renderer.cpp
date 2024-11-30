@@ -78,7 +78,7 @@ void gui::renderer::components::render(
 			"preview image",
 			container,
 			preview_path,
-			gfx::Size(container.rect.w, 200),
+			gfx::Size(container.rect.w, container.rect.h / 2),
 			std::to_string(render_status.current_frame)
 		);
 		if (element) {

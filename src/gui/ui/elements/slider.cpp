@@ -201,11 +201,11 @@ ui::Element& ui::add_slider(
 	float precision,
 	const std::string& tooltip
 ) {
-	int line_height = font.getSize();
+	int text_size = render::get_font_height(font);
 
-	gfx::Size slider_size(200, line_height + track_label_gap + track_height);
+	gfx::Size slider_size(200, text_size + track_label_gap + track_height);
 	if (tooltip != "")
-		slider_size.h += line_height_add + line_height;
+		slider_size.h += line_height_add + text_size;
 
 	Element element = {
 		.type = ElementType::SLIDER,
@@ -232,7 +232,7 @@ ui::Element& ui::add_slider(
 		container.line_height,
 		{
 			{ hasher("main"), { .speed = 25.f } },
-			{ hasher("hover"), { .speed = 40.f } },
+			{ hasher("hover"), { .speed = 80.f } },
 		}
 	);
 }
