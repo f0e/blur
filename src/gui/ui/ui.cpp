@@ -78,6 +78,21 @@ ui::Element* ui::add_element(
 	int margin_bottom,
 	const std::unordered_map<size_t, AnimationInitialisation>& animations
 ) {
+	// pad when switching element type
+	if (container.current_element_ids.size() > 0) {
+		auto& last_element_id = container.current_element_ids.back();
+		auto& last_element = container.elements[last_element_id];
+
+		static std::set ignore_types = { ElementType::SEPARATOR };
+
+		if (!ignore_types.contains(last_element.element->type) && !ignore_types.contains(_element.type)) {
+			if (_element.type != last_element.element->type) {
+				_element.rect.y += type_switch_padding;
+				container.current_position.y += type_switch_padding;
+			}
+		}
+	}
+
 	auto* element = add_element(container, id, std::move(_element), animations);
 
 	container.current_position.x = container.rect.x; // reset x in case it was same line

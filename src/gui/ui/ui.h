@@ -225,6 +225,7 @@ namespace ui {
 	inline AnimatedElement* active_element = nullptr;
 
 	inline const auto highlight_color = gfx::rgba(133, 24, 16, 255);
+	inline const int type_switch_padding = 5;
 
 	void render_bar(const Container& container, os::Surface* surface, const AnimatedElement& element);
 
