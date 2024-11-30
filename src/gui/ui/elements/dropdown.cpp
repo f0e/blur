@@ -17,18 +17,35 @@ const int LABEL_GAP = 10;
 const int OPTIONS_GAP = 3;
 const gfx::Size OPTIONS_PADDING(10, 3);
 
-struct OptionsRect {
-	gfx::Rect rect;
-	float line_height;
-};
-
 namespace {
-	OptionsRect get_options_rect(
+	struct Positions {
+		int font_height;
+		gfx::Point label_pos;
+		gfx::Rect dropdown_rect;
+		gfx::Point selected_text_pos;
+		gfx::Rect options_rect;
+		float option_line_height;
+	};
+
+	Positions get_positions(
 		const ui::Container& container,
 		const ui::AnimatedElement& element,
 		const ui::DropdownElementData& dropdown_data,
 		float anim = 1.f
 	) {
+		int font_height = render::get_font_height(dropdown_data.font);
+
+		gfx::Point label_pos = element.element->rect.origin();
+		label_pos.y += font_height;
+
+		gfx::Rect dropdown_rect = element.element->rect;
+		dropdown_rect.y = label_pos.y + LABEL_GAP;
+		dropdown_rect.h -= dropdown_rect.y - element.element->rect.y;
+
+		gfx::Point selected_text_pos = dropdown_rect.origin();
+		selected_text_pos.x += DROPDOWN_PADDING.w;
+		selected_text_pos.y = dropdown_rect.center().y + font_height / 2 - 1;
+
 		float option_line_height = dropdown_data.font.getSize() + OPTION_LINE_HEIGHT_ADD;
 
 		gfx::Rect options_rect = element.element->rect;
@@ -38,24 +55,31 @@ namespace {
 		// if it'll pass the end of the container open upwards
 		if (options_rect.y2() > container.rect.y2()) {
 			options_rect.h *= anim;
-			options_rect.y -= options_rect.h + option_line_height + OPTIONS_GAP;
+			options_rect.y = dropdown_rect.y - options_rect.h - OPTIONS_GAP;
 		}
 		else {
 			options_rect.h *= anim;
 		}
 
 		return {
-			.rect = options_rect,
-			.line_height = option_line_height,
+			.font_height = font_height,
+			.label_pos = label_pos,
+			.dropdown_rect = dropdown_rect,
+			.selected_text_pos = selected_text_pos,
+			.options_rect = options_rect,
+			.option_line_height = option_line_height,
 		};
 	}
 }
 
 void ui::render_dropdown(const Container& container, os::Surface* surface, const AnimatedElement& element) {
 	const auto& dropdown_data = std::get<DropdownElementData>(element.element->data);
+
 	float anim = element.animations.at(hasher("main")).current;
 	float hover_anim = element.animations.at(hasher("hover")).current;
 	float expand_anim = element.animations.at(hasher("expand")).current;
+
+	auto pos = get_positions(container, element, dropdown_data, expand_anim);
 
 	// Background color
 	int background_shade = 15 + (10 * hover_anim);
@@ -67,26 +91,14 @@ void ui::render_dropdown(const Container& container, os::Surface* surface, const
 	gfx::Color selected_text_color = utils::adjust_color(gfx::rgba(255, 100, 100, 255), anim);
 	gfx::Color border_color = utils::adjust_color(gfx::rgba(border_shade, border_shade, border_shade, 255), anim);
 
-	gfx::Point label_pos = element.element->rect.origin();
-	label_pos.y += dropdown_data.font.getSize();
-
-	render::text(surface, label_pos, text_color, dropdown_data.label, dropdown_data.font);
-
-	gfx::Rect dropdown_rect = element.element->rect;
-	dropdown_rect.y = label_pos.y + LABEL_GAP;
-	dropdown_rect.h -= dropdown_rect.y - element.element->rect.y;
+	render::text(surface, pos.label_pos, text_color, dropdown_data.label, dropdown_data.font);
 
 	// Render dropdown main area
-	render::rounded_rect_filled(surface, dropdown_rect, adjusted_color, DROPDOWN_ROUNDING);
-	render::rounded_rect_stroke(surface, dropdown_rect, border_color, DROPDOWN_ROUNDING);
-
-	// Render selected option text
-	gfx::Point selected_text_pos = dropdown_rect.origin();
-	selected_text_pos.x += DROPDOWN_PADDING.w;
-	selected_text_pos.y = dropdown_rect.center().y + dropdown_data.font.getSize() / 2 - 1;
+	render::rounded_rect_filled(surface, pos.dropdown_rect, adjusted_color, DROPDOWN_ROUNDING);
+	render::rounded_rect_stroke(surface, pos.dropdown_rect, border_color, DROPDOWN_ROUNDING);
 
 	// Get currently selected option text
-	render::text(surface, selected_text_pos, text_color, *dropdown_data.selected, dropdown_data.font);
+	render::text(surface, pos.selected_text_pos, text_color, *dropdown_data.selected, dropdown_data.font);
 
 	// // Render dropdown arrow
 	// gfx::Point arrow_pos(dropdown_rect.x2() - dropdown_arrow_size - 10, dropdown_rect.center().y);
@@ -97,22 +109,20 @@ void ui::render_dropdown(const Container& container, os::Surface* surface, const
 	// };
 	// render::polygon(surface, arrow_points, text_color);
 
-	// Render dropdown options if expanded
-	if (active_element == &element) {
-		auto options_rect = get_options_rect(container, element, dropdown_data, expand_anim);
-
+	// Render dropdown options
+	if (expand_anim > 0.01f) {
 		gfx::Color option_color = utils::adjust_color(gfx::rgba(15, 15, 15, 255), anim);
 		gfx::Color option_border_color =
 			utils::adjust_color(gfx::rgba(border_shade, border_shade, border_shade, 255), anim);
-		render::rounded_rect_filled(surface, options_rect.rect, option_color, DROPDOWN_ROUNDING);
-		render::rounded_rect_stroke(surface, options_rect.rect, option_border_color, DROPDOWN_ROUNDING);
+		render::rounded_rect_filled(surface, pos.options_rect, option_color, DROPDOWN_ROUNDING);
+		render::rounded_rect_stroke(surface, pos.options_rect, option_border_color, DROPDOWN_ROUNDING);
 
-		render::push_clip_rect(surface, options_rect.rect);
+		render::push_clip_rect(surface, pos.options_rect);
 
 		// Render options
-		gfx::Point option_text_pos = options_rect.rect.origin();
-		option_text_pos.y += OPTIONS_PADDING.h + dropdown_data.font.getSize() + OPTION_LINE_HEIGHT_ADD / 2 - 1;
-		option_text_pos.x = options_rect.rect.origin().x + OPTIONS_PADDING.w;
+		gfx::Point option_text_pos = pos.options_rect.origin();
+		option_text_pos.y += OPTIONS_PADDING.h + pos.font_height + OPTION_LINE_HEIGHT_ADD / 2 - 1;
+		option_text_pos.x = pos.options_rect.origin().x + OPTIONS_PADDING.w;
 
 		for (const auto& option : dropdown_data.options) {
 			bool selected = option == *dropdown_data.selected;
@@ -121,11 +131,13 @@ void ui::render_dropdown(const Container& container, os::Surface* surface, const
 				surface, option_text_pos, selected ? selected_text_color : text_color, option, dropdown_data.font
 			);
 
-			option_text_pos.y += options_rect.line_height;
+			option_text_pos.y += pos.option_line_height;
 		}
 
 		render::pop_clip_rect(surface);
 	}
+
+	// render::rect_stroke(surface, element.element->rect, gfx::rgba(255, 0, 0, 100));
 }
 
 // NOLINTBEGIN(readability-function-cognitive-complexity)
@@ -135,15 +147,9 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 	auto& hover_anim = element.animations.at(hasher("hover"));
 	auto& expand_anim = element.animations.at(hasher("expand"));
 
-	// todo: stop redefining rects like this in all elements
-	gfx::Point label_pos = element.element->rect.origin();
-	label_pos.y += dropdown_data.font.getSize();
+	auto pos = get_positions(container, element, dropdown_data, expand_anim.current);
 
-	gfx::Rect dropdown_rect = element.element->rect;
-	dropdown_rect.y = label_pos.y + LABEL_GAP;
-	dropdown_rect.h -= dropdown_rect.y - element.element->rect.y;
-
-	bool hovered = dropdown_rect.contains(keys::mouse_pos);
+	bool hovered = pos.dropdown_rect.contains(keys::mouse_pos);
 	hover_anim.set_goal(hovered ? 1.f : 0.f);
 
 	bool active = active_element == &element;
@@ -158,24 +164,23 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 			active = true;
 		}
 
-		element.z_index = active ? 1 : 0;
 		expand_anim.set_goal(active ? 1.f : 0.f);
 	};
+
+	bool res = false;
 
 	if (hovered && keys::is_mouse_down()) {
 		// toggle dropdown
 		toggle_active();
 		keys::on_mouse_press_handled(os::Event::MouseButton::LeftButton);
 
-		return true;
+		res = true;
 	}
-
-	if (active) {
-		auto options_rect = get_options_rect(container, element, dropdown_data);
-
+	else if (active) {
+		// clicking options
 		if (keys::is_mouse_down()) {
-			if (options_rect.rect.contains(keys::mouse_pos)) {
-				size_t clicked_option_index = (keys::mouse_pos.y - options_rect.rect.y) / options_rect.line_height;
+			if (pos.options_rect.contains(keys::mouse_pos)) {
+				size_t clicked_option_index = (keys::mouse_pos.y - pos.options_rect.y) / pos.option_line_height;
 
 				// eat all inputs cause otherwise itll click stuff behind
 				keys::on_mouse_press_handled(os::Event::LeftButton);
@@ -189,7 +194,7 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 						if (dropdown_data.on_change)
 							(*dropdown_data.on_change)(dropdown_data.selected);
 
-						return true;
+						res = true;
 					}
 				}
 			}
@@ -199,7 +204,15 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 		}
 	}
 
-	return false;
+	// update z index
+	int z_index = 0;
+	if (active)
+		z_index = 2;
+	else if (expand_anim.current > 0.01f)
+		z_index = 1;
+	element.z_index = z_index;
+
+	return res;
 }
 
 // NOLINTEND(readability-function-cognitive-complexity)
@@ -246,7 +259,7 @@ ui::Element& ui::add_dropdown(
 		{
 			{ hasher("main"), { .speed = 25.f } },
 			{ hasher("hover"), { .speed = 80.f } },
-			{ hasher("expand"), { .speed = 40.f } },
+			{ hasher("expand"), { .speed = 30.f } },
 		}
 	);
 }
