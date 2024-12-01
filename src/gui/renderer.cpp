@@ -14,7 +14,7 @@
 
 #include "resources/fonts/eb_garamond.h"
 
-#define DEBUG_RENDER 1
+#define DEBUG_RENDER 0
 
 const int PAD_X = 24;
 const int PAD_Y = PAD_X;
