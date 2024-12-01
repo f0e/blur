@@ -60,12 +60,12 @@ void Blur::initialise_base_temp_path() {
 	}
 }
 
-void Blur::cleanup() {
+void Blur::cleanup() const {
 	u::log("removing temp path {}", temp_path.string());
 	std::filesystem::remove_all(temp_path); // todo: is this unsafe lol
 }
 
-std::optional<std::filesystem::path> Blur::create_temp_path(const std::string& folder_name) {
+std::optional<std::filesystem::path> Blur::create_temp_path(const std::string& folder_name) const {
 	auto temp_dir = temp_path / folder_name;
 
 	if (std::filesystem::exists(temp_dir)) {

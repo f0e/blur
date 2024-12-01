@@ -22,7 +22,8 @@ Checks: >
   -bugprone-narrowing-conversions,
   -cppcoreguidelines-avoid-non-const-global-variables,
   -cert-err58-cpp,
-  -cppcoreguidelines-avoid-do-while
+  -cppcoreguidelines-avoid-do-while,
+  -misc-unused-parameters
 
 WarningsAsErrors: ""
 

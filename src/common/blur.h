@@ -17,12 +17,12 @@ public:
 	std::filesystem::path vspipe_path;
 
 	bool initialise(bool _verbose, bool _using_preview);
-	void cleanup();
+	void cleanup() const;
 
 	void initialise_base_temp_path();
 
-	std::optional<std::filesystem::path> create_temp_path(const std::string& folder_name);
-	bool remove_temp_path(const std::filesystem::path& temp_path);
+	std::optional<std::filesystem::path> create_temp_path(const std::string& folder_name) const;
+	static bool remove_temp_path(const std::filesystem::path& temp_path);
 };
 
 inline Blur blur;

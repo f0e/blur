@@ -25,7 +25,7 @@ void ui::render_checkbox(const Container& container, os::Surface* surface, const
 
 	// Checkbox border and check mark colors
 	gfx::Color border_color = utils::adjust_color(gfx::rgba(100, 100, 100, 255), anim);
-	gfx::Color check_color = utils::adjust_color(highlight_color, anim * check_anim);
+	gfx::Color check_color = utils::adjust_color(HIGHLIGHT_COLOR, anim * check_anim);
 
 	// render::rect_stroke(surface, element.element->rect, gfx::rgba(255, 0, 0, 255));
 

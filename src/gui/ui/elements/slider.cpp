@@ -5,11 +5,11 @@
 
 #include "../../renderer.h"
 
-const float slider_rounding = 4.0f;
-const float handle_width = 10;
-const int track_height = 4;
-const int line_height_add = 7;
-const int track_label_gap = 10;
+const float SLIDER_ROUNDING = 4.0f;
+const float HANDLE_WIDTH = 10;
+const int TRACK_HEIGHT = 4;
+const int LINE_HEIGHT_ADD = 7;
+const int TRACK_LABEL_GAP = 10;
 
 namespace {
 	struct SliderPositions {
@@ -25,12 +25,12 @@ namespace {
 		label_pos.y += text_size;
 
 		gfx::Rect track_rect = element.element->rect;
-		track_rect.y = label_pos.y + track_label_gap;
-		track_rect.h = track_height;
+		track_rect.y = label_pos.y + TRACK_LABEL_GAP;
+		track_rect.h = TRACK_HEIGHT;
 
 		gfx::Point tooltip_pos = label_pos;
 		if (slider_data.tooltip != "") {
-			tooltip_pos.y += line_height_add;
+			tooltip_pos.y += LINE_HEIGHT_ADD;
 			tooltip_pos.y += text_size;
 
 			// shift track rect down
@@ -78,7 +78,7 @@ void ui::render_slider(const Container& container, os::Surface* surface, const A
 	int track_shade = 40 + (20 * hover_anim);
 	gfx::Color track_color = utils::adjust_color(gfx::rgba(track_shade, track_shade, track_shade, 255), anim);
 
-	gfx::Color filled_color = utils::adjust_color(highlight_color, anim);
+	gfx::Color filled_color = utils::adjust_color(HIGHLIGHT_COLOR, anim);
 	gfx::Color handle_border_color = utils::adjust_color(gfx::rgba(0, 0, 0, 50), anim);
 
 	gfx::Color text_color = utils::adjust_color(gfx::rgba(255, 255, 255, 255), anim);
@@ -112,16 +112,16 @@ void ui::render_slider(const Container& container, os::Surface* surface, const A
 
 	// Calculate handle position
 	if (progress >= 0.f && progress <= 1.f) {
-		float handle_x = positions.track_rect.x + (positions.track_rect.w * clamped_progress) - (handle_width / 2);
+		float handle_x = positions.track_rect.x + (positions.track_rect.w * clamped_progress) - (HANDLE_WIDTH / 2);
 		gfx::Rect handle_rect(
-			handle_x, positions.track_rect.y - ((handle_width - track_height) / 2), handle_width, handle_width
+			handle_x, positions.track_rect.y - ((HANDLE_WIDTH - TRACK_HEIGHT) / 2), HANDLE_WIDTH, HANDLE_WIDTH
 		);
 
 		// Draw handle
 		auto tmp = handle_rect;
 		tmp.enlarge(1);
-		render::rounded_rect_filled(surface, tmp, handle_border_color, handle_width);
-		render::rounded_rect_filled(surface, handle_rect, filled_color, handle_width);
+		render::rounded_rect_filled(surface, tmp, handle_border_color, HANDLE_WIDTH);
+		render::rounded_rect_filled(surface, handle_rect, filled_color, HANDLE_WIDTH);
 	}
 
 	// render::rect_stroke(surface, element.element->rect, gfx::rgba(255, 0, 0, 100));
@@ -207,9 +207,9 @@ ui::Element& ui::add_slider(
 ) {
 	int text_size = render::get_font_height(font);
 
-	gfx::Size slider_size(200, text_size + track_label_gap + track_height);
+	gfx::Size slider_size(200, text_size + TRACK_LABEL_GAP + TRACK_HEIGHT);
 	if (tooltip != "")
-		slider_size.h += line_height_add + text_size;
+		slider_size.h += LINE_HEIGHT_ADD + text_size;
 
 	Element element = {
 		.type = ElementType::SLIDER,

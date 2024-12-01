@@ -260,7 +260,7 @@ void gui::renderer::components::configs::options(ui::Container& container, BlurS
 			"interpolate by scaling fps",
 			interpolate_scale,
 			fonts::font,
-			[&](bool /*new_value*/) {
+			[&](bool new_value) {
 				set_interpolated_fps();
 			}
 		);
@@ -274,7 +274,7 @@ void gui::renderer::components::configs::options(ui::Container& container, BlurS
 				&interpolated_fps_mult,
 				"interpolated fps: {:.1f}x",
 				fonts::font,
-				[&](std::variant<int*, float*> /*value*/) {
+				[&](std::variant<int*, float*> value) {
 					set_interpolated_fps();
 				},
 				0.1f
@@ -289,7 +289,7 @@ void gui::renderer::components::configs::options(ui::Container& container, BlurS
 				&interpolated_fps,
 				"interpolated fps: {} fps",
 				fonts::font,
-				[&](std::variant<int*, float*> /*value*/) {
+				[&](std::variant<int*, float*> value) {
 					set_interpolated_fps();
 				}
 			);
@@ -598,7 +598,7 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 // NOLINTEND(readability-function-cognitive-complexity)
 
 void gui::renderer::components::configs::screen(
-	ui::Container& config_container, ui::Container& preview_container, float /*delta_time*/
+	ui::Container& config_container, ui::Container& preview_container, float delta_time
 ) {
 	auto parse_interp = [&] {
 		try {

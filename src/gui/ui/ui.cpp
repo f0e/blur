@@ -88,8 +88,8 @@ ui::Element* ui::add_element(
 
 		if (!ignore_types.contains(last_element.element->type) && !ignore_types.contains(_element.type)) {
 			if (_element.type != last_element.element->type) {
-				_element.rect.y += type_switch_padding;
-				container.current_position.y += type_switch_padding;
+				_element.rect.y += TYPE_SWITCH_PADDING;
+				container.current_position.y += TYPE_SWITCH_PADDING;
 			}
 		}
 	}
