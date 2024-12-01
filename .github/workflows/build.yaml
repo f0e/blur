@@ -63,6 +63,9 @@ jobs:
             esac
           fi | tee -a $GITHUB_OUTPUT
 
+      - name: Use Developer Command Prompt for Microsoft Visual C++
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Configure CMake
         run: cmake --preset ${{ steps.select-preset.outputs.preset }}
         env:
@@ -72,3 +75,21 @@ jobs:
         run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }}
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: Blur
+          path: |
+            bin/Release/blur-cli.exe
+            bin/Release/blur.exe
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: ${{ env.is_tag == 'true' }}
+        with:
+          files: |
+            bin/Release/blur-cli.exe
+            bin/Release/blur.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
