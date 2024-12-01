@@ -4,6 +4,8 @@ set(VCPKG_LIBRARY_LINKAGE static)
 if (WIN32)
     set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "")
 endif()
+set(VCPKG_CXX_FLAGS "${VCPKG_CXX_FLAGS} -stdlib=libc++")
+set(VCPKG_C_FLAGS "${VCPKG_C_FLAGS}")
 
 # Force static runtime on Windows
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

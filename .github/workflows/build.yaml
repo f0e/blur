@@ -41,6 +41,11 @@ jobs:
         with:
           version: 1.12.1
 
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          export CC=clang++ CXX=clang++
+
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
@@ -73,7 +78,7 @@ jobs:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
       - name: Build
-        run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }}
+        run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }} -v
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
