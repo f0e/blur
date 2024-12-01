@@ -7,7 +7,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest]
+        os: [macos-latest] # ubuntu-latest, macos-latest, windows-latest]
         build-type: [release]
 
     steps:
@@ -33,7 +33,7 @@ jobs:
         uses: KyleMayes/install-llvm-action@v2
         with:
           env: true
-          version: "18"
+          version: 17
 
       - name: Install Ninja
         uses: seanmiddleditch/gha-setup-ninja@master
