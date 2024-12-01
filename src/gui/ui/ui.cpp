@@ -1,12 +1,13 @@
 #include "ui.h"
 
-#include <algorithm>
-#include <utility>
+#include "gui/renderer.h"
 #include "gui/ui/keys.h"
 #include "render.h"
 #include "os/draw_text.h"
 
 namespace {
+	os::NativeCursor desired_cursor = os::NativeCursor::Arrow;
+
 	int get_content_height(const ui::Container& container) {
 		int total_height = container.current_position.y - container.rect.y;
 
@@ -225,6 +226,10 @@ void ui::center_elements_in_container(Container& container, bool horizontal, boo
 		element.element->orig_rect = element.element->rect;
 }
 
+void ui::set_cursor(os::NativeCursor cursor) {
+	desired_cursor = cursor;
+}
+
 std::vector<decltype(ui::Container::elements)::iterator> ui::get_sorted_container_elements(Container& container) {
 	std::vector<decltype(container.elements)::iterator> sorted_elements;
 	sorted_elements.reserve(container.elements.size());
@@ -285,9 +290,14 @@ bool ui::update_container_input(Container& container) {
 	return updated;
 }
 
-void ui::on_update_end() {
+void ui::on_update_input_end() {
+	// reset scroll, shouldn't scroll stuff on a later update
 	keys::scroll_delta = 0.f;
 	keys::scroll_delta_precise = 0.f;
+
+	// set cursor based on if an element wanted pointer
+	gui::renderer::set_cursor(desired_cursor);
+	desired_cursor = desired_cursor = os::NativeCursor::Arrow;
 }
 
 bool ui::update_container_frame(Container& container, float delta_time) {
@@ -355,6 +365,8 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 
 	return container.updated || need_to_render_animation_update;
 }
+
+void ui::on_update_frame_end() {}
 
 void ui::render_container(os::Surface* surface, Container& container) {
 	if (container.background_color) {

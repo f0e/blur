@@ -150,8 +150,12 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 		slider_data.max_value
 	);
 
-	if (hovered && keys::is_mouse_down())
-		active_element = &element;
+	if (hovered) {
+		set_cursor(os::NativeCursor::Link);
+
+		if (keys::is_mouse_down())
+			active_element = &element;
+	}
 
 	hover_anim.set_goal(hovered || active ? 1.f : 0.f);
 

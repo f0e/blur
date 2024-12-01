@@ -169,6 +169,9 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 
 	bool res = false;
 
+	if (hovered)
+		set_cursor(os::NativeCursor::Link);
+
 	if (hovered && keys::is_mouse_down()) {
 		// toggle dropdown
 		toggle_active();

@@ -389,7 +389,7 @@ void gui::renderer::components::configs::options(ui::Container& container, BlurS
 
 	if (settings.gpu_rendering) {
 		ui::add_dropdown(
-			"dropdown",
+			"gpu rendering dropdown",
 			container,
 			"gpu rendering - gpu type",
 			{ "nvidia", "amd", "intel" },
@@ -397,6 +397,16 @@ void gui::renderer::components::configs::options(ui::Container& container, BlurS
 			fonts::font
 		);
 	}
+
+	ui::add_text_input(
+		"video container text input", container, settings.video_container, "video container", fonts::font
+	);
+
+	ui::add_text_input(
+		"custom ffmpeg filters text input", container, settings.ffmpeg_override, "custom ffmpeg filters", fonts::font
+	);
+
+	ui::add_checkbox("debug checkbox", container, "debug", settings.debug, fonts::font);
 
 	section_component("advanced blur");
 
@@ -796,7 +806,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	want_to_render |= ui::update_container_frame(main_container, delta_time);
 	want_to_render |= ui::update_container_frame(config_container, delta_time);
 	want_to_render |= ui::update_container_frame(config_preview_container, delta_time);
-	ui::on_update_end();
+	ui::on_update_frame_end();
 
 	if (!want_to_render && !force_render)
 		// note: DONT RENDER ANYTHING ABOVE HERE!!! todo: render queue?
@@ -867,11 +877,6 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 		window->setVisible(true);
 
 	window->invalidateRegion(gfx::Region(rect));
-
-	// reset cursor
-	if (!set_cursor_this_frame) {
-		set_cursor(os::NativeCursor::Arrow);
-	}
 
 	return want_to_render;
 }

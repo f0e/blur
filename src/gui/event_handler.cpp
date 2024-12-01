@@ -27,6 +27,8 @@ bool gui::event_handler::process_event(const os::Event& event) {
 		updated |= ui::update_container_input(renderer::main_container);
 		updated |= ui::update_container_input(renderer::config_container);
 		updated |= ui::update_container_input(renderer::config_preview_container);
+
+		ui::on_update_input_end();
 	}
 
 	keys::on_input_end();

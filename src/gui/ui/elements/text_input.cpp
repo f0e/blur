@@ -355,6 +355,9 @@ bool ui::update_text_input(const Container& container, AnimatedElement& element)
 	bool hovered = element.element->rect.contains(keys::mouse_pos);
 	hover_anim.set_goal(hovered ? 1.f : 0.f);
 
+	if (hovered)
+		set_cursor(os::NativeCursor::IBeam);
+
 	// Handle mouse click to focus/unfocus
 	if (hovered && keys::is_mouse_down()) {
 		active_element = &element;

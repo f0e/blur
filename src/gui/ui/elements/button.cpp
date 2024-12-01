@@ -42,6 +42,8 @@ bool ui::update_button(const Container& container, AnimatedElement& element) {
 	anim.set_goal(hovered ? 1.f : 0.f);
 
 	if (hovered) {
+		set_cursor(os::NativeCursor::Link);
+
 		if (button_data.on_press) {
 			if (keys::is_mouse_down()) {
 				(*button_data.on_press)();

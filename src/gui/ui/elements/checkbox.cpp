@@ -74,16 +74,20 @@ bool ui::update_checkbox(const Container& container, AnimatedElement& element) {
 	bool hovered = element.element->rect.contains(keys::mouse_pos);
 	hover_anim.set_goal(hovered ? 1.f : 0.f);
 
-	if (hovered && keys::is_mouse_down()) {
-		*checkbox_data.checked = !(*checkbox_data.checked);
-		check_anim.set_goal(*checkbox_data.checked ? 1.f : 0.f);
+	if (hovered) {
+		set_cursor(os::NativeCursor::Link);
 
-		keys::on_mouse_press_handled(os::Event::MouseButton::LeftButton);
+		if (keys::is_mouse_down()) {
+			*checkbox_data.checked = !(*checkbox_data.checked);
+			check_anim.set_goal(*checkbox_data.checked ? 1.f : 0.f);
 
-		if (checkbox_data.on_change)
-			(*checkbox_data.on_change)(*checkbox_data.checked);
+			keys::on_mouse_press_handled(os::Event::MouseButton::LeftButton);
 
-		return true;
+			if (checkbox_data.on_change)
+				(*checkbox_data.on_change)(*checkbox_data.checked);
+
+			return true;
+		}
 	}
 
 	return false;

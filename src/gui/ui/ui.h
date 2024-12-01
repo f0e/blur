@@ -374,9 +374,13 @@ namespace ui {
 
 	std::vector<decltype(Container::elements)::iterator> get_sorted_container_elements(Container& container);
 
+	void set_cursor(os::NativeCursor cursor);
+
 	bool update_container_input(Container& container);
+	void on_update_input_end();
+
 	bool update_container_frame(Container& container, float delta_time);
-	void on_update_end();
+	void on_update_frame_end();
 
 	void render_container(os::Surface* surface, Container& container);
 }
