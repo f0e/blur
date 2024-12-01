@@ -81,9 +81,6 @@ void gui::run() {
 	system->finishLaunching();
 	system->activateApp();
 
-	base::SystemConsole system_console;
-	system_console.prepareShell();
-
 	event_queue = system->eventQueue(); // todo: move this maybe
 
 	event_loop();

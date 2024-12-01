@@ -42,8 +42,12 @@ void tasks::run() {
 }
 
 void tasks::add_files(const std::vector<std::string>& files) {
-	for (const std::string& path : files) {
-		u::log("dropped {}", path);
+	for (const std::string& path_str : files) {
+		std::filesystem::path path(path_str);
+		if (path.empty() || !std::filesystem::exists(path))
+			continue;
+
+		u::log("queueing {}", path.string());
 
 		Render render(path);
 
