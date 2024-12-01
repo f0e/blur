@@ -277,7 +277,7 @@ bool ui::update_container_input(Container& container) {
 					container.scroll_y = std::clamp(container.scroll_y, 0.f, (float)max_scroll);
 				}
 
-				updated = container.scroll_speed_y != last_scroll_speed_y;
+				updated |= container.scroll_speed_y != last_scroll_speed_y;
 			}
 		}
 	}
