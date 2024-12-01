@@ -260,13 +260,22 @@ bool ui::update_container_input(Container& container) {
 			updated |= (*element.element->update_fn)(container, element);
 	}
 
-	if (keys::scroll_delta != 0.f) {
+	if (keys::scroll_delta != 0.f || keys::scroll_delta_precise != 0.f) {
 		if (container.rect.contains(keys::mouse_pos)) {
 			if (can_scroll(container)) {
 				float last_scroll_speed_y = container.scroll_speed_y;
 
 				container.scroll_speed_y += keys::scroll_delta;
 				keys::scroll_delta = 0.f;
+
+				if (keys::scroll_delta_precise != 0.f) {
+					container.scroll_y += keys::scroll_delta_precise;
+					keys::scroll_delta_precise = 0.f;
+
+					// immediately clamp to edges todo: overscroll with trackpad?
+					int max_scroll = get_max_scroll(container);
+					container.scroll_y = std::clamp(container.scroll_y, 0.f, (float)max_scroll);
+				}
 
 				updated = container.scroll_speed_y != last_scroll_speed_y;
 			}
@@ -278,6 +287,7 @@ bool ui::update_container_input(Container& container) {
 
 void ui::on_update_end() {
 	keys::scroll_delta = 0.f;
+	keys::scroll_delta_precise = 0.f;
 }
 
 bool ui::update_container_frame(Container& container, float delta_time) {

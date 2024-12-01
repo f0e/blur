@@ -14,6 +14,7 @@ namespace keys {
 	inline std::vector<KeyPress> pressed_keys;
 
 	inline float scroll_delta = 0.f;
+	inline float scroll_delta_precise = 0.f;
 
 	bool process_event(const os::Event& event);
 	void on_input_end();

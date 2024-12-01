@@ -40,7 +40,7 @@ bool keys::process_event(const os::Event& event) {
 
 		case os::Event::MouseWheel: {
 			if (event.preciseWheel()) // trackpad
-				scroll_delta = event.wheelDelta().y;
+				scroll_delta_precise = event.wheelDelta().y;
 			else // mouse
 				scroll_delta = event.wheelDelta().y * 2000.f;
 
