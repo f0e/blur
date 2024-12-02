@@ -268,8 +268,6 @@ bool ui::update_container_input(Container& container) {
 	if (keys::scroll_delta != 0.f || keys::scroll_delta_precise != 0.f) {
 		if (container.rect.contains(keys::mouse_pos)) {
 			if (can_scroll(container)) {
-				float last_scroll_speed_y = container.scroll_speed_y;
-
 				container.scroll_speed_y += keys::scroll_delta;
 				keys::scroll_delta = 0.f;
 
@@ -282,7 +280,8 @@ bool ui::update_container_input(Container& container) {
 					container.scroll_y = std::clamp(container.scroll_y, 0.f, (float)max_scroll);
 				}
 
-				updated |= container.scroll_speed_y != last_scroll_speed_y;
+				updated |=
+					true; // if != 0 checks imply that scroll speed changed, no need to explicitly check if it has
 			}
 		}
 	}
