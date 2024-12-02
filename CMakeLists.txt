@@ -5,7 +5,6 @@ if (WIN32)
     set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "")
 endif()
 set(VCPKG_CXX_FLAGS "${VCPKG_CXX_FLAGS} -stdlib=libc++")
-set(VCPKG_C_FLAGS "${VCPKG_C_FLAGS}")
 
 # Force static runtime on Windows
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -93,7 +92,7 @@ include(FetchContent)
 
 if(UNIX AND NOT APPLE)
   set(SKIA_REPOSITORY
-      https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-Linux-Release-x64-libstdc++.zip
+      https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-Linux-Release-x64-libc++.zip
   )
 elseif(APPLE)
   if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64" OR CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
@@ -150,12 +149,12 @@ if(APPLE)
         "-framework CoreGraphics"
     )
 
-    # set(MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/src/Info.plist")
+    set(MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/src/Info.plist")
 
-    # set_target_properties(blur-gui PROPERTIES
-    #   MACOSX_BUNDLE TRUE
-    #   MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/src/Info.plist
-    # )
+    set_target_properties(blur-gui PROPERTIES
+      MACOSX_BUNDLE TRUE
+      MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/src/Info.plist
+    )
 
     # Specify the .icns file as the app icon
     set(MACOSX_BUNDLE_ICON_FILE blur.icns)
