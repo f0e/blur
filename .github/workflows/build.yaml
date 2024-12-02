@@ -32,6 +32,7 @@ jobs:
 
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v2
+        if: runner.os != 'Windows' # Windows uses MSVC
         with:
           env: true
           version: 17
@@ -41,35 +42,27 @@ jobs:
         with:
           version: 1.12.1
 
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          export CC=clang++ CXX=clang++
-
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: "cd124b84feb0c02a24a2d90981e8358fdee0e077"
 
-      - name: Select CMake Preset
+      - name: Determine CMake Preset
         id: select-preset
-        shell: bash
         run: |
           if [ "${{ runner.os }}" == "Windows" ]; then
-            case "${{ matrix.build-type }}" in
-              debug) echo "preset=win-debug" ;;
-              release) echo "preset=win-release" ;;
-              relwithdebinfo) echo "preset=win-relwithdebinfo" ;;
-            esac
-          else
-            case "${{ matrix.build-type }}" in
-              debug) echo "preset=unix-debug" ;;
-              release) echo "preset=unix-release" ;;
-              relwithdebinfo) echo "preset=unix-relwithdebinfo" ;;
-            esac
-          fi | tee -a $GITHUB_OUTPUT
+            prefix="win"
+          elif [ "${{ runner.os }}" == "Linux" ]; then
+            prefix="linux"
+          elif [ "${{ runner.os }}" == "macOS" ]; then
+            prefix="mac"
+          fi
+          preset="${prefix}-${{ matrix.build-type }}"
+          echo "preset=$preset" >> $GITHUB_OUTPUT
+        shell: bash
 
       - name: Use Developer Command Prompt for Microsoft Visual C++
+        if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure CMake
@@ -85,10 +78,10 @@ jobs:
       - name: Upload Binaries
         uses: actions/upload-artifact@v3
         with:
-          name: Blur
+          name: Blur-${{ runner.os }}
           path: |
             ${{ runner.os == 'Windows' && 'bin/Release/blur-cli.exe' || 'bin/Release/blur-cli' }}
-            ${{ runner.os == 'Windows' && 'bin/Release/blur.exe' || 'bin/Release/blur' }}
+            ${{ runner.os == 'Windows' && 'bin/Release/blur.exe' || runner.os == 'macOS' && 'bin/Release/Blur' || 'bin/Release/blur' }}
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -96,6 +89,6 @@ jobs:
         with:
           files: |
             ${{ runner.os == 'Windows' && 'bin/Release/blur-cli.exe' || 'bin/Release/blur-cli' }}
-            ${{ runner.os == 'Windows' && 'bin/Release/blur.exe' || 'bin/Release/blur' }}
+            ${{ runner.os == 'Windows' && 'bin/Release/blur.exe' || runner.os == 'macOS' && 'bin/Release/Blur' || 'bin/Release/blur' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

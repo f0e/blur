@@ -5,7 +5,8 @@
       "name": "base",
       "hidden": true,
       "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets"
       }
     },
     {
@@ -33,13 +34,32 @@
       }
     },
     {
-      "name": "unix-base",
+      "name": "linux-base",
       "inherits": "base",
       "hidden": true,
       "condition": {
-        "type": "notEquals",
+        "type": "equals",
         "lhs": "${hostSystemName}",
-        "rhs": "Windows"
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_CXX_FLAGS": "-stdlib=libc++",
+        "CMAKE_EXE_LINKER_FLAGS": "-stdlib=libc++",
+        "CMAKE_SHARED_LINKER_FLAGS": "-stdlib=libc++",
+        "VCPKG_TARGET_TRIPLET": "x64-linux-libcxx"
+      },
+      "generator": "Ninja"
+    },
+    {
+      "name": "mac-base",
+      "inherits": "base",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
       },
       "cacheVariables": {
         "CMAKE_C_COMPILER": "clang",
@@ -75,24 +95,50 @@
       }
     },
     {
-      "name": "unix-debug",
-      "inherits": "unix-base",
+      "name": "linux-debug",
+      "inherits": "linux-base",
       "displayName": "Debug Build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
       }
     },
     {
-      "name": "unix-release",
-      "inherits": "unix-base",
+      "name": "linux-release",
+      "inherits": "linux-base",
       "displayName": "Release Build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
     },
     {
-      "name": "unix-relwithdebinfo",
-      "inherits": "unix-base",
+      "name": "linux-relwithdebinfo",
+      "inherits": "linux-base",
+      "displayName": "Release with Debug Info",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_FLAGS": "-O0",
+        "CMAKE_C_FLAGS": "-O0"
+      }
+    },
+    {
+      "name": "mac-debug",
+      "inherits": "mac-base",
+      "displayName": "Debug Build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "mac-release",
+      "inherits": "mac-base",
+      "displayName": "Release Build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "mac-relwithdebinfo",
+      "inherits": "mac-base",
       "displayName": "Release with Debug Info",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
@@ -118,18 +164,33 @@
       "jobs": 0
     },
     {
-      "name": "unix-debug",
-      "configurePreset": "unix-debug",
+      "name": "linux-debug",
+      "configurePreset": "linux-debug",
       "jobs": 0
     },
     {
-      "name": "unix-release",
-      "configurePreset": "unix-release",
+      "name": "linux-release",
+      "configurePreset": "linux-release",
       "jobs": 0
     },
     {
-      "name": "unix-relwithdebinfo",
-      "configurePreset": "unix-relwithdebinfo",
+      "name": "linux-relwithdebinfo",
+      "configurePreset": "linux-relwithdebinfo",
+      "jobs": 0
+    },
+    {
+      "name": "mac-debug",
+      "configurePreset": "mac-debug",
+      "jobs": 0
+    },
+    {
+      "name": "mac-release",
+      "configurePreset": "mac-release",
+      "jobs": 0
+    },
+    {
+      "name": "mac-relwithdebinfo",
+      "configurePreset": "mac-relwithdebinfo",
       "jobs": 0
     }
   ]

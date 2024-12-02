@@ -4,7 +4,6 @@ set(VCPKG_LIBRARY_LINKAGE static)
 if (WIN32)
     set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "")
 endif()
-set(VCPKG_CXX_FLAGS "${VCPKG_CXX_FLAGS} -stdlib=libc++")
 
 # Force static runtime on Windows
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -144,26 +143,31 @@ target_link_libraries(
 target_precompile_headers(blur-gui PRIVATE src/gui/gui_pch.h)
 
 if(APPLE)
-    target_link_libraries(blur-gui PRIVATE
-        "-framework CoreVideo"
-        "-framework CoreGraphics"
-    )
+  target_link_libraries(blur-gui PRIVATE
+      "-framework CoreVideo"
+      "-framework CoreGraphics"
+  )
 
-    set(MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/src/Info.plist")
+  set(MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/src/Info.plist")
 
-    set_target_properties(blur-gui PROPERTIES
-      MACOSX_BUNDLE TRUE
-      MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/src/Info.plist
-    )
+  set_target_properties(blur-gui PROPERTIES
+    MACOSX_BUNDLE TRUE
+    MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/src/Info.plist
+  )
 
-    # Specify the .icns file as the app icon
-    set(MACOSX_BUNDLE_ICON_FILE blur.icns)
+  # Specify the .icns file as the app icon
+  set(MACOSX_BUNDLE_ICON_FILE blur.icns)
 
-    # Ensure the .icns file is included in the app bundle's Resources folder
-    set_source_files_properties(resources/blur.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+  # Ensure the .icns file is included in the app bundle's Resources folder
+  set_source_files_properties(resources/blur.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
-    # Link the .icns file to the target
-    target_sources(blur-gui PRIVATE resources/blur.icns)
+  # Link the .icns file to the target
+  target_sources(blur-gui PRIVATE resources/blur.icns)
+elseif(UNIX)
+  target_link_libraries(blur-gui PRIVATE 
+  X11
+  Xext
+  Xrandr)
 endif()
 
 set_target_properties(blur-gui PROPERTIES LINK_FLAGS
