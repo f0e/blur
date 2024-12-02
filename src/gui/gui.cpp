@@ -42,7 +42,6 @@ void gui::event_loop() {
 		const bool rendered = renderer::redraw_window(
 			window.get(), to_render
 		); // note: rendered isn't true if rendering was forced, it's only if an animation or smth is playing
-		to_render = false;
 
 #if DEBUG_RENDER_LOGGING
 		u::log("rendered: {}, to render: {}", rendered, to_render);
@@ -50,6 +49,7 @@ void gui::event_loop() {
 
 		// vsync
 		if (rendered || to_render) {
+			to_render = false;
 			rendered_last = true;
 
 #ifdef WIN32

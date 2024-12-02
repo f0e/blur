@@ -5,7 +5,7 @@
 #include "gui/renderer.h"
 #include "gui/ui/ui.h"
 
-void tasks::run() {
+void tasks::run(const std::vector<std::string>& arguments) {
 	blur.initialise(false, true);
 
 	rendering.set_progress_callback([] {
@@ -36,6 +36,8 @@ void tasks::run() {
 		gui::renderer::on_render_finished(render, success);
 	});
 
+	add_files(arguments); // todo: mac packaged app support (& linux? does it work?)
+
 	while (true) {
 		rendering.render_videos();
 	}
@@ -43,7 +45,7 @@ void tasks::run() {
 
 void tasks::add_files(const std::vector<std::string>& files) {
 	for (const std::string& path_str : files) {
-		std::filesystem::path path(path_str);
+		std::filesystem::path path = std::filesystem::canonical(path_str);
 		if (path.empty() || !std::filesystem::exists(path))
 			continue;
 
