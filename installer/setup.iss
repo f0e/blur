@@ -3,7 +3,7 @@
 #include "environment.iss"
 
 #define MyAppName "blur"
-#define MyAppVersion "1.93"
+#define MyAppVersion "2.0"
 #define MyAppPublisher "tekno"
 #define MyAppURL "https://f0e.github.io/blur"
 
