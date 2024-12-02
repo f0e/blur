@@ -6,9 +6,9 @@ import vapoursynth as vs
 def average(clip: vs.VideoNode, weights: list[float], divisor: float | None = None):
     def get_offset_clip(offset: int) -> vs.VideoNode:
         if offset > 0:
-            return clip[0] * offset + clip[:-offset]
+            return clip[offset:] + clip[-1] * offset
         elif offset < 0:
-            return clip[-offset:] + clip[-1] * (-offset)
+            return clip[0] * -offset + clip[:offset]
         else:
             return clip
 
