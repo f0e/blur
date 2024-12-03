@@ -91,7 +91,7 @@ include(FetchContent)
 
 if(UNIX AND NOT APPLE)
   set(SKIA_REPOSITORY
-      https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-Linux-Release-x64-libc++.zip
+      https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-Linux-Release-x64-libstdc++.zip
   )
 elseif(APPLE)
   if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64" OR CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
@@ -164,7 +164,7 @@ if(APPLE)
   # Link the .icns file to the target
   target_sources(blur-gui PRIVATE resources/blur.icns)
 elseif(UNIX)
-  target_link_libraries(blur-gui PRIVATE 
+  target_link_libraries(blur-gui PRIVATE
   X11
   Xext
   Xrandr)
