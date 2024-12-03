@@ -9,7 +9,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        build-type: [release]
+        build-type: [Release]
 
     steps:
       - name: Checkout repository
@@ -57,7 +57,7 @@ jobs:
           elif [ "${{ runner.os }}" == "macOS" ]; then
             prefix="mac"
           fi
-          preset="${prefix}-${{ matrix.build-type }}"
+          preset="${prefix}-$(echo "${{ matrix.build-type }}" | tr '[:upper:]' '[:lower:]')"
           echo "preset=$preset" >> $GITHUB_OUTPUT
         shell: bash
 
@@ -71,24 +71,92 @@ jobs:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
       - name: Build
-        run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }} -v
+        run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }}
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+
+      - name: Set Binary Names
+        id: binary-names
+        shell: bash
+        run: |
+          os="${{ runner.os }}"
+          build_type="${{ matrix.build-type }}"
+          arch="$(echo "${{ runner.arch }}" | tr '[:upper:]' '[:lower:]')"
+          configuration="$os-$build_type-$arch"
+
+          echo "build_dir=bin/$build_type" >> $GITHUB_OUTPUT
+          echo "configuration=$os-$build_type-$arch" >> $GITHUB_OUTPUT
+
+          if [[ "$os" == "Windows" ]]; then
+            echo "cli_source=blur-cli.exe" >> $GITHUB_OUTPUT
+            echo "cli_binary=blur-cli-$configuration.exe" >> $GITHUB_OUTPUT
+
+            echo "gui_source=blur.exe" >> $GITHUB_OUTPUT
+            echo "gui_binary=blur-$configuration.exe" >> $GITHUB_OUTPUT
+          elif [[ "$os" == "macOS" ]]; then
+            echo "cli_source=blur-cli" >> $GITHUB_OUTPUT
+            echo "cli_binary=blur-cli-$configuration" >> $GITHUB_OUTPUT
+
+            echo "gui_source=blur.app" >> $GITHUB_OUTPUT
+            echo "gui_binary=Blur-$configuration.dmg" >> $GITHUB_OUTPUT
+          else
+            echo "cli_source=blur-cli" >> $GITHUB_OUTPUT
+            echo "cli_binary=blur-cli-$configuration" >> $GITHUB_OUTPUT
+            
+            echo "gui_source=blur" >> $GITHUB_OUTPUT
+            echo "gui_binary=blur-$configuration" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install create-dmg (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install create-dmg
+
+      - name: Create DMG (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd ${{ steps.binary-names.outputs.build_dir }}
+
+          mkdir source_folder
+          mv "${{ steps.binary-names.outputs.gui_source }}" source_folder
+
+          create-dmg \
+            --volname "Blur Installer" \
+            --icon "Blur.app" 200 190 \
+            --hide-extension "Blur.app" \
+            --app-drop-link 600 185 \
+            "${{ steps.binary-names.outputs.gui_binary }}" \
+            "source_folder"
+
+      - name: Rename and Make Binaries Executable
+        shell: bash
+        run: |
+          cd ${{ steps.binary-names.outputs.build_dir }}
+          mv "${{ steps.binary-names.outputs.cli_source }}" "${{ steps.binary-names.outputs.cli_binary }}"
+
+          if [[ "$RUNNER_OS" != "macOS" ]]; then
+            mv "${{ steps.binary-names.outputs.gui_source }}" "${{ steps.binary-names.outputs.gui_binary }}"
+          fi
+
+          if [[ "$RUNNER_OS" == "Linux" || "$RUNNER_OS" == "macOS" ]]; then
+            chmod +x "${{ steps.binary-names.outputs.cli_binary }}"
+            chmod +x "${{ steps.binary-names.outputs.gui_binary }}"
+          fi
 
       - name: Upload Binaries
         uses: actions/upload-artifact@v3
         with:
-          name: Blur-${{ runner.os }}
+          name: Blur-${{ steps.binary-names.outputs.configuration }}
           path: |
-            ${{ runner.os == 'Windows' && 'bin/Release/blur-cli.exe' || 'bin/Release/blur-cli' }}
-            ${{ runner.os == 'Windows' && 'bin/Release/blur.exe' || runner.os == 'macOS' && 'bin/Release/Blur' || 'bin/Release/blur' }}
+            ${{ steps.binary-names.outputs.build_dir }}/${{ steps.binary-names.outputs.cli_binary }}
+            ${{ steps.binary-names.outputs.build_dir }}/${{ steps.binary-names.outputs.gui_binary }}
 
       - name: Release
         uses: softprops/action-gh-release@v1
         if: ${{ env.is_tag == 'true' }}
         with:
           files: |
-            ${{ runner.os == 'Windows' && 'bin/Release/blur-cli.exe' || 'bin/Release/blur-cli' }}
-            ${{ runner.os == 'Windows' && 'bin/Release/blur.exe' || runner.os == 'macOS' && 'bin/Release/Blur' || 'bin/Release/blur' }}
+            ${{ steps.binary-names.outputs.build_dir }}/${{ steps.binary-names.outputs.cli_binary }}
+            ${{ steps.binary-names.outputs.build_dir }}/${{ steps.binary-names.outputs.gui_binary }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
