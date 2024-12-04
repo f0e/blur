@@ -166,7 +166,7 @@ elseif(WIN32)
       https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-Windows-Release-x64.zip
   )
   set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release-x64 CACHE PATH "Skia library directory")
-  set(SKIA_LIBRARY ${SKIA_LIBRARY_DIR}/libskia.lib)
+  set(SKIA_LIBRARY ${SKIA_LIBRARY_DIR}/skia.lib)
 endif()
 
 FetchContent_Declare(skia
