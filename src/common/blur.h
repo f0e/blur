@@ -10,7 +10,7 @@ public:
 
 	std::filesystem::path temp_path;
 
-	std::filesystem::path path;
+	std::filesystem::path resources_path;
 	bool used_installer = false;
 
 	std::filesystem::path ffmpeg_path;

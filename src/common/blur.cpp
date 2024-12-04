@@ -3,9 +3,9 @@
 #include "common/rendering.h"
 
 bool Blur::initialise(bool _verbose, bool _using_preview) {
-	path = std::filesystem::path(u::get_executable_path()).parent_path(); // folder the exe is in
-	used_installer = std::filesystem::exists(path / "lib\\vapoursynth\\vspipe.exe") &&
-	                 std::filesystem::exists(path / "lib\\ffmpeg\\ffmpeg.exe");
+	resources_path = u::get_resources_path();
+	used_installer = std::filesystem::exists(resources_path / "lib\\vapoursynth\\vspipe.exe") &&
+	                 std::filesystem::exists(resources_path / "lib\\ffmpeg\\ffmpeg.exe");
 
 	if (!used_installer) {
 		// didn't use installer, check if dependencies are installed

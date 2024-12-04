@@ -31,12 +31,14 @@
 #	include <boost/process/v1/windows.hpp>
 #endif
 
+// os
 #ifdef _WIN32
 #	include <conio.h>
 #	include <shobjidl.h>
 #	include <Windows.h>
-#elif defined(__APPLE__)
+#elif __APPLE__
 #	include <mach-o/dyld.h>
+#	include <CoreFoundation/CoreFoundation.h>
 #endif
 
 // blur

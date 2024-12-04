@@ -103,6 +103,21 @@ namespace u {
 
 	// NOLINTEND
 
+	template<typename Container>
+	auto join(const Container& container, const typename Container::value_type::value_type* delimiter) {
+		using CharT = typename Container::value_type::value_type;
+		std::basic_ostringstream<CharT> result;
+
+		auto it = container.begin();
+		if (it != container.end()) {
+			result << *it++; // Add the first element without a delimiter
+		}
+		while (it != container.end()) {
+			result << delimiter << *it++;
+		}
+		return result.str();
+	}
+
 	std::string trim(std::string_view str);
 	std::string random_string(int len);
 	std::vector<std::string> split_string(std::string str, const std::string& delimiter);
@@ -120,18 +135,5 @@ namespace u {
 
 	void sleep(double seconds); // https://blog.bearcats.nl/perfect-sleep-function/ kill windows
 
-	template<typename Container>
-	auto join(const Container& container, const typename Container::value_type::value_type* delimiter) {
-		using CharT = typename Container::value_type::value_type;
-		std::basic_ostringstream<CharT> result;
-
-		auto it = container.begin();
-		if (it != container.end()) {
-			result << *it++; // Add the first element without a delimiter
-		}
-		while (it != container.end()) {
-			result << delimiter << *it++;
-		}
-		return result.str();
-	}
+	std::filesystem::path get_resources_path();
 }

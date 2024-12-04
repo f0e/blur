@@ -173,3 +173,27 @@ void u::sleep(double seconds) {
 		YieldProcessor();
 #endif
 }
+
+std::filesystem::path u::get_resources_path() {
+#ifdef __APPLE__
+	// Resources path if part of a macos bundle
+	CFBundleRef bundle = CFBundleGetMainBundle();
+	if (bundle) {
+		CFURLRef resources_url = CFBundleCopyResourcesDirectoryURL(bundle);
+		if (resources_url) {
+			std::array<char, PATH_MAX> path{};
+			if (CFURLGetFileSystemRepresentation(
+					resources_url, static_cast<Boolean>(true), (UInt8*)path.data(), path.size() // NOLINT
+				))
+			{
+				CFRelease(resources_url);
+				return path.data();
+			}
+			CFRelease(resources_url);
+		}
+	}
+#endif
+
+	// binary path otherwise
+	return std::filesystem::path(u::get_executable_path()).parent_path();
+}
