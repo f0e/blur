@@ -6,7 +6,10 @@
 os::WindowRef gui::window_manager::create_window(os::DragTarget& drag_target) {
 	auto screen = os::instance()->mainScreen();
 
-	os::WindowRef window = os::instance()->makeWindow(591, 381);
+	os::WindowSpec spec(591, 381);
+	// spec.scale(2);
+
+	os::WindowRef window = os::instance()->makeWindow(spec);
 	window->setCursor(os::NativeCursor::Arrow);
 	window->setTitle("Blur");
 	window->setDragTarget(&drag_target);
