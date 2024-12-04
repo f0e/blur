@@ -20,12 +20,9 @@
     <key>CFBundleIconFile</key>
     <string>blur</string>
 
-    <!-- High DPI Support -->
-    <key>NSHighResolutionCapable</key>
-    <true/>
-
-    <!-- macOS Specific Settings -->
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>NSHighResolutionCapable</key>
+    <string>True</string>
 </dict>
 </plist>
