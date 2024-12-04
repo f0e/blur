@@ -68,7 +68,7 @@ void gui::event_loop() {
 }
 
 void gui::run() {
-	system = os::make_system();
+	auto system = os::make_system(); // note: storing this and not calling release() causes skia crash
 
 	renderer::init_fonts();
 

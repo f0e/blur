@@ -1,7 +1,6 @@
 #pragma once
 
 namespace gui {
-	inline os::SystemRef system;
 	inline os::WindowRef window;
 	inline os::EventQueue* event_queue;
 
