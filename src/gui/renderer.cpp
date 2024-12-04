@@ -13,6 +13,7 @@
 #include "ui/render.h"
 
 #include "resources/fonts/eb_garamond.h"
+#include "resources/fonts/dejavu_sans.h"
 
 #define DEBUG_RENDER 0
 
@@ -25,7 +26,7 @@ const int NOTIFICATIONS_PAD_Y = 10;
 const float FPS_SMOOTHING = 0.95f;
 
 void gui::renderer::init_fonts() {
-	fonts::font = SkFont(); // default font
+	fonts::font = utils::create_font_from_data(DejaVuSans_ttf.data(), DejaVuSans_ttf.size(), 11);
 
 	fonts::header_font = utils::create_font_from_data(
 		EBGaramond_VariableFont_wght_ttf.data(), EBGaramond_VariableFont_wght_ttf.size(), 30
@@ -534,7 +535,7 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 				render = renders.back().get();
 			}
 
-			auto res = render->render(blur.path / "sample_video.mp4", settings);
+			auto res = render->render(blur.resources_path / "sample_video.mp4", settings);
 
 			if (res.success) {
 				std::lock_guard<std::mutex> lock(preview_mutex);
@@ -583,7 +584,7 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 			gfx::rgba(255, 255, 255, loading ? 100 : 255)
 		);
 	}
-	else {
+	else if (loading) {
 		ui::add_text(
 			"loading config preview text",
 			container,

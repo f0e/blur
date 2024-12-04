@@ -193,7 +193,7 @@ BlurSettings config::parse_global_config() {
 }
 
 std::filesystem::path config::get_global_config_path() {
-	return blur.path / CONFIG_FILENAME;
+	return blur.resources_path / CONFIG_FILENAME;
 }
 
 std::filesystem::path config::get_config_filename(const std::filesystem::path& video_folder) {
@@ -214,7 +214,7 @@ BlurSettings config::get_global_config() {
 BlurSettings config::get_config(const std::filesystem::path& config_filepath, bool use_global) {
 	bool local_cfg_exists = std::filesystem::exists(config_filepath);
 
-	auto global_cfg_path = blur.path / CONFIG_FILENAME;
+	auto global_cfg_path = blur.resources_path / CONFIG_FILENAME;
 	bool global_cfg_exists = std::filesystem::exists(global_cfg_path);
 
 	std::filesystem::path cfg_path;

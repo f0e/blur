@@ -2,6 +2,7 @@
 #include "event_handler.h"
 
 #include "gui.h"
+#include "gui/tasks.h"
 #include "renderer.h"
 
 #include "ui/keys.h"
@@ -12,6 +13,13 @@ bool gui::event_handler::process_event(const os::Event& event) {
 		case os::Event::CloseWindow: {
 			closing = true;
 			return false;
+		}
+
+		case os::Event::DropFiles: {
+			// mac dropping files onto executable (todo: when else is this triggered?)
+			DEBUG_LOG("file drop event");
+			tasks::add_files(event.files());
+			break;
 		}
 
 		default:

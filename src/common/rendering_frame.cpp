@@ -6,8 +6,9 @@ RenderCommands FrameRender::build_render_commands(
 	RenderCommands commands;
 
 	if (blur.used_installer) {
-		commands.vspipe_path = (blur.path / "lib\\vapoursynth\\vspipe.exe").wstring();
-		commands.ffmpeg_path = (blur.path / "lib\\ffmpeg\\ffmpeg.exe").wstring();
+		// todo: fix on mac (and remove duplicate code)
+		commands.vspipe_path = (blur.resources_path / "lib\\vapoursynth\\vspipe.exe").wstring();
+		commands.ffmpeg_path = (blur.resources_path / "lib\\ffmpeg\\ffmpeg.exe").wstring();
 	}
 	else {
 		commands.vspipe_path = blur.vspipe_path.wstring();
@@ -17,7 +18,7 @@ RenderCommands FrameRender::build_render_commands(
 	std::wstring path_string = input_path.wstring();
 	std::ranges::replace(path_string, '\\', '/');
 
-	std::wstring blur_script_path = (blur.path / "lib/blur.py").wstring();
+	std::wstring blur_script_path = (blur.resources_path / "lib/blur.py").wstring();
 
 	// Build vspipe command
 	commands.vspipe = { L"-p",

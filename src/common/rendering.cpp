@@ -137,6 +137,7 @@ bool Render::remove_temp_path() {
 	return blur.remove_temp_path(m_temp_path);
 }
 
+// NOLINTBEGIN(readability-function-cognitive-complexity) todo: refactor
 RenderCommands Render::build_render_commands() {
 	RenderCommands commands;
 
@@ -298,6 +299,8 @@ RenderCommands Render::build_render_commands() {
 
 	return commands;
 }
+
+// NOLINTEND(readability-function-cognitive-complexity)
 
 void Render::update_progress(int current_frame, int total_frames) {
 	m_status.current_frame = current_frame;
