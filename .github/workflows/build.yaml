@@ -84,7 +84,7 @@ jobs:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
       - name: Build
-        run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }} -v
+        run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }}
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
@@ -108,7 +108,7 @@ jobs:
 
             cli_binary="blur-cli-$configuration.exe"
             gui_binary="blur-$configuration.exe"
-            
+
             mv "$cli_source" "$cli_binary"
             mv "$gui_source" "$gui_binary"
 
@@ -120,30 +120,30 @@ jobs:
 
             cli_binary="blur-cli-$configuration"
             gui_binary="blur-$configuration"
-            
+
             mv "$cli_source" "$cli_binary"
             tar -cvf "$cli_binary.tar.gz" "$cli_binary"
             cli_path="$cli_binary.tar.gz"
-            
+
             mv "$gui_source" "$gui_binary"
             tar -cvf "$gui_binary.tar.gz" "$gui_binary"
             gui_path="$gui_binary.tar.gz"
           elif [[ "$os" == "macOS" ]]; then
             cli_source="blur-cli"
             gui_source="blur.app"
-            
+
             cli_binary="blur-cli-$configuration"
             gui_binary="blur-$configuration.dmg"
-            
+
             mv "$cli_source" "$cli_binary"
             tar -cvf "$cli_binary.tar.gz" "$cli_binary"
             cli_path="$cli_binary.tar.gz"
 
             brew install create-dmg
-            
+
             mkdir source_folder
             mv "$gui_source" source_folder
-            
+
             create-dmg \
               --volname "Blur Installer" \
               --window-pos 200 120 \
