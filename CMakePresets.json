@@ -110,9 +110,7 @@
       "inherits": "linux-base",
       "displayName": "Release with Debug Info",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_CXX_FLAGS": "-O0",
-        "CMAKE_C_FLAGS": "-O0"
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
     },
     {
@@ -136,9 +134,7 @@
       "inherits": "mac-base",
       "displayName": "Release with Debug Info",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_CXX_FLAGS": "-O0",
-        "CMAKE_C_FLAGS": "-O0"
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
     }
   ],

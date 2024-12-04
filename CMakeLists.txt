@@ -59,10 +59,7 @@ function(setup_target target)
             Threads::Threads)
   target_compile_definitions(
     ${target}
-    PRIVATE NOMINMAX
-            BOOST_FILESYSTEM_NO_LIB BOOST_FILESYSTEM_STATIC_LINK=1 CLI11_COMPILE
-            $<$<CONFIG:Debug>:_DEBUG>
-            $<$<CONFIG:Release>:NDEBUG>)
+    PRIVATE NOMINMAX BOOST_FILESYSTEM_NO_LIB BOOST_FILESYSTEM_STATIC_LINK=1 CLI11_COMPILE)
   if (WIN32)
     set(${target}
       resources/resources_win32.rc)
@@ -98,10 +95,14 @@ elseif(APPLE)
     set(SKIA_REPOSITORY
         https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-macOS-Release-arm64.zip
     )
+    set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release-arm64 CACHE PATH "Skia library directory")
+    set(SKIA_LIBRARY ${SKIA_LIBRARY_DIR}/libskia.a)
   elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "x86_64" OR CMAKE_OSX_ARCHITECTURES MATCHES "x86_64")
     set(SKIA_REPOSITORY
         https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-macOS-Release-x64.zip
     )
+    set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release-x64 CACHE PATH "Skia library directory")
+    set(SKIA_LIBRARY ${SKIA_LIBRARY_DIR}/libskia.a)
   else()
     message(FATAL_ERROR "Unsupported macOS architecture: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
   endif()
@@ -110,6 +111,7 @@ elseif(WIN32)
       https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-Windows-Release-x64.zip
   )
   set(SKIA_LIBRARY_DIR ${SKIA_DIR}/out/Release-x64 CACHE PATH "Skia library directory")
+  set(SKIA_LIBRARY ${SKIA_LIBRARY_DIR}/libskia.lib)
 endif()
 
 FetchContent_Declare(skia
