@@ -59,12 +59,67 @@ function(setup_target target)
             Threads::Threads)
   target_compile_definitions(
     ${target}
-    PRIVATE NOMINMAX BOOST_FILESYSTEM_NO_LIB BOOST_FILESYSTEM_STATIC_LINK=1 CLI11_COMPILE)
+    PRIVATE NOMINMAX BOOST_FILESYSTEM_NO_LIB BOOST_FILESYSTEM_STATIC_LINK=1)
   if (WIN32)
     set(${target}
       resources/resources_win32.rc)
   endif()
+
+  if (APPLE)
+    target_link_libraries(${target} PRIVATE
+        "-framework CoreFoundation"
+    )
+
+    # use bundled libunwind (fixes cli11 exception issue
+    # doesn't happen in github runners. idk. maybe it's my pc
+    # remove this and do ./blur-cli -h and you get libc++abi: terminating due to uncaught exception of type CLI::CallForHelp: This should be caught in your main function, see examples)
+    # taken from https://formulae.brew.sh/formula/llvm
+    # todo: remove when this is fixed or find a better solution. maybe this is just my macos version??
+    target_link_libraries(${target} PRIVATE
+        -L$ENV{HOMEBREW_PREFIX}/opt/llvm/lib/unwind
+        -lunwind
+    )
+
+    get_target_property(is_bundle ${target} MACOSX_BUNDLE)
+
+    if (is_bundle)
+      set(BUILD_RESOURCES_DIR "$<TARGET_BUNDLE_DIR:${target}>/Contents/Resources")
+    else()
+      set(BUILD_RESOURCES_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+    endif()
+  else()
+    set(BUILD_RESOURCES_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+  endif()
+
+  # copy vapoursynth scripts
+  add_custom_command(
+    TARGET ${target} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${BUILD_RESOURCES_DIR}/lib
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${PROJECT_SOURCE_DIR}/src/vapoursynth"
+            ${BUILD_RESOURCES_DIR}/lib
+    COMMAND ${CMAKE_COMMAND} -E copy
+            ${CMAKE_SOURCE_DIR}/resources/sample_video.mp4
+            ${BUILD_RESOURCES_DIR}
+  )
+
+
+  if (${target} STREQUAL "blur-gui")
+    # copy sample video
+    add_custom_command(
+      TARGET ${target} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy
+              ${CMAKE_SOURCE_DIR}/resources/sample_video.mp4
+              ${BUILD_RESOURCES_DIR}
+    )
+  endif()
 endfunction()
+
+if(CMAKE_BUILD_TYPE STREQUAL Debug)
+  add_definitions(-DDEBUGMODE -D_DEBUG)
+else()
+  add_definitions(-DNDEBUG)
+endif()
 
 # cli
 add_executable(
@@ -161,10 +216,10 @@ if(APPLE)
   set(MACOSX_BUNDLE_ICON_FILE blur.icns)
 
   # Ensure the .icns file is included in the app bundle's Resources folder
-  set_source_files_properties(resources/blur.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+  set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/blur.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
   # Link the .icns file to the target
-  target_sources(blur-gui PRIVATE resources/blur.icns)
+  target_sources(blur-gui PRIVATE ${CMAKE_SOURCE_DIR}/resources/blur.icns)
 elseif(UNIX)
   target_link_libraries(blur-gui PRIVATE
   X11
