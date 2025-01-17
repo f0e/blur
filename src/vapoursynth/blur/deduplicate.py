@@ -25,7 +25,9 @@ def get_interp(
 
     def find_next_good_frame():
         index = duplicate_index + 1
-        while True:
+        last_possible_index = len(clip) - 1 # for clarity (this shit always trips me up)
+
+        while index <= last_possible_index:
             test_frame = clip[index]
             diffclip = core.std.PlaneStats(test_frame, duped_frame)
 
@@ -34,6 +36,8 @@ def get_interp(
                     return index
 
             index += 1
+
+        return last_possible_index
 
     dupe_last_good_idx = duplicate_index - 1
 
