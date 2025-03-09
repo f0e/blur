@@ -45,7 +45,7 @@ jobs:
 
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v2
-        if: runner.os != 'Windows' # Windows uses MSVC
+        if: runner.os != 'Windows' && runner.os != 'Linux' # Skip on Windows and Linux
         with:
           env: true
           version: 17
