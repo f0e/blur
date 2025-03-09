@@ -535,13 +535,14 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 				render = renders.back().get();
 			}
 
-			auto res = render->render(blur.resources_path / "sample_video.mp4", settings);
+			auto sample_video_path = blur.resources_path / "sample_video.mp4";
+			auto res = render->render(sample_video_path, settings);
 
 			if (res.success) {
 				std::lock_guard<std::mutex> lock(preview_mutex);
 				preview_id++;
 
-				blur.remove_temp_path(preview_path.parent_path());
+				Blur::remove_temp_path(preview_path.parent_path());
 
 				preview_path = res.output_path;
 
@@ -554,7 +555,10 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 
 				if (!res.success) {
 					if (res.error_message == "Input path does not exist")
-						add_notification("Couldn't open sample video", ui::NotificationType::NOTIF_ERROR);
+						add_notification(
+							std::format("Sample video not found at {}", sample_video_path.string()),
+							ui::NotificationType::NOTIF_ERROR
+						);
 					else
 						add_notification("Failed to generate config preview", ui::NotificationType::NOTIF_ERROR);
 				}

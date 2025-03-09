@@ -39,7 +39,7 @@ RenderCommands FrameRender::build_render_commands(
 		L"-hide_banner",
 		L"-stats",
 		L"-ss",
-		L"00:00:01", // skip forward a second because blur needs context
+		L"00:00:01", // skip forward a second because blur needs context todo: how low can this go?
 		L"-y",
 		L"-i",
 		L"-", // piped output from video script

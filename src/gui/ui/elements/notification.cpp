@@ -64,7 +64,7 @@ void ui::render_notification(const Container& container, os::Surface* surface, c
 ui::Element& ui::add_notification(
 	const std::string& id, Container& container, const std::string& text, ui::NotificationType type, const SkFont& font
 ) {
-	gfx::Size notification_size = { 230, 50 };
+	gfx::Size notification_size = { 230, 100 }; // height is a maximum to start with
 	const int line_height = font.getSize() + 5;
 
 	std::vector<std::string> lines =

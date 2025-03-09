@@ -103,21 +103,7 @@ function(setup_target target)
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${PROJECT_SOURCE_DIR}/src/vapoursynth"
             ${BUILD_RESOURCES_DIR}/lib
-    COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_SOURCE_DIR}/resources/sample_video.mp4
-            ${BUILD_RESOURCES_DIR}
   )
-
-
-  if (${target} STREQUAL "blur-gui")
-    # copy sample video
-    add_custom_command(
-      TARGET ${target} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy
-              ${CMAKE_SOURCE_DIR}/resources/sample_video.mp4
-              ${BUILD_RESOURCES_DIR}
-    )
-  endif()
 endfunction()
 
 if(CMAKE_BUILD_TYPE STREQUAL Debug)
