@@ -34,7 +34,7 @@ jobs:
             libxi-dev \
             libxrandr-dev \
             libgl1-mesa-dev \
-            libncurses5 \
+            libncurses6 \
             gcc-13 g++-13
 
       - name: Install GCC
