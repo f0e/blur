@@ -35,7 +35,8 @@ jobs:
             libxrandr-dev \
             libgl1-mesa-dev \
             libncurses6 \
-            gcc-13 g++-13
+            gcc-13 g++-13 \
+            libfontconfig1-dev
 
       - name: Install GCC
         if: runner.os == 'Linux'
