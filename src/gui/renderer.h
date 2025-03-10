@@ -27,6 +27,7 @@ namespace gui::renderer {
 
 	inline std::vector<Notification> notifications;
 	inline const float NOTIFICATION_LENGTH = 4.f;
+	inline std::mutex notification_mutex;
 
 	inline os::NativeCursor current_cursor;
 	inline bool set_cursor_this_frame = false;
@@ -86,6 +87,12 @@ namespace gui::renderer {
 
 	bool redraw_window(os::Window* window, bool force_render);
 
+	Notification create_notification(
+		const std::string& text,
+		ui::NotificationType type,
+		std::chrono::duration<float> duration = std::chrono::duration<float>(NOTIFICATION_LENGTH)
+	);
+
 	void add_notification(
 		const std::string& text, ui::NotificationType type, std::chrono::steady_clock::time_point end_time
 	);
@@ -94,6 +101,8 @@ namespace gui::renderer {
 		ui::NotificationType type,
 		std::chrono::duration<float> duration = std::chrono::duration<float>(NOTIFICATION_LENGTH)
 	);
+
+	void render_notifications();
 
 	void on_render_finished(Render* render, bool success);
 }

@@ -531,8 +531,7 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 					render->stop();
 				}
 
-				renders.emplace_back(std::make_unique<FrameRender>());
-				render = renders.back().get();
+				render = renders.emplace_back(std::make_unique<FrameRender>()).get();
 			}
 
 			auto sample_video_path = blur.resources_path / "sample_video.mp4";
@@ -791,16 +790,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 		}
 	}
 
-	for (auto it = notifications.begin(); it != notifications.end();) {
-		ui::add_notification(
-			std::format("notification {}", it->id), notification_container, it->text, it->type, fonts::font
-		);
-
-		if (now > it->end_time)
-			it = notifications.erase(it);
-		else
-			++it;
-	}
+	render_notifications();
 
 	ui::center_elements_in_container(nav_container);
 
@@ -891,6 +881,8 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 void gui::renderer::add_notification(
 	const std::string& text, ui::NotificationType type, std::chrono::steady_clock::time_point end_time
 ) {
+	std::lock_guard<std::mutex> lock(notification_mutex);
+
 	notifications.emplace_back(Notification{
 		.end_time = end_time,
 		.text = text,
@@ -913,4 +905,21 @@ void gui::renderer::on_render_finished(Render* render, bool success) {
 		std::format("Render '{}' {}", base::to_utf8(render->get_video_name()), success ? "finished" : "failed"),
 		success ? ui::NotificationType::SUCCESS : ui::NotificationType::NOTIF_ERROR
 	);
+}
+
+void gui::renderer::render_notifications() {
+	std::lock_guard<std::mutex> lock(notification_mutex);
+
+	auto now = std::chrono::steady_clock::now();
+
+	for (auto it = notifications.begin(); it != notifications.end();) {
+		ui::add_notification(
+			std::format("notification {}", it->id), notification_container, it->text, it->type, fonts::font
+		);
+
+		if (now > it->end_time)
+			it = notifications.erase(it);
+		else
+			++it;
+	}
 }
