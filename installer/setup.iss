@@ -3,7 +3,7 @@
 #include "environment.iss"
 
 #define MyAppName "blur"
-#define MyAppVersion "1.93"
+#define MyAppVersion "2.0"
 #define MyAppPublisher "tekno"
 #define MyAppURL "https://f0e.github.io/blur"
 
@@ -28,10 +28,10 @@ OutputBaseFilename=blur-installer
 SetupIconFile=.\resources\blur.ico
 Compression=lzma
 SolidCompression=yes
-WizardStyle=modern         
-WizardSmallImageFile=.\resources\greyblur.bmp  
-WizardImageFile=.\resources\greyblur.bmp       
-UsePreviousAppDir=no          
+WizardStyle=modern
+WizardSmallImageFile=.\resources\greyblur.bmp
+WizardImageFile=.\resources\greyblur.bmp
+UsePreviousAppDir=no
 ChangesEnvironment=true
 
 [Languages]
@@ -39,12 +39,12 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: envPath; Description: "Add to PATH"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked 
+Name: envPath; Description: "Add to PATH"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
 Source: ".\resources\blur.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: ".\resources\blur-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: ".\dependencies\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs       
+Source: ".\dependencies\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: ".\redist\VC_redist.x64.exe"; DestDir: {tmp}; Flags: deleteafterinstall
 
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
@@ -53,14 +53,14 @@ Source: ".\redist\VC_redist.x64.exe"; DestDir: {tmp}; Flags: deleteafterinstall
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\blur.exe"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\blur.exe"; Tasks: desktopicon
 
-[Run]                                                                                                                         
-Filename: "{tmp}\VC_redist.x64.exe"; Parameters: "/install /passive /norestart"; StatusMsg: "Installing VC++ Redistributables..."          
-               
+[Run]
+Filename: "{tmp}\VC_redist.x64.exe"; Parameters: "/install /passive /norestart"; StatusMsg: "Installing VC++ Redistributables..."
+
 ; Filename: "{app}\lib\vapoursynth\python.exe"; Parameters: "pip install -t . numpy"; StatusMsg: "Installing numpy..."
 ; Filename: "{app}\lib\vapoursynth\python.exe"; Parameters: "vsrepo.py -d update"
-; Filename: "{app}\lib\vapoursynth\python.exe"; Parameters: "vsrepo.py -d install ffms2 havsfunc mvsfunc adjust mvtools"    
+; Filename: "{app}\lib\vapoursynth\python.exe"; Parameters: "vsrepo.py -d install ffms2 havsfunc mvsfunc adjust mvtools"
 Filename: "{app}\blur.exe"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent unchecked
-                             
+
 [Code]
 procedure CurStepChanged(CurStep: TSetupStep);
 begin

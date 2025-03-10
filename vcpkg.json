@@ -1,0 +1,15 @@
+{
+  "dependencies": [
+    {
+      "name": "boost-asio",
+      "version>=": "1.83.0"
+    },
+    {
+      "name": "boost-process",
+      "version>=": "1.83.0"
+    },
+    "cli11",
+    "nlohmann-json",
+    "zlib"
+  ]
+}

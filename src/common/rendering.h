@@ -2,90 +2,152 @@
 
 #include "config.h"
 
-#include <vector>
-#include <thread>
-#include <filesystem>
+struct RenderCommands {
+	std::wstring vspipe_path;
+	std::vector<std::wstring> vspipe;
 
-struct s_render_status {
+	std::wstring ffmpeg_path;
+	std::vector<std::wstring> ffmpeg;
+};
+
+struct RenderStatus {
 	bool finished = false;
 	bool init = false;
 	int current_frame;
 	int total_frames;
 	std::chrono::steady_clock::time_point start_time;
+	std::chrono::duration<double> elapsed_time;
+	float fps;
 
-	std::string progress_string();
+	void update_progress_string(bool first);
+	std::string progress_string;
 };
 
-class c_render {
+class Render {
 private:
-	s_render_status status;
+	uint32_t m_render_id;
 
-	std::wstring video_name;
+	RenderStatus m_status;
 
-	std::filesystem::path video_path;
-	std::filesystem::path video_folder;
+	std::wstring m_video_name;
 
-	std::filesystem::path output_path;
-	std::filesystem::path temp_path;
-	std::filesystem::path preview_path;
+	std::filesystem::path m_video_path;
+	std::filesystem::path m_video_folder;
 
-	s_blur_settings settings;
+	std::filesystem::path m_output_path;
+	std::filesystem::path m_temp_path;
+	std::filesystem::path m_preview_path;
 
-private:
+	BlurSettings m_settings;
+
 	void build_output_filename();
 
-	struct s_render_command {
-		std::wstring pipe_command;
-		std::wstring ffmpeg_command;
-	};
-	s_render_command build_render_command();
+	RenderCommands build_render_commands();
 
-	bool do_render(s_render_command render_command);
+	void update_progress(int current_frame, int total_frames);
+	bool do_render(RenderCommands render_commands);
 
 public:
-	c_render(const std::filesystem::path& input_path, std::optional<std::filesystem::path> output_path = {}, std::optional<std::filesystem::path> config_path = {});
+	Render(
+		std::filesystem::path input_path,
+		const std::optional<std::filesystem::path>& output_path = {},
+		const std::optional<std::filesystem::path>& config_path = {}
+	);
+
+	bool operator==(const Render& other) const {
+		return m_render_id == other.m_render_id;
+	}
 
 	bool create_temp_path();
 	bool remove_temp_path();
 
-	std::wstring get_video_name() {
-		return video_name;
+	bool render();
+
+	[[nodiscard]] uint32_t get_render_id() const {
+		return m_render_id;
 	}
 
-	std::filesystem::path get_output_video_path() {
-		return output_path;
+	[[nodiscard]] std::wstring get_video_name() const {
+		return m_video_name;
 	}
 
-	s_blur_settings get_settings() {
-		return settings;
+	[[nodiscard]] std::filesystem::path get_output_video_path() const {
+		return m_output_path;
 	}
 
-public:
-	void render();
+	[[nodiscard]] BlurSettings get_settings() const {
+		return m_settings;
+	}
 
-	s_render_status get_status() {
-		return status;
+	[[nodiscard]] RenderStatus get_status() const {
+		return m_status;
+	}
+
+	[[nodiscard]] std::filesystem::path get_preview_path() const {
+		return m_preview_path;
 	}
 };
 
-class c_rendering {
+class Rendering {
 private:
-	std::unique_ptr<std::thread> thread_ptr;
+	std::unique_ptr<std::thread> m_thread_ptr;
+	std::vector<std::unique_ptr<Render>> m_queue;
+	std::optional<uint32_t> m_current_render_id;
+
+	std::optional<std::function<void()>> m_progress_callback;
+	std::optional<std::function<void(Render*, bool)>> m_render_finished_callback;
+
+	std::mutex m_lock;
 
 public:
-	std::vector<std::shared_ptr<c_render>> queue;
-	std::shared_ptr<c_render> current_render;
-	bool renders_queued;
-
-public:
-	PROCESS_INFORMATION vspipe_pi;
-	PROCESS_INFORMATION ffmpeg_pi;
-
 	void render_videos();
 
-	void queue_render(std::shared_ptr<c_render> render);
+	Render& queue_render(Render&& render);
 
 	void stop_rendering();
+
+	const std::vector<std::unique_ptr<Render>>& get_queue() {
+		return m_queue;
+	}
+
+	std::optional<Render*> get_current_render() {
+		for (const auto& render : m_queue) {
+			if (render->get_render_id() == m_current_render_id)
+				return { render.get() };
+		}
+
+		return {};
+	}
+
+	std::optional<uint32_t> get_current_render_id() {
+		return m_current_render_id;
+	}
+
+	void set_progress_callback(std::function<void()>&& callback) {
+		m_progress_callback = std::move(callback);
+	}
+
+	void set_render_finished_callback(std::function<void(Render*, bool)>&& callback) {
+		m_render_finished_callback = std::move(callback);
+	}
+
+	void call_progress_callback() {
+		if (m_progress_callback)
+			(*m_progress_callback)();
+	}
+
+	void call_render_finished_callback(Render* render, bool success) {
+		if (m_render_finished_callback)
+			(*m_render_finished_callback)(render, success);
+	}
+
+	void lock() {
+		m_lock.lock();
+	}
+
+	void unlock() {
+		m_lock.unlock();
+	}
 };
 
-inline c_rendering rendering;
+inline Rendering rendering;

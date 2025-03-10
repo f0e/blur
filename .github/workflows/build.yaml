@@ -2,53 +2,181 @@ name: Build
 
 on: [push]
 
-env:
-  is_tag: ${{ startsWith(github.ref, 'refs/tags/') }}
-
-  PROJECT_FILE_PATH: blur.sln
-
-  BUILD_CONFIGURATION: Release
-  BUILD_PLATFORM: x64
-
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        build-type: [Release]
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: Add MSBuild to PATH
-        uses: microsoft/setup-msbuild@v1.0.2
+      - name: Add GCC repository
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-dev \
+            libxcursor-dev \
+            libxinerama-dev \
+            libxi-dev \
+            libxrandr-dev \
+            libgl1-mesa-dev \
+            libncurses6 \
+            gcc-13 g++-13 \
+            libfontconfig1-dev
+
+      - name: Install GCC
+        if: runner.os == 'Linux'
+        run: |
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 --slave /usr/bin/g++ g++ /usr/bin/g++-13 --slave /usr/bin/gcov gcov /usr/bin/gcov-13
+          sudo update-alternatives --set gcc /usr/bin/gcc-13
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v2
+        if: runner.os != 'Windows' && runner.os != 'Linux' # Skip on Windows and Linux
+        with:
+          env: true
+          version: 17
+
+      - name: Install Ninja
+        uses: seanmiddleditch/gha-setup-ninja@master
+        with:
+          version: 1.12.1
 
       - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v7
+        uses: lukka/run-vcpkg@v11
         with:
-          vcpkgDirectory: ${{ runner.workspace }}/vcpkg/
-          vcpkgTriplet: '${{ env.BUILD_PLATFORM }}-windows-static'
-          vcpkgGitCommitId: '8eb57355a4ffb410a2e94c07b4dca2dffbee8e50'
-          vcpkgArguments: 'cxxopts fmt glfw3 imgui[opengl3-binding,glfw-binding] nlohmann-json'
+          vcpkgGitCommitId: "cd124b84feb0c02a24a2d90981e8358fdee0e077"
 
-      - name: Integrate vcpkg
-        run: ${{ runner.workspace }}\vcpkg\vcpkg integrate install
+      - name: Determine CMake Preset
+        id: select-preset
+        run: |
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            prefix="win"
+          elif [ "${{ runner.os }}" == "Linux" ]; then
+            prefix="linux"
+          elif [ "${{ runner.os }}" == "macOS" ]; then
+            prefix="mac"
+          fi
+          preset="${prefix}-$(echo "${{ matrix.build-type }}" | tr '[:upper:]' '[:lower:]')"
+          echo "preset=$preset" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Use Developer Command Prompt for Microsoft Visual C++
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure CMake
+        run: cmake --preset ${{ steps.select-preset.outputs.preset }}
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
       - name: Build
-        working-directory: ${{ env.GITHUB_WORKSPACE }}
-        run: MSBuild /p:Configuration=${{ env.BUILD_CONFIGURATION }} /p:Platform=${{ env.BUILD_PLATFORM }} ${{ env.PROJECT_FILE_PATH }}
+        run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }}
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
-      - name: Upload
-        uses: actions/upload-artifact@v3
+      - name: Prepare Binaries
+        id: prep
+        shell: bash
+        run: |
+          # Set up configuration variables
+          build_dir="bin/${{ matrix.build-type }}"
+          os="${{ runner.os }}"
+          build_type="${{ matrix.build-type }}"
+          arch="$(echo "${{ runner.arch }}" | tr '[:upper:]' '[:lower:]')"
+          configuration="$os-$build_type-$arch"
+
+          cd "$build_dir"
+
+          # Determine source and binary names
+          if [[ "$os" == "Windows" ]]; then
+            cli_source="blur-cli.exe"
+            gui_source="blur.exe"
+
+            cli_binary="blur-cli-$configuration.exe"
+            gui_binary="blur-$configuration.exe"
+
+            mv "$cli_source" "$cli_binary"
+            mv "$gui_source" "$gui_binary"
+
+            gui_path="$gui_binary"
+            cli_path="$cli_binary"
+          elif [[ "$os" == "Linux" ]]; then
+            cli_source="blur-cli"
+            gui_source="blur"
+
+            cli_binary="blur-cli-$configuration"
+            gui_binary="blur-$configuration"
+
+            mv "$cli_source" "$cli_binary"
+            tar -cvf "$cli_binary.tar.gz" "$cli_binary"
+            cli_path="$cli_binary.tar.gz"
+
+            mv "$gui_source" "$gui_binary"
+            tar -cvf "$gui_binary.tar.gz" "$gui_binary"
+            gui_path="$gui_binary.tar.gz"
+          elif [[ "$os" == "macOS" ]]; then
+            cli_source="blur-cli"
+            gui_source="blur.app"
+
+            cli_binary="blur-cli-$configuration"
+            gui_binary="blur-$configuration.dmg"
+
+            mv "$cli_source" "$cli_binary"
+            tar -cvf "$cli_binary.tar.gz" "$cli_binary"
+            cli_path="$cli_binary.tar.gz"
+
+            brew install create-dmg
+
+            mkdir source_folder
+            mv "$gui_source" source_folder
+
+            create-dmg \
+              --volname "Blur Installer" \
+              --window-pos 200 120 \
+              --window-size 600 400 \
+              --icon-size 100 \
+              --icon "Blur.app" 175 120 \
+              --hide-extension "Blur.app" \
+              --app-drop-link 425 120 \
+              "$gui_binary" \
+              "source_folder"
+
+            gui_path="$gui_binary"
+          fi
+
+          # Output for subsequent steps
+          echo "build_dir=$build_dir" >> $GITHUB_OUTPUT
+          echo "cli_path=$cli_path" >> $GITHUB_OUTPUT
+          echo "gui_path=$gui_path" >> $GITHUB_OUTPUT
+          echo "configuration=$configuration" >> $GITHUB_OUTPUT
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: Blur
+          name: Blur-${{ steps.prep.outputs.configuration }}
           path: |
-            bin/blur-cli/Release/blur-cli.exe
-            bin/blur-gui/Release/blur.exe
+            ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.cli_path }}
+            ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.gui_path }}
 
       - name: Release
-        uses: softprops/action-gh-release@v1
-        if: ${{ env.is_tag == 'true' }}
+        uses: softprops/action-gh-release@v2
+        if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags/') }}
         with:
           files: |
-            bin/blur-cli/Release/blur-cli.exe
-            bin/blur-gui/Release/blur.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.cli_path }}
+            ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.gui_path }}

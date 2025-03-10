@@ -1,0 +1,83 @@
+---
+Checks: >
+  bugprone-*,
+  cert-*,
+  cppcoreguidelines-*,
+  clang-analyzer-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -modernize-use-trailing-return-type,
+  -misc-non-private-member-variables-in-classes,
+  -readability-uppercase-literal-suffix,
+  -readability-braces-around-statements,
+  -readability-magic-numbers,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -misc-const-correctness,
+  -bugprone-easily-swappable-parameters,
+  -readability-identifier-length,
+  -cppcoreguidelines-narrowing-conversions,
+  -bugprone-narrowing-conversions,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cert-err58-cpp,
+  -cppcoreguidelines-avoid-do-while,
+  -misc-unused-parameters
+
+WarningsAsErrors: ""
+
+HeaderFilterRegex: "^(?!.*(/usr/|/opt/|/Library/|boost/|eigen/|vcpkg|/dependencies/)).*$"
+
+CheckOptions:
+  # Naming conventions
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.MemberCase
+    value: lower_case
+  - key: readability-identifier-naming.ParameterCase
+    value: lower_case
+  - key: readability-identifier-naming.ParameterIgnoredRegexp
+    value: "^_?[a-z][a-z0-9]*(_[a-z0-9]+)*$" # allow leading underscore
+  - key: readability-identifier-naming.PrivateMemberPrefix
+    value: m_
+  - key: readability-identifier-naming.ProtectedMemberPrefix
+    value: m_
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.VariableIgnoredRegexp
+    value: "^_?[a-z][a-z0-9]*(_[a-z0-9]+)*$" # allow leading underscore
+  - key: readability-identifier-naming.EnumConstantCase
+    value: UPPER_CASE
+
+  # # Function size limits
+  # - key: readability-function-size.LineThreshold
+  #   value: 50
+  # - key: readability-function-size.ParameterThreshold
+  #   value: 5
+  # - key: readability-function-size.StatementThreshold
+  #   value: 50
+
+  # # Class and function rules
+  # - key: readability-function-cognitive-complexity.Threshold
+  #   value: 25
+  # - key: cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
+  #   value: true
+
+  # Type conversion and boolean rules
+  - key: readability-implicit-bool-conversion.AllowIntegerConditions
+    value: true
+  - key: readability-implicit-bool-conversion.AllowPointerConditions
+    value: true
+
+  # Performance
+  - key: performance-faster-string-find.StringLikeClasses
+    value: "std::basic_string"

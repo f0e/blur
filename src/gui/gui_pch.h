@@ -2,20 +2,16 @@
 
 #include <common/common_pch.h>
 
-// blur
-#include "drawing/datatypes/datatypes.h">
-
 // dependencies
-#define GL_SILENCE_DEPRECATION
-#include <imgui.h>
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl3.h>
-#include <glfw/glfw3.h>
+#include <base/paths.h>
+#include <base/system_console.h>
+#include <os/os.h>
 
-#define GLFW_EXPOSE_NATIVE_WIN32
-#define GLFW_EXPOSE_NATIVE_WGL
-#define GLFW_NATIVE_INCLUDE_NONE
-#include <glfw/glfw3native.h>
+#include <os/skia/skia_helpers.h>
+#include <os/skia/skia_surface.h>
 
-// resources
-#include "../resources/resource.h"
+#include <include/core/SkTextBlob.h>
+#include <include/utils/SkTextUtils.h>
+#include <include/core/SkFont.h>
+#include <include/core/SkTypeface.h>
+#include <include/core/SkData.h>

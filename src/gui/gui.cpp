@@ -1,136 +1,87 @@
 #include "gui.h"
 
-#include "drawing/drawing.h"
+#include "drag_handler.h"
+#include "event_handler.h"
+#include "renderer.h"
+#include "window_manager.h"
 
-#include <dwmapi.h>
+#include "ui/utils.h"
 
-static void glfw_error_callback(int error, const char* description) {
-    fprintf(stderr, "GLFW Error %d: %s\n", error, description);
+#define DEBUG_RENDER_LOGGING 0
+
+void gui::update_vsync() {
+#ifdef _WIN32
+	HMONITOR screen_handle = (HMONITOR)window->screen()->nativeHandle();
+	static HMONITOR last_screen_handle;
+#elif defined(__APPLE__)
+	void* screen_handle = window->screen()->nativeHandle();
+	static void* last_screen_handle;
+#else
+	intptr_t screen_handle = (intptr_t)window->screen()->nativeHandle();
+	static intptr_t last_screen_handle;
+#endif
+
+	if (screen_handle != last_screen_handle) {
+		const double rate = utils::get_display_refresh_rate(screen_handle);
+		vsync_frame_time = float(1.f / (rate + VSYNC_EXTRA_FPS));
+		u::log("switched screen, updated vsync_frame_time. refresh rate: {:.2f} hz", rate);
+		last_screen_handle = screen_handle;
+	}
 }
 
-void add_file(std::filesystem::path path) {
-    std::wcout << path << std::endl;
+void gui::event_loop() {
+	bool rendered_last = false;
 
-    rendering.queue_render(std::make_shared<c_render>(path));
-}
+	while (!closing) {
+		auto frame_start = std::chrono::steady_clock::now();
 
-void drop_callback(GLFWwindow* window, int count, const char** paths) {
-    for (int i = 0; i < count; i++) {
-        std::wstring path_str = helpers::towstring(paths[i]).c_str();
+		update_vsync();
 
-        add_file(std::filesystem::path(path_str));
-    }
-}
+		to_render |= event_handler::handle_events(rendered_last); // true if input handled
 
-WNDPROC o_wnd_proc;
-static LRESULT CALLBACK wnd_proc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    switch (msg)
-    {
-    case WM_NCHITTEST: {
-        // drag window in client area
-        LRESULT hit = DefWindowProc(hWnd, msg, wParam, lParam);
-        if (hit == HTCLIENT) hit = HTCAPTION;
-        return hit;
-    }
-    }
+		const bool rendered = renderer::redraw_window(
+			window.get(), to_render
+		); // note: rendered isn't true if rendering was forced, it's only if an animation or smth is playing
 
-    return CallWindowProc(o_wnd_proc, hWnd, msg, wParam, lParam);
+#if DEBUG_RENDER_LOGGING
+		u::log("rendered: {}, to render: {}", rendered, to_render);
+#endif
+
+		// vsync
+		if (rendered || to_render) {
+			to_render = false;
+			rendered_last = true;
+
+#ifdef WIN32
+			u::sleep(vsync_frame_time); // killllll windowwssssss
+#else
+			auto target_time = frame_start + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+												 std::chrono::duration<float>(vsync_frame_time)
+											 );
+			std::this_thread::sleep_until(target_time);
+#endif
+		}
+		else {
+			rendered_last = false;
+		}
+	}
 }
 
 void gui::run() {
-    glfwSetErrorCallback(glfw_error_callback);
-    if (!glfwInit())
-        return;
+	auto system = os::make_system(); // note: storing this and not calling release() causes skia crash
 
-    // GL 3.0 + GLSL 130
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+	renderer::init_fonts();
 
-    // glfwWindowHint(GLFW_DECORATED, GLFW_FALSE); // remove window border
-    // glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE); // transparent window
+	system->setAppMode(os::AppMode::GUI);
+	system->handleWindowResize = window_manager::on_resize;
 
-    // Create window with graphics context
-    GLFWwindow* window = glfwCreateWindow(w, h, "blur", nullptr, nullptr);
-    if (window == nullptr)
-        return;
+	drag_handler::DragTarget drag_target;
+	window = window_manager::create_window(drag_target);
 
-    HWND hwnd = glfwGetWin32Window(window);
-    SetClassLongPtr(hwnd, GCLP_HICON, (LONG_PTR)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_ICON1)));
+	system->finishLaunching();
+	system->activateApp();
 
-    BOOL value = TRUE;
-    ::DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
+	event_queue = system->eventQueue(); // todo: move this maybe
 
-    glfwMakeContextCurrent(window);
-    glfwSwapInterval(1); // Enable vsync
-
-    glfwSetDropCallback(window, drop_callback);
-
-    drawing::init(window);
-
-    ImGuiViewport* main_viewport = ImGui::GetMainViewport();
-    o_wnd_proc = reinterpret_cast<WNDPROC>(SetWindowLongPtr((HWND)main_viewport->PlatformHandleRaw, GWLP_WNDPROC, (LONG_PTR)wnd_proc));
-
-    while (!glfwWindowShouldClose(window))
-    {
-        // Poll and handle events (inputs, window resize, etc.)
-        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
-        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
-        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
-        glfwPollEvents();
-
-        glfwGetWindowSize(window, &w, &h);
-
-        drawing::imgui.begin();
-
-        const static int spacing = 5;
-        const static int pad = 25;
-        int y = 0;
-        auto draw_str_temp = [&y](std::string text, s_colour colour = s_colour::white()) {
-            const auto font = fonts::mono;
-
-            const int available_width = w - pad * 2;
-            drawing::clip_string(text, font, available_width);
-
-            drawing::string(s_point(pad, pad + y), 0, colour, font, text);
-
-            y += font.calc_size(text).h + spacing;
-        };
-
-        draw_str_temp("blur");
-        draw_str_temp("drop a file...");
-
-        if (!rendering.queue.empty()) {
-            for (const auto [i, render] : helpers::enumerate(rendering.queue)) {
-                bool current = render == rendering.current_render;
-
-                std::string name_str = helpers::tostring(render->get_video_name());
-                draw_str_temp(name_str, s_colour::white(current ? 255 : 100));
-
-                if (current) {
-                    auto render_status = render->get_status();
-
-                    if (render_status.init) {
-                        draw_str_temp(render_status.progress_string());
-                    }
-                    else {
-                        draw_str_temp("initialising render...");
-                    }
-                }
-            }
-        }
-
-        drawing::imgui.end();
-        glfwSwapBuffers(window);
-    }
-
-    // Cleanup
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
-
-    glfwDestroyWindow(window);
-    glfwTerminate();
-
-    open = false;
+	event_loop();
 }

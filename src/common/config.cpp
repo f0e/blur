@@ -1,9 +1,9 @@
 #include "config.h"
 
-void c_config::create(const std::filesystem::path& filepath, s_blur_settings current_settings) {
+void config::create(const std::filesystem::path& filepath, const BlurSettings& current_settings) {
 	std::ofstream output(filepath);
 
-	output << "[blur v" << blur.BLUR_VERSION << "]" << "\n";
+	output << "[blur v" << BLUR_VERSION << "]" << "\n";
 
 	output << "- blur" << "\n";
 	output << "blur: " << (current_settings.blur ? "true" : "false") << "\n";
@@ -25,12 +25,15 @@ void c_config::create(const std::filesystem::path& filepath, s_blur_settings cur
 
 	output << "\n";
 	output << "- timescale" << "\n";
+	output << "timescale: " << (current_settings.timescale ? "true" : "false") << "\n";
 	output << "input timescale: " << current_settings.input_timescale << "\n";
 	output << "output timescale: " << current_settings.output_timescale << "\n";
-	output << "adjust timescaled audio pitch: " << (current_settings.output_timescale_audio_pitch ? "true" : "false") << "\n";
+	output << "adjust timescaled audio pitch: " << (current_settings.output_timescale_audio_pitch ? "true" : "false")
+		   << "\n";
 
 	output << "\n";
 	output << "- filters" << "\n";
+	output << "filters: " << (current_settings.filters ? "true" : "false") << "\n";
 	output << "brightness: " << current_settings.brightness << "\n";
 	output << "saturation: " << current_settings.saturation << "\n";
 	output << "contrast: " << current_settings.contrast << "\n";
@@ -47,7 +50,8 @@ void c_config::create(const std::filesystem::path& filepath, s_blur_settings cur
 	output << "\n";
 	output << "- advanced blur" << "\n";
 	output << "blur weighting gaussian std dev: " << current_settings.blur_weighting_gaussian_std_dev << "\n";
-	output << "blur weighting triangle reverse: " << (current_settings.blur_weighting_triangle_reverse ? "true" : "false") << "\n";
+	output << "blur weighting triangle reverse: "
+		   << (current_settings.blur_weighting_triangle_reverse ? "true" : "false") << "\n";
 	output << "blur weighting bound: " << current_settings.blur_weighting_bound << "\n";
 
 	output << "\n";
@@ -57,7 +61,7 @@ void c_config::create(const std::filesystem::path& filepath, s_blur_settings cur
 	output << "interpolation algorithm: " << current_settings.interpolation_algorithm << "\n";
 	output << "interpolation block size: " << current_settings.interpolation_blocksize << "\n";
 	output << "interpolation mask area: " << current_settings.interpolation_mask_area << "\n";
-	
+
 	if (current_settings.manual_svp) {
 		output << "\n";
 		output << "- manual svp override" << "\n";
@@ -68,11 +72,7 @@ void c_config::create(const std::filesystem::path& filepath, s_blur_settings cur
 	}
 }
 
-std::filesystem::path c_config::get_config_filename(const std::filesystem::path& video_folder) {
-	return video_folder / filename;
-}
-
-s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
+BlurSettings config::parse(const std::filesystem::path& config_filepath) {
 	auto read_config = [&]() {
 		std::map<std::string, std::string> config = {};
 
@@ -89,16 +89,16 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 			std::string value = line.substr(pos + 1);
 
 			// trim whitespace
-			key = helpers::trim(key);
+			key = u::trim(key);
 			if (key == "")
 				continue;
 
-			value = helpers::trim(value);
+			value = u::trim(value);
 
 			if (key != "custom ffmpeg filters") {
-				// remove all spaces in values (it breaks stringstream string parsing, this is a dumb workaround) todo: better solution
-				std::string::iterator end_pos = std::remove(value.begin(), value.end(), ' ');
-				value.erase(end_pos, value.end());
+				// remove all spaces in values (it breaks stringstream string parsing, this is a dumb workaround) todo:
+				// better solution
+				std::erase(value, ' ');
 			}
 
 			config[key] = value;
@@ -109,33 +109,33 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 
 	auto config = read_config();
 
-	auto config_get = [&]<typename t>(const std::string & var, t & out) {
+	auto config_get = [&]<typename t>(const std::string& var, t& out) {
 		if (!config.contains(var)) {
-			helpers::debug_log(fmt::format("config missing variable '{}'", var));
+			DEBUG_LOG("config missing variable '{}'", var);
 			return;
 		}
 
 		try {
 			std::stringstream ss(config[var]);
 			ss.exceptions(std::ios::failbit); // enable exceptions
-			ss >> std::boolalpha >> out; // boolalpha: enable true/false bool parsing
+			ss >> std::boolalpha >> out;      // boolalpha: enable true/false bool parsing
 		}
 		catch (const std::exception&) {
-			helpers::debug_log("failed to parse config variable '{}' (value: {})", var, config[var]);
+			DEBUG_LOG("failed to parse config variable '{}' (value: {})", var, config[var]);
 			return;
 		}
 	};
 
 	auto config_get_str = [&](const std::string& var, std::string& out) { // todo: clean this up i cant be bothered rn
 		if (!config.contains(var)) {
-			helpers::debug_log(fmt::format("config missing variable '{}'", var));
+			DEBUG_LOG("config missing variable '{}'", var);
 			return;
 		}
 
 		out = config[var];
 	};
 
-	s_blur_settings settings;
+	BlurSettings settings;
 
 	config_get("blur", settings.blur);
 	config_get("blur amount", settings.blur_amount);
@@ -145,6 +145,7 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 	config_get("interpolate", settings.interpolate);
 	config_get_str("interpolated fps", settings.interpolated_fps);
 
+	config_get("filters", settings.filters);
 	config_get("brightness", settings.brightness);
 	config_get("saturation", settings.saturation);
 	config_get("contrast", settings.contrast);
@@ -154,6 +155,7 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 	config_get("preview", settings.preview);
 	config_get("detailed filenames", settings.detailed_filenames);
 
+	config_get("timescale", settings.timescale);
 	config_get("input timescale", settings.input_timescale);
 	config_get("output timescale", settings.output_timescale);
 	config_get("adjust timescaled audio pitch", settings.output_timescale_audio_pitch);
@@ -171,8 +173,8 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 
 	// config_get_str("interpolation program (svp/rife/rife-ncnn)", settings.interpolation_program);
 	config_get_str("interpolation preset", settings.interpolation_preset);
-	config_get("interpolation algorithm", settings.interpolation_algorithm);
-	config_get("interpolation block size", settings.interpolation_blocksize);
+	config_get_str("interpolation algorithm", settings.interpolation_algorithm);
+	config_get_str("interpolation block size", settings.interpolation_blocksize);
 	config_get("interpolation mask area", settings.interpolation_mask_area);
 
 	config_get("manual svp", settings.manual_svp);
@@ -186,10 +188,33 @@ s_blur_settings c_config::parse(const std::filesystem::path& config_filepath) {
 	return settings;
 }
 
-s_blur_settings c_config::get_config(const std::filesystem::path& config_filepath, bool use_global) {
+BlurSettings config::parse_global_config() {
+	return parse(get_global_config_path());
+}
+
+std::filesystem::path config::get_global_config_path() {
+	return blur.resources_path / CONFIG_FILENAME;
+}
+
+std::filesystem::path config::get_config_filename(const std::filesystem::path& video_folder) {
+	return video_folder / CONFIG_FILENAME;
+}
+
+BlurSettings config::get_global_config() {
+	auto global_cfg_path = get_global_config_path();
+	bool global_cfg_exists = std::filesystem::exists(global_cfg_path);
+
+	if (!global_cfg_exists) {
+		create(global_cfg_path);
+	}
+
+	return parse(global_cfg_path);
+}
+
+BlurSettings config::get_config(const std::filesystem::path& config_filepath, bool use_global) {
 	bool local_cfg_exists = std::filesystem::exists(config_filepath);
 
-	auto global_cfg_path = blur.path / filename;
+	auto global_cfg_path = blur.resources_path / CONFIG_FILENAME;
 	bool global_cfg_exists = std::filesystem::exists(global_cfg_path);
 
 	std::filesystem::path cfg_path;
@@ -197,14 +222,14 @@ s_blur_settings c_config::get_config(const std::filesystem::path& config_filepat
 		cfg_path = global_cfg_path;
 
 		if (blur.verbose)
-			printf("Using global config\n");
+			u::log("Using global config");
 	}
 	else {
 		// check if the config file exists, if not, write the default values
 		if (!local_cfg_exists) {
-			config.create(config_filepath);
+			create(config_filepath);
 
-			wprintf(L"Configuration file not found, default config generated at %s\n", config_filepath.wstring().c_str());
+			u::log(L"Configuration file not found, default config generated at {}", config_filepath.wstring());
 		}
 
 		cfg_path = config_filepath;
@@ -213,7 +238,7 @@ s_blur_settings c_config::get_config(const std::filesystem::path& config_filepat
 	return parse(cfg_path);
 }
 
-nlohmann::json s_blur_settings::to_json() {
+nlohmann::json BlurSettings::to_json() const {
 	nlohmann::json j;
 
 	j["blur"] = this->blur;
@@ -224,10 +249,12 @@ nlohmann::json s_blur_settings::to_json() {
 	j["interpolate"] = this->interpolate;
 	j["interpolated_fps"] = this->interpolated_fps;
 
+	j["timescale"] = this->timescale;
 	j["input_timescale"] = this->input_timescale;
 	j["output_timescale"] = this->output_timescale;
 	j["output_timescale_audio_pitch"] = this->output_timescale_audio_pitch;
 
+	j["filters"] = this->filters;
 	j["brightness"] = this->brightness;
 	j["saturation"] = this->saturation;
 	j["contrast"] = this->contrast;

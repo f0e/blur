@@ -1,7 +1,8 @@
 #pragma once
 
+// NOLINTBEGIN(misc-include-cleaner)
+
 // std
-#include <conio.h>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
@@ -17,20 +18,31 @@
 #include <codecvt>
 #include <locale>
 #include <regex>
+#include <set>
 #include <unordered_set>
-
-#include <shobjidl.h>
-
-#include <Windows.h>
+#include <ranges>
 
 // libs
-#include <fmt/format.h>
-#include <fmt/xchar.h>
 #include <nlohmann/json.hpp>
+
+#include <boost/process.hpp>
+#include <boost/asio.hpp>
+#ifdef _WIN32
+#	include <boost/process/v1/windows.hpp>
+#endif
+
+// os
+#ifdef _WIN32
+#	include <conio.h>
+#	include <shobjidl.h>
+#	include <Windows.h>
+#elif __APPLE__
+#	include <mach-o/dyld.h>
+#	include <CoreFoundation/CoreFoundation.h>
+#endif
 
 // blur
 #include "blur.h"
-#include "helpers.h"
+#include "utils.h"
 
-// resources
-#include "../resources/resource.h"
+// NOLINTEND(misc-include-cleaner)

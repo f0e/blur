@@ -1,74 +1,61 @@
 #include "cli.h"
+#include <common/rendering.h>
 
-#include <common/preview.h>
-
-void cli::run(const cxxopts::ParseResult& cmd) {
-	if (!blur.initialise(
-		cmd["verbose"].as<bool>(),
-		cmd["preview"].as<bool>()
-	)) {
-		printf("Blur failed to initialise\n");
-		return;
+bool cli::run(
+	std::vector<std::string> inputs,
+	std::vector<std::string> outputs,
+	std::vector<std::string> config_paths,
+	bool preview,
+	bool verbose
+) {
+	if (!blur.initialise(verbose, preview)) { // todo: preview in cli
+		u::log(L"Blur failed to initialize");
+		return false;
 	}
 
-	std::vector<std::string> inputs, outputs, config_paths;
-
-	if (!cmd.count("input")) {
-		printf("No input files specified. Use -i or --input.\n");
-		return;
+	bool manual_output_files = !outputs.empty();
+	if (manual_output_files && inputs.size() != outputs.size()) {
+		u::log(L"Input/output filename count mismatch ({} inputs, {} outputs).", inputs.size(), outputs.size());
+		return false;
 	}
 
-	inputs = cmd["input"].as<std::vector<std::string>>();
-
-	bool manual_output_files = cmd.count("output");
-	if (manual_output_files) {
-		if (cmd.count("input") != cmd.count("output")) {
-			printf("Input/output filename count mismatch (%zu inputs, %zu outputs).\n", cmd.count("input"), cmd.count("output"));
-			return;
-		}
-
-		outputs = cmd["output"].as<std::vector<std::string>>();
+	bool manual_config_files = !config_paths.empty();
+	if (manual_config_files && inputs.size() != config_paths.size()) {
+		u::log(
+			L"Input filename/config paths count mismatch ({} inputs, {} config paths).",
+			inputs.size(),
+			config_paths.size()
+		);
+		return false;
 	}
 
-	bool manual_config_files = cmd.count("config-path"); // todo: cleanup redundancy ^^
 	if (manual_config_files) {
-		if (cmd.count("input") != cmd.count("config-path")) {
-			printf("Input filename/config paths count mismatch (%zu inputs, %zu config paths).\n", cmd.count("input"), cmd.count("config-path"));
-			return;
-		}
-
-		config_paths = cmd["config-path"].as<std::vector<std::string>>();
-
-		// check if all configs exist
-		bool paths_ok = true;
 		for (const auto& path : config_paths) {
 			if (!std::filesystem::exists(path)) {
-				printf("Specified config file path '%s' not found.\n", path.c_str());
-				paths_ok = false;
+				// TODO: test printing works with unicode
+				u::log("Specified config file path '{}' not found.", path);
+				return false;
 			}
 		}
-
-		if (!paths_ok)
-			return;
 	}
 
-	// queue videos to be rendered
-	for (size_t i = 0; i < inputs.size(); i++) {
-		std::filesystem::path input_path = std::filesystem::absolute(inputs[i]);
+	for (size_t i = 0; i < inputs.size(); ++i) {
+		std::filesystem::path input_path = std::filesystem::canonical(inputs[i]);
 
 		if (!std::filesystem::exists(input_path)) {
-			wprintf(L"Video '%ls' was not found (wrong path?)\n", input_path.wstring().c_str());
-			return;
+			// TODO: test with unicode
+			u::log(L"Video '{}' was not found (wrong path?)", input_path.wstring());
+			return false;
 		}
 
 		std::optional<std::filesystem::path> output_path;
 		std::optional<std::filesystem::path> config_path;
 
 		if (manual_config_files)
-			config_path = std::filesystem::absolute(config_paths[i]).wstring();
+			config_path = std::filesystem::canonical(config_paths[i]);
 
 		if (manual_output_files) {
-			output_path = std::filesystem::absolute(outputs[i]);
+			output_path = std::filesystem::canonical(outputs[i]);
 
 			// create output directory if needed
 			if (!std::filesystem::exists(output_path->parent_path()))
@@ -76,16 +63,21 @@ void cli::run(const cxxopts::ParseResult& cmd) {
 		}
 
 		// set up render
-		auto render = std::make_shared<c_render>(input_path, output_path, config_path);
-		rendering.queue_render(render);
+		auto render = rendering.queue_render(Render(input_path, output_path, config_path));
 
 		if (blur.verbose) {
-			wprintf(L"Queued '%s' for render, outputting to '%s'\n", render->get_video_name().c_str(), render->get_output_video_path().wstring().c_str());
+			u::log(
+				L"Queued '{}' for render, outputting to '{}'",
+				render.get_video_name(),
+				render.get_output_video_path().wstring()
+			);
 		}
 	}
 
 	// render videos
 	rendering.render_videos();
 
-	preview.stop();
+	u::log(L"Finished rendering");
+
+	return true;
 }
