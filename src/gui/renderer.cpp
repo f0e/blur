@@ -498,7 +498,13 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 	static bool loading = false;
 	static std::mutex preview_mutex;
 
+	auto sample_video_path = blur.resources_path / "sample_video.mp4";
+	bool sample_video_exists = std::filesystem::exists(sample_video_path);
+
 	auto render_preview = [&] {
+		if (!sample_video_exists)
+			return;
+
 		if (first) {
 			first = false;
 		}
@@ -520,7 +526,7 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 			loading = true;
 		}
 
-		std::thread([&] {
+		std::thread([sample_video_path, settings] {
 			FrameRender* render = nullptr;
 
 			{
@@ -534,7 +540,6 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 				render = renders.emplace_back(std::make_unique<FrameRender>()).get();
 			}
 
-			auto sample_video_path = blur.resources_path / "sample_video.mp4";
 			auto res = render->render(sample_video_path, settings);
 
 			if (res.success) {
@@ -553,12 +558,7 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 				loading = false;
 
 				if (!res.success) {
-					if (res.error_message == "Input path does not exist")
-						add_notification(
-							std::format("Sample video not found at {}", sample_video_path.string()),
-							ui::NotificationType::NOTIF_ERROR
-						);
-					else
+					if (res.error_message != "Input path does not exist")
 						add_notification("Failed to generate config preview", ui::NotificationType::NOTIF_ERROR);
 				}
 			}
@@ -587,15 +587,39 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 			gfx::rgba(255, 255, 255, loading ? 100 : 255)
 		);
 	}
-	else if (loading) {
-		ui::add_text(
-			"loading config preview text",
-			container,
-			"Loading config preview...",
-			gfx::rgba(255, 255, 255, 100),
-			fonts::font,
-			os::TextAlign::Center
-		);
+	else {
+		if (sample_video_exists) {
+			if (loading) {
+				ui::add_text(
+					"loading config preview text",
+					container,
+					"Loading config preview...",
+					gfx::rgba(255, 255, 255, 100),
+					fonts::font,
+					os::TextAlign::Center
+				);
+			}
+			else {
+				ui::add_text(
+					"failed to generate preview text",
+					container,
+					"Failed to generate preview.",
+					gfx::rgba(255, 255, 255, 100),
+					fonts::font,
+					os::TextAlign::Center
+				);
+			}
+		}
+		else {
+			ui::add_text(
+				"sample video does not exist text",
+				container,
+				"Sample video does not exist",
+				gfx::rgba(255, 255, 255, 100),
+				fonts::font,
+				os::TextAlign::Center
+			);
+		}
 	}
 }
 
@@ -683,8 +707,8 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	auto now = std::chrono::steady_clock::now();
 	static auto last_frame_time = now;
 
-	// todo: first render in a batch might be fucked, look at progress bar skipping fully to complete instantly on 25
-	// speed - investigate
+	// todo: first render in a batch might be fucked, look at progress bar skipping fully to complete instantly on
+	// 25 speed - investigate
 	static bool first = true;
 
 #if DEBUG_RENDER
