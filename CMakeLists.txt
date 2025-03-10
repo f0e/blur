@@ -216,6 +216,8 @@ elseif(UNIX)
   X11
   Xext
   Xrandr)
+elseif(WIN32)
+  target_link_libraries(blur-gui PRIVATE Shcore)
 endif()
 
 set_target_properties(blur-gui PROPERTIES LINK_FLAGS

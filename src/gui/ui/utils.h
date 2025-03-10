@@ -22,4 +22,6 @@ namespace utils {
 		os::FileDialog::Type type,
 		base::paths& output
 	);
+
+	float get_display_scale_factor();
 }

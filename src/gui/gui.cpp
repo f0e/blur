@@ -9,6 +9,8 @@
 
 #define DEBUG_RENDER_LOGGING 0
 
+float scale = 1.f;
+
 void gui::update_vsync() {
 #ifdef _WIN32
 	HMONITOR screen_handle = (HMONITOR)window->screen()->nativeHandle();
@@ -36,6 +38,13 @@ void gui::event_loop() {
 		auto frame_start = std::chrono::steady_clock::now();
 
 		update_vsync();
+
+		// update dpi scaling
+		float new_scale = utils::get_display_scale_factor();
+		if (new_scale != scale) {
+			// window->setScale(new_scale);
+			scale = new_scale;
+		}
 
 		to_render |= event_handler::handle_events(rendered_last); // true if input handled
 
@@ -80,6 +89,9 @@ void gui::run() {
 
 	system->finishLaunching();
 	system->activateApp();
+
+	scale = utils::get_display_scale_factor();
+	// window->setScale(scale);
 
 	event_queue = system->eventQueue(); // todo: move this maybe
 

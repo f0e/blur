@@ -2,10 +2,12 @@
 
 #ifdef _WIN32
 #	include <windows.h>
+#	include <shellscalingapi.h>
 #elif defined(__APPLE__)
 #	include <CoreGraphics/CoreGraphics.h>
 #	include <CoreVideo/CoreVideo.h>
 #	include <dlfcn.h>
+#	include <ApplicationServices/ApplicationServices.h>
 #else // X11
 #	include <X11/Xlib.h>
 #	include <X11/extensions/Xrandr.h>
@@ -183,4 +185,82 @@ bool utils::show_file_selector( // aseprite
 
 	// return fileSelector.show(title, initialPath, extensions, output);
 	return false;
+}
+
+float utils::get_display_scale_factor() {
+#ifdef _WIN32
+	// Windows implementation
+	DEVICE_SCALE_FACTOR scale_factor = DEVICE_SCALE_FACTOR_INVALID;
+	HMONITOR monitor = MonitorFromWindow(GetActiveWindow(), MONITOR_DEFAULTTONEAREST);
+	if (SUCCEEDED(GetScaleFactorForMonitor(monitor, &scale_factor))) {
+		return static_cast<float>(scale_factor) / 100.0f;
+	}
+	// Fallback if GetScaleFactorForMonitor fails
+	HDC hdc = GetDC(NULL);
+	int dpiX = GetDeviceCaps(hdc, LOGPIXELSX);
+	ReleaseDC(NULL, hdc);
+	return static_cast<float>(dpiX) / 96.0f;
+#elif defined(__APPLE__)
+	// macOS implementation
+	CGFloat scale = 1.0f;
+	CGDirectDisplayID display = CGMainDisplayID();
+	CGDisplayModeRef mode = CGDisplayCopyDisplayMode(display);
+	if (mode) {
+		scale = CGDisplayModeGetPixelWidth(mode) / (float)CGDisplayModeGetWidth(mode);
+		CGDisplayModeRelease(mode);
+	}
+	return static_cast<float>(scale);
+#elif defined(__linux__)
+	// Linux/X11 implementation
+	Display* dpy = XOpenDisplay(NULL);
+	if (!dpy)
+		return 1.0f;
+
+	int screen = DefaultScreen(dpy);
+	float dpi = (float)DisplayWidth(dpy, screen) * 25.4f / (float)DisplayWidthMM(dpy, screen);
+
+	// Check for Xrandr extension
+	int event_base, error_base;
+	if (XRRQueryExtension(dpy, &event_base, &error_base)) {
+		XRRScreenResources* res = XRRGetScreenResources(dpy, DefaultRootWindow(dpy));
+		if (res) {
+			// Get the primary output's scale factor
+			float scale = 1.0f;
+			for (int i = 0; i < res->noutput; i++) {
+				XRROutputInfo* output_info = XRRGetOutputInfo(dpy, res, res->outputs[i]);
+				if (output_info && output_info->connection == RR_Connected) {
+					for (int j = 0; j < res->ncrtc; j++) {
+						if (res->crtcs[j] == output_info->crtc) {
+							XRRCrtcInfo* crtc_info = XRRGetCrtcInfo(dpy, res, res->crtcs[j]);
+							if (crtc_info) {
+								// Calculate scale based on relation between logical and physical dimensions
+								if (crtc_info->width > 0 && output_info->mm_width > 0) {
+									scale = (float)crtc_info->width / ((float)output_info->mm_width / 25.4f);
+									scale /= 96.0f; // Normalize to standard 96 DPI
+								}
+								XRRFreeCrtcInfo(crtc_info);
+								break;
+							}
+						}
+					}
+					XRRFreeOutputInfo(output_info);
+					if (scale > 1.0f)
+						break; // Use first connected output with scale
+				}
+			}
+			XRRFreeScreenResources(res);
+			if (scale > 0.1f) { // Validate scale value
+				XCloseDisplay(dpy);
+				return scale;
+			}
+		}
+	}
+
+	// Fallback to approximating from DPI
+	XCloseDisplay(dpy);
+	return dpi / 96.0f; // Normalize to standard 96 DPI
+#else
+	// Default fallback for other platforms
+	return 1.0f;
+#endif
 }
