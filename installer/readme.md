@@ -5,7 +5,10 @@
 ```
 /dependencies
 └ /lib
-  │ blur.py (blur/src/blur.py)
+  │ blur.py (-> blur/src/blur.py)
+  |
+  ├─ /blur
+  │  └> src/vapoursynth/blur
   |
   ├─ /ffmpeg
   │  └ ffmpeg.exe (https://www.gyan.dev/ffmpeg/builds)
@@ -13,15 +16,13 @@
   └─ /vapoursynth
      │ ...vapoursynth portable files (x64, optionally removed docs & sdk)
      │ ...python embeddable package (x64)
-     │ ...blur plugins (blur/plugins)
      | ...extra plugins from vsrepo (adjust)
      |
      └ /vapoursynth64
        └ /plugins
          | akarin (https://github.com/AkarinVS/vapoursynth-plugin)
-         | avisource (x64) (https://github.com/vapoursynth/vs-avisource-obsolete)
+         | BestSource (x64) (https://github.com/vapoursynth/bestsource)
          | libmvtools (x64) (https://github.com/dubhater/vapoursynth-mvtools)
-         | LSMASHSource (x64) (https://github.com/HomeOfAviSynthPlusEvolution/L-SMASH-Works)
          └ svpflow1 & svpflow2 (x64) (https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
 
 /redist
