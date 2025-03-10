@@ -123,8 +123,6 @@ void ui::render_slider(const Container& container, os::Surface* surface, const A
 		render::rounded_rect_filled(surface, tmp, handle_border_color, HANDLE_WIDTH);
 		render::rounded_rect_filled(surface, handle_rect, filled_color, HANDLE_WIDTH);
 	}
-
-	// render::rect_stroke(surface, element.element->rect, gfx::rgba(255, 0, 0, 100));
 }
 
 bool ui::update_slider(const Container& container, AnimatedElement& element) {
@@ -133,7 +131,12 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 
 	auto positions = get_slider_positions(element, slider_data);
 
-	bool hovered = element.element->rect.contains(keys::mouse_pos);
+	auto clickable_rect = element.element->rect;
+	int extra = (HANDLE_WIDTH / 2) - int(positions.track_rect.h / 2);
+	if (extra > 0)
+		clickable_rect.h += extra;
+
+	bool hovered = clickable_rect.contains(keys::mouse_pos);
 	bool active = active_element == &element;
 
 	// Determine current value and range based on type
