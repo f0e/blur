@@ -498,7 +498,7 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 	static bool loading = false;
 	static std::mutex preview_mutex;
 
-	auto sample_video_path = blur.resources_path / "sample_video.mp4";
+	auto sample_video_path = blur.settings_path / "sample_video.mp4";
 	bool sample_video_exists = std::filesystem::exists(sample_video_path);
 
 	auto render_preview = [&] {

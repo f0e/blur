@@ -11,6 +11,7 @@ public:
 	std::filesystem::path temp_path;
 
 	std::filesystem::path resources_path;
+	std::filesystem::path settings_path;
 	bool used_installer = false;
 
 	std::filesystem::path ffmpeg_path;
@@ -21,7 +22,7 @@ public:
 
 	void initialise_base_temp_path();
 
-	std::optional<std::filesystem::path> create_temp_path(const std::string& folder_name) const;
+	[[nodiscard]] std::optional<std::filesystem::path> create_temp_path(const std::string& folder_name) const;
 	static bool remove_temp_path(const std::filesystem::path& temp_path);
 };
 

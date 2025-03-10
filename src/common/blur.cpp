@@ -4,6 +4,8 @@
 
 bool Blur::initialise(bool _verbose, bool _using_preview) {
 	resources_path = u::get_resources_path();
+	settings_path = u::get_settings_path();
+
 	used_installer = std::filesystem::exists(resources_path / "lib\\vapoursynth\\vspipe.exe") &&
 	                 std::filesystem::exists(resources_path / "lib\\ffmpeg\\ffmpeg.exe");
 

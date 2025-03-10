@@ -136,4 +136,5 @@ namespace u {
 	void sleep(double seconds); // https://blog.bearcats.nl/perfect-sleep-function/ kill windows
 
 	std::filesystem::path get_resources_path();
+	std::filesystem::path get_settings_path();
 }
