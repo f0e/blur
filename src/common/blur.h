@@ -5,6 +5,8 @@ const std::string BLUR_VERSION = "2.0";
 
 class Blur { // todo: switch all the classes which could be namespaces into namespaces
 public:
+	bool initialised = false;
+
 	bool verbose = true;
 	bool using_preview = false;
 

@@ -157,11 +157,35 @@ void gui::renderer::components::main_screen(ui::Container& container, float delt
 			fonts::header_font,
 			os::TextAlign::Center
 		);
+
+		if (initialisation_res && !initialisation_res->success) {
+			ui::add_text(
+				"failed to initialise text",
+				main_container,
+				"Failed to initialise",
+				gfx::rgba(255, 255, 255),
+				fonts::font,
+				os::TextAlign::Center
+			);
+
+			ui::add_text(
+				"failed to initialise reason",
+				main_container,
+				initialisation_res->error_message,
+				gfx::rgba(255, 255, 255, 155),
+				fonts::font,
+				os::TextAlign::Center
+			);
+
+			return;
+		}
+
 		ui::add_button("open file button", container, "Open files", fonts::font, [] {
 			base::paths paths;
 			utils::show_file_selector("Blur input", "", {}, os::FileDialog::Type::OpenFiles, paths);
 			tasks::add_files(paths);
 		});
+
 		ui::add_text(
 			"drop file text",
 			container,
@@ -914,7 +938,8 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	int nav_cutoff = rect.y2() - nav_container_rect.y;
 	int bottom_pad = std::max(PAD_Y, nav_cutoff);
 
-	ui::reset_container(main_container, rect, fonts::font.getSize(), ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X });
+	const static int main_pad_x = std::min(100, window->width() / 10); // bit of magic never hurt anyone
+	ui::reset_container(main_container, rect, 15, ui::Padding{ PAD_Y, main_pad_x, bottom_pad, main_pad_x });
 
 	const int config_page_container_gap = PAD_X / 2;
 
@@ -948,16 +973,18 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 
 	switch (screen) {
 		case Screens::MAIN: {
+			components::configs::loaded_config = false;
+
 			components::main_screen(main_container, delta_time);
 
-			ui::set_next_same_line(nav_container);
-			ui::add_button("config button", nav_container, "Config", fonts::font, [] {
-				screen = Screens::CONFIG;
-			});
+			if (initialisation_res && initialisation_res->success) {
+				ui::set_next_same_line(nav_container);
+				ui::add_button("config button", nav_container, "Config", fonts::font, [] {
+					screen = Screens::CONFIG;
+				});
+			}
 
 			ui::center_elements_in_container(main_container);
-
-			components::configs::loaded_config = false;
 
 			break;
 		}

@@ -416,6 +416,12 @@ RenderResult Render::do_render(RenderCommands render_commands) {
 }
 
 RenderResult Render::render() {
+	if (!blur.initialised)
+		return {
+			.success = false,
+			.error_message = "Blur not initialised",
+		};
+
 	u::log(L"Rendering '{}'\n", m_video_name);
 
 	if (blur.verbose) {

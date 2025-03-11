@@ -166,6 +166,12 @@ bool FrameRender::remove_temp_path() {
 }
 
 FrameRender::RenderResponse FrameRender::render(const std::filesystem::path& input_path, const BlurSettings& settings) {
+	if (!blur.initialised)
+		return {
+			.success = false,
+			.error_message = "Blur not initialised",
+		};
+
 	if (!std::filesystem::exists(input_path)) {
 		return {
 			.success = false,

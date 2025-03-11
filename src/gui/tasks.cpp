@@ -8,7 +8,7 @@
 void tasks::run(const std::vector<std::string>& arguments) {
 	auto res = blur.initialise(false, true);
 
-	gui::initialisation = res;
+	gui::initialisation_res = res;
 
 	rendering.set_progress_callback([] {
 		if (!gui::window)

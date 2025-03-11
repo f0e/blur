@@ -4,6 +4,8 @@ namespace gui {
 	inline os::WindowRef window;
 	inline os::EventQueue* event_queue;
 
+	inline std::optional<Blur::InitialisationResponse> initialisation_res;
+
 	inline bool closing = false;
 	inline bool to_render = true;
 
