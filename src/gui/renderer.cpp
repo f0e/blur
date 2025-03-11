@@ -840,30 +840,32 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 
 	ui::reset_container(nav_container, nav_container_rect, fonts::font.getSize(), {});
 
-	gfx::Rect container_rect = rect;
+	int nav_cutoff = rect.y2() - nav_container_rect.y;
+	int bottom_pad = std::max(PAD_Y, nav_cutoff);
 
-	int nav_cutoff = container_rect.y2() - nav_container_rect.y;
-	if (nav_cutoff > 0)
-		container_rect.h -= nav_cutoff;
-
-	ui::reset_container(main_container, container_rect, fonts::font.getSize(), gfx::Point{ PAD_X, PAD_Y });
+	ui::reset_container(main_container, rect, fonts::font.getSize(), ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X });
 
 	const int config_page_container_gap = PAD_X / 2;
 
 	gfx::Rect config_container_rect = rect;
 	config_container_rect.w = 200 + PAD_X * 2;
 
-	ui::reset_container(config_container, config_container_rect, 9, gfx::Point{ PAD_X, PAD_Y });
+	ui::reset_container(config_container, config_container_rect, 9, ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X });
 
 	gfx::Rect config_preview_container_rect = rect;
 	config_preview_container_rect.x = config_container_rect.x2() + config_page_container_gap;
 	config_preview_container_rect.w -= config_container_rect.w + config_page_container_gap;
 
 	ui::reset_container(
-		config_preview_container, config_preview_container_rect, fonts::font.getSize(), gfx::Point{ PAD_X, PAD_Y }
+		config_preview_container,
+		config_preview_container_rect,
+		fonts::font.getSize(),
+		ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X }
 	);
 
-	ui::reset_container(option_information_container, config_preview_container_rect, 15, gfx::Point{ PAD_X, PAD_Y });
+	ui::reset_container(
+		option_information_container, config_preview_container_rect, 15, ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X }
+	);
 
 	gfx::Rect notification_container_rect = rect;
 	notification_container_rect.w = 230;

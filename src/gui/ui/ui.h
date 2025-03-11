@@ -1,6 +1,19 @@
 #pragma once
 
 namespace ui {
+	struct Padding {
+		int top = 0;
+		int right = 0;
+		int bottom = 0;
+		int left = 0;
+
+		Padding(int t, int r, int b, int l) : top(t), right(r), bottom(b), left(l) {}
+
+		Padding(int t, int lr) : top(t), right(lr), bottom(t), left(lr) {}
+
+		Padding(int all) : top(all), right(all), bottom(all), left(all) {}
+	};
+
 	enum class ElementType : std::uint8_t {
 		BAR,
 		TEXT,
@@ -232,7 +245,7 @@ namespace ui {
 
 		int line_height = 15;
 		gfx::Point current_position;
-		std::optional<gfx::Point> padding;
+		std::optional<Padding> padding;
 		bool updated = false;
 		int last_margin_bottom = 0;
 
@@ -242,10 +255,10 @@ namespace ui {
 		[[nodiscard]] gfx::Rect get_usable_rect() const {
 			gfx::Rect usable = rect;
 			if (padding) {
-				usable.x += padding->x;
-				usable.y += padding->x;
-				usable.w -= padding->x * 2;
-				usable.h -= padding->y * 2;
+				usable.x += padding->left;
+				usable.y += padding->top;
+				usable.w -= padding->left + padding->right;
+				usable.h -= padding->top + padding->bottom;
 			}
 			return usable;
 		}
@@ -287,7 +300,7 @@ namespace ui {
 		Container& container,
 		const gfx::Rect& rect,
 		int line_height,
-		const std::optional<gfx::Point>& padding = {},
+		const std::optional<Padding>& padding = {},
 		std::optional<gfx::Color> background_color = {}
 	);
 
