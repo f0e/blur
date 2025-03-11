@@ -1,8 +1,12 @@
 
 #include "drag_handler.h"
+#include "gui.h"
 #include "tasks.h"
 
 void gui::drag_handler::DragTarget::dragEnter(os::DragEvent& ev) {
+	if (!gui::initialisation_res || !gui::initialisation_res->success)
+		return;
+
 	// v.dropResult(os::DropOperation::None); // TODO: what does this do? is it needed?
 
 	drag_position = ev.position();
@@ -10,16 +14,25 @@ void gui::drag_handler::DragTarget::dragEnter(os::DragEvent& ev) {
 }
 
 void gui::drag_handler::DragTarget::dragLeave(os::DragEvent& ev) {
+	if (!gui::initialisation_res || !gui::initialisation_res->success)
+		return;
+
 	// todo: not triggering on windows?
 	drag_position = ev.position();
 	dragging = false;
 }
 
 void gui::drag_handler::DragTarget::drag(os::DragEvent& ev) {
+	if (!gui::initialisation_res || !gui::initialisation_res->success)
+		return;
+
 	drag_position = ev.position();
 }
 
 void gui::drag_handler::DragTarget::drop(os::DragEvent& ev) {
+	if (!gui::initialisation_res || !gui::initialisation_res->success)
+		return;
+
 	ev.acceptDrop(true);
 
 	if (ev.dataProvider()->contains(os::DragDataItemType::Paths)) {
