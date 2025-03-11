@@ -134,7 +134,7 @@ bool Render::create_temp_path() {
 }
 
 bool Render::remove_temp_path() {
-	return blur.remove_temp_path(m_temp_path);
+	return Blur::remove_temp_path(m_temp_path);
 }
 
 // NOLINTBEGIN(readability-function-cognitive-complexity) todo: refactor

@@ -1098,7 +1098,7 @@ void gui::renderer::add_notification(
 	);
 }
 
-void gui::renderer::on_render_finished(Render* render, RenderResult result) {
+void gui::renderer::on_render_finished(Render* render, const RenderResult& result) {
 	if (result.success) {
 		add_notification(
 			std::format("Render '{}' finished", base::to_utf8(render->get_video_name())), ui::NotificationType::SUCCESS

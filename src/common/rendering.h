@@ -133,7 +133,7 @@ public:
 		m_progress_callback = std::move(callback);
 	}
 
-	void set_render_finished_callback(std::function<void(Render*, RenderResult)>&& callback) {
+	void set_render_finished_callback(std::function<void(Render*, const RenderResult& result)>&& callback) {
 		m_render_finished_callback = std::move(callback);
 	}
 
@@ -142,7 +142,7 @@ public:
 			(*m_progress_callback)();
 	}
 
-	void call_render_finished_callback(Render* render, RenderResult result) {
+	void call_render_finished_callback(Render* render, const RenderResult& result) {
 		if (m_render_finished_callback)
 			(*m_render_finished_callback)(render, result);
 	}

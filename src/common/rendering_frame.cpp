@@ -159,7 +159,7 @@ bool FrameRender::create_temp_path() {
 }
 
 bool FrameRender::remove_temp_path() {
-	bool res = blur.remove_temp_path(m_temp_path);
+	bool res = Blur::remove_temp_path(m_temp_path);
 	if (res)
 		m_temp_path.clear();
 	return res;

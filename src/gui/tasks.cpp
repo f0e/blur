@@ -32,7 +32,7 @@ void tasks::run(const std::vector<std::string>& arguments) {
 		gui::window->queueEvent(event);
 	});
 
-	rendering.set_render_finished_callback([](Render* render, RenderResult result) {
+	rendering.set_render_finished_callback([](Render* render, const RenderResult& result) {
 		gui::renderer::on_render_finished(render, result);
 	});
 

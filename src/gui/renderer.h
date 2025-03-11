@@ -110,5 +110,5 @@ namespace gui::renderer {
 
 	void render_notifications();
 
-	void on_render_finished(Render* render, RenderResult result);
+	void on_render_finished(Render* render, const RenderResult& result);
 }
