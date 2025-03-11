@@ -96,6 +96,7 @@ namespace ui {
 		NotificationType type;
 		SkFont font;
 		int line_height;
+		std::optional<std::function<void()>> on_click;
 
 		bool operator==(const NotificationElementData& other) const {
 			return lines == other.lines && type == other.type && line_height == other.line_height;
@@ -281,6 +282,7 @@ namespace ui {
 	bool update_button(const Container& container, AnimatedElement& element);
 
 	void render_notification(const Container& container, os::Surface* surface, const AnimatedElement& element);
+	bool update_notification(const Container& container, AnimatedElement& element);
 
 	void render_slider(const Container& container, os::Surface* surface, const AnimatedElement& element);
 	bool update_slider(const Container& container, AnimatedElement& element);
@@ -390,7 +392,12 @@ namespace ui {
 	);
 
 	Element& add_notification(
-		const std::string& id, Container& container, const std::string& text, NotificationType type, const SkFont& font
+		const std::string& id,
+		Container& container,
+		const std::string& text,
+		NotificationType type,
+		const SkFont& font,
+		std::optional<std::function<void()>> on_click = {}
 	);
 
 	Element& add_slider(

@@ -10,6 +10,11 @@ struct RenderCommands {
 	std::vector<std::wstring> ffmpeg;
 };
 
+struct RenderResult {
+	bool success;
+	std::string error_message;
+};
+
 struct RenderStatus {
 	bool finished = false;
 	bool init = false;
@@ -45,7 +50,8 @@ private:
 	RenderCommands build_render_commands();
 
 	void update_progress(int current_frame, int total_frames);
-	bool do_render(RenderCommands render_commands);
+
+	RenderResult do_render(RenderCommands render_commands);
 
 public:
 	Render(
@@ -61,7 +67,7 @@ public:
 	bool create_temp_path();
 	bool remove_temp_path();
 
-	bool render();
+	RenderResult render();
 
 	[[nodiscard]] uint32_t get_render_id() const {
 		return m_render_id;
@@ -95,7 +101,7 @@ private:
 	std::optional<uint32_t> m_current_render_id;
 
 	std::optional<std::function<void()>> m_progress_callback;
-	std::optional<std::function<void(Render*, bool)>> m_render_finished_callback;
+	std::optional<std::function<void(Render*, RenderResult)>> m_render_finished_callback;
 
 	std::mutex m_lock;
 
@@ -127,7 +133,7 @@ public:
 		m_progress_callback = std::move(callback);
 	}
 
-	void set_render_finished_callback(std::function<void(Render*, bool)>&& callback) {
+	void set_render_finished_callback(std::function<void(Render*, RenderResult)>&& callback) {
 		m_render_finished_callback = std::move(callback);
 	}
 
@@ -136,9 +142,9 @@ public:
 			(*m_progress_callback)();
 	}
 
-	void call_render_finished_callback(Render* render, bool success) {
+	void call_render_finished_callback(Render* render, RenderResult result) {
 		if (m_render_finished_callback)
-			(*m_render_finished_callback)(render, success);
+			(*m_render_finished_callback)(render, result);
 	}
 
 	void lock() {

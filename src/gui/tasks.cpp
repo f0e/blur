@@ -32,8 +32,8 @@ void tasks::run(const std::vector<std::string>& arguments) {
 		gui::window->queueEvent(event);
 	});
 
-	rendering.set_render_finished_callback([](Render* render, bool success) {
-		gui::renderer::on_render_finished(render, success);
+	rendering.set_render_finished_callback([](Render* render, RenderResult result) {
+		gui::renderer::on_render_finished(render, result);
 	});
 
 	add_files(arguments); // todo: mac packaged app support (& linux? does it work?)

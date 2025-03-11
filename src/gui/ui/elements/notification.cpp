@@ -3,6 +3,7 @@
 #include "../ui.h"
 #include "../render.h"
 #include "../utils.h"
+#include "../keys.h"
 
 #include "../../renderer.h"
 
@@ -13,6 +14,7 @@ void ui::render_notification(const Container& container, os::Surface* surface, c
 
 	const auto& notification_data = std::get<NotificationElementData>(element.element->data);
 	float anim = element.animations.at(hasher("main")).current;
+	float hover_anim = element.animations.at(hasher("hover")).current;
 
 	gfx::Color notification_color = 0;
 	gfx::Color border_color = 0;
@@ -40,6 +42,8 @@ void ui::render_notification(const Container& container, os::Surface* surface, c
 		}
 	};
 
+	anim *= 1.f - (hover_anim * 0.2);
+
 	notification_color = utils::adjust_color(notification_color, anim);
 	border_color = utils::adjust_color(border_color, anim);
 	text_color = utils::adjust_color(text_color, anim);
@@ -61,8 +65,37 @@ void ui::render_notification(const Container& container, os::Surface* surface, c
 	}
 }
 
+bool ui::update_notification(const Container& container, AnimatedElement& element) {
+	const auto& notification_data = std::get<NotificationElementData>(element.element->data);
+
+	if (notification_data.on_click) {
+		bool hovered = element.element->rect.contains(keys::mouse_pos) && set_hovered_element(element);
+
+		auto& anim = element.animations.at(hasher("hover"));
+		anim.set_goal(hovered ? 1.f : 0.f);
+
+		if (hovered) {
+			set_cursor(os::NativeCursor::Link);
+
+			if (keys::is_mouse_down()) {
+				(*notification_data.on_click)();
+				keys::on_mouse_press_handled(os::Event::MouseButton::LeftButton);
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 ui::Element& ui::add_notification(
-	const std::string& id, Container& container, const std::string& text, ui::NotificationType type, const SkFont& font
+	const std::string& id,
+	Container& container,
+	const std::string& text,
+	ui::NotificationType type,
+	const SkFont& font,
+	std::optional<std::function<void()>> on_click
 ) {
 	gfx::Size notification_size = { 230, 100 }; // height is a maximum to start with
 	const int line_height = font.getSize() + 5;
@@ -84,19 +117,19 @@ ui::Element& ui::add_notification(
 			.type = type,
 			.font = font,
 			.line_height = line_height,
+			.on_click = std::move(on_click),
 		},
-		render_notification
+		render_notification,
+		update_notification
 	);
 
 	return *add_element(
 		container,
 		std::move(element),
 		container.line_height,
-		{ {
-			hasher("main"),
-			{
-				.speed = 5.f,
-			},
-		} }
+		{
+			{ hasher("main"), { .speed = 5.f } },
+			{ hasher("hover"), { .speed = 80.f } },
+		}
 	);
 }

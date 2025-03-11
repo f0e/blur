@@ -13,16 +13,16 @@ void Rendering::render_videos() {
 
 		rendering.call_progress_callback();
 
-		bool render_success = false;
+		RenderResult render_result;
 		try {
-			render_success = render->render();
+			render_result = render->render();
 		}
 		catch (const std::exception& e) {
 			u::log(e.what());
 		}
 
 		rendering.call_render_finished_callback(
-			render_ptr, render_success
+			render_ptr, render_result
 		); // note: cant do render.get() here cause compiler optimisations break it somehow (So lit)
 
 		// finished rendering, delete
@@ -326,10 +326,11 @@ void Render::update_progress(int current_frame, int total_frames) {
 	rendering.call_progress_callback();
 }
 
-bool Render::do_render(RenderCommands render_commands) {
+RenderResult Render::do_render(RenderCommands render_commands) {
 	namespace bp = boost::process;
 
 	m_status = RenderStatus{};
+	std::ostringstream vspipe_stderr_output;
 
 	try {
 		boost::asio::io_context io_context;
@@ -368,27 +369,10 @@ bool Render::do_render(RenderCommands render_commands) {
 #endif
 		);
 
-		std::thread read_thread([&]() {
+		std::thread vspipe_stderr_thread([&]() {
 			std::string line;
-			char ch = 0;
-
-			while (ffmpeg_process.running() && vspipe_stderr.get(ch)) {
-				if (ch == '\r') {
-					static std::regex frame_regex(R"(Frame: (\d+)\/(\d+)(?: \((\d+\.\d+) fps\))?)");
-
-					std::smatch match;
-					if (std::regex_match(line, match, frame_regex)) {
-						int current_frame = std::stoi(match[1]);
-						int total_frames = std::stoi(match[2]);
-
-						update_progress(current_frame, total_frames);
-					}
-
-					line.clear();
-				}
-				else {
-					line += ch; // Append character to the line
-				}
+			while (std::getline(vspipe_stderr, line)) {
+				vspipe_stderr_output << line << '\n';
 			}
 		});
 
@@ -396,8 +380,8 @@ bool Render::do_render(RenderCommands render_commands) {
 		ffmpeg_process.wait();
 
 		// Clean up
-		if (read_thread.joinable()) {
-			read_thread.join();
+		if (vspipe_stderr_thread.joinable()) {
+			vspipe_stderr_thread.join();
 		}
 
 		if (m_settings.debug)
@@ -406,10 +390,9 @@ bool Render::do_render(RenderCommands render_commands) {
 			);
 
 		m_status.finished = true;
-
 		bool success = vspipe_process.exit_code() == 0 && ffmpeg_process.exit_code() == 0;
 
-		// final progress update, let ppl know it's fully done if it isn't captured already
+		// Final progress update
 		if (success)
 			update_progress(m_status.total_frames, m_status.total_frames);
 
@@ -417,15 +400,22 @@ bool Render::do_render(RenderCommands render_commands) {
 		float elapsed_seconds = elapsed_time.count();
 		u::log("render finished in {:.2f}s", elapsed_seconds);
 
-		return success;
+		return {
+			.success = success,
+			.error_message = vspipe_stderr_output.str(),
+		};
 	}
 	catch (const boost::system::system_error& e) {
 		u::log_error("Process error: {}", e.what());
-		return false;
+
+		return {
+			.success = false,
+			.error_message = e.what(),
+		};
 	}
 }
 
-bool Render::render() {
+RenderResult Render::render() {
 	u::log(L"Rendering '{}'\n", m_video_name);
 
 	if (blur.verbose) {
@@ -454,21 +444,25 @@ bool Render::render() {
 	// render
 	RenderCommands render_commands = build_render_commands();
 
-	bool render_success = do_render(render_commands);
+	auto render_res = do_render(render_commands);
 
-	if (render_success) {
+	if (render_res.success) {
 		if (blur.verbose) {
 			u::log(L"Finished rendering '{}'", m_video_name);
 		}
 	}
 	else {
 		u::log(L"Failed to render '{}'", m_video_name);
+
+		if (blur.verbose || m_settings.debug) {
+			u::log(render_res.error_message);
+		}
 	}
 
 	// stop preview
 	remove_temp_path();
 
-	return render_success;
+	return render_res;
 }
 
 void Rendering::stop_rendering() {

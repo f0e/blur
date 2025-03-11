@@ -60,15 +60,17 @@ void ui::reset_container(
 	const std::optional<Padding>& padding,
 	std::optional<gfx::Color> background_color
 ) {
-	container.line_height = line_height;
 	container.rect = rect;
-	container.background_color = background_color;
+
 	container.current_position = rect.origin();
 	container.padding = padding;
 	if (container.padding) {
 		container.current_position.x += container.padding->left;
 		container.current_position.y += container.padding->top;
 	}
+
+	container.line_height = line_height;
+	container.background_color = background_color;
 
 	container.current_element_ids = {};
 	container.updated = false;

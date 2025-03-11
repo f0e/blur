@@ -189,28 +189,35 @@ target_link_libraries(
           laf-os
           ZLIB::ZLIB)
 target_precompile_headers(blur-gui PRIVATE src/gui/gui_pch.h)
-
 if(APPLE)
   target_link_libraries(blur-gui PRIVATE
       "-framework CoreVideo"
       "-framework CoreGraphics"
   )
 
-  set(MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/src/Info.plist")
+  # Only create a bundle for Release and RelWithDebInfo builds
+  if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    set(MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/src/Info.plist")
 
-  set_target_properties(blur-gui PROPERTIES
-    MACOSX_BUNDLE TRUE
-    MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/src/Info.plist
-  )
+    set_target_properties(blur-gui PROPERTIES
+      MACOSX_BUNDLE TRUE
+      MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/src/Info.plist
+    )
 
-  # Specify the .icns file as the app icon
-  set(MACOSX_BUNDLE_ICON_FILE blur.icns)
+    # Specify the .icns file as the app icon
+    set(MACOSX_BUNDLE_ICON_FILE blur.icns)
 
-  # Ensure the .icns file is included in the app bundle's Resources folder
-  set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/blur.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+    # Ensure the .icns file is included in the app bundle's Resources folder
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/blur.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
-  # Link the .icns file to the target
-  target_sources(blur-gui PRIVATE ${CMAKE_SOURCE_DIR}/resources/blur.icns)
+    # Link the .icns file to the target
+    target_sources(blur-gui PRIVATE ${CMAKE_SOURCE_DIR}/resources/blur.icns)
+  else()
+    # For Debug and other build types, disable bundling
+    set_target_properties(blur-gui PROPERTIES
+      MACOSX_BUNDLE FALSE
+    )
+  endif()
 elseif(UNIX)
   target_link_libraries(blur-gui PRIVATE
   X11

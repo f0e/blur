@@ -53,12 +53,15 @@ RenderCommands FrameRender::build_render_commands(
 	return commands;
 }
 
-bool FrameRender::do_render(RenderCommands render_commands, const BlurSettings& settings) {
+FrameRender::DoRenderResult FrameRender::do_render(RenderCommands render_commands, const BlurSettings& settings) {
 	namespace bp = boost::process;
+
+	std::ostringstream vspipe_stderr_output;
 
 	try {
 		boost::asio::io_context io_context;
 		bp::pipe vspipe_stdout;
+		bp::ipstream vspipe_stderr;
 
 		if (settings.debug) {
 			u::log(L"VSPipe command: {} {}", render_commands.vspipe_path, u::join(render_commands.vspipe, L" "));
@@ -70,7 +73,7 @@ bool FrameRender::do_render(RenderCommands render_commands, const BlurSettings& 
 			render_commands.vspipe_path,
 			bp::args(render_commands.vspipe),
 			bp::std_out > vspipe_stdout,
-			bp::std_err.null(),
+			bp::std_err > vspipe_stderr,
 			io_context
 #ifdef _WIN32
 			,
@@ -91,6 +94,13 @@ bool FrameRender::do_render(RenderCommands render_commands, const BlurSettings& 
 #endif
 		);
 
+		std::thread vspipe_stderr_thread([&]() {
+			std::string line;
+			while (std::getline(vspipe_stderr, line)) {
+				vspipe_stderr_output << line << '\n';
+			}
+		});
+
 		vspipe_process.detach();
 		ffmpeg_process.detach();
 
@@ -103,6 +113,10 @@ bool FrameRender::do_render(RenderCommands render_commands, const BlurSettings& 
 			}
 
 			std::this_thread::sleep_for(std::chrono::milliseconds(50));
+		}
+
+		if (vspipe_stderr_thread.joinable()) {
+			vspipe_stderr_thread.join();
 		}
 
 		if (settings.debug)
@@ -118,11 +132,18 @@ bool FrameRender::do_render(RenderCommands render_commands, const BlurSettings& 
 		if (!success)
 			remove_temp_path();
 
-		return success;
+		return {
+			.success = success,
+			.error_message = vspipe_stderr_output.str(),
+		};
 	}
 	catch (const boost::system::system_error& e) {
 		u::log_error("Process error: {}", e.what());
-		return false;
+
+		return {
+			.success = false,
+			.error_message = e.what(),
+		};
 	}
 }
 
@@ -165,11 +186,12 @@ FrameRender::RenderResponse FrameRender::render(const std::filesystem::path& inp
 	// render
 	RenderCommands render_commands = build_render_commands(input_path, output_path, settings);
 
-	bool render_success = do_render(render_commands, settings);
+	auto render_res = do_render(render_commands, settings);
 
 	return {
-		.success = render_success,
+		.success = render_res.success,
 		.output_path = output_path,
+		.error_message = render_res.error_message,
 	};
 }
 

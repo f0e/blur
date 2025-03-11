@@ -1,6 +1,8 @@
 
 #include "renderer.h"
 
+#include "clip/clip.h"
+
 #include "common/rendering.h"
 #include "common/rendering_frame.h"
 
@@ -79,7 +81,7 @@ void gui::renderer::components::render(
 			"preview image",
 			container,
 			preview_path,
-			gfx::Size(container.rect.w, container.rect.h / 2),
+			gfx::Size(container.get_usable_rect().w, container.get_usable_rect().h / 2),
 			std::to_string(render_status.current_frame)
 		);
 		if (element) {
@@ -143,7 +145,7 @@ void gui::renderer::components::main_screen(ui::Container& container, float delt
 	if (rendering.get_queue().empty() && !current_render_copy) {
 		bar_percent = 0.f;
 
-		gfx::Point title_pos = container.rect.center();
+		gfx::Point title_pos = container.get_usable_rect().center();
 		title_pos.y = int(PAD_Y + fonts::header_font.getSize());
 
 		ui::add_text_fixed(
@@ -587,7 +589,7 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 			"config preview image",
 			container,
 			preview_path,
-			container.rect.size(),
+			container.get_usable_rect().size(),
 			std::to_string(preview_id),
 			gfx::rgba(255, 255, 255, loading ? 100 : 255)
 		);
@@ -634,69 +636,138 @@ void gui::renderer::components::configs::option_information(ui::Container& conta
 	if (!hovered)
 		return;
 
-	const static std::unordered_map<std::string, std::vector<std::string>> option_infos = {
+	const static std::unordered_map<std::string, std::vector<std::string>> option_explanations = {
 		// Blur settings
-		// { "section blur checkbox", { "Enable motion blur" } },
+		// { "section blur checkbox",
+		//   {
+		// 	  "Enable motion blur",
+		//   } },
 		{ "blur amount",
-		  { "Amount of motion blur",
-		    "(0 = no blur, 1 = fully blend all frames, >1 = blend extra frames (ghosting))" } },
-		// { "output fps", { "FPS of the output video" } },
-		{ "blur weighting gaussian std dev slider", { "Standard deviation for Gaussian blur weighting" } },
-		{ "blur weighting triangle reverse checkbox", { "Reverses the direction of triangle weighting" } },
-		{ "blur weighting bound input", { "Weighting bounds to spread weights more" } },
+		  {
+			  "Amount of motion blur",
+			  "(0 = no blur, 1 = fully blend all frames, >1 = blend extra frames (ghosting))",
+		  } },
+		// { "output fps",
+		//   {
+		// 	  "FPS of the output video",
+		//   } },
+		{ "blur weighting gaussian std dev slider",
+		  {
+			  "Standard deviation for Gaussian blur weighting",
+		  } },
+		{ "blur weighting triangle reverse checkbox",
+		  {
+			  "Reverses the direction of triangle weighting",
+		  } },
+		{ "blur weighting bound input",
+		  {
+			  "Weighting bounds to spread weights more",
+		  } },
 
 		// Interpolation settings
-		// { "section interpolation checkbox", { "Enable interpolation to a higher FPS before blurring" } },
-		{ "interpolate scale checkbox", { "Use a multiplier for FPS interpolation rather than a set FPS" } },
+		// { "section interpolation checkbox",
+		//   {
+		// 	  "Enable interpolation to a higher FPS before blurring",
+		//   } },
+		{ "interpolate scale checkbox",
+		  {
+			  "Use a multiplier for FPS interpolation rather than a set FPS",
+		  } },
 		{ "interpolated fps mult",
-		  { "Multiplier for FPS interpolation",
-		    "The input video will be interpolated to this FPS (before blurring)" } },
-		{ "interpolated fps", { "FPS to interpolate input video to (before blurring)" } },
-		{ "interpolation preset dropdown", { "Check the blur GitHub for more information" } },
-		{ "interpolation algorithm dropdown", { "Check the blur GitHub for more information" } },
+		  {
+			  "Multiplier for FPS interpolation",
+			  "The input video will be interpolated to this FPS (before blurring)",
+		  } },
+		{ "interpolated fps",
+		  {
+			  "FPS to interpolate input video to (before blurring)",
+		  } },
+		{ "interpolation preset dropdown",
+		  {
+			  "Check the blur GitHub for more information",
+		  } },
+		{ "interpolation algorithm dropdown",
+		  {
+			  "Check the blur GitHub for more information",
+		  } },
 		{ "interpolation block size dropdown",
-		  { "Block size for interpolation", "(higher = less accurate, faster; lower = more accurate, slower)" } },
+		  {
+			  "Block size for interpolation",
+			  "(higher = less accurate, faster; lower = more accurate, slower)",
+		  } },
 		{ "interpolation mask area slider",
-		  { "Mask amount for interpolation", "(higher reduces blur on static objects but can affect smoothness)" } },
+		  {
+			  "Mask amount for interpolation",
+			  "(higher reduces blur on static objects but can affect smoothness)",
+		  } },
 
 		// Rendering settings
-		{ "quality", { "Quality setting for output video", "(0 = lossless quality, 51 = really bad)" } },
+		{ "quality",
+		  {
+			  "Quality setting for output video",
+			  "(0 = lossless quality, 51 = really bad)",
+		  } },
 		{ "deduplicate checkbox",
-		  { "Removes duplicate frames and replaces them with interpolated frames",
-		    "",
-		    "Fixes 'unsmooth' looking output" } },
-		{ "preview checkbox", { "Shows preview while rendering" } },
-		{ "detailed filenames checkbox", { "Adds blur settings to generated filenames" } },
+		  {
+			  "Removes duplicate frames and replaces them with interpolated frames",
+			  "(fixes 'unsmooth' looking output)",
+		  } },
+		{ "preview checkbox",
+		  {
+			  "Shows preview while rendering",
+		  } },
+		{ "detailed filenames checkbox",
+		  {
+			  "Adds blur settings to generated filenames",
+		  } },
 
 		// Timescale settings
-		// { "section timescale checkbox", { "Enable video timescale manipulation" } },
-		// { "input timescale", { "Timescale of the input video file" } },
-		// { "output timescale", { "Timescale of the output video file" } },
-		{ "adjust timescaled audio pitch checkbox", { "Pitch shift audio when speeding up or slowing down video" } },
+		{ "section timescale checkbox",
+		  {
+			  "Enable video timescale manipulation",
+		  } },
+		{ "input timescale",
+		  {
+			  "Timescale of the input video file",
+		  } },
+		{ "output timescale",
+		  {
+			  "Timescale of the output video file",
+		  } },
+		{ "adjust timescaled audio pitch checkbox",
+		  {
+			  "Pitch shift audio when speeding up or slowing down video",
+		  } },
 
 		// Filters
-		// { "section filters checkbox", { "Enable video filters" } },
-		// { "brightness", { "Adjusts brightness of the output video" } },
-		// { "saturation", { "Adjusts saturation of the output video" } },
-		// { "contrast", { "Adjusts contrast of the output video" } },
+		// { "section filters checkbox", { "Enable video filters", } },
+		// { "brightness", { "Adjusts brightness of the output video", } },
+		// { "saturation", { "Adjusts saturation of the output video", } },
+		// { "contrast", { "Adjusts contrast of the output video", } },
 
 		// Advanced rendering
-		// { "gpu interpolation checkbox", { "Uses GPU for interpolation" } },
-		// { "gpu rendering checkbox", { "Uses GPU for rendering" } },
-		// { "gpu rendering dropdown", { "Select GPU type" } },
-		{ "video container text input", { "Output video container format" } },
+		// { "gpu interpolation checkbox", { "Uses GPU for interpolation", } },
+		// { "gpu rendering checkbox", { "Uses GPU for rendering", } },
+		// { "gpu rendering dropdown", { "Select GPU type", } },
+		{ "video container text input",
+		  {
+			  "Output video container format",
+		  } },
 		{ "custom ffmpeg filters text input",
-		  { "Custom FFmpeg filters for rendering", "(overrides GPU & quality options)" } },
-		// { "debug checkbox", { "Shows debug window and prints commands used by blur" } }
+		  {
+			  "Custom FFmpeg filters for rendering",
+			  "(overrides GPU & quality options)",
+		  } },
+		// { "debug checkbox", { "Shows debug window and prints commands used by blur", } }
 	};
 
-	if (!option_infos.contains(hovered->element->id))
+	if (!option_explanations.contains(hovered->element->id))
 		return;
 
 	ui::add_text(
 		"hovered option info",
 		container,
-		option_infos.at(hovered->element->id),
+		option_explanations.at(hovered->element->id),
 		gfx::rgba(255, 255, 255, 255),
 		fonts::font,
 		os::TextAlign::Center,
@@ -998,7 +1069,10 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 // NOLINTEND(readability-function-size,readability-function-cognitive-complexity)
 
 void gui::renderer::add_notification(
-	const std::string& text, ui::NotificationType type, std::chrono::steady_clock::time_point end_time
+	const std::string& text,
+	ui::NotificationType type,
+	std::chrono::steady_clock::time_point end_time,
+	const std::optional<std::function<void()>>& on_click
 ) {
 	std::lock_guard<std::mutex> lock(notification_mutex);
 
@@ -1006,24 +1080,45 @@ void gui::renderer::add_notification(
 		.end_time = end_time,
 		.text = text,
 		.type = type,
+		.on_click_fn = on_click,
 	});
 }
 
 void gui::renderer::add_notification(
-	const std::string& text, ui::NotificationType type, std::chrono::duration<float> duration
+	const std::string& text,
+	ui::NotificationType type,
+	const std::optional<std::function<void()>>& on_click,
+	std::chrono::duration<float> duration
 ) {
 	add_notification(
 		text,
 		type,
-		std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::steady_clock::duration>(duration)
+		std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::steady_clock::duration>(duration),
+		on_click
 	);
 }
 
-void gui::renderer::on_render_finished(Render* render, bool success) {
-	add_notification(
-		std::format("Render '{}' {}", base::to_utf8(render->get_video_name()), success ? "finished" : "failed"),
-		success ? ui::NotificationType::SUCCESS : ui::NotificationType::NOTIF_ERROR
-	);
+void gui::renderer::on_render_finished(Render* render, RenderResult result) {
+	if (result.success) {
+		add_notification(
+			std::format("Render '{}' finished", base::to_utf8(render->get_video_name())), ui::NotificationType::SUCCESS
+		);
+	}
+	else {
+		add_notification(
+			std::format("Render '{}' failed. Click to copy error message", base::to_utf8(render->get_video_name())),
+			ui::NotificationType::NOTIF_ERROR,
+			[result] {
+				clip::set_text(result.error_message);
+				add_notification(
+					"Copied error message to clipboard",
+					ui::NotificationType::INFO,
+					{},
+					std::chrono::duration<float>(2.f)
+				);
+			}
+		);
+	}
 }
 
 void gui::renderer::render_notifications() {
@@ -1033,7 +1128,12 @@ void gui::renderer::render_notifications() {
 
 	for (auto it = notifications.begin(); it != notifications.end();) {
 		ui::add_notification(
-			std::format("notification {}", it->id), notification_container, it->text, it->type, fonts::font
+			std::format("notification {}", it->id),
+			notification_container,
+			it->text,
+			it->type,
+			fonts::font,
+			it->on_click_fn
 		);
 
 		if (now > it->end_time)

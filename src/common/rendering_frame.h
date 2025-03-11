@@ -19,7 +19,12 @@ public:
 
 	void stop();
 
-	bool do_render(RenderCommands render_commands, const BlurSettings& settings);
+	struct DoRenderResult {
+		bool success;
+		std::string error_message;
+	};
+
+	DoRenderResult do_render(RenderCommands render_commands, const BlurSettings& settings);
 
 	struct RenderResponse {
 		bool success;

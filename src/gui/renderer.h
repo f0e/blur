@@ -22,6 +22,7 @@ namespace gui::renderer {
 		std::chrono::steady_clock::time_point end_time;
 		std::string text;
 		ui::NotificationType type;
+		std::optional<std::function<void()>> on_click_fn;
 		uint32_t id = current_notification_id++;
 	};
 
@@ -93,22 +94,21 @@ namespace gui::renderer {
 
 	bool redraw_window(os::Window* window, bool force_render);
 
-	Notification create_notification(
+	void add_notification(
 		const std::string& text,
 		ui::NotificationType type,
-		std::chrono::duration<float> duration = std::chrono::duration<float>(NOTIFICATION_LENGTH)
+		std::chrono::steady_clock::time_point end_time,
+		const std::optional<std::function<void()>>& on_click = {}
 	);
 
 	void add_notification(
-		const std::string& text, ui::NotificationType type, std::chrono::steady_clock::time_point end_time
-	);
-	void add_notification(
 		const std::string& text,
 		ui::NotificationType type,
+		const std::optional<std::function<void()>>& on_click = {},
 		std::chrono::duration<float> duration = std::chrono::duration<float>(NOTIFICATION_LENGTH)
 	);
 
 	void render_notifications();
 
-	void on_render_finished(Render* render, bool success);
+	void on_render_finished(Render* render, RenderResult result);
 }
