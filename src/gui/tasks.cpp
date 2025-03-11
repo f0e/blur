@@ -6,7 +6,9 @@
 #include "gui/ui/ui.h"
 
 void tasks::run(const std::vector<std::string>& arguments) {
-	blur.initialise(false, true);
+	auto res = blur.initialise(false, true);
+
+	gui::initialisation = res;
 
 	rendering.set_progress_callback([] {
 		if (!gui::window)

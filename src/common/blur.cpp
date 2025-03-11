@@ -2,7 +2,7 @@
 #include "common/utils.h"
 #include "common/rendering.h"
 
-bool Blur::initialise(bool _verbose, bool _using_preview) {
+Blur::InitialisationResponse Blur::initialise(bool _verbose, bool _using_preview) {
 	resources_path = u::get_resources_path();
 	settings_path = u::get_settings_path();
 
@@ -15,16 +15,20 @@ bool Blur::initialise(bool _verbose, bool _using_preview) {
 			ffmpeg_path = *_ffmpeg_path;
 		}
 		else {
-			u::log("FFmpeg could not be found");
-			return false;
+			return {
+				.success = false,
+				.error_message = "FFmpeg could not be found",
+			};
 		}
 
 		if (auto _vspipe_path = u::get_program_path("vspipe")) {
 			vspipe_path = *_vspipe_path;
 		}
 		else {
-			u::log("VapourSynth could not be found");
-			return false;
+			return {
+				.success = false,
+				.error_message = "VapourSynth could not be found",
+			};
 		}
 	}
 
@@ -45,7 +49,9 @@ bool Blur::initialise(bool _verbose, bool _using_preview) {
 
 	initialise_base_temp_path();
 
-	return true;
+	return {
+		.success = true,
+	};
 }
 
 void Blur::initialise_base_temp_path() {

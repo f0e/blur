@@ -8,8 +8,11 @@ bool cli::run(
 	bool preview,
 	bool verbose
 ) {
-	if (!blur.initialise(verbose, preview)) { // todo: preview in cli
+	auto res = blur.initialise(verbose, preview);
+
+	if (!res.success) { // todo: preview in cli
 		u::log(L"Blur failed to initialize");
+		u::log("Reason: {}", res.error_message);
 		return false;
 	}
 

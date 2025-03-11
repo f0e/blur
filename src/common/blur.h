@@ -17,7 +17,13 @@ public:
 	std::filesystem::path ffmpeg_path;
 	std::filesystem::path vspipe_path;
 
-	bool initialise(bool _verbose, bool _using_preview);
+	struct InitialisationResponse {
+		bool success;
+		std::string error_message;
+	};
+
+	InitialisationResponse initialise(bool _verbose, bool _using_preview);
+
 	void cleanup() const;
 
 	void initialise_base_temp_path();

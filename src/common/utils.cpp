@@ -90,14 +90,14 @@ std::optional<std::filesystem::path> u::get_program_path(const std::string& prog
 	namespace bp = boost::process;
 	namespace fs = boost::filesystem;
 
-	try {
-		// search_path will throw an exception if the program is not found
-		fs::path program_path = bp::search_path(program_name);
-		return std::filesystem::path(program_path.string());
-	}
-	catch (const boost::process::process_error&) {
+	fs::path program_path = bp::search_path(program_name);
+
+	std::filesystem::path path(program_path.string());
+
+	if (!std::filesystem::exists(path))
 		return {};
-	}
+
+	return path;
 }
 
 // NOLINTBEGIN gpt ass code
