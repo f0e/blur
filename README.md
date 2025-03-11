@@ -62,6 +62,12 @@ The program can also be used in the command line, use -h or --help for more info
 - preview - opens a render preview window
 - detailed filenames - adds blur settings to generated filenames
 
+### gpu acceleration
+
+- gpu interpolation - uses gpu when interpolating
+- gpu rendering - uses gpu when rendering
+- gpu type (nvidia/amd/intel) - your gpu type
+
 ### timescale
 
 - input timescale - timescale of the input video file (will be sped up/slowed down accordingly)
@@ -76,9 +82,6 @@ The program can also be used in the command line, use -h or --help for more info
 
 ### advanced rendering
 
-- gpu interpolation - uses gpu when interpolating
-- gpu rendering - uses gpu when rendering
-- gpu type (nvidia/amd/intel) - your gpu type
 - video container - the output video container
 - custom ffmpeg filters - custom ffmpeg filters to be used when rendering (replaces gpu & quality options)
 - debug - shows debug window, prints commands used by blur

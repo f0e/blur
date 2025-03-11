@@ -149,7 +149,7 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 
 	auto pos = get_positions(container, element, dropdown_data, expand_anim.current);
 
-	bool hovered = pos.dropdown_rect.contains(keys::mouse_pos);
+	bool hovered = pos.dropdown_rect.contains(keys::mouse_pos) && set_hovered_element(element);
 	hover_anim.set_goal(hovered ? 1.f : 0.f);
 
 	bool active = active_element == &element;
@@ -167,19 +167,21 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 		expand_anim.set_goal(active ? 1.f : 0.f);
 	};
 
-	bool res = false;
+	bool activated = false;
 
-	if (hovered)
+	if (hovered) {
 		set_cursor(os::NativeCursor::Link);
 
-	if (hovered && keys::is_mouse_down()) {
-		// toggle dropdown
-		toggle_active();
-		keys::on_mouse_press_handled(os::Event::MouseButton::LeftButton);
+		if (keys::is_mouse_down()) {
+			// toggle dropdown
+			toggle_active();
+			keys::on_mouse_press_handled(os::Event::MouseButton::LeftButton);
 
-		res = true;
+			activated = true;
+		}
 	}
-	else if (active) {
+
+	if (!activated && active) {
 		// clicking options
 		if (keys::is_mouse_down()) {
 			if (pos.options_rect.contains(keys::mouse_pos)) {
@@ -197,7 +199,7 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 						if (dropdown_data.on_change)
 							(*dropdown_data.on_change)(dropdown_data.selected);
 
-						res = true;
+						activated = true;
 					}
 				}
 			}
@@ -215,7 +217,7 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 		z_index = 1;
 	element.z_index = z_index;
 
-	return res;
+	return activated;
 }
 
 // NOLINTEND(readability-function-cognitive-complexity)
@@ -239,24 +241,23 @@ ui::Element& ui::add_dropdown(
 
 	gfx::Size total_size(200, font.getSize() + LABEL_GAP + max_text_size.h + (DROPDOWN_PADDING.h * 2));
 
-	Element element = {
-		.type = ElementType::DROPDOWN,
-		.rect = gfx::Rect(container.current_position, total_size),
-		.data =
-			DropdownElementData{
-				.label = label,
-				.options = options,
-				.selected = &selected,
-				.font = font,
-				.on_change = std::move(on_change),
-			},
-		.render_fn = render_dropdown,
-		.update_fn = update_dropdown,
-	};
+	Element element(
+		id,
+		ElementType::DROPDOWN,
+		gfx::Rect(container.current_position, total_size),
+		DropdownElementData{
+			.label = label,
+			.options = options,
+			.selected = &selected,
+			.font = font,
+			.on_change = std::move(on_change),
+		},
+		render_dropdown,
+		update_dropdown
+	);
 
 	return *add_element(
 		container,
-		id,
 		std::move(element),
 		container.line_height,
 		{

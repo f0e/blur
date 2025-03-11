@@ -7,9 +7,9 @@
 
 #include "../../renderer.h"
 
-const float checkbox_rounding = 1.0f;
-const float checkbox_size = 7.0f;
-const int label_gap = 5;
+const float CHECKBOX_ROUNDING = 1.0f;
+const float CHECKBOX_SIZE = 7.0f;
+const int LABEL_GAP = 5;
 
 void ui::render_checkbox(const Container& container, os::Surface* surface, const AnimatedElement& element) {
 	const auto& checkbox_data = std::get<CheckboxElementData>(element.element->data);
@@ -31,9 +31,9 @@ void ui::render_checkbox(const Container& container, os::Surface* surface, const
 
 	// Calculate checkbox rect (centered vertically with text)
 	gfx::Rect checkbox_rect = element.element->rect;
-	checkbox_rect.w = checkbox_size;
-	checkbox_rect.h = checkbox_size;
-	checkbox_rect.y += (element.element->rect.h - checkbox_size) / 2;
+	checkbox_rect.w = CHECKBOX_SIZE;
+	checkbox_rect.h = CHECKBOX_SIZE;
+	checkbox_rect.y += (element.element->rect.h - CHECKBOX_SIZE) / 2;
 
 	// checkbox
 	render::rect_filled(surface, checkbox_rect, bg_color);
@@ -44,7 +44,7 @@ void ui::render_checkbox(const Container& container, os::Surface* surface, const
 
 	// Render label text
 	gfx::Point text_pos = element.element->rect.origin();
-	text_pos.x += checkbox_size + label_gap;
+	text_pos.x += CHECKBOX_SIZE + LABEL_GAP;
 	text_pos.y = element.element->rect.center().y;
 
 	// vertically center todo: use get_text_size in other components now that its accurate
@@ -71,7 +71,7 @@ bool ui::update_checkbox(const Container& container, AnimatedElement& element) {
 	auto& hover_anim = element.animations.at(hasher("hover"));
 	auto& check_anim = element.animations.at(hasher("check"));
 
-	bool hovered = element.element->rect.contains(keys::mouse_pos);
+	bool hovered = element.element->rect.contains(keys::mouse_pos) && set_hovered_element(element);
 	hover_anim.set_goal(hovered ? 1.f : 0.f);
 
 	if (hovered) {
@@ -102,25 +102,24 @@ ui::Element& ui::add_checkbox(
 	std::optional<std::function<void(bool)>> on_change
 ) {
 	gfx::Size text_size = render::get_text_size(label, font);
-	gfx::Size total_size(200, std::max(checkbox_size, font.getSize()));
+	gfx::Size total_size(200, std::max(CHECKBOX_SIZE, font.getSize()));
 
-	Element element = {
-		.type = ElementType::CHECKBOX,
-		.rect = gfx::Rect(container.current_position, total_size),
-		.data =
-			CheckboxElementData{
-				.label = label,
-				.checked = &checked,
-				.font = font,
-				.on_change = std::move(on_change),
-			},
-		.render_fn = render_checkbox,
-		.update_fn = update_checkbox,
-	};
+	Element element(
+		id,
+		ElementType::CHECKBOX,
+		gfx::Rect(container.current_position, total_size),
+		CheckboxElementData{
+			.label = label,
+			.checked = &checked,
+			.font = font,
+			.on_change = std::move(on_change),
+		},
+		render_checkbox,
+		update_checkbox
+	);
 
 	return *add_element(
 		container,
-		id,
 		std::move(element),
 		container.line_height,
 		{

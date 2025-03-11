@@ -51,20 +51,20 @@ ui::Element& ui::add_bar(
 	std::optional<gfx::Color> text_color,
 	std::optional<const SkFont*> font
 ) {
-	Element element = {
-		.type = ElementType::BAR,
-		.rect = gfx::Rect(container.current_position, gfx::Size(bar_width, 6)),
-		.data =
-			BarElementData{
-				.percent_fill = percent_fill,
-				.background_color = background_color,
-				.fill_color = fill_color,
-				.bar_text = std::move(bar_text),
-				.text_color = text_color,
-				.font = font,
-			},
-		.render_fn = render_bar,
-	};
+	Element element(
+		id,
+		ElementType::BAR,
+		gfx::Rect(container.current_position, gfx::Size(bar_width, 6)),
+		BarElementData{
+			.percent_fill = percent_fill,
+			.background_color = background_color,
+			.fill_color = fill_color,
+			.bar_text = std::move(bar_text),
+			.text_color = text_color,
+			.font = font,
+		},
+		render_bar
+	);
 
-	return *add_element(container, id, std::move(element), container.line_height);
+	return *add_element(container, std::move(element), container.line_height);
 }

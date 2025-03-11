@@ -5,11 +5,16 @@
 #include "render.h"
 #include "os/draw_text.h"
 
+const int SCROLLBAR_WIDTH = 3;
+
 namespace {
 	os::NativeCursor desired_cursor = os::NativeCursor::Arrow;
 
+	ui::AnimatedElement* hovered_element_internal = nullptr;
+	ui::AnimatedElement* hovered_element_render = nullptr; // updated at start of each frame
+
 	int get_content_height(const ui::Container& container) {
-		int total_height = container.current_position.y - container.rect.y;
+		int total_height = container.current_position.y - container.get_usable_rect().y;
 
 		// nothing followed the last element, so remove its bottom margin
 		total_height -= container.last_margin_bottom;
@@ -19,11 +24,11 @@ namespace {
 
 	bool can_scroll(const ui::Container& container) {
 		int used_space = get_content_height(container);
-		return used_space > container.rect.h;
+		return used_space > container.get_usable_rect().h;
 	}
 
 	int get_max_scroll(const ui::Container& container) {
-		return std::max(get_content_height(container) - container.rect.h, 0);
+		return std::max(get_content_height(container) - container.get_usable_rect().h, 0);
 	}
 
 	void render_scrollbar(os::Surface* surface, const ui::Container& container) {
@@ -33,40 +38,36 @@ namespace {
 		// Calculate total content height
 		float total_content_height = get_content_height(container);
 
-		// Calculate visible area height
-		float visible_height = container.rect.h;
-
-		// Calculate scrollbar height proportional to visible vs total content
+		float visible_height = container.get_usable_rect().h;
 		float scrollbar_height = (visible_height / total_content_height) * visible_height;
 
 		// Calculate scrollbar vertical position
-		float scrollbar_y = container.rect.y + ((container.scroll_y / total_content_height) * visible_height);
+		float scrollbar_y =
+			container.get_usable_rect().y + ((container.scroll_y / total_content_height) * visible_height);
 
-		// Create scrollbar rectangle
 		gfx::Rect scrollbar_rect(
-			container.rect.x + container.rect.w - 8, // Position near right edge
-			scrollbar_y,
-			3, // Thin width
-			scrollbar_height
+			container.rect.x + container.rect.w - SCROLLBAR_WIDTH, scrollbar_y, SCROLLBAR_WIDTH, scrollbar_height
 		);
 
-		// Render scrollbar with slight transparency
-		render::rounded_rect_filled(
-			surface,
-			scrollbar_rect,
-			gfx::rgba(255, 255, 255, 50),
-			2.f // Slight rounding
-		);
+		render::rounded_rect_filled(surface, scrollbar_rect, gfx::rgba(255, 255, 255, 50), 2.f);
 	}
 }
 
 void ui::reset_container(
-	Container& container, const gfx::Rect& rect, int line_height, std::optional<gfx::Color> background_color
+	Container& container,
+	const gfx::Rect& rect,
+	int line_height,
+	const std::optional<gfx::Point>& padding,
+	std::optional<gfx::Color> background_color
 ) {
 	container.line_height = line_height;
 	container.rect = rect;
 	container.background_color = background_color;
-	container.current_position = rect.origin(); // todo: padding
+	container.current_position = rect.origin();
+	container.padding = padding;
+	if (container.padding)
+		container.current_position += container.padding.value();
+
 	container.current_element_ids = {};
 	container.updated = false;
 	container.last_margin_bottom = 0;
@@ -74,7 +75,6 @@ void ui::reset_container(
 
 ui::Element* ui::add_element(
 	Container& container,
-	const std::string& id,
 	Element&& _element,
 	int margin_bottom,
 	const std::unordered_map<size_t, AnimationInitialisation>& animations
@@ -94,9 +94,10 @@ ui::Element* ui::add_element(
 		}
 	}
 
-	auto* element = add_element(container, id, std::move(_element), animations);
+	auto* element = add_element(container, std::move(_element), animations);
 
-	container.current_position.x = container.rect.x; // reset x in case it was same line
+	// reset x in case it was same line
+	container.current_position.x = container.get_usable_rect().x;
 
 	container.current_position.y += element->rect.h + margin_bottom;
 	container.last_margin_bottom = margin_bottom;
@@ -105,12 +106,9 @@ ui::Element* ui::add_element(
 }
 
 ui::Element* ui::add_element(
-	Container& container,
-	const std::string& id,
-	Element&& _element,
-	const std::unordered_map<size_t, AnimationInitialisation>& animations
+	Container& container, Element&& _element, const std::unordered_map<size_t, AnimationInitialisation>& animations
 ) {
-	auto& animated_element = container.elements[id];
+	auto& animated_element = container.elements[_element.id];
 
 	_element.orig_rect = _element.rect;
 
@@ -120,7 +118,7 @@ ui::Element* ui::add_element(
 		}
 	}
 	else {
-		u::log("first added {}", id);
+		u::log("first added {}", _element.id);
 
 		for (const auto& [animation_id, initialisation] : animations) {
 			animated_element.animations.emplace(
@@ -131,7 +129,7 @@ ui::Element* ui::add_element(
 
 	animated_element.element = std::make_unique<ui::Element>(std::move(_element));
 
-	container.current_element_ids.push_back(id);
+	container.current_element_ids.push_back(animated_element.element->id);
 
 	return animated_element.element.get();
 }
@@ -154,12 +152,12 @@ void ui::set_next_same_line(Container& container) {
 void ui::center_elements_in_container(Container& container, bool horizontal, bool vertical) {
 	int total_height = get_content_height(container);
 
-	int start_x = container.rect.x;
+	int start_x = container.get_usable_rect().x;
 	int shift_y = 0;
 
 	// Calculate the starting y position shift to center elements vertically
 	if (vertical) {
-		shift_y = (container.rect.h - total_height) / 2;
+		shift_y = (container.get_usable_rect().h - total_height) / 2;
 	}
 
 	// Group elements by their y position
@@ -186,7 +184,7 @@ void ui::center_elements_in_container(Container& container, bool horizontal, boo
 
 			// Center horizontally if requested
 			if (horizontal) {
-				element->rect.x = container.rect.center().x - element->rect.w / 2;
+				element->rect.x = container.get_usable_rect().center().x - element->rect.w / 2;
 			}
 			continue;
 		}
@@ -203,7 +201,7 @@ void ui::center_elements_in_container(Container& container, bool horizontal, boo
 		}
 
 		// Calculate starting x to center the entire group
-		int start_group_x = container.rect.center().x - (total_width / 2);
+		int start_group_x = container.get_usable_rect().center().x - (total_width / 2);
 
 		// Reposition elements
 		for (size_t i = 0; i < group_elements.size(); ++i) {
@@ -245,11 +243,24 @@ std::vector<decltype(ui::Container::elements)::iterator> ui::get_sorted_containe
 	return sorted_elements;
 }
 
+bool ui::set_hovered_element(AnimatedElement& element) {
+	if (hovered_element_internal)
+		return false;
+
+	hovered_element_internal = &element;
+	return true;
+}
+
+ui::AnimatedElement* ui::get_hovered_element() {
+	return hovered_element_render;
+}
+
 bool ui::update_container_input(Container& container) {
 	bool updated = false;
 
 	auto sorted_elements = get_sorted_container_elements(container);
 
+	// update all elements
 	for (auto& it : sorted_elements) {
 		const auto& id = it->first;
 		auto& element = it->second;
@@ -265,6 +276,9 @@ bool ui::update_container_input(Container& container) {
 			updated |= (*element.element->update_fn)(container, element);
 	}
 
+	hovered_element_render = hovered_element_internal;
+
+	// scroll
 	if (keys::scroll_delta != 0.f || keys::scroll_delta_precise != 0.f) {
 		if (container.rect.contains(keys::mouse_pos)) {
 			if (can_scroll(container)) {
@@ -289,6 +303,10 @@ bool ui::update_container_input(Container& container) {
 	return updated;
 }
 
+void ui::on_update_input_start() {
+	hovered_element_internal = nullptr;
+}
+
 void ui::on_update_input_end() {
 	// reset scroll, shouldn't scroll stuff on a later update
 	keys::scroll_delta = 0.f;
@@ -296,7 +314,7 @@ void ui::on_update_input_end() {
 
 	// set cursor based on if an element wanted pointer
 	gui::renderer::set_cursor(desired_cursor);
-	desired_cursor = desired_cursor = os::NativeCursor::Arrow;
+	desired_cursor = os::NativeCursor::Arrow;
 }
 
 bool ui::update_container_frame(Container& container, float delta_time) {
@@ -312,6 +330,7 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 	if (can_scroll(container)) {
 		// clamp scroll
 		int max_scroll = get_max_scroll(container);
+
 		if (container.scroll_y < 0) {
 			container.scroll_speed_y =
 				u::lerp(container.scroll_speed_y, 0.f, scroll_speed_overscroll_reset_speed * delta_time);
@@ -389,3 +408,5 @@ void ui::render_container(os::Surface* surface, Container& container) {
 
 	// render::pop_clip_rect(surface);
 }
+
+void ui::on_frame_start() {}

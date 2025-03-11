@@ -29,11 +29,14 @@ bool gui::event_handler::process_event(const os::Event& event) {
 	bool updated = false;
 
 	if (keys::process_event(event)) {
+		ui::on_update_input_start();
+
 		updated |= ui::update_container_input(renderer::notification_container);
 		updated |= ui::update_container_input(renderer::nav_container);
 
 		updated |= ui::update_container_input(renderer::main_container);
 		updated |= ui::update_container_input(renderer::config_container);
+		updated |= ui::update_container_input(renderer::option_information_container);
 		updated |= ui::update_container_input(renderer::config_preview_container);
 
 		ui::on_update_input_end();

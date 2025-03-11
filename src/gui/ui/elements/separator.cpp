@@ -23,12 +23,13 @@ void ui::render_separator(const Container& container, os::Surface* surface, cons
 }
 
 ui::Element& ui::add_separator(const std::string& id, Container& container) {
-	Element element = {
-		.type = ElementType::SEPARATOR,
-		.rect = gfx::Rect(container.current_position, gfx::Size(200, container.line_height)),
-		.data = ElementData{},
-		.render_fn = render_separator,
-	};
+	Element element(
+		id,
+		ElementType::SEPARATOR,
+		gfx::Rect(container.current_position, gfx::Size(200, container.line_height)),
+		ElementData{},
+		render_separator
+	);
 
-	return *add_element(container, id, std::move(element), container.line_height);
+	return *add_element(container, std::move(element), container.line_height);
 }

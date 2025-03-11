@@ -38,7 +38,7 @@ bool ui::update_button(const Container& container, AnimatedElement& element) {
 
 	auto& anim = element.animations.at(hasher("hover"));
 
-	bool hovered = element.element->rect.contains(keys::mouse_pos);
+	bool hovered = element.element->rect.contains(keys::mouse_pos) && set_hovered_element(element);
 	anim.set_goal(hovered ? 1.f : 0.f);
 
 	if (hovered) {
@@ -68,22 +68,21 @@ ui::Element& ui::add_button(
 
 	gfx::Size text_size = render::get_text_size(text, font);
 
-	Element element = {
-		.type = ElementType::BUTTON,
-		.rect = gfx::Rect(container.current_position, text_size + button_padding),
-		.data =
-			ButtonElementData{
-				.text = text,
-				.font = font,
-				.on_press = std::move(on_press),
-			},
-		.render_fn = render_button,
-		.update_fn = update_button,
-	};
+	Element element(
+		id,
+		ElementType::BUTTON,
+		gfx::Rect(container.current_position, text_size + button_padding),
+		ButtonElementData{
+			.text = text,
+			.font = font,
+			.on_press = std::move(on_press),
+		},
+		render_button,
+		update_button
+	);
 
 	return *add_element(
 		container,
-		id,
 		std::move(element),
 		container.line_height,
 		{

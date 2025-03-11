@@ -230,7 +230,7 @@ void gui::renderer::components::configs::options(ui::Container& container, BlurS
 			first_section = false;
 
 		if (setting) {
-			ui::add_checkbox(std::format("section {}", label), container, label, *setting, fonts::font);
+			ui::add_checkbox(std::format("section {} checkbox", label), container, label, *setting, fonts::font);
 		}
 		else {
 			// ui::add_text(
@@ -302,18 +302,7 @@ void gui::renderer::components::configs::options(ui::Container& container, BlurS
 	*/
 	section_component("rendering");
 
-	ui::add_slider(
-		"quality",
-		container,
-		1,
-		51,
-		&settings.quality,
-		"quality: {}",
-		fonts::font,
-		{},
-		0.f,
-		"(0 = lossless, 51 = horrible)"
-	);
+	ui::add_slider("quality", container, 1, 51, &settings.quality, "quality: {}", fonts::font, {}, 0.f);
 
 	ui::add_checkbox("deduplicate checkbox", container, "deduplicate", settings.deduplicate, fonts::font);
 
@@ -322,6 +311,28 @@ void gui::renderer::components::configs::options(ui::Container& container, BlurS
 	ui::add_checkbox(
 		"detailed filenames checkbox", container, "detailed filenames", settings.detailed_filenames, fonts::font
 	);
+
+	/*
+	    GPU Acceleration
+	*/
+	section_component("gpu acceleration");
+
+	ui::add_checkbox(
+		"gpu interpolation checkbox", container, "gpu interpolation", settings.gpu_interpolation, fonts::font
+	);
+
+	ui::add_checkbox("gpu rendering checkbox", container, "gpu rendering", settings.gpu_rendering, fonts::font);
+
+	if (settings.gpu_rendering) {
+		ui::add_dropdown(
+			"gpu rendering dropdown",
+			container,
+			"gpu rendering - gpu type",
+			{ "nvidia", "amd", "intel" },
+			settings.gpu_type,
+			fonts::font
+		);
+	}
 
 	/*
 	    Timescale
@@ -377,111 +388,105 @@ void gui::renderer::components::configs::options(ui::Container& container, BlurS
 		ui::add_slider("contrast", container, 0.f, 2.f, &settings.contrast, "contrast: {:.2f}", fonts::font, {}, 0.01f);
 	}
 
-	/*
-	    Advanced Rendering
-	*/
-	section_component("advanced rendering");
+	section_component("advanced", &settings.advanced);
 
-	ui::add_checkbox(
-		"gpu interpolation checkbox", container, "gpu interpolation", settings.gpu_interpolation, fonts::font
-	);
+	if (settings.advanced) {
+		/*
+		    Advanced Rendering
+		*/
+		section_component("advanced rendering");
 
-	ui::add_checkbox("gpu rendering checkbox", container, "gpu rendering", settings.gpu_rendering, fonts::font);
+		ui::add_text_input(
+			"video container text input", container, settings.video_container, "video container", fonts::font
+		);
 
-	if (settings.gpu_rendering) {
-		ui::add_dropdown(
-			"gpu rendering dropdown",
+		ui::add_text_input(
+			"custom ffmpeg filters text input",
 			container,
-			"gpu rendering - gpu type",
-			{ "nvidia", "amd", "intel" },
-			settings.gpu_type,
+			settings.ffmpeg_override,
+			"custom ffmpeg filters",
 			fonts::font
 		);
+
+		ui::add_checkbox("debug checkbox", container, "debug", settings.debug, fonts::font);
+
+		/*
+		    Advanced Interpolation
+		*/
+		section_component("advanced interpolation");
+
+		static const std::vector<std::string> interpolation_presets = {
+			"weak", "film", "smooth", "animation", "default", "test",
+		};
+
+		static const std::vector<std::string> interpolation_algorithms = {
+			"1", "2", "11", "13", "21", "23",
+		};
+
+		static const std::vector<std::string> interpolation_block_sizes = { "4", "8", "16", "32" };
+
+		ui::add_dropdown(
+			"interpolation preset dropdown",
+			container,
+			"interpolation preset",
+			interpolation_presets,
+			settings.interpolation_preset,
+			fonts::font
+		);
+
+		ui::add_dropdown(
+			"interpolation algorithm dropdown",
+			container,
+			"interpolation algorithm",
+			interpolation_algorithms,
+			settings.interpolation_algorithm,
+			fonts::font
+		);
+
+		ui::add_dropdown(
+			"interpolation block size dropdown",
+			container,
+			"interpolation block size",
+			interpolation_block_sizes,
+			settings.interpolation_blocksize,
+			fonts::font
+		);
+
+		ui::add_slider(
+			"interpolation mask area slider",
+			container,
+			0,
+			500,
+			&settings.interpolation_mask_area,
+			"interpolation mask area: {}",
+			fonts::font
+		);
+
+		/*
+		    Advanced Blur
+		*/
+		section_component("advanced blur");
+
+		ui::add_slider(
+			"blur weighting gaussian std dev slider",
+			container,
+			0.f,
+			10.f,
+			&settings.blur_weighting_gaussian_std_dev,
+			"blur weighting gaussian std dev: {:.2f}",
+			fonts::font
+		);
+		ui::add_checkbox(
+			"blur weighting triangle reverse checkbox",
+			container,
+			"blur weighting triangle reverse",
+			settings.blur_weighting_triangle_reverse,
+			fonts::font
+		);
+		ui::add_text_input(
+			"blur weighting bound input", container, settings.blur_weighting_bound, "blur weighting bound", fonts::font
+		);
 	}
-
-	ui::add_text_input(
-		"video container text input", container, settings.video_container, "video container", fonts::font
-	);
-
-	ui::add_text_input(
-		"custom ffmpeg filters text input", container, settings.ffmpeg_override, "custom ffmpeg filters", fonts::font
-	);
-
-	ui::add_checkbox("debug checkbox", container, "debug", settings.debug, fonts::font);
-
-	section_component("advanced blur");
-
-	ui::add_slider(
-		"blur weighting gaussian std dev slider",
-		container,
-		0.f,
-		10.f,
-		&settings.blur_weighting_gaussian_std_dev,
-		"blur weighting gaussian std dev: {:.2f}",
-		fonts::font
-	);
-	ui::add_checkbox(
-		"blur weighting triangle reverse checkbox",
-		container,
-		"blur weighting triangle reverse",
-		settings.blur_weighting_triangle_reverse,
-		fonts::font
-	);
-	ui::add_text_input(
-		"blur weighting bound input", container, settings.blur_weighting_bound, "blur weighting bound", fonts::font
-	);
-
-	/*
-	    Advanced Interpolation
-	*/
-	section_component("advanced interpolation");
-
-	static const std::vector<std::string> interpolation_presets = {
-		"weak", "film", "smooth", "animation", "default", "test",
-	};
-
-	static const std::vector<std::string> interpolation_algorithms = {
-		"1", "2", "11", "13", "21", "23",
-	};
-
-	static const std::vector<std::string> interpolation_block_sizes = { "4", "8", "16", "32" };
-
-	ui::add_dropdown(
-		"interpolation preset dropdown",
-		container,
-		"interpolation preset",
-		interpolation_presets,
-		settings.interpolation_preset,
-		fonts::font
-	);
-
-	ui::add_dropdown(
-		"interpolation algorithm dropdown",
-		container,
-		"interpolation algorithm",
-		interpolation_algorithms,
-		settings.interpolation_algorithm,
-		fonts::font
-	);
-
-	ui::add_dropdown(
-		"interpolation block size dropdown",
-		container,
-		"interpolation block size",
-		interpolation_block_sizes,
-		settings.interpolation_blocksize,
-		fonts::font
-	);
-
-	ui::add_slider(
-		"interpolation mask area slider",
-		container,
-		0,
-		500,
-		&settings.interpolation_mask_area,
-		"interpolation mask area: {}",
-		fonts::font
-	);
 }
 
 // NOLINTBEGIN(readability-function-cognitive-complexity) todo: refactor
@@ -623,10 +628,89 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 	}
 }
 
+void gui::renderer::components::configs::option_information(ui::Container& container, BlurSettings& settings) {
+	ui::AnimatedElement* hovered = ui::get_hovered_element();
+
+	if (!hovered)
+		return;
+
+	const static std::unordered_map<std::string, std::vector<std::string>> option_infos = {
+		// Blur settings
+		// { "section blur checkbox", { "Enable motion blur" } },
+		{ "blur amount",
+		  { "Amount of motion blur",
+		    "(0 = no blur, 1 = fully blend all frames, >1 = blend extra frames (ghosting))" } },
+		// { "output fps", { "FPS of the output video" } },
+		{ "blur weighting gaussian std dev slider", { "Standard deviation for Gaussian blur weighting" } },
+		{ "blur weighting triangle reverse checkbox", { "Reverses the direction of triangle weighting" } },
+		{ "blur weighting bound input", { "Weighting bounds to spread weights more" } },
+
+		// Interpolation settings
+		// { "section interpolation checkbox", { "Enable interpolation to a higher FPS before blurring" } },
+		{ "interpolate scale checkbox", { "Use a multiplier for FPS interpolation rather than a set FPS" } },
+		{ "interpolated fps mult",
+		  { "Multiplier for FPS interpolation",
+		    "The input video will be interpolated to this FPS (before blurring)" } },
+		{ "interpolated fps", { "FPS to interpolate input video to (before blurring)" } },
+		{ "interpolation preset dropdown", { "Check the blur GitHub for more information" } },
+		{ "interpolation algorithm dropdown", { "Check the blur GitHub for more information" } },
+		{ "interpolation block size dropdown",
+		  { "Block size for interpolation", "(higher = less accurate, faster; lower = more accurate, slower)" } },
+		{ "interpolation mask area slider",
+		  { "Mask amount for interpolation", "(higher reduces blur on static objects but can affect smoothness)" } },
+
+		// Rendering settings
+		{ "quality", { "Quality setting for output video", "(0 = lossless quality, 51 = really bad)" } },
+		{ "deduplicate checkbox",
+		  { "Removes duplicate frames and replaces them with interpolated frames",
+		    "",
+		    "Fixes 'unsmooth' looking output" } },
+		{ "preview checkbox", { "Shows preview while rendering" } },
+		{ "detailed filenames checkbox", { "Adds blur settings to generated filenames" } },
+
+		// Timescale settings
+		// { "section timescale checkbox", { "Enable video timescale manipulation" } },
+		// { "input timescale", { "Timescale of the input video file" } },
+		// { "output timescale", { "Timescale of the output video file" } },
+		{ "adjust timescaled audio pitch checkbox", { "Pitch shift audio when speeding up or slowing down video" } },
+
+		// Filters
+		// { "section filters checkbox", { "Enable video filters" } },
+		// { "brightness", { "Adjusts brightness of the output video" } },
+		// { "saturation", { "Adjusts saturation of the output video" } },
+		// { "contrast", { "Adjusts contrast of the output video" } },
+
+		// Advanced rendering
+		// { "gpu interpolation checkbox", { "Uses GPU for interpolation" } },
+		// { "gpu rendering checkbox", { "Uses GPU for rendering" } },
+		// { "gpu rendering dropdown", { "Select GPU type" } },
+		{ "video container text input", { "Output video container format" } },
+		{ "custom ffmpeg filters text input",
+		  { "Custom FFmpeg filters for rendering", "(overrides GPU & quality options)" } },
+		// { "debug checkbox", { "Shows debug window and prints commands used by blur" } }
+	};
+
+	if (!option_infos.contains(hovered->element->id))
+		return;
+
+	ui::add_text(
+		"hovered option info",
+		container,
+		option_infos.at(hovered->element->id),
+		gfx::rgba(255, 255, 255, 255),
+		fonts::font,
+		os::TextAlign::Center,
+		ui::TextStyle::OUTLINE
+	);
+}
+
 // NOLINTEND(readability-function-cognitive-complexity)
 
 void gui::renderer::components::configs::screen(
-	ui::Container& config_container, ui::Container& preview_container, float delta_time
+	ui::Container& config_container,
+	ui::Container& preview_container,
+	ui::Container& option_information_container,
+	float delta_time
 ) {
 	auto parse_interp = [&] {
 		try {
@@ -697,11 +781,15 @@ void gui::renderer::components::configs::screen(
 	options(config_container, settings);
 
 	preview(preview_container, settings);
+
+	option_information(option_information_container, settings);
 }
 
 // NOLINTBEGIN(readability-function-size,readability-function-cognitive-complexity)
 
 bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
+	ui::on_frame_start();
+
 	set_cursor_this_frame = false;
 
 	auto now = std::chrono::steady_clock::now();
@@ -746,36 +834,36 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	bg_overlay_shade = u::lerp(bg_overlay_shade, drag_handler::dragging ? 30.f : 0.f, 25.f * delta_time);
 	force_render |= bg_overlay_shade != last_fill_shade;
 
-	gfx::Rect container_rect = rect;
-	container_rect.x += PAD_X;
-	container_rect.w -= PAD_X * 2;
-	container_rect.y += PAD_Y;
-	container_rect.h -= PAD_Y * 2;
-
 	gfx::Rect nav_container_rect = rect;
 	nav_container_rect.h = 70;
 	nav_container_rect.y = rect.y2() - nav_container_rect.h;
 
-	ui::reset_container(nav_container, nav_container_rect, fonts::font.getSize());
+	ui::reset_container(nav_container, nav_container_rect, fonts::font.getSize(), {});
+
+	gfx::Rect container_rect = rect;
 
 	int nav_cutoff = container_rect.y2() - nav_container_rect.y;
 	if (nav_cutoff > 0)
 		container_rect.h -= nav_cutoff;
 
-	ui::reset_container(main_container, container_rect, fonts::font.getSize());
+	ui::reset_container(main_container, container_rect, fonts::font.getSize(), gfx::Point{ PAD_X, PAD_Y });
 
 	const int config_page_container_gap = PAD_X / 2;
 
-	gfx::Rect config_container_rect = container_rect;
+	gfx::Rect config_container_rect = rect;
 	config_container_rect.w = 200 + PAD_X * 2;
 
-	ui::reset_container(config_container, config_container_rect, 9);
+	ui::reset_container(config_container, config_container_rect, 9, gfx::Point{ PAD_X, PAD_Y });
 
-	gfx::Rect config_preview_container_rect = container_rect;
+	gfx::Rect config_preview_container_rect = rect;
 	config_preview_container_rect.x = config_container_rect.x2() + config_page_container_gap;
 	config_preview_container_rect.w -= config_container_rect.w + config_page_container_gap;
 
-	ui::reset_container(config_preview_container, config_preview_container_rect, fonts::font.getSize());
+	ui::reset_container(
+		config_preview_container, config_preview_container_rect, fonts::font.getSize(), gfx::Point{ PAD_X, PAD_Y }
+	);
+
+	ui::reset_container(option_information_container, config_preview_container_rect, 15, gfx::Point{ PAD_X, PAD_Y });
 
 	gfx::Rect notification_container_rect = rect;
 	notification_container_rect.w = 230;
@@ -783,7 +871,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	notification_container_rect.h = 300;
 	notification_container_rect.y = NOTIFICATIONS_PAD_Y;
 
-	ui::reset_container(notification_container, notification_container_rect, 6);
+	ui::reset_container(notification_container, notification_container_rect, 6, {});
 
 	switch (screen) {
 		case Screens::MAIN: {
@@ -806,9 +894,12 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 				screen = Screens::MAIN;
 			});
 
-			components::configs::screen(config_container, config_preview_container, delta_time);
+			components::configs::screen(
+				config_container, config_preview_container, option_information_container, delta_time
+			);
 
 			ui::center_elements_in_container(config_preview_container);
+			ui::center_elements_in_container(option_information_container, true, false);
 
 			break;
 		}
@@ -825,6 +916,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	want_to_render |= ui::update_container_frame(main_container, delta_time);
 	want_to_render |= ui::update_container_frame(config_container, delta_time);
 	want_to_render |= ui::update_container_frame(config_preview_container, delta_time);
+	want_to_render |= ui::update_container_frame(option_information_container, delta_time);
 	ui::on_update_frame_end();
 
 	if (!want_to_render && !force_render)
@@ -870,6 +962,7 @@ bool gui::renderer::redraw_window(os::Window* window, bool force_render) {
 	ui::render_container(surface, main_container);
 	ui::render_container(surface, config_container);
 	ui::render_container(surface, config_preview_container);
+	ui::render_container(surface, option_information_container);
 	ui::render_container(surface, nav_container);
 	ui::render_container(surface, notification_container);
 

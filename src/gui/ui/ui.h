@@ -29,14 +29,21 @@ namespace ui {
 		}
 	};
 
+	enum class TextStyle : std::uint8_t {
+		NORMAL,
+		DROPSHADOW,
+		OUTLINE
+	};
+
 	struct TextElementData {
 		std::vector<std::string> lines;
 		gfx::Color color;
 		SkFont font;
 		os::TextAlign align;
+		TextStyle style;
 
 		bool operator==(const TextElementData& other) const {
-			return lines == other.lines && color == other.color && align == other.align;
+			return lines == other.lines && color == other.color && align == other.align && style == other.style;
 			// Skip font comparison since it might not implement ==
 		}
 	};
@@ -187,6 +194,7 @@ namespace ui {
 	struct Container;
 
 	struct Element {
+		std::string id;
 		ElementType type;
 		gfx::Rect rect;
 		ElementData data;
@@ -194,6 +202,18 @@ namespace ui {
 		std::optional<std::function<bool(const Container&, AnimatedElement&)>> update_fn;
 		bool fixed = false;
 		gfx::Rect orig_rect;
+
+		Element(
+			std::string id,
+			ElementType type,
+			const gfx::Rect& rect,
+			ElementData data,
+			std::function<void(const Container&, os::Surface*, const AnimatedElement&)> render_fn,
+			std::optional<std::function<bool(const Container&, AnimatedElement&)>> update_fn = std::nullopt,
+			bool fixed = false
+		)
+			: id(std::move(id)), type(type), rect(rect), data(std::move(data)), render_fn(std::move(render_fn)),
+			  update_fn(std::move(update_fn)), fixed(fixed), orig_rect(rect) {}
 	};
 
 	struct AnimatedElement {
@@ -212,11 +232,23 @@ namespace ui {
 
 		int line_height = 15;
 		gfx::Point current_position;
+		std::optional<gfx::Point> padding;
 		bool updated = false;
 		int last_margin_bottom = 0;
 
 		float scroll_y = 0.f;
 		float scroll_speed_y = 0.f;
+
+		[[nodiscard]] gfx::Rect get_usable_rect() const {
+			gfx::Rect usable = rect;
+			if (padding) {
+				usable.x += padding->x;
+				usable.y += padding->x;
+				usable.w -= padding->x * 2;
+				usable.h -= padding->y * 2;
+			}
+			return usable;
+		}
 	};
 
 	inline auto hasher = std::hash<std::string>{};
@@ -252,12 +284,15 @@ namespace ui {
 	void render_separator(const Container& container, os::Surface* surface, const AnimatedElement& element);
 
 	void reset_container(
-		Container& container, const gfx::Rect& rect, int line_height, std::optional<gfx::Color> background_color = {}
+		Container& container,
+		const gfx::Rect& rect,
+		int line_height,
+		const std::optional<gfx::Point>& padding = {},
+		std::optional<gfx::Color> background_color = {}
 	);
 
 	Element* add_element(
 		Container& container,
-		const std::string& id,
 		Element&& _element,
 		int margin_bottom,
 		const std::unordered_map<size_t, AnimationInitialisation>& animations = { { hasher("main"),
@@ -265,7 +300,6 @@ namespace ui {
 	);
 	Element* add_element(
 		Container& container,
-		const std::string& id,
 		Element&& _element,
 		const std::unordered_map<size_t, AnimationInitialisation>& animations = { { hasher("main"),
 	                                                                                DEFAULT_ANIMATION } }
@@ -289,7 +323,18 @@ namespace ui {
 		const std::string& text,
 		gfx::Color color,
 		const SkFont& font,
-		os::TextAlign align = os::TextAlign::Left
+		os::TextAlign align = os::TextAlign::Left,
+		TextStyle style = TextStyle::NORMAL
+	);
+
+	Element& add_text(
+		const std::string& id,
+		Container& container,
+		std::vector<std::string> lines,
+		gfx::Color color,
+		const SkFont& font,
+		os::TextAlign align = os::TextAlign::Left,
+		TextStyle style = TextStyle::NORMAL
 	);
 
 	Element& add_text_fixed(
@@ -299,7 +344,19 @@ namespace ui {
 		const std::string& text,
 		gfx::Color color,
 		const SkFont& font,
-		os::TextAlign align = os::TextAlign::Left
+		os::TextAlign align = os::TextAlign::Left,
+		TextStyle style = TextStyle::NORMAL
+	);
+
+	Element& add_text_fixed(
+		const std::string& id,
+		Container& container,
+		const gfx::Point& position,
+		std::vector<std::string> lines,
+		gfx::Color color,
+		const SkFont& font,
+		os::TextAlign align = os::TextAlign::Left,
+		TextStyle style = TextStyle::NORMAL
 	);
 
 	std::optional<Element*> add_image(
@@ -376,11 +433,17 @@ namespace ui {
 
 	void set_cursor(os::NativeCursor cursor);
 
+	bool set_hovered_element(AnimatedElement& element);
+	AnimatedElement* get_hovered_element();
+
 	bool update_container_input(Container& container);
+	void on_update_input_start();
 	void on_update_input_end();
 
 	bool update_container_frame(Container& container, float delta_time);
 	void on_update_frame_end();
 
 	void render_container(os::Surface* surface, Container& container);
+
+	void on_frame_start();
 }

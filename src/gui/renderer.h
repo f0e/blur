@@ -48,6 +48,7 @@ namespace gui::renderer {
 	inline ui::Container main_container;
 	inline ui::Container config_container;
 	inline ui::Container config_preview_container;
+	inline ui::Container option_information_container;
 	inline ui::Container notification_container;
 	inline ui::Container nav_container;
 
@@ -80,9 +81,14 @@ namespace gui::renderer {
 
 			void options(ui::Container& container, BlurSettings& settings);
 			void preview(ui::Container& container, BlurSettings& settings);
-			void screen(ui::Container& container, ui::Container& preview_container, float delta_time);
+			void option_information(ui::Container& container, BlurSettings& settings);
+			void screen(
+				ui::Container& container,
+				ui::Container& preview_container,
+				ui::Container& option_information_container,
+				float delta_time
+			);
 		}
-
 	}
 
 	bool redraw_window(os::Window* window, bool force_render);

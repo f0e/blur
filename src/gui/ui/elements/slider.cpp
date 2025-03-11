@@ -136,7 +136,7 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 	if (extra > 0)
 		clickable_rect.h += extra;
 
-	bool hovered = clickable_rect.contains(keys::mouse_pos);
+	bool hovered = clickable_rect.contains(keys::mouse_pos) && set_hovered_element(element);
 	bool active = active_element == &element;
 
 	// Determine current value and range based on type
@@ -214,27 +214,26 @@ ui::Element& ui::add_slider(
 	if (tooltip != "")
 		slider_size.h += LINE_HEIGHT_ADD + text_size;
 
-	Element element = {
-		.type = ElementType::SLIDER,
-		.rect = gfx::Rect(container.current_position, slider_size),
-		.data =
-			SliderElementData{
-				.min_value = min_value,
-				.max_value = max_value,
-				.current_value = value,
-				.label_format = label_format,
-				.font = font,
-				.on_change = std::move(on_change),
-				.precision = precision,
-				.tooltip = tooltip,
-			},
-		.render_fn = render_slider,
-		.update_fn = update_slider,
-	};
+	Element element(
+		id,
+		ElementType::SLIDER,
+		gfx::Rect(container.current_position, slider_size),
+		SliderElementData{
+			.min_value = min_value,
+			.max_value = max_value,
+			.current_value = value,
+			.label_format = label_format,
+			.font = font,
+			.on_change = std::move(on_change),
+			.precision = precision,
+			.tooltip = tooltip,
+		},
+		render_slider,
+		update_slider
+	);
 
 	return *add_element(
 		container,
-		id,
 		std::move(element),
 		container.line_height,
 		{

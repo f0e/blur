@@ -75,22 +75,21 @@ ui::Element& ui::add_notification(
 
 	// now that we've calculated the notification size, add text padding
 
-	Element element = {
-		.type = ElementType::NOTIFICATION,
-		.rect = gfx::Rect(container.current_position, notification_size),
-		.data =
-			NotificationElementData{
-				.lines = lines,
-				.type = type,
-				.font = font,
-				.line_height = line_height,
-			},
-		.render_fn = render_notification,
-	};
+	Element element(
+		id,
+		ElementType::NOTIFICATION,
+		gfx::Rect(container.current_position, notification_size),
+		NotificationElementData{
+			.lines = lines,
+			.type = type,
+			.font = font,
+			.line_height = line_height,
+		},
+		render_notification
+	);
 
 	return *add_element(
 		container,
-		id,
 		std::move(element),
 		container.line_height,
 		{ {

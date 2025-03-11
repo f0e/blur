@@ -27,6 +27,9 @@ struct BlurSettings {
 	bool gpu_interpolation = true;
 	bool gpu_rendering = false;
 	std::string gpu_type = "nvidia";
+
+	bool advanced = false;
+
 	std::string video_container = "mp4";
 	std::string ffmpeg_override;
 	bool debug = false;
@@ -58,7 +61,7 @@ public:
 		       brightness == other.brightness && saturation == other.saturation && contrast == other.contrast &&
 		       quality == other.quality && deduplicate == other.deduplicate && preview == other.preview &&
 		       detailed_filenames == other.detailed_filenames && gpu_interpolation == other.gpu_interpolation &&
-		       gpu_rendering == other.gpu_rendering && gpu_type == other.gpu_type &&
+		       gpu_rendering == other.gpu_rendering && gpu_type == other.gpu_type && advanced == other.advanced &&
 		       video_container == other.video_container && ffmpeg_override == other.ffmpeg_override &&
 		       debug == other.debug && blur_weighting_gaussian_std_dev == other.blur_weighting_gaussian_std_dev &&
 		       blur_weighting_triangle_reverse == other.blur_weighting_triangle_reverse &&

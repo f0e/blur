@@ -24,6 +24,12 @@ void config::create(const std::filesystem::path& filepath, const BlurSettings& c
 	output << "detailed filenames: " << (current_settings.detailed_filenames ? "true" : "false") << "\n";
 
 	output << "\n";
+	output << "- gpu acceleration" << "\n";
+	output << "gpu interpolation: " << (current_settings.gpu_interpolation ? "true" : "false") << "\n";
+	output << "gpu rendering: " << (current_settings.gpu_rendering ? "true" : "false") << "\n";
+	output << "gpu type (nvidia/amd/intel): " << current_settings.gpu_type << "\n";
+
+	output << "\n";
 	output << "- timescale" << "\n";
 	output << "timescale: " << (current_settings.timescale ? "true" : "false") << "\n";
 	output << "input timescale: " << current_settings.input_timescale << "\n";
@@ -39,10 +45,11 @@ void config::create(const std::filesystem::path& filepath, const BlurSettings& c
 	output << "contrast: " << current_settings.contrast << "\n";
 
 	output << "\n";
+	output << "[advanced options]" << "\n";
+	output << "advanced: " << (current_settings.advanced ? "true" : "false") << "\n";
+
+	output << "\n";
 	output << "- advanced rendering" << "\n";
-	output << "gpu interpolation: " << (current_settings.gpu_interpolation ? "true" : "false") << "\n";
-	output << "gpu rendering: " << (current_settings.gpu_rendering ? "true" : "false") << "\n";
-	output << "gpu type (nvidia/amd/intel): " << current_settings.gpu_type << "\n";
 	output << "video container: " << current_settings.video_container << "\n";
 	output << "custom ffmpeg filters: " << current_settings.ffmpeg_override << "\n";
 	output << "debug: " << (current_settings.debug ? "true" : "false") << "\n";
@@ -155,14 +162,17 @@ BlurSettings config::parse(const std::filesystem::path& config_filepath) {
 	config_get("preview", settings.preview);
 	config_get("detailed filenames", settings.detailed_filenames);
 
+	config_get("gpu interpolation", settings.gpu_interpolation);
+	config_get("gpu rendering", settings.gpu_rendering);
+	config_get_str("gpu type (nvidia/amd/intel)", settings.gpu_type);
+
 	config_get("timescale", settings.timescale);
 	config_get("input timescale", settings.input_timescale);
 	config_get("output timescale", settings.output_timescale);
 	config_get("adjust timescaled audio pitch", settings.output_timescale_audio_pitch);
 
-	config_get("gpu interpolation", settings.gpu_interpolation);
-	config_get("gpu rendering", settings.gpu_rendering);
-	config_get_str("gpu type (nvidia/amd/intel)", settings.gpu_type);
+	config_get("advanced", settings.advanced);
+
 	config_get("video container", settings.video_container);
 	config_get_str("custom ffmpeg filters", settings.ffmpeg_override);
 	config_get("debug", settings.debug);

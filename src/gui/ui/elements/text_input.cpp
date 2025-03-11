@@ -355,7 +355,8 @@ bool ui::update_text_input(const Container& container, AnimatedElement& element)
 	auto& hover_anim = element.animations.at(hasher("hover"));
 	auto& focus_anim = element.animations.at(hasher("focus"));
 
-	bool hovered = element.element->rect.contains(keys::mouse_pos);
+	bool hovered = element.element->rect.contains(keys::mouse_pos) && set_hovered_element(element);
+
 	hover_anim.set_goal(hovered ? 1.f : 0.f);
 
 	if (hovered)
@@ -410,23 +411,22 @@ ui::Element& ui::add_text_input(
 ) {
 	const gfx::Size input_size(200, font.getSize() + 12);
 
-	Element element = {
-		.type = ElementType::TEXT_INPUT,
-		.rect = gfx::Rect(container.current_position, input_size),
-		.data =
-			TextInputElementData{
-				.text = &text,
-				.placeholder = placeholder,
-				.font = font,
-				.on_change = std::move(on_change),
-			},
-		.render_fn = render_text_input,
-		.update_fn = update_text_input,
-	};
+	Element element(
+		id,
+		ElementType::TEXT_INPUT,
+		gfx::Rect(container.current_position, input_size),
+		TextInputElementData{
+			.text = &text,
+			.placeholder = placeholder,
+			.font = font,
+			.on_change = std::move(on_change),
+		},
+		render_text_input,
+		update_text_input
+	);
 
 	return *add_element(
 		container,
-		id,
 		std::move(element),
 		container.line_height,
 		{

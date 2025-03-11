@@ -103,18 +103,18 @@ std::optional<ui::Element*> ui::add_image(
 		image_rect.h = static_cast<int>(max_size.w / aspect_ratio);
 	}
 
-	Element element = {
-		.type = ElementType::IMAGE,
-		.rect = image_rect,
-		.data =
-			ImageElementData{
-				.image_path = image_path,
-				.image_surface = image_surface,
-				.image_id = image_id,
-				.image_color = image_color,
-			},
-		.render_fn = render_image,
-	};
+	Element element(
+		id,
+		ElementType::IMAGE,
+		image_rect,
+		ImageElementData{
+			.image_path = image_path,
+			.image_surface = image_surface,
+			.image_id = image_id,
+			.image_color = image_color,
+		},
+		render_image
+	);
 
-	return add_element(container, id, std::move(element), container.line_height);
+	return add_element(container, std::move(element), container.line_height);
 }
