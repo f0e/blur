@@ -1,6 +1,7 @@
 
 #include "renderer.h"
 
+#include "base/launcher.h"
 #include "clip/clip.h"
 
 #include "common/rendering.h"
@@ -250,7 +251,7 @@ void gui::renderer::components::configs::options(ui::Container& container, BlurS
 	bool first_section = true;
 	auto section_component = [&](std::string label, bool* setting = nullptr) {
 		if (!first_section) {
-			ui::add_separator(std::format("section {} separator", label), container);
+			ui::add_separator(std::format("section {} separator", label), container, ui::SeparatorStyle::FADE_RIGHT);
 		}
 		else
 			first_section = false;
@@ -533,8 +534,10 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 	bool sample_video_exists = std::filesystem::exists(sample_video_path);
 
 	auto render_preview = [&] {
-		if (!sample_video_exists)
+		if (!sample_video_exists) {
+			preview_path.clear();
 			return;
+		}
 
 		if (first) {
 			first = false;
@@ -645,13 +648,38 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 			ui::add_text(
 				"sample video does not exist text",
 				container,
-				"Sample video does not exist",
+				"No preview video found.",
 				gfx::rgba(255, 255, 255, 100),
 				fonts::font,
 				os::TextAlign::Center
 			);
+
+			ui::add_text(
+				"sample video does not exist text 2",
+				container,
+				"Drop a video here to add one.",
+				gfx::rgba(255, 255, 255, 100),
+				fonts::font,
+				os::TextAlign::Center
+			);
+
+			ui::add_button("open preview file button", container, "Open file", fonts::font, [] {
+				base::paths paths;
+				utils::show_file_selector("Blur input", "", {}, os::FileDialog::Type::OpenFile, paths);
+
+				if (paths.size() != 1)
+					return; // ??
+
+				tasks::add_sample_video(paths[0]);
+			});
 		}
 	}
+
+	ui::add_separator("config folder separator", container, ui::SeparatorStyle::FADE_BOTH);
+
+	ui::add_button("open config folder", container, "Open config folder", fonts::font, [] {
+		base::launcher::open_folder(blur.settings_path);
+	});
 }
 
 void gui::renderer::components::configs::option_information(ui::Container& container, BlurSettings& settings) {

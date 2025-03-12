@@ -176,6 +176,10 @@ set(LAF_WITH_TESTS OFF) # disable tests
 
 add_subdirectory(dependencies/laf)
 
+# LAF libraries + Blur are compiled with config.h
+target_include_directories(laf-base PUBLIC src/gui)
+target_compile_definitions(laf-base PUBLIC HAVE_CONFIG_H)
+
 add_executable(
   blur-gui WIN32
   ${COMMON_SOURCES}

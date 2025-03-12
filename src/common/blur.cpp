@@ -11,8 +11,7 @@ Blur::InitialisationResponse Blur::initialise(bool _verbose, bool _using_preview
 
 	if (!used_installer) {
 		const static std::string manual_troubleshooting_info =
-			"If you’re not sure what that means, try using the installer. If that doesn’t work, open a ticket on "
-			"GitHub.";
+			"If you’re not sure what that means, try using the installer.";
 
 		// didn't use installer, check if dependencies are installed
 		if (auto _ffmpeg_path = u::get_program_path("ffmpeg")) {

@@ -45,8 +45,8 @@ void tasks::run(const std::vector<std::string>& arguments) {
 	}
 }
 
-void tasks::add_files(const std::vector<std::string>& files) {
-	for (const std::string& path_str : files) {
+void tasks::add_files(const std::vector<std::string>& path_strs) {
+	for (const std::string& path_str : path_strs) {
 		std::filesystem::path path = std::filesystem::canonical(path_str);
 		if (path.empty() || !std::filesystem::exists(path))
 			continue;
@@ -63,4 +63,17 @@ void tasks::add_files(const std::vector<std::string>& files) {
 
 		rendering.queue_render(std::move(render));
 	}
+}
+
+void tasks::add_sample_video(const std::string& path_str) {
+	std::filesystem::path path = std::filesystem::canonical(path_str);
+	if (path.empty() || !std::filesystem::exists(path))
+		return;
+
+	auto sample_video_path = blur.settings_path / "sample_video.mp4";
+
+	// todo: reencode?
+	std::filesystem::copy(path, sample_video_path);
+
+	gui::renderer::add_notification("Added sample video", ui::NotificationType::SUCCESS);
 }

@@ -61,6 +61,21 @@ namespace ui {
 		}
 	};
 
+	enum class SeparatorStyle : std::uint8_t {
+		NORMAL,
+		FADE_RIGHT,
+		FADE_LEFT,
+		FADE_BOTH
+	};
+
+	struct SeparatorElementData {
+		SeparatorStyle style;
+
+		bool operator==(const SeparatorElementData& other) const {
+			return style == other.style;
+		}
+	};
+
 	struct ImageElementData {
 		std::filesystem::path image_path;
 		os::SurfaceRef image_surface;
@@ -171,7 +186,8 @@ namespace ui {
 		SliderElementData,
 		TextInputElementData,
 		CheckboxElementData,
-		DropdownElementData>;
+		DropdownElementData,
+		SeparatorElementData>;
 
 	struct AnimationState {
 		float speed;
@@ -441,7 +457,7 @@ namespace ui {
 		std::optional<std::function<void(std::string*)>> on_change = {}
 	);
 
-	Element& add_separator(const std::string& id, Container& container);
+	Element& add_separator(const std::string& id, Container& container, SeparatorStyle style);
 
 	void add_spacing(Container& container, int spacing);
 
