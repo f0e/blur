@@ -678,7 +678,7 @@ void gui::renderer::components::configs::preview(ui::Container& container, BlurS
 	ui::add_separator("config folder separator", container, ui::SeparatorStyle::FADE_BOTH);
 
 	ui::add_button("open config folder", container, "Open config folder", fonts::font, [] {
-		base::launcher::open_folder(blur.settings_path);
+		base::launcher::open_folder(blur.settings_path.string());
 	});
 }
 
