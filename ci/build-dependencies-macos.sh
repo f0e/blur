@@ -181,3 +181,15 @@ build "https://github.com/AkarinVS/vapoursynth-plugin.git" "" "akarin" "
 meson build
 ninja -C build
 " "build" "vapoursynth-plugins"
+
+# Copy LLVM libraries needed for akarin
+mkdir -p $out_dir/llvm12
+cp /opt/homebrew/opt/llvm@12/lib/libc++.1.dylib $out_dir/llvm12
+cp /opt/homebrew/opt/llvm@12/lib/libunwind.1.dylib $out_dir/llvm12
+
+# Fix akarin's library dependencies
+echo "Fixing libakarin.dylib paths..."
+install_name_tool -change /opt/homebrew/opt/llvm@12/lib/libc++.1.dylib @executable_path/../llvm12/libc++.1.dylib $out_dir/vapoursynth-plugins/libakarin.dylib
+install_name_tool -change /opt/homebrew/opt/llvm@12/lib/libunwind.1.dylib @executable_path/../llvm12/libunwind.1.dylib $out_dir/vapoursynth-plugins/libakarin.dylib
+
+echo "Build completed successfully."
