@@ -87,6 +87,8 @@ download_zip \
 
 # builds
 ## vapoursynth
+PATH="/opt/homebrew/opt/cython/bin:$PATH"
+
 build "https://github.com/vapoursynth/vapoursynth.git" "" "vapoursynth" "
 ./autogen.sh
 ./configure
