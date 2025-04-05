@@ -49,13 +49,21 @@ jobs:
         with:
           version: 1.12.1
 
+      - name: Cache dependencies (macOS)
+        uses: actions/cache@v4
+        if: runner.os == 'macOS'
+        with:
+          path: dependencies
+          key: ${{ runner.os }}-dependencies
+
       - name: Collect dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          ls
           brew install python3 ffmpeg libass zimg imagemagick autoconf automake libtool pkg-config gcc cython ffmpeg llvm@12 meson xxhash vapoursynth fftw
-          bash ci/build-dependencies-macos.sh
-          ls
+          cd ci
+          bash build-dependencies-macos.sh
+          ls -la
+          ls -la out
 
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v2
