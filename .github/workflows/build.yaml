@@ -52,7 +52,7 @@ jobs:
       - name: Collect dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install python3 ffmpeg libass zimg imagemagick autoconf automake libtool pkg-config gcc cython ffmpeg llvm@12 meson
+          brew install python3 ffmpeg libass zimg imagemagick autoconf automake libtool pkg-config gcc cython ffmpeg llvm@12 meson xxhash
           bash ci/build-dependencies-macos.sh
 
       - name: Install LLVM and Clang
