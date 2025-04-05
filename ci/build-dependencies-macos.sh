@@ -63,7 +63,7 @@ build() {
   else
     echo "Updating $name..."
     cd "$name"
-    # git pull
+    git pull
   fi
 
   eval "$build_cmd"
@@ -140,7 +140,7 @@ ninja -C build
 PATH="/opt/homebrew/opt/llvm@12/bin:$PATH"
 
 ## akarin
-build "https://github.com/AkarinVS/vapoursynth-plugin.git" "" "akarin" "
+build "https://github.com/f0e/akarin-arm.git" "" "akarin" "
 meson build
 ninja -C build
 " "build" "vapoursynth-plugins"
