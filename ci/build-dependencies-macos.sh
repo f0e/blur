@@ -124,6 +124,7 @@ cp build/vapoursynth/.libs/vspipe $out_dir/vapoursynth
 ### fix paths
 install_name_tool -id libvapoursynth-script.0.dylib $out_dir/vapoursynth/libvapoursynth-script.0.dylib
 install_name_tool -change /usr/local/lib/libvapoursynth-script.0.dylib @executable_path/libvapoursynth-script.0.dylib $out_dir/vapoursynth/vspipe
+install_name_tool -change /usr/local/lib/libvapoursynth.dylib @executable_path/libvapoursynth.dylib $out_dir/vapoursynth/python3.12/site-packages/vapoursynth.so
 
 ## bestsource
 build "https://github.com/vapoursynth/bestsource.git" "--depth 1 --recurse-submodules --shallow-submodules --remote-submodules" "bestsource" "
