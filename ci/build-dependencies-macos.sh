@@ -42,54 +42,6 @@ download_zip() {
   cd ../..
 }
 
-download_dmg() {
-  local url="$1"
-  local dmg_name="$2"
-  local app_name="$3"
-  local files_to_extract="$4"
-  local out_path="$5"
-
-  mkdir -p download
-  cd download
-
-  if [ -d "$app_name" ]; then
-    echo "$app_name already exists. Skipping download."
-    cd "$app_name"
-  else
-    mkdir -p "$app_name" && cd "$app_name"
-
-    echo "Downloading $dmg_name"
-    wget "$url" -O "$dmg_name"
-  fi
-
-  # Mount the DMG
-  echo "Mounting $dmg_name..."
-  MOUNT_POINT="/Volumes/$app_name"
-  hdiutil attach "$dmg_name"
-
-  # Create destination directory
-  dest_path="../../$out_dir/$out_path"
-  mkdir -p "$dest_path"
-
-  echo "Extracting files from $app_name.app..."
-
-  # Extract specified files
-  for file in $files_to_extract; do
-    if [ -f "$MOUNT_POINT/$app_name.app$file" ]; then
-      cp "$MOUNT_POINT/$app_name.app$file" "$dest_path"
-      echo "Extracted $(basename "$file")"
-    else
-      echo "Warning: $file not found in application bundle"
-    fi
-  done
-
-  # Unmount the DMG
-  echo "Unmounting $dmg_name..."
-  hdiutil detach "$MOUNT_POINT"
-
-  cd ../..
-}
-
 build() {
   local repo="$1"
   local pull_args="$2"
@@ -105,12 +57,13 @@ build() {
 
   if [ ! -d "$name" ]; then
     echo "Cloning $name..."
+    # shellcheck disable=SC2086
     git clone $pull_args "$repo" "$name"
     cd "$name"
   else
     echo "Updating $name..."
     cd "$name"
-    git pull
+    # git pull
   fi
 
   eval "$build_cmd"
@@ -133,14 +86,24 @@ download_zip \
   "ffmpeg" \
   "ffmpeg"
 
-# stuff in dmgs
 ## svpflow
-download_dmg \
-  "https://www.svp-team.com/files/svp4-mac.4.6.294.dmg" \
-  "svp4-mac.4.6.294.dmg" \
-  "SVP 4 Mac" \
-  "/Contents/Resources/plugins/libsvpflow1_arm.dylib /Contents/Resources/plugins/libsvpflow2_arm.dylib" \
-  "vapoursynth-plugins"
+echo "Downloading SVPFlow libraries..."
+mkdir -p download/svpflow
+cd download/svpflow
+
+if [ ! -f "libsvpflow1_arm.dylib" ] || [ ! -f "libsvpflow2_arm.dylib" ]; then
+  echo "Downloading SVPFlow libraries from GitHub..."
+  wget -q https://github.com/Spritzerland/svpflow-arm64/raw/main/libsvpflow1_arm.dylib
+  wget -q https://github.com/Spritzerland/svpflow-arm64/raw/main/libsvpflow2_arm.dylib
+fi
+
+# copy libraries to output directory
+dest_path="../../$out_dir/vapoursynth-plugins"
+mkdir -p "$dest_path"
+cp libsvpflow1_arm.dylib "$dest_path"
+cp libsvpflow2_arm.dylib "$dest_path"
+
+cd ../..
 
 # builds
 ## vapoursynth
@@ -182,14 +145,4 @@ meson build
 ninja -C build
 " "build" "vapoursynth-plugins"
 
-# Copy LLVM libraries needed for akarin
-mkdir -p $out_dir/llvm12
-cp /opt/homebrew/opt/llvm@12/lib/libc++.1.dylib $out_dir/llvm12
-cp /opt/homebrew/opt/llvm@12/lib/libunwind.1.dylib $out_dir/llvm12
-
-# Fix akarin's library dependencies
-echo "Fixing libakarin.dylib paths..."
-install_name_tool -change /opt/homebrew/opt/llvm@12/lib/libc++.1.dylib @executable_path/../llvm12/libc++.1.dylib $out_dir/vapoursynth-plugins/libakarin.dylib
-install_name_tool -change /opt/homebrew/opt/llvm@12/lib/libunwind.1.dylib @executable_path/../llvm12/libunwind.1.dylib $out_dir/vapoursynth-plugins/libakarin.dylib
-
-echo "Build completed successfully."
+echo "done"
