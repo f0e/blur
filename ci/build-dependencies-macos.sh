@@ -26,9 +26,9 @@ download_zip() {
 
     echo "Downloading $dir_name"
 
-    wget "$url" -O temp.zip
-    unzip temp.zip
-    rm temp.zip
+    wget "$url" -O "$dir_name.zip"
+    unzip "$dir_name.zip"
+    rm "$dir_name.zip"
   fi
 
   # copy built stuff
@@ -38,6 +38,54 @@ download_zip() {
   echo "Copying $dir_name binaries to $dest_path"
 
   find . -type f -exec cp {} "$dest_path" \;
+
+  cd ../..
+}
+
+download_dmg() {
+  local url="$1"
+  local dmg_name="$2"
+  local app_name="$3"
+  local files_to_extract="$4"
+  local out_path="$5"
+
+  mkdir -p download
+  cd download
+
+  if [ -d "$app_name" ]; then
+    echo "$app_name already exists. Skipping download."
+    cd "$app_name"
+  else
+    mkdir -p "$app_name" && cd "$app_name"
+
+    echo "Downloading $dmg_name"
+    wget "$url" -O "$dmg_name"
+  fi
+
+  # Mount the DMG
+  echo "Mounting $dmg_name..."
+  MOUNT_POINT="/Volumes/$app_name"
+  hdiutil attach "$dmg_name"
+
+  # Create destination directory
+  dest_path="../../$out_dir/$out_path"
+  mkdir -p "$dest_path"
+
+  echo "Extracting files from $app_name.app..."
+
+  # Extract specified files
+  for file in $files_to_extract; do
+    if [ -f "$MOUNT_POINT/$app_name.app$file" ]; then
+      cp "$MOUNT_POINT/$app_name.app$file" "$dest_path"
+      echo "Extracted $(basename "$file")"
+    else
+      echo "Warning: $file not found in application bundle"
+    fi
+  done
+
+  # Unmount the DMG
+  echo "Unmounting $dmg_name..."
+  hdiutil detach "$MOUNT_POINT"
 
   cd ../..
 }
@@ -84,6 +132,15 @@ download_zip \
   "https://ffmpeg.martin-riedl.de/download/macos/arm64/1743700936_N-119137-g46762c8b82/ffmpeg.zip" \
   "ffmpeg" \
   "ffmpeg"
+
+# stuff in dmgs
+## svpflow
+download_dmg \
+  "https://www.svp-team.com/files/svp4-mac.4.6.294.dmg" \
+  "svp4-mac.4.6.294.dmg" \
+  "SVP 4 Mac" \
+  "/Contents/Resources/plugins/libsvpflow1_arm.dylib /Contents/Resources/plugins/libsvpflow2_arm.dylib" \
+  "vapoursynth-plugins"
 
 # builds
 ## vapoursynth
