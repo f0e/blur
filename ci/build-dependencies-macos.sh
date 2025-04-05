@@ -132,18 +132,34 @@ meson setup build
 ninja -C build
 " "build" "vapoursynth-plugins"
 
+cp /opt/homebrew/opt/xxhash/lib/libxxhash.0.dylib $out_dir/vapoursynth
+install_name_tool -change /opt/homebrew/opt/xxhash/lib/libxxhash.0.dylib @executable_path/libxxhash.0.dylib $out_dir/vapoursynth-plugins/libbestsource.dylib
+
 ## mvtools
 build "https://github.com/dubhater/vapoursynth-mvtools.git" "" "mvtools" "
 meson setup build
 ninja -C build
 " "build" "vapoursynth-plugins"
 
+# ### additional deps
+# cp /opt/homebrew/opt/fftw/lib/libfftw3f.3.dylib $out_dir/vapoursynth
+# install_name_tool -change /opt/homebrew/opt/fftw/lib/libfftw3f.3.dylib @executable_path/libfftw3f.3.dylib $out_dir/vapoursynth-plugins/libmvtools.dylib
+
 PATH="/opt/homebrew/opt/llvm@12/bin:$PATH"
 
 ## akarin
-build "https://github.com/f0e/akarin-arm.git" "" "akarin" "
+build "https://github.com/AkarinVS/vapoursynth-plugin" "" "akarin" "
 meson build
 ninja -C build
 " "build" "vapoursynth-plugins"
 
 echo "done"
+
+# fix paths
+for path in \
+  $(pwd)/out/vapoursynth-plugins/libbestsource.dylib \
+  $(pwd)/out/vapoursynth-plugins/libmvtools.dylib \
+  $(pwd)/out/vapoursynth-plugins/libakarin.dylib; do
+  echo "Fixing $path"
+  fish -c "source collect-bin-with-deps.fish; collect-bin-with-deps $path"
+done
