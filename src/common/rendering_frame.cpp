@@ -6,9 +6,16 @@ RenderCommands FrameRender::build_render_commands(
 	RenderCommands commands;
 
 	if (blur.used_installer) {
-		// todo: fix on mac (and remove duplicate code)
+		// todo: remove duplicated code from rendering
+#if defined(_WIN32)
 		commands.vspipe_path = (blur.resources_path / "lib\\vapoursynth\\vspipe.exe").wstring();
 		commands.ffmpeg_path = (blur.resources_path / "lib\\ffmpeg\\ffmpeg.exe").wstring();
+#elif defined(__linux__)
+		used_installer = false;
+#elif defined(__APPLE__)
+		commands.vspipe_path = (blur.resources_path / "vapoursynth/vspipe").wstring();
+		commands.ffmpeg_path = (blur.resources_path / "ffmpeg/ffmpeg").wstring();
+#endif
 	}
 	else {
 		commands.vspipe_path = blur.vspipe_path.wstring();
@@ -68,12 +75,19 @@ FrameRender::DoRenderResult FrameRender::do_render(RenderCommands render_command
 			u::log(L"FFmpeg command: {} {}", render_commands.ffmpeg_path, u::join(render_commands.ffmpeg, L" "));
 		}
 
+		bp::environment env = boost::this_process::environment();
+
+#if defined(__APPLE__)
+		env["PYTHONPATH"] = (blur.resources_path / "vapoursynth/python3.12/site-packages").string();
+#endif
+
 		// Declare as local variables first, then move or assign
 		auto vspipe_process = bp::child(
 			render_commands.vspipe_path,
 			bp::args(render_commands.vspipe),
 			bp::std_out > vspipe_stdout,
 			bp::std_err > vspipe_stderr,
+			env,
 			io_context
 #ifdef _WIN32
 			,

@@ -218,6 +218,45 @@ if(APPLE)
 
     # Link the .icns file to the target
     target_sources(blur-gui PRIVATE ${CMAKE_SOURCE_DIR}/resources/blur.icns)
+
+    # modified https://stackoverflow.com/a/66401708
+    # Get a list of all of the files in the data-folder.
+    set(DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/ci/out")
+    file(GLOB_RECURSE DEPENDENCY_FILES "${DEPENDENCY_DIR}/*")
+
+    # Individually set the file's path properties.
+    foreach (FILE ${DEPENDENCY_FILES})
+        # Get the relative path from the data-folder to the particular file.
+        file(RELATIVE_PATH NEW_FILE "${DEPENDENCY_DIR}" ${FILE})
+
+        # Get the relative path to the file.
+        get_filename_component(NEW_FILE_PATH ${NEW_FILE} DIRECTORY)
+
+        # Set its location inside the app package (under Resources).
+        set_source_files_properties(${FILE} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/${NEW_FILE_PATH}")
+
+        # add to target
+        target_sources(blur-gui PRIVATE ${FILE})
+    endforeach ()
+
+    # Get a list of all of the files in the data-folder.
+    set(VAPOURSYNTH_PY_DIR "${CMAKE_SOURCE_DIR}/src/vapoursynth")
+    file(GLOB_RECURSE VAPOURSYNTH_PY_FILES "${VAPOURSYNTH_PY_DIR}/*.py")
+
+    # Individually set the file's path properties.
+    foreach (FILE ${VAPOURSYNTH_PY_FILES})
+        # Get the relative path from the data-folder to the particular file.
+        file(RELATIVE_PATH NEW_FILE "${VAPOURSYNTH_PY_DIR}" ${FILE})
+
+        # Get the relative path to the file.
+        get_filename_component(NEW_FILE_PATH ${NEW_FILE} DIRECTORY)
+
+        # Set its location inside the app package (under Resources).
+        set_source_files_properties(${FILE} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/lib/${NEW_FILE_PATH}")
+
+        # add to target
+        target_sources(blur-gui PRIVATE ${FILE})
+    endforeach ()
   else()
     # For Debug and other build types, disable bundling
     set_target_properties(blur-gui PROPERTIES

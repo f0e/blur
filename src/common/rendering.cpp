@@ -143,9 +143,15 @@ RenderCommands Render::build_render_commands() {
 	RenderCommands commands;
 
 	if (blur.used_installer) {
-		// todo: fix on mac
+#if defined(_WIN32)
 		commands.vspipe_path = (blur.resources_path / "lib\\vapoursynth\\vspipe.exe").wstring();
 		commands.ffmpeg_path = (blur.resources_path / "lib\\ffmpeg\\ffmpeg.exe").wstring();
+#elif defined(__linux__)
+		used_installer = false;
+#elif defined(__APPLE__)
+		commands.vspipe_path = (blur.resources_path / "vapoursynth/vspipe").wstring();
+		commands.ffmpeg_path = (blur.resources_path / "ffmpeg/ffmpeg").wstring();
+#endif
 	}
 	else {
 		commands.vspipe_path = blur.vspipe_path.wstring();
@@ -165,6 +171,10 @@ RenderCommands Render::build_render_commands() {
 		                L"video_path=" + path_string,
 		                L"-a",
 		                L"settings=" + u::towstring(m_settings.to_json().dump()),
+#if defined(__APPLE__)
+		                L"-a",
+		                std::format(L"macos_bundled={}", blur.used_installer ? L"true" : L"false"),
+#endif
 		                blur_script_path,
 		                L"-" };
 
@@ -202,16 +212,14 @@ RenderCommands Render::build_render_commands() {
 
 	if (!audio_filters.empty()) {
 		commands.ffmpeg.emplace_back(L"-af");
-		commands.ffmpeg.push_back(
-			std::accumulate(
-				std::next(audio_filters.begin()),
-				audio_filters.end(),
-				audio_filters[0],
-				[](const std::wstring& a, const std::wstring& b) {
-					return a + L"," + b;
-				}
-			)
-		);
+		commands.ffmpeg.push_back(std::accumulate(
+			std::next(audio_filters.begin()),
+			audio_filters.end(),
+			audio_filters[0],
+			[](const std::wstring& a, const std::wstring& b) {
+				return a + L"," + b;
+			}
+		));
 	}
 
 	if (!m_settings.ffmpeg_override.empty()) {
@@ -345,12 +353,19 @@ RenderResult Render::do_render(RenderCommands render_commands) {
 			u::log(L"FFmpeg command: {} {}", render_commands.ffmpeg_path, u::join(render_commands.ffmpeg, L" "));
 		}
 
+		bp::environment env = boost::this_process::environment();
+
+#if defined(__APPLE__)
+		env["PYTHONPATH"] = (blur.resources_path / "vapoursynth/python3.12/site-packages").string();
+#endif
+
 		// Launch vspipe process
 		bp::child vspipe_process(
 			render_commands.vspipe_path,
 			bp::args(render_commands.vspipe),
 			bp::std_out > vspipe_stdout,
 			bp::std_err > vspipe_stderr,
+			env,
 			io_context
 #ifdef _WIN32
 			,

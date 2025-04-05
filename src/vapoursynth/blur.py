@@ -8,6 +8,17 @@ from vapoursynth import core
 from pathlib import Path
 import sys
 
+if vars().get("macos_bundled") == "true":
+    # load plugins
+    plugin_dir = Path("../vapoursynth-plugins")
+    ignored = {
+        "libbestsource.dylib",
+    }
+
+    for dylib in plugin_dir.glob("*.dylib"):
+        if dylib.name not in ignored:
+            core.std.LoadPlugin(path=str(dylib))
+
 # add blur.py folder to path so it can reference scripts
 sys.path.insert(1, str(Path(__file__).parent))
 

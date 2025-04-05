@@ -18,8 +18,15 @@ Blur::InitialisationResponse Blur::initialise(bool _verbose, bool _using_preview
 	if (!std::filesystem::exists(app_config_path))
 		config_app::create(app_config_path, GlobalAppSettings{});
 
+#if defined(_WIN32)
 	used_installer = std::filesystem::exists(resources_path / "lib\\vapoursynth\\vspipe.exe") &&
 	                 std::filesystem::exists(resources_path / "lib\\ffmpeg\\ffmpeg.exe");
+#elif defined(__linux__)
+	used_installer = false;
+#elif defined(__APPLE__)
+	used_installer = std::filesystem::exists(resources_path / "vapoursynth/vspipe") &&
+	                 std::filesystem::exists(resources_path / "ffmpeg/ffmpeg");
+#endif
 
 	if (!used_installer) {
 		const static std::string manual_troubleshooting_info =
