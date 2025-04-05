@@ -11,7 +11,7 @@ RenderCommands FrameRender::build_render_commands(
 		commands.vspipe_path = (blur.resources_path / "lib\\vapoursynth\\vspipe.exe").wstring();
 		commands.ffmpeg_path = (blur.resources_path / "lib\\ffmpeg\\ffmpeg.exe").wstring();
 #elif defined(__linux__)
-		used_installer = false;
+		// todo
 #elif defined(__APPLE__)
 		commands.vspipe_path = (blur.resources_path / "vapoursynth/vspipe").wstring();
 		commands.ffmpeg_path = (blur.resources_path / "ffmpeg/ffmpeg").wstring();
