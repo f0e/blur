@@ -26,7 +26,7 @@ download_zip() {
 
     echo "Downloading $dir_name"
 
-    wget "$url" -O "$dir_name.zip"
+    wget -q "$url" -O "$dir_name.zip"
     unzip "$dir_name.zip"
     rm "$dir_name.zip"
   fi
@@ -105,27 +105,47 @@ cp libsvpflow2_arm.dylib "$dest_path"
 
 cd ../..
 
+## python for vapoursynth
+mkdir -p download/python
+cd download/python
+
+if [ ! -d "python" ]; then
+  wget -q https://github.com/astral-sh/python-build-standalone/releases/download/20250317/cpython-3.12.9+20250317-aarch64-apple-darwin-install_only.tar.gz -O python.tar.gz
+  mkdir -p python
+  tar -xzf python.tar.gz -C python --strip-components 1
+  rm python.tar.gz
+fi
+
+# copy python to output directory
+python_dest_path="../../$out_dir/python"
+mkdir -p "$python_dest_path"
+cp -R python/* "$python_dest_path"
+
+cd ../..
+
+install_name_tool -change /install/lib/libpython3.12.dylib "$PWD/$out_dir/python/lib/libpython3.12.dylib" $out_dir/python/lib/libpython3.12.dylib
+install_name_tool -id "$PWD/$out_dir/python/lib/libpython3.12.dylib" $out_dir/python/lib/libpython3.12.dylib
+
+$out_dir/python/bin/pip install --upgrade pip
+$out_dir/python/bin/pip install cython
+
 # builds
 ## vapoursynth
-PATH="/opt/homebrew/opt/cython/bin:$PATH"
+
+PATH="$PWD/$out_dir/python/bin:$PATH"
+PYTHON_PREFIX="$PWD/$out_dir/python"
 
 build "https://github.com/vapoursynth/vapoursynth.git" "" "vapoursynth" "
 ./autogen.sh
-./configure
+PYTHON3_LIBS=\"-L$PYTHON_PREFIX/lib/python3.12 -L$PYTHON_PREFIX/lib -lpython3.12\" \
+  PYTHON3_CFLAGS=\"-I$PYTHON_PREFIX/include/python3.12\" \
+  ./configure --with-python_prefix=\"$PYTHON_PREFIX\" --with-cython=\"$PYTHON_PREFIX/bin/cython\"
 make
 sudo make install
 " ".libs" "vapoursynth"
 
-### copy other needed stuff
-mkdir -p $out_dir/vapoursynth/python3.12/site-packages
-cp build/vapoursynth/.libs/vapoursynth.so $out_dir/vapoursynth/python3.12/site-packages
-cp build/vapoursynth/.libs/vapoursynth.lai $out_dir/vapoursynth/python3.12/site-packages
+### copy vspipe
 cp build/vapoursynth/.libs/vspipe $out_dir/vapoursynth
-
-# ### fix paths
-# install_name_tool -id libvapoursynth-script.0.dylib $out_dir/vapoursynth/libvapoursynth-script.0.dylib
-# install_name_tool -change /usr/local/lib/libvapoursynth-script.0.dylib @executable_path/libvapoursynth-script.0.dylib $out_dir/vapoursynth/vspipe
-# install_name_tool -change /usr/local/lib/libvapoursynth.dylib @executable_path/libvapoursynth.dylib $out_dir/vapoursynth/python3.12/site-packages/vapoursynth.so
 
 ## bestsource
 build "https://github.com/vapoursynth/bestsource.git" "--depth 1 --recurse-submodules --shallow-submodules --remote-submodules" "bestsource" "
@@ -160,4 +180,4 @@ for plugin in $out_dir/vapoursynth-plugins/*.dylib; do
 done
 
 dylibbundler -cd -b -of -x "$out_dir/vapoursynth/vspipe" -d "$out_dir/libs"
-dylibbundler -cd -b -of -x "$out_dir/vapoursynth/python3.12/site-packages/vapoursynth.so" -d "$out_dir/libs"
+dylibbundler -cd -b -of -x "$out_dir/python/lib/python3.12/site-packages/vapoursynth.so" -d "$out_dir/libs"

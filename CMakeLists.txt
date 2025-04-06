@@ -219,44 +219,33 @@ if(APPLE)
     # Link the .icns file to the target
     target_sources(blur-gui PRIVATE ${CMAKE_SOURCE_DIR}/resources/blur.icns)
 
-    # modified https://stackoverflow.com/a/66401708
-    # Get a list of all of the files in the data-folder.
-    set(DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/ci/out")
-    file(GLOB_RECURSE DEPENDENCY_FILES "${DEPENDENCY_DIR}/*")
+    # Add a post-build step that will run after the bundle is created
+    add_custom_command(
+      TARGET blur-gui POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E echo "Copying resources to bundle..."
 
-    # Individually set the file's path properties.
-    foreach (FILE ${DEPENDENCY_FILES})
-        # Get the relative path from the data-folder to the particular file.
-        file(RELATIVE_PATH NEW_FILE "${DEPENDENCY_DIR}" ${FILE})
+      # Make sure the destination directories exist
+      COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_DIR:blur-gui>/Contents/Resources/"
+      COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_DIR:blur-gui>/Contents/Resources/vapoursynth"
 
-        # Get the relative path to the file.
-        get_filename_component(NEW_FILE_PATH ${NEW_FILE} DIRECTORY)
+      # Copy ci/out directory if it exists
+      COMMAND ${CMAKE_COMMAND} -E echo "Copying ci/out files..."
+      COMMAND ${CMAKE_COMMAND} -E copy_directory
+              "${CMAKE_SOURCE_DIR}/ci/out"
+              "$<TARGET_BUNDLE_DIR:blur-gui>/Contents/Resources/"
 
-        # Set its location inside the app package (under Resources).
-        set_source_files_properties(${FILE} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/${NEW_FILE_PATH}")
+      # Copy vapoursynth scripts
+      COMMAND ${CMAKE_COMMAND} -E echo "Copying vapoursynth files..."
+      COMMAND ${CMAKE_COMMAND} -E copy_directory
+              "${CMAKE_SOURCE_DIR}/src/vapoursynth"
+              "$<TARGET_BUNDLE_DIR:blur-gui>/Contents/Resources/lib"
 
-        # add to target
-        target_sources(blur-gui PRIVATE ${FILE})
-    endforeach ()
+      # Verify the copy worked
+      COMMAND ${CMAKE_COMMAND} -E echo "Resource copying complete"
 
-    # Get a list of all of the files in the data-folder.
-    set(VAPOURSYNTH_PY_DIR "${CMAKE_SOURCE_DIR}/src/vapoursynth")
-    file(GLOB_RECURSE VAPOURSYNTH_PY_FILES "${VAPOURSYNTH_PY_DIR}/*.py")
-
-    # Individually set the file's path properties.
-    foreach (FILE ${VAPOURSYNTH_PY_FILES})
-        # Get the relative path from the data-folder to the particular file.
-        file(RELATIVE_PATH NEW_FILE "${VAPOURSYNTH_PY_DIR}" ${FILE})
-
-        # Get the relative path to the file.
-        get_filename_component(NEW_FILE_PATH ${NEW_FILE} DIRECTORY)
-
-        # Set its location inside the app package (under Resources).
-        set_source_files_properties(${FILE} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/lib/${NEW_FILE_PATH}")
-
-        # add to target
-        target_sources(blur-gui PRIVATE ${FILE})
-    endforeach ()
+      # The VERBATIM flag ensures command arguments are correctly escaped
+      VERBATIM
+    )
   else()
     # For Debug and other build types, disable bundling
     set_target_properties(blur-gui PROPERTIES
