@@ -72,9 +72,12 @@ build() {
   dest_path="../../$out_dir/$out_path"
   mkdir -p "$dest_path"
 
-  echo "Copying $name libraries to $dest_path"
-
-  find "$lib_path" -name "*.dylib" -exec cp {} "$dest_path" \;
+  if [[ -n "$lib_path" ]]; then
+    echo "Copying $name libraries to $dest_path"
+    find "$lib_path" -name "*.dylib" -exec cp {} "$dest_path" \;
+  else
+    echo "Skipping copy: lib_path is empty"
+  fi
 
   cd ../..
 }
@@ -142,7 +145,7 @@ PYTHON3_LIBS=\"-L$PYTHON_PREFIX/lib/python3.12 -L$PYTHON_PREFIX/lib -lpython3.12
   ./configure --with-python_prefix=\"$PYTHON_PREFIX\" --with-cython=\"$PYTHON_PREFIX/bin/cython\"
 make
 sudo make install
-" ".libs" "vapoursynth"
+" "" "vapoursynth"
 
 ### copy vspipe
 cp build/vapoursynth/.libs/vspipe $out_dir/vapoursynth
