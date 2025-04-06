@@ -356,8 +356,10 @@ RenderResult Render::do_render(RenderCommands render_commands) {
 		bp::environment env = boost::this_process::environment();
 
 #if defined(__APPLE__)
-		env["PYTHONHOME"] = (blur.resources_path / "python").string();
-		env["PYTHONPATH"] = (blur.resources_path / "python/lib/python3.12/site-packages").string();
+		if (blur.used_installer) {
+			env["PYTHONHOME"] = (blur.resources_path / "python").string();
+			env["PYTHONPATH"] = (blur.resources_path / "python/lib/python3.12/site-packages").string();
+		}
 #endif
 
 		// Launch vspipe process
