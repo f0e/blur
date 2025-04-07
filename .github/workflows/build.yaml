@@ -215,7 +215,7 @@ jobs:
           path: |
             ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.cli_path }}
             ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.gui_path }}
-            ${{ runner.os == 'Windows' }}/installer/output/blur-Windows-Installer-x64.exe
+            ${{ runner.os == 'Windows' && 'installer/output/blur-Windows-Installer-x64.exe' || '' }}
 
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -224,5 +224,5 @@ jobs:
           files: |
             ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.cli_path }}
             ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.gui_path }}
-            ${{ runner.os == 'Windows' }}/installer/output/blur-Windows-Installer-x64.exe
+            ${{ runner.os == 'Windows' && 'installer/output/blur-Windows-Installer-x64.exe' || '' }}
 
