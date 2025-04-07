@@ -69,121 +69,121 @@ jobs:
           cd ci
           pwsh build-dependencies-windows.ps1
 
-      # - name: Install LLVM and Clang
-      #   if: runner.os != 'Windows' && runner.os != 'Linux' # Skip on Windows and Linux
-      #   uses: KyleMayes/install-llvm-action@v2
-      #   with:
-      #     env: true
-      #     version: 17
+      - name: Install LLVM and Clang
+        if: runner.os != 'Windows' && runner.os != 'Linux' # Skip on Windows and Linux
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          env: true
+          version: 17
 
-      # - name: Setup vcpkg
-      #   uses: lukka/run-vcpkg@v11
-      #   with:
-      #     vcpkgGitCommitId: "cd124b84feb0c02a24a2d90981e8358fdee0e077"
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: "cd124b84feb0c02a24a2d90981e8358fdee0e077"
 
-      # - name: Determine CMake Preset
-      #   id: select-preset
-      #   run: |
-      #     if [ "${{ runner.os }}" == "Windows" ]; then
-      #       prefix="win"
-      #     elif [ "${{ runner.os }}" == "Linux" ]; then
-      #       prefix="linux"
-      #     elif [ "${{ runner.os }}" == "macOS" ]; then
-      #       prefix="mac"
-      #     fi
-      #     preset="${prefix}-$(echo "${{ matrix.build-type }}" | tr '[:upper:]' '[:lower:]')"
-      #     echo "preset=$preset" >> $GITHUB_OUTPUT
-      #   shell: bash
+      - name: Determine CMake Preset
+        id: select-preset
+        run: |
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            prefix="win"
+          elif [ "${{ runner.os }}" == "Linux" ]; then
+            prefix="linux"
+          elif [ "${{ runner.os }}" == "macOS" ]; then
+            prefix="mac"
+          fi
+          preset="${prefix}-$(echo "${{ matrix.build-type }}" | tr '[:upper:]' '[:lower:]')"
+          echo "preset=$preset" >> $GITHUB_OUTPUT
+        shell: bash
 
-      # - name: Use Developer Command Prompt for Microsoft Visual C++
-      #   if: runner.os == 'Windows'
-      #   uses: ilammy/msvc-dev-cmd@v1
+      - name: Use Developer Command Prompt for Microsoft Visual C++
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
 
-      # - name: Configure CMake
-      #   run: cmake --preset ${{ steps.select-preset.outputs.preset }}
-      #   env:
-      #     VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      - name: Configure CMake
+        run: cmake --preset ${{ steps.select-preset.outputs.preset }}
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
-      # - name: Build
-      #   run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }}
-      #   env:
-      #     VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      - name: Build
+        run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }}
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
-      # - name: Prepare Binaries
-      #   id: prep
-      #   shell: bash
-      #   run: |
-      #     # Set up configuration variables
-      #     build_dir="bin/${{ matrix.build-type }}"
-      #     os="${{ runner.os }}"
-      #     build_type="${{ matrix.build-type }}"
-      #     arch="$(echo "${{ runner.arch }}" | tr '[:upper:]' '[:lower:]')"
-      #     configuration="$os-$build_type-$arch"
+      - name: Prepare Binaries
+        id: prep
+        shell: bash
+        run: |
+          # Set up configuration variables
+          build_dir="bin/${{ matrix.build-type }}"
+          os="${{ runner.os }}"
+          build_type="${{ matrix.build-type }}"
+          arch="$(echo "${{ runner.arch }}" | tr '[:upper:]' '[:lower:]')"
+          configuration="$os-$build_type-$arch"
 
-      #     cd "$build_dir"
+          cd "$build_dir"
 
-      #     # Determine source and binary names
-      #     if [[ "$os" == "Windows" ]]; then
-      #       cli_source="blur-cli.exe"
-      #       gui_source="blur.exe"
+          # Determine source and binary names
+          if [[ "$os" == "Windows" ]]; then
+            cli_source="blur-cli.exe"
+            gui_source="blur.exe"
 
-      #       cli_binary="blur-cli-$configuration.exe"
-      #       gui_binary="blur-$configuration.exe"
+            cli_binary="blur-cli-$configuration.exe"
+            gui_binary="blur-$configuration.exe"
 
-      #       mv "$cli_source" "$cli_binary"
-      #       mv "$gui_source" "$gui_binary"
+            mv "$cli_source" "$cli_binary"
+            mv "$gui_source" "$gui_binary"
 
-      #       gui_path="$gui_binary"
-      #       cli_path="$cli_binary"
-      #     elif [[ "$os" == "Linux" ]]; then
-      #       cli_source="blur-cli"
-      #       gui_source="blur"
+            gui_path="$gui_binary"
+            cli_path="$cli_binary"
+          elif [[ "$os" == "Linux" ]]; then
+            cli_source="blur-cli"
+            gui_source="blur"
 
-      #       cli_binary="blur-cli-$configuration"
-      #       gui_binary="blur-$configuration"
+            cli_binary="blur-cli-$configuration"
+            gui_binary="blur-$configuration"
 
-      #       mv "$cli_source" "$cli_binary"
-      #       tar -cvf "$cli_binary.tar.gz" "$cli_binary"
-      #       cli_path="$cli_binary.tar.gz"
+            mv "$cli_source" "$cli_binary"
+            tar -cvf "$cli_binary.tar.gz" "$cli_binary"
+            cli_path="$cli_binary.tar.gz"
 
-      #       mv "$gui_source" "$gui_binary"
-      #       tar -cvf "$gui_binary.tar.gz" "$gui_binary"
-      #       gui_path="$gui_binary.tar.gz"
-      #     elif [[ "$os" == "macOS" ]]; then
-      #       cli_source="blur-cli"
-      #       gui_source="blur.app"
+            mv "$gui_source" "$gui_binary"
+            tar -cvf "$gui_binary.tar.gz" "$gui_binary"
+            gui_path="$gui_binary.tar.gz"
+          elif [[ "$os" == "macOS" ]]; then
+            cli_source="blur-cli"
+            gui_source="blur.app"
 
-      #       cli_binary="blur-cli-$configuration"
-      #       gui_binary="blur-$configuration.dmg"
+            cli_binary="blur-cli-$configuration"
+            gui_binary="blur-$configuration.dmg"
 
-      #       mv "$cli_source" "$cli_binary"
-      #       tar -cvf "$cli_binary.tar.gz" "$cli_binary"
-      #       cli_path="$cli_binary.tar.gz"
+            mv "$cli_source" "$cli_binary"
+            tar -cvf "$cli_binary.tar.gz" "$cli_binary"
+            cli_path="$cli_binary.tar.gz"
 
-      #       brew install create-dmg
+            brew install create-dmg
 
-      #       mkdir source_folder
-      #       mv "$gui_source" source_folder
+            mkdir source_folder
+            mv "$gui_source" source_folder
 
-      #       create-dmg \
-      #         --volname "Blur Installer" \
-      #         --window-pos 200 120 \
-      #         --window-size 600 400 \
-      #         --icon-size 100 \
-      #         --icon "Blur.app" 175 120 \
-      #         --hide-extension "Blur.app" \
-      #         --app-drop-link 425 120 \
-      #         "$gui_binary" \
-      #         "source_folder"
+            create-dmg \
+              --volname "Blur Installer" \
+              --window-pos 200 120 \
+              --window-size 600 400 \
+              --icon-size 100 \
+              --icon "Blur.app" 175 120 \
+              --hide-extension "Blur.app" \
+              --app-drop-link 425 120 \
+              "$gui_binary" \
+              "source_folder"
 
-      #       gui_path="$gui_binary"
-      #     fi
+            gui_path="$gui_binary"
+          fi
 
-      #     # Output for subsequent steps
-      #     echo "build_dir=$build_dir" >> $GITHUB_OUTPUT
-      #     echo "cli_path=$cli_path" >> $GITHUB_OUTPUT
-      #     echo "gui_path=$gui_path" >> $GITHUB_OUTPUT
-      #     echo "configuration=$configuration" >> $GITHUB_OUTPUT
+          # Output for subsequent steps
+          echo "build_dir=$build_dir" >> $GITHUB_OUTPUT
+          echo "cli_path=$cli_path" >> $GITHUB_OUTPUT
+          echo "gui_path=$gui_path" >> $GITHUB_OUTPUT
+          echo "configuration=$configuration" >> $GITHUB_OUTPUT
 
       - name: Copy installer requirements (Windows)
         if: runner.os == 'Windows'
@@ -193,40 +193,36 @@ jobs:
           
           cp -r ../ci/out/* dependencies/lib
 
-          ls -la
-          ls -la dependencies
-          ls -la dependencies/lib
           cp ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.gui_path }} resources/blur.exe
           cp ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.cli_path }} resources/blur-cli.exe
-          ls -la resources
 
-      # - name: Build installer (Windows)
-      #   if: runner.os == 'Windows'
-      #   uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
-      #   with:
-      #     path: installer/setup.iss
-      #     options: /O+
+      - name: Build installer (Windows)
+        if: runner.os == 'Windows'
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        with:
+          path: installer/setup.iss
+          options: /O+
       
-      # - name: Rename Installer (Windows)
-      #   if: runner.os == 'Windows'
-      #   run: |
-      #     mv installer/output/blur-installer.exe installer/output/blur-Windows-Installer-x64.exe
+      - name: Rename Installer (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mv installer/output/blur-installer.exe installer/output/blur-Windows-Installer-x64.exe
 
-      # - name: Upload Artifacts
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: Blur-${{ steps.prep.outputs.configuration }}
-      #     path: |
-      #       ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.cli_path }}
-      #       ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.gui_path }}
-      #       ${{ runner.os == 'Windows' }}/installer/output/blur-Windows-Installer-x64.exe
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Blur-${{ steps.prep.outputs.configuration }}
+          path: |
+            ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.cli_path }}
+            ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.gui_path }}
+            ${{ runner.os == 'Windows' }}/installer/output/blur-Windows-Installer-x64.exe
 
-      # - name: Release
-      #   uses: softprops/action-gh-release@v2
-      #   if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags/') }}
-      #   with:
-      #     files: |
-      #       ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.cli_path }}
-      #       ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.gui_path }}
-      #       ${{ runner.os == 'Windows' }}/installer/output/blur-Windows-Installer-x64.exe
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags/') }}
+        with:
+          files: |
+            ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.cli_path }}
+            ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.gui_path }}
+            ${{ runner.os == 'Windows' }}/installer/output/blur-Windows-Installer-x64.exe
 
