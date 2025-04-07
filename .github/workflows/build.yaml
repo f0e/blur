@@ -189,12 +189,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          cd installer
-          
-          cp -r ../ci/out/* dependencies/lib
+          cp -r ci/out/* installer/dependencies/lib
 
-          cp ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.gui_path }} resources/blur.exe
-          cp ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.cli_path }} resources/blur-cli.exe
+          cp ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.gui_path }} installer/resources/blur.exe
+          cp ${{ steps.prep.outputs.build_dir }}/${{ steps.prep.outputs.cli_path }} installer/resources/blur-cli.exe
 
       - name: Build installer (Windows)
         if: runner.os == 'Windows'
