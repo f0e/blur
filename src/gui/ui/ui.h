@@ -23,6 +23,7 @@ namespace ui {
 		BAR,
 		TEXT,
 		IMAGE,
+		VIDEO,
 		BUTTON,
 		NOTIFICATION,
 		SLIDER,
@@ -126,6 +127,14 @@ namespace ui {
 		bool operator==(const ImageElementData& other) const {
 			return image_path == other.image_path && texture == other.texture && image_id == other.image_id &&
 			       image_color == other.image_color;
+		}
+	};
+
+	struct VideoElementData {
+		std::filesystem::path video_path;
+
+		bool operator==(const VideoElementData& other) const {
+			return video_path == other.video_path;
 		}
 	};
 
@@ -264,6 +273,7 @@ namespace ui {
 		BarElementData,
 		TextElementData,
 		ImageElementData,
+		VideoElementData,
 		ButtonElementData,
 		NotificationElementData,
 		SliderElementData,
@@ -313,6 +323,7 @@ namespace ui {
 		ElementData data;
 		std::function<void(const Container&, const AnimatedElement&)> render_fn;
 		std::optional<std::function<bool(const Container&, AnimatedElement&)>> update_fn;
+		std::optional<std::function<void(AnimatedElement&)>> remove_fn;
 		bool fixed = false;
 		gfx::Rect orig_rect;
 
@@ -323,10 +334,11 @@ namespace ui {
 			ElementData data,
 			std::function<void(const Container&, const AnimatedElement&)> render_fn,
 			std::optional<std::function<bool(const Container&, AnimatedElement&)>> update_fn = std::nullopt,
+			std::optional<std::function<void(AnimatedElement&)>> remove_fn = std::nullopt,
 			bool fixed = false
 		)
 			: id(std::move(id)), type(type), rect(rect), data(std::move(data)), render_fn(std::move(render_fn)),
-			  update_fn(std::move(update_fn)), fixed(fixed), orig_rect(rect) {}
+			  update_fn(std::move(update_fn)), remove_fn(std::move(remove_fn)), fixed(fixed), orig_rect(rect) {}
 
 		bool update(const Element& other) {
 			this->id = other.id;
@@ -334,6 +346,7 @@ namespace ui {
 			this->rect = other.rect;
 			this->render_fn = other.render_fn;
 			this->update_fn = other.update_fn;
+			this->remove_fn = other.remove_fn;
 			this->fixed = other.fixed;
 			this->orig_rect = other.orig_rect;
 
@@ -400,6 +413,7 @@ namespace ui {
 	inline auto hasher = std::hash<std::string>{};
 
 	inline std::vector<SDL_Event> text_event_queue;
+	inline std::vector<SDL_Event> event_queue;
 
 	struct SliderObserver {
 		bool init = false;
@@ -417,6 +431,12 @@ namespace ui {
 
 	void render_image(const Container& container, const AnimatedElement& element);
 
+	void render_video(const Container& container, const AnimatedElement& element);
+	bool update_video(const Container& container, AnimatedElement& element);
+	void remove_video(AnimatedElement& element);
+
+	void render_videos();
+
 	void render_button(const Container& container, const AnimatedElement& element);
 	bool update_button(const Container& container, AnimatedElement& element);
 
@@ -425,6 +445,7 @@ namespace ui {
 
 	void render_slider(const Container& container, const AnimatedElement& element);
 	bool update_slider(const Container& container, AnimatedElement& element);
+	void remove_slider(AnimatedElement& element);
 
 	void render_text_input(const Container& container, const AnimatedElement& element);
 	bool update_text_input(const Container& container, AnimatedElement& element);
@@ -525,6 +546,10 @@ namespace ui {
 		std::string image_id = "",
 		gfx::Color image_color = gfx::Color::white()
 	); // use image_id to distinguish images that have the same filename and reload it (e.g. if its updated)
+
+	std::optional<AnimatedElement*> add_video(
+		const std::string& id, Container& container, const std::filesystem::path& video_path, const gfx::Size& max_size
+	);
 
 	AnimatedElement* add_button(
 		const std::string& id,

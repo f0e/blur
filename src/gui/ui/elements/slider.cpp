@@ -487,6 +487,12 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 	return false;
 }
 
+void ui::remove_slider(AnimatedElement& element) {
+	if (slider_observers.contains(element.element->id)) {
+		slider_observers.erase(element.element->id);
+	}
+}
+
 ui::AnimatedElement* ui::add_slider(
 	const std::string& id,
 	Container& container,
@@ -573,7 +579,8 @@ ui::AnimatedElement* ui::add_slider_tied(
 	                       .tied_value = tied_value,
 	                       .tied_text = tied_text },
 		render_slider,
-		update_slider
+		update_slider,
+		remove_slider
 	);
 
 	return add_element(

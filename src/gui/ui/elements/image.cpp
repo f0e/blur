@@ -17,13 +17,10 @@ void ui::render_image(const Container& container, const AnimatedElement& element
 
 	gfx::Color tint_color = image_data.image_color.adjust_alpha(anim);
 
-	render::image_with_borders(
-		element.element->rect,
-		*image_data.texture,
-		gfx::Color(155, 155, 155, stroke_alpha),
-		gfx::Color(80, 80, 80, stroke_alpha),
-		1.0f,
-		tint_color
+	render::image(element.element->rect.shrink(3), *image_data.texture, tint_color);
+
+	render::borders(
+		element.element->rect, gfx::Color(155, 155, 155, stroke_alpha), gfx::Color(80, 80, 80, stroke_alpha)
 	);
 }
 

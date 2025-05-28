@@ -18,11 +18,13 @@ bool keys::process_event(const SDL_Event& event) {
 		}
 	}
 
+	ui::event_queue.push_back(event);
+
 	switch (event.type) {
 		case SDL_EVENT_WINDOW_MOUSE_LEAVE: {
 			mouse_pos = { -1, -1 };
-			pressed_mouse_keys.clear(
-			); // fix mouseup not being registered when left the window todo: handle this properly
+			pressed_mouse_keys
+				.clear(); // fix mouseup not being registered when left the window todo: handle this properly
 			held_mouse_keys.clear();
 			return true;
 		}

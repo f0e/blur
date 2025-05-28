@@ -330,6 +330,8 @@ void ui::on_update_input_end() {
 	// empty text events if they werent processed for some reason
 	text_event_queue.clear();
 
+	event_queue.clear();
+
 	// set cursor based on if an element wanted pointer
 	sdl::set_cursor(desired_cursor);
 	desired_cursor = SDL_SYSTEM_CURSOR_DEFAULT;
@@ -400,9 +402,9 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 			need_to_render_animation_update |= animation.update(delta_time);
 		}
 
-		if (stale && main_animation.complete) {
-			// animation complete and element stale, remove
-			slider_observers.erase(id);
+		if (stale && main_animation.complete) { // animation complete and element stale, remove
+			if (element.element->remove_fn)
+				(*element.element->remove_fn)(element);
 
 			u::log("removed {}", id);
 			it = container.elements.erase(it);

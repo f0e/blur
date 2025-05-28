@@ -4,11 +4,11 @@
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_opengl3.h>
 #include <misc/freetype/imgui_freetype.h>
+#include <imgui_internal.h>
 
 #include "../fonts/dejavu_sans.h"
 #include "../fonts/eb_garamond.h"
 #include "../fonts/icons.h"
-#include "imgui_internal.h"
 
 namespace {
 	gfx::Color interpolate_color(const std::vector<gfx::Color>& colors, const std::vector<float>& positions, float t) {
@@ -151,8 +151,8 @@ void render::ImGuiWrap::end(SDL_Window* window) { // NOLINT(readability-convert-
 		clear_colour.w
 	);
 	glClear(GL_COLOR_BUFFER_BIT);
+
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-	SDL_GL_SwapWindow(window);
 }
 
 void render::line(
@@ -594,24 +594,6 @@ void render::image(const gfx::Rect& rect, const Texture& texture, const gfx::Col
 	);
 }
 
-void render::image_with_borders(
-	const gfx::Rect& rect,
-	const Texture& texture,
-	const gfx::Color& border_color,
-	const gfx::Color& inner_border_color,
-	float border_thickness,
-	const gfx::Color& tint_color
-) {
-	if (!texture.is_valid())
-		return;
-
-	image(rect.shrink(3), texture, tint_color);
-
-	rect_stroke(rect.shrink(2), border_color, border_thickness);
-	rect_stroke(rect.shrink(1), inner_border_color, border_thickness);
-	rect_stroke(rect, border_color, border_thickness);
-}
-
 void render::image_rounded(
 	const gfx::Rect& rect,
 	const Texture& texture,
@@ -652,6 +634,12 @@ void render::rounded_image_with_borders(
 	rounded_rect_stroke(rect.shrink(2), border_color, rounding, rounding_flags, border_thickness);
 	rounded_rect_stroke(rect.shrink(1), inner_border_color, rounding, rounding_flags, border_thickness);
 	rounded_rect_stroke(rect, border_color, rounding, rounding_flags, border_thickness);
+}
+
+void render::borders(const gfx::Rect& rect, const gfx::Color& border_color, const gfx::Color& inner_border_color) {
+	rect_stroke(rect.shrink(2), border_color, 1.f);
+	rect_stroke(rect.shrink(1), inner_border_color, 1.f);
+	rect_stroke(rect, border_color, 1.f);
 }
 
 void render::push_clip_rect(const gfx::Rect& rect, bool intersect_clip_rect) {

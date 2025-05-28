@@ -223,6 +223,13 @@ void main::home_screen(ui::Container& container, float delta_time) {
 			"blur title text", container, title_pos, "blur", gfx::Color::white(), fonts::header_font, FONT_CENTERED_X
 		);
 
+		ui::add_video(
+			"test video",
+			container,
+			"test.mp4",
+			gfx::Size(container.get_usable_rect().w, container.get_usable_rect().h / 2)
+		);
+
 		if (!initialisation_res) {
 			ui::add_text(
 				"failed to initialise text",

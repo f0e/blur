@@ -145,6 +145,13 @@ target_compile_definitions(blur PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
 # stb
 target_include_directories(blur PRIVATE ${PROJECT_SOURCE_DIR}/dependencies/stb)
 
+# mpv
+find_package(PkgConfig REQUIRED)
+pkg_search_module(MPV REQUIRED mpv>=0.33.0)
+target_include_directories(blur PRIVATE ${MPV_INCLUDE_DIRS})
+target_link_libraries(blur PRIVATE ${MPV_LIBRARIES})
+target_link_directories(blur PRIVATE ${MPV_LIBRARY_DIRS})
+
 target_link_libraries(
   blur PRIVATE blur-common SDL3::SDL3 SDL3_image::SDL3_image Freetype::Freetype
                glad::glad)

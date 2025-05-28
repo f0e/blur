@@ -283,6 +283,10 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	}
 	render::imgui.end(sdl::window);
 
+	ui::render_videos();
+
+	SDL_GL_SwapWindow(sdl::window);
+
 	ui::on_frame_end();
 
 	return true;

@@ -216,17 +216,7 @@ namespace render {
 		int rotation_pivot_y = 0
 	);
 
-	// New image functions
 	void image(const gfx::Rect& rect, const Texture& texture, const gfx::Color& tint_color = gfx::Color::white());
-
-	void image_with_borders(
-		const gfx::Rect& rect,
-		const Texture& texture,
-		const gfx::Color& border_color,
-		const gfx::Color& inner_border_color,
-		float border_thickness = 1.0f,
-		const gfx::Color& tint_color = gfx::Color::white()
-	);
 
 	void image_rounded(
 		const gfx::Rect& rect,
@@ -246,6 +236,8 @@ namespace render {
 		unsigned int rounding_flags = ROUNDING_ALL,
 		const gfx::Color& tint_color = gfx::Color::white()
 	);
+
+	void borders(const gfx::Rect& rect, const gfx::Color& border_color, const gfx::Color& inner_border_color);
 
 	void push_clip_rect(const gfx::Rect& rect, bool intersect_clip_rect = false);
 	void push_clip_rect(int x1, int y1, int x2, int y2, bool intersect_clip_rect = false);

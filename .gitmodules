@@ -1,6 +1,9 @@
 [submodule "dependencies/imgui"]
 	path = dependencies/imgui
 	url = https://github.com/ocornut/imgui
+[submodule "dependencies/mpv"]
+	path = dependencies/mpv
+	url = https://github.com/mpv-player/mpv
 [submodule "dependencies/stb"]
 	path = dependencies/stb
 	url = https://github.com/nothings/stb
