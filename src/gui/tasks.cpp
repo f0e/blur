@@ -100,8 +100,9 @@ void tasks::run(const std::vector<std::string>& arguments) {
 	std::vector<std::filesystem::path> paths;
 	paths.reserve(arguments.size());
 	for (const auto& argument : arguments) {
-		paths.emplace_back(argument);
+		paths.emplace_back(u::towstring(argument));
 	}
+	// TODO FISH: TEST. should be fine.
 
 	add_files(paths); // todo: mac packaged app support (& linux? does it work?)
 

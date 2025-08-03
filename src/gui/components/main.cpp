@@ -24,9 +24,10 @@ void main::open_files_button(ui::Container& container, const std::string& label)
 					if (file == nullptr)
 						break; // null-terminated array
 
-					wpaths.emplace_back(file);
+					wpaths.emplace_back(u::towstring(file));
 				}
 
+				// TODO FISH: TEST
 				tasks::add_files(wpaths);
 			}
 		};

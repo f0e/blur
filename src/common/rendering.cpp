@@ -115,7 +115,7 @@ Render::Render(
 	static uint32_t current_render_id = 1; // 0 is null
 	m_render_id = current_render_id++;
 
-	this->m_video_name = this->m_video_path.stem();
+	this->m_video_name = u::tostring(this->m_video_path.stem());
 	this->m_video_folder = this->m_video_path.parent_path();
 
 	// parse config file (do it now, not when rendering. nice for batch rendering the same file with different settings)
@@ -172,51 +172,55 @@ tl::expected<RenderCommands, std::string> Render::build_render_commands() {
 	bool vapoursynth_plugins_bundled = std::filesystem::exists(blur.resources_path / "vapoursynth-plugins");
 #endif
 
+	std::wstring path_string = m_video_path.wstring();
+	std::ranges::replace(path_string, '\\', '/');
+
 	// Build vspipe command
-	commands.vspipe = { "-p",
-		                "-c",
-		                "y4m",
-		                "-a",
-		                "video_path=" + m_video_path.string(),
-		                "-a",
-		                std::format("fps_num={}", m_video_info.fps_num),
-		                "-a",
-		                std::format("fps_den={}", m_video_info.fps_den),
-		                "-a",
-		                "color_range=" + (m_video_info.color_range ? *m_video_info.color_range : "undefined"),
-		                "-a",
-		                "settings=" + settings_json->dump(),
+	commands.vspipe = { L"-p",
+		                L"-c",
+		                L"y4m",
+		                L"-a",
+		                L"video_path=" + path_string,
+		                L"-a",
+		                std::format(L"fps_num={}", m_video_info.fps_num),
+		                L"-a",
+		                std::format(L"fps_den={}", m_video_info.fps_den),
+		                L"-a",
+		                L"color_range=" +
+		                    (m_video_info.color_range ? u::towstring(*m_video_info.color_range) : L"undefined"),
+		                L"-a",
+		                L"settings=" + u::towstring(settings_json->dump()),
 #if defined(__APPLE__)
-		                "-a",
-		                std::format("macos_bundled={}", blur.used_installer ? "true" : "false"),
+		                L"-a",
+		                std::format(L"macos_bundled={}", blur.used_installer ? L"true" : L"false"),
 #endif
 #if defined(_WIN32)
-		                "-a",
-		                "enable_lsmash=true",
+		                L"-a",
+		                L"enable_lsmash=true",
 #endif
 #if defined(__linux__)
-		                "-a",
-		                std::format("linux_bundled={}", vapoursynth_plugins_bundled ? "true" : "false"),
+		                L"-a",
+		                std::format(L"linux_bundled={}", vapoursynth_plugins_bundled ? L"true" : L"false"),
 #endif
 		                blur_script_path,
-		                "-" };
+		                L"-" };
 
 	// Build ffmpeg command
-	commands.ffmpeg = { "-loglevel",
-		                "error",
-		                "-hide_banner",
-		                "-stats",
-		                "-y",
-		                "-i",
-		                "-", // piped output from video script
-		                "-fflags",
-		                "+genpts",
-		                "-i",
-		                m_video_path.string(), // original video (for audio)
-		                "-map",
-		                "0:v",
-		                "-map",
-		                "1:a?" };
+	commands.ffmpeg = { L"-loglevel",
+		                L"error",
+		                L"-hide_banner",
+		                L"-stats",
+		                L"-y",
+		                L"-i",
+		                L"-", // piped output from video script
+		                L"-fflags",
+		                L"+genpts",
+		                L"-i",
+		                m_video_path.wstring(), // original video (for audio)
+		                L"-map",
+		                L"0:v",
+		                L"-map",
+		                L"1:a?" };
 
 	// handle colour metadata tagging
 	// (vspipe strips this input info, need to define it manually so ffmpeg knows about it)
@@ -247,55 +251,55 @@ tl::expected<RenderCommands, std::string> Render::build_render_commands() {
 			setparams_filter += params[i];
 		}
 
-		commands.ffmpeg.emplace_back("-vf");
-		commands.ffmpeg.emplace_back(setparams_filter);
+		commands.ffmpeg.emplace_back(L"-vf");
+		commands.ffmpeg.emplace_back(u::towstring(setparams_filter));
 	}
 
 	if (m_video_info.pix_fmt) {
-		commands.ffmpeg.emplace_back("-pix_fmt");
-		commands.ffmpeg.emplace_back(*m_video_info.pix_fmt);
+		commands.ffmpeg.emplace_back(L"-pix_fmt");
+		commands.ffmpeg.emplace_back(u::towstring(*m_video_info.pix_fmt));
 	}
 
 	// Handle audio filters
-	std::vector<std::string> audio_filters;
+	std::vector<std::wstring> audio_filters;
 	if (m_settings.timescale) {
 		if (m_settings.input_timescale != 1.f) {
 			audio_filters.push_back(
 				std::format(
-					"asetrate={}*{}",
+					L"asetrate={}*{}",
 					m_video_info.sample_rate != -1 ? m_video_info.sample_rate : 48000,
 					(1 / m_settings.input_timescale)
 				)
 			);
-			audio_filters.emplace_back("aresample=48000");
+			audio_filters.emplace_back(L"aresample=48000");
 		}
 
 		if (m_settings.output_timescale != 1.f) {
 			if (m_settings.output_timescale_audio_pitch) {
 				audio_filters.push_back(
 					std::format(
-						"asetrate={}*{}",
+						L"asetrate={}*{}",
 						m_video_info.sample_rate != -1 ? m_video_info.sample_rate : 48000,
 						m_settings.output_timescale
 					)
 				);
-				audio_filters.emplace_back("aresample=48000");
+				audio_filters.emplace_back(L"aresample=48000");
 			}
 			else {
-				audio_filters.push_back(std::format("atempo={}", m_settings.output_timescale));
+				audio_filters.push_back(std::format(L"atempo={}", m_settings.output_timescale));
 			}
 		}
 	}
 
 	if (!audio_filters.empty()) {
-		commands.ffmpeg.emplace_back("-af");
+		commands.ffmpeg.emplace_back(L"-af");
 		commands.ffmpeg.push_back(
 			std::accumulate(
 				std::next(audio_filters.begin()),
 				audio_filters.end(),
 				audio_filters[0],
-				[](const std::string& a, const std::string& b) {
-					return a + "," + b;
+				[](const std::wstring& a, const std::wstring& b) {
+					return a + L"," + b;
 				}
 			)
 		);
@@ -305,33 +309,43 @@ tl::expected<RenderCommands, std::string> Render::build_render_commands() {
 		auto args = u::ffmpeg_string_to_args(m_settings.advanced.ffmpeg_override);
 
 		for (const auto& arg : args) {
-			commands.ffmpeg.push_back(arg);
+			commands.ffmpeg.push_back(u::towstring(arg));
 		}
 	}
 	else {
-		std::vector<std::string> preset_args = config_presets::get_preset_params(
+		auto preset_args = config_presets::get_preset_params(
 			m_settings.gpu_encoding ? m_app_settings.gpu_type : "cpu",
 			u::to_lower(m_settings.encode_preset.empty() ? "h264" : m_settings.encode_preset),
 			m_settings.quality
 		);
 
-		commands.ffmpeg.insert(commands.ffmpeg.end(), preset_args.begin(), preset_args.end());
+		for (const auto& arg : preset_args)
+			commands.ffmpeg.push_back(u::towstring(arg));
 
 		// audio
-		commands.ffmpeg.insert(commands.ffmpeg.end(), { "-c:a", "aac", "-b:a", "320k" });
+		commands.ffmpeg.insert(commands.ffmpeg.end(), { L"-c:a", L"aac", L"-b:a", L"320k" });
 
 		// extra
-		commands.ffmpeg.insert(commands.ffmpeg.end(), { "-movflags", "+faststart" });
+		commands.ffmpeg.insert(commands.ffmpeg.end(), { L"-movflags", L"+faststart" });
 	}
 
 	// Output path
-	commands.ffmpeg.push_back(m_output_path.string());
+	commands.ffmpeg.push_back(m_output_path.wstring());
 
 	// Preview output if needed
 	if (m_settings.preview && blur.using_preview) {
 		commands.ffmpeg.insert(
 			commands.ffmpeg.end(),
-			{ "-map", "0:v", "-q:v", "2", "-update", "1", "-atomic_writing", "1", "-y", m_preview_path.string() }
+			{ L"-map",
+		      L"0:v",
+		      L"-q:v",
+		      L"2",
+		      L"-update",
+		      L"1",
+		      L"-atomic_writing",
+		      L"1",
+		      L"-y",
+		      m_preview_path.wstring() }
 		);
 	}
 
@@ -380,8 +394,8 @@ tl::expected<RenderResult, std::string> Render::do_render(RenderCommands render_
 #ifndef _DEBUG
 		if (m_settings.advanced.debug) {
 #endif
-			DEBUG_LOG("VSPipe command: {} {}", blur.vspipe_path, u::join(render_commands.vspipe, " "));
-			DEBUG_LOG("FFmpeg command: {} {}", blur.ffmpeg_path, u::join(render_commands.ffmpeg, " "));
+			DEBUG_LOG("VSPipe command: {} {}", blur.vspipe_path, u::tostring(u::join(render_commands.vspipe, L" ")));
+			DEBUG_LOG("FFmpeg command: {} {}", blur.ffmpeg_path, u::tostring(u::join(render_commands.ffmpeg, L" ")));
 #ifndef _DEBUG
 		}
 #endif

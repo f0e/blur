@@ -51,8 +51,8 @@ int gui::run() {
 					// 	break;
 
 				case SDL_EVENT_DROP_FILE: {
-					std::string filename = event.drop.data;
-					std::vector<std::filesystem::path> paths = { filename };
+					std::string filename_utf8 = event.drop.data;
+					std::vector<std::filesystem::path> paths = { u::towstring(filename_utf8) };
 
 					if (gui::renderer::screen == gui::renderer::Screens::CONFIG) {
 						auto sample_video_path = blur.settings_path / "sample_video.mp4";

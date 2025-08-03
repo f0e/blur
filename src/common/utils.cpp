@@ -268,7 +268,7 @@ u::VideoInfo u::get_video_info(const std::filesystem::path& path) {
 
 	bp::ipstream pipe_stream;
 	bp::child c(
-		blur.ffprobe_path.string(),
+		blur.ffprobe_path.native(),
 		"-v",
 		"error",
 		"-select_streams",
@@ -280,7 +280,7 @@ u::VideoInfo u::get_video_info(const std::filesystem::path& path) {
 		"format=duration",
 		"-of",
 		"default=noprint_wrappers=1",
-		path.string(),
+		path.native(),
 		bp::std_out > pipe_stream,
 		bp::std_err > bp::null
 #ifdef _WIN32
@@ -364,7 +364,7 @@ bool u::test_hardware_device(const std::string& device_type) {
 
 	bp::ipstream error_stream;
 	bp::child c(
-		blur.ffmpeg_path.string(),
+		blur.ffmpeg_path.native(),
 		"-init_hw_device",
 		(device_type + "=hw"),
 		"-loglevel",
@@ -536,7 +536,7 @@ std::map<int, std::string> u::get_rife_gpus() {
 	bp::ipstream err_stream;
 
 	bp::child c(
-		blur.vspipe_path.string(),
+		blur.vspipe_path.native(),
 		"-c",
 		"y4m",
 #if defined(__APPLE__)
@@ -610,16 +610,16 @@ int u::get_fastest_rife_gpu_index(
 		auto start = std::chrono::steady_clock::now();
 
 		bp::child c(
-			blur.vspipe_path.string(),
+			blur.vspipe_path.native(),
 			"-c",
 			"y4m",
 			"-p",
 			"-a",
-			std::format("rife_model={}", rife_model_path.string()),
+			std::format("rife_model={}", rife_model_path),
 			"-a",
 			std::format("rife_gpu_index={}", gpu_index),
 			"-a",
-			std::format("benchmark_video_path={}", benchmark_video_path.string()),
+			std::format("benchmark_video_path={}", benchmark_video_path),
 #if defined(__APPLE__)
 			"-a",
 			std::format("macos_bundled={}", blur.used_installer ? "true" : "false"),
@@ -634,7 +634,7 @@ int u::get_fastest_rife_gpu_index(
 #endif
 			"-e",
 			"2",
-			benchmark_gpus_script_path.string(),
+			benchmark_gpus_script_path.native(),
 			"-",
 			bp::std_out.null(),
 			bp::std_err.null(),

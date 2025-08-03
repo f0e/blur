@@ -4,8 +4,8 @@
 #include "config_app.h"
 
 struct RenderCommands {
-	std::vector<std::string> vspipe;
-	std::vector<std::string> ffmpeg;
+	std::vector<std::wstring> vspipe;
+	std::vector<std::wstring> ffmpeg;
 };
 
 struct RenderResult {

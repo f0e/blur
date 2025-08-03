@@ -315,7 +315,7 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 
 	ui::add_button("open config folder", content_container, "Open config folder", fonts::dejavu, [] {
 		// Convert path to a file:// URL for SDL_OpenURL
-		std::string file_url = "file://" + blur.settings_path.string();
+		std::string file_url = "file://" + blur.settings_path.string(); // TODO FISH: TEST
 		if (!SDL_OpenURL(file_url.c_str())) {
 			u::log_error("Failed to open config folder: {}", SDL_GetError());
 		}

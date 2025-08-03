@@ -159,7 +159,7 @@ bool updates::update_to_tag(
 		std::string download_url = "https://github.com/f0e/blur/releases/download/" + tag + "/" + installer_filename;
 
 		// Open file for writing
-		std::ofstream installer_file(installer_path.string(), std::ios::binary);
+		std::ofstream installer_file(installer_path, std::ios::binary);
 		if (!installer_file.is_open()) {
 			u::log("Failed to create installer file at {}", installer_path);
 			return false;
@@ -215,9 +215,9 @@ bool updates::update_to_tag(
 		u::log("Download complete, launching installer");
 
 #ifdef _WIN32
-		bp::spawn(installer_path.string(), WINDOWS_INSTALLER_ARGS);
+		bp::spawn(installer_path.native(), WINDOWS_INSTALLER_ARGS);
 #elif defined(__APPLE__)
-		bp::spawn("/usr/bin/open", installer_path.string());
+		bp::spawn("/usr/bin/open", installer_path.native());
 #endif
 
 		return true;
