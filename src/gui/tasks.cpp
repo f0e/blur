@@ -97,13 +97,13 @@ void tasks::run(const std::vector<std::string>& arguments) {
 #endif
 	}
 
-	std::vector<std::wstring> wargs;
-	wargs.reserve(arguments.size());
+	std::vector<std::filesystem::path> paths;
+	paths.reserve(arguments.size());
 	for (const auto& argument : arguments) {
-		wargs.push_back(u::towstring(argument));
+		paths.emplace_back(argument);
 	}
 
-	add_files(wargs); // todo: mac packaged app support (& linux? does it work?)
+	add_files(paths); // todo: mac packaged app support (& linux? does it work?)
 
 	while (!blur.exiting) {
 		process_pending_files();
@@ -114,12 +114,12 @@ void tasks::run(const std::vector<std::string>& arguments) {
 	}
 }
 
-void tasks::add_files(const std::vector<std::wstring>& path_strs) {
+void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
 	std::lock_guard<std::mutex> lock(pending_renders_mutex);
 
 	auto app_config = config_app::get_app_config();
 
-	for (const std::wstring& path_str : path_strs) {
+	for (const auto& path_str : path_strs) {
 		std::filesystem::path path = std::filesystem::canonical(path_str);
 		if (path.empty() || !std::filesystem::exists(path))
 			continue;
@@ -132,8 +132,7 @@ void tasks::add_files(const std::vector<std::wstring>& path_strs) {
 
 		if (gui::renderer::screen != gui::renderer::Screens::MAIN) {
 			gui::components::notifications::add(
-				std::format("Queued '{}' for rendering", u::tostring(render.get_video_name())),
-				ui::NotificationType::INFO
+				std::format("Queued '{}' for rendering", render.get_video_name()), ui::NotificationType::INFO
 			);
 		}
 
@@ -178,7 +177,7 @@ void tasks::process_pending_files() {
 	}
 }
 
-void tasks::add_sample_video(const std::wstring& path_str) {
+void tasks::add_sample_video(const std::filesystem::path& path_str) {
 	std::filesystem::path path = std::filesystem::canonical(path_str);
 	if (path.empty() || !std::filesystem::exists(path))
 		return;

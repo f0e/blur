@@ -267,14 +267,14 @@ void configs::options(ui::Container& container) {
 	);
 
 	if (settings.advanced.ffmpeg_override.empty()) {
-		std::vector<std::wstring> preset_args = config_presets::get_preset_params(
+		std::vector<std::string> preset_args = config_presets::get_preset_params(
 			settings.gpu_encoding ? app_settings.gpu_type : "cpu",
 			u::to_lower(settings.encode_preset.empty() ? "h264" : settings.encode_preset),
 			settings.quality
 		);
 
 		auto codec = config_presets::extract_codec_from_args(preset_args);
-		auto quality_config = config_presets::get_quality_config(codec ? *codec : L"");
+		auto quality_config = config_presets::get_quality_config(codec ? *codec : "");
 
 		// // clamp current quality to new range
 		// settings.quality = std::clamp(settings.quality, quality_config.min_quality, quality_config.max_quality);

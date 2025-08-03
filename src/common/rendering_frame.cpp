@@ -6,10 +6,7 @@ tl::expected<RenderCommands, std::string> FrameRender::build_render_commands(
 	const BlurSettings& settings,
 	const GlobalAppSettings& app_settings
 ) {
-	std::wstring path_string = input_path.wstring();
-	std::ranges::replace(path_string, '\\', '/');
-
-	std::wstring blur_script_path = (blur.resources_path / "lib/blur.py").wstring();
+	std::filesystem::path blur_script_path = (blur.resources_path / "lib/blur.py");
 
 	auto settings_json = settings.to_json();
 	if (!settings_json)
@@ -28,46 +25,46 @@ tl::expected<RenderCommands, std::string> FrameRender::build_render_commands(
 	RenderCommands commands;
 
 	// Build vspipe command
-	commands.vspipe = { L"-p",
-		                L"-c",
-		                L"y4m",
-		                L"-a",
-		                L"video_path=" + path_string,
-		                L"-a",
-		                L"settings=" + u::towstring(settings_json->dump()),
+	commands.vspipe = { "-p",
+		                "-c",
+		                "y4m",
+		                "-a",
+		                "video_path=" + input_path.string(),
+		                "-a",
+		                "settings=" + settings_json->dump(),
 #if defined(__APPLE__)
-		                L"-a",
-		                std::format(L"macos_bundled={}", blur.used_installer ? L"true" : L"false"),
+		                "-a",
+		                std::format("macos_bundled={}", blur.used_installer ? "true" : "false"),
 #endif
 #if defined(_WIN32)
-		                L"-a",
-		                L"enable_lsmash=true",
+		                "-a",
+		                "enable_lsmash=true",
 #endif
 #if defined(__linux__)
-		                L"-a",
-		                std::format(L"linux_bundled={}", vapoursynth_plugins_bundled ? L"true" : L"false"),
+		                "-a",
+		                std::format("linux_bundled={}", vapoursynth_plugins_bundled ? "true" : "false"),
 #endif
 		                blur_script_path,
-		                L"-" };
+		                "-" };
 
 	// Build ffmpeg command
 	// clang-format off
 	commands.ffmpeg = {
-		L"-loglevel",
-		L"error",
-		L"-hide_banner",
-		L"-stats",
-		L"-ss",
-		L"00:00:00.200", // skip forward a bit because blur needs context todo: how low can this go?
-		L"-y",
-		L"-i",
-		L"-", // piped output from video script
-		L"-vframes",
-		L"1", // render 1 frame
-		L"-q:v",
-		L"2",
-		L"-y",
-		output_path.wstring(),
+		"-loglevel",
+		"error",
+		"-hide_banner",
+		"-stats",
+		"-ss",
+		"00:00:00.200", // skip forward a bit because blur needs context todo: how low can this go?
+		"-y",
+		"-i",
+		"-", // piped output from video script
+		"-vframes",
+		"1", // render 1 frame
+		"-q:v",
+		"2",
+		"-y",
+		output_path.string(),
 	};
 	// clang-format on
 
@@ -87,8 +84,8 @@ tl::expected<void, std::string> FrameRender::do_render(RenderCommands render_com
 #ifndef _DEBUG
 		if (settings.advanced.debug) {
 #endif
-			DEBUG_LOG(L"VSPipe command: {} {}", blur.vspipe_path.wstring(), u::join(render_commands.vspipe, L" "));
-			DEBUG_LOG(L"FFmpeg command: {} {}", blur.ffmpeg_path.wstring(), u::join(render_commands.ffmpeg, L" "));
+			DEBUG_LOG("VSPipe command: {} {}", blur.vspipe_path.string(), u::join(render_commands.vspipe, " "));
+			DEBUG_LOG("FFmpeg command: {} {}", blur.ffmpeg_path.string(), u::join(render_commands.ffmpeg, " "));
 #ifndef _DEBUG
 		}
 #endif
@@ -112,7 +109,7 @@ tl::expected<void, std::string> FrameRender::do_render(RenderCommands render_com
 
 		// Declare as local variables first, then move or assign
 		auto vspipe_process = bp::child(
-			blur.vspipe_path.wstring(),
+			blur.vspipe_path.string(),
 			bp::args(render_commands.vspipe),
 			bp::std_out > vspipe_stdout,
 			bp::std_err > vspipe_stderr,
@@ -125,7 +122,7 @@ tl::expected<void, std::string> FrameRender::do_render(RenderCommands render_com
 		);
 
 		auto ffmpeg_process = bp::child(
-			blur.ffmpeg_path.wstring(),
+			blur.ffmpeg_path.string(),
 			bp::args(render_commands.ffmpeg),
 			bp::std_in < vspipe_stdout,
 			bp::std_out.null(),

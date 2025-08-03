@@ -4,8 +4,8 @@
 #include "config_app.h"
 
 struct RenderCommands {
-	std::vector<std::wstring> vspipe;
-	std::vector<std::wstring> ffmpeg;
+	std::vector<std::string> vspipe;
+	std::vector<std::string> ffmpeg;
 };
 
 struct RenderResult {
@@ -37,7 +37,7 @@ private:
 
 	RenderStatus m_status;
 
-	std::wstring m_video_name;
+	std::string m_video_name;
 
 	std::filesystem::path m_video_path;
 	std::filesystem::path m_video_folder;
@@ -98,7 +98,7 @@ public:
 		return m_render_id;
 	}
 
-	[[nodiscard]] std::wstring get_video_name() const {
+	[[nodiscard]] std::string get_video_name() const {
 		return m_video_name;
 	}
 

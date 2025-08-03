@@ -26,9 +26,6 @@ struct fmt::formatter<std::filesystem::path> : fmt::formatter<std::string> {
 };
 
 namespace u {
-	std::wstring towstring(const std::string& str);
-	std::string tostring(const std::wstring& wstr);
-
 	namespace detail {
 		inline spdlog::logger& get_logger() {
 			static auto logger = []() {
@@ -352,7 +349,7 @@ namespace u {
 
 	std::vector<std::string> get_supported_presets(bool gpu_encoding, const std::string& gpu_type);
 
-	std::vector<std::wstring> ffmpeg_string_to_args(const std::wstring& str);
+	std::vector<std::string> ffmpeg_string_to_args(const std::string& str);
 
 	std::map<int, std::string> get_rife_gpus();
 	int get_fastest_rife_gpu_index(

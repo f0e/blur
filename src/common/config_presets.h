@@ -69,8 +69,9 @@ struct PresetSettings {
 		},
 	};
 
-	[[nodiscard]] const std::string* find_preset_params(const std::string& gpu_type, const std::string& preset_name)
-		const {
+	[[nodiscard]] const std::string* find_preset_params(
+		const std::string& gpu_type, const std::string& preset_name
+	) const {
 		for (const auto& gpu_presets : all_gpu_presets) {
 			if (gpu_presets.gpu_type == gpu_type) {
 				for (const auto& preset : gpu_presets.presets) {
@@ -114,9 +115,9 @@ namespace config_presets {
 
 	std::vector<PresetDetails> get_available_presets(bool gpu_encoding, const std::string& gpu_type);
 
-	std::vector<std::wstring> get_preset_params(const std::string& gpu_type, const std::string& preset, int quality);
+	std::vector<std::string> get_preset_params(const std::string& gpu_type, const std::string& preset, int quality);
 
-	tl::expected<std::wstring, std::string> extract_codec_from_args(const std::vector<std::wstring>& ffmpeg_args);
+	tl::expected<std::string, std::string> extract_codec_from_args(const std::vector<std::string>& ffmpeg_args);
 
 	struct QualityConfig {
 		int min_quality;
@@ -124,5 +125,5 @@ namespace config_presets {
 		std::string quality_label;
 	};
 
-	QualityConfig get_quality_config(const std::wstring& codec);
+	QualityConfig get_quality_config(const std::string& codec);
 }

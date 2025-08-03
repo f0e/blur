@@ -2,11 +2,11 @@
 #include "config_base.h"
 
 namespace {
-	std::vector<std::wstring> get_ffmpeg_args(std::string params_str, int quality) {
+	std::vector<std::string> get_ffmpeg_args(std::string params_str, int quality) {
 		// replace quality placeholder
 		params_str = u::replace_all(params_str, "{quality}", std::to_string(quality));
 
-		return u::ffmpeg_string_to_args(u::towstring(params_str));
+		return u::ffmpeg_string_to_args(params_str);
 	}
 }
 
@@ -63,10 +63,12 @@ PresetSettings config_presets::parse(const std::filesystem::path& config_filepat
 
 			// new gpu type
 			if (!current_presets) {
-				auto& new_entry = settings.all_gpu_presets.emplace_back(PresetSettings::GpuPresets{
-					.gpu_type = current_gpu_type,
-					.presets = {},
-				});
+				auto& new_entry = settings.all_gpu_presets.emplace_back(
+					PresetSettings::GpuPresets{
+						.gpu_type = current_gpu_type,
+						.presets = {},
+					}
+				);
 				current_presets = &new_entry.presets;
 			}
 
@@ -110,10 +112,12 @@ PresetSettings config_presets::parse(const std::filesystem::path& config_filepat
 
 			// new preset
 			if (!found) {
-				current_presets->emplace_back(PresetSettings::Preset{
-					.name = preset_name,
-					.args = preset_params,
-				});
+				current_presets->emplace_back(
+					PresetSettings::Preset{
+						.name = preset_name,
+						.args = preset_params,
+					}
+				);
 			}
 		}
 	}
@@ -161,12 +165,14 @@ std::vector<config_presets::PresetDetails> config_presets::get_available_presets
 				if (it == params.rbegin())
 					continue;
 
-				if (*it == L"-c:v" || *it == L"-codec:v") {
-					std::wstring codec = *(it - 1);
-					available_presets.push_back({
-						.name = preset.name,
-						.codec = u::tostring(codec),
-					});
+				if (*it == "-c:v" || *it == "-codec:v") {
+					std::string codec = *(it - 1);
+					available_presets.push_back(
+						{
+							.name = preset.name,
+							.codec = codec,
+						}
+					);
 					break;
 				}
 			}
@@ -177,7 +183,7 @@ std::vector<config_presets::PresetDetails> config_presets::get_available_presets
 }
 
 // NOLINTBEGIN(misc-no-recursion) trust me bro
-std::vector<std::wstring> config_presets::get_preset_params(
+std::vector<std::string> config_presets::get_preset_params(
 	const std::string& gpu_type, const std::string& preset, int quality
 ) {
 	PresetSettings config = get_preset_config();
@@ -196,10 +202,10 @@ std::vector<std::wstring> config_presets::get_preset_params(
 
 // NOLINTEND(misc-no-recursion)
 
-tl::expected<std::wstring, std::string> config_presets::extract_codec_from_args(
-	const std::vector<std::wstring>& ffmpeg_args
+tl::expected<std::string, std::string> config_presets::extract_codec_from_args(
+	const std::vector<std::string>& ffmpeg_args
 ) {
-	const std::vector<std::wstring> codec_flags = { L"-c:v", L"-codec:v", L"-vcodec", L"-c:video", L"-codec:video" };
+	const std::vector<std::string> codec_flags = { "-c:v", "-codec:v", "-vcodec", "-c:video", "-codec:video" };
 
 	for (size_t i = 0; i < ffmpeg_args.size() - 1; i++) {
 		for (const auto& flag : codec_flags) {
@@ -212,47 +218,47 @@ tl::expected<std::wstring, std::string> config_presets::extract_codec_from_args(
 	return tl::unexpected("no codec found");
 }
 
-config_presets::QualityConfig config_presets::get_quality_config(const std::wstring& codec) {
+config_presets::QualityConfig config_presets::get_quality_config(const std::string& codec) {
 	QualityConfig config;
 
 	// Detect codec type and set appropriate ranges
-	if (codec == L"h264_nvenc" || codec == L"hevc_nvenc" || codec == L"av1_nvenc") {
+	if (codec == "h264_nvenc" || codec == "hevc_nvenc" || codec == "av1_nvenc") {
 		// NVIDIA NVENC
 		config.min_quality = 0;
 		config.max_quality = 51;
 		config.quality_label = "(0: lossless, 23: balanced, 51: worst)";
 	}
-	else if (codec == L"h264_amf" || codec == L"hevc_amf" || codec == L"av1_amf") {
+	else if (codec == "h264_amf" || codec == "hevc_amf" || codec == "av1_amf") {
 		// AMD AMF
 		config.min_quality = 0;
 		config.max_quality = 51;
 		config.quality_label = "(0: best, 23: balanced, 51: worst)";
 	}
-	else if (codec == L"h264_qsv" || codec == L"hevc_qsv" || codec == L"av1_qsv") {
+	else if (codec == "h264_qsv" || codec == "hevc_qsv" || codec == "av1_qsv") {
 		// Intel QSV
 		config.min_quality = 1;
 		config.max_quality = 51;
 		config.quality_label = "(1: best, 23: balanced, 51: worst)";
 	}
-	else if (codec == L"h264_videotoolbox" || codec == L"hevc_videotoolbox" || codec == L"av1_videotoolbox") {
+	else if (codec == "h264_videotoolbox" || codec == "hevc_videotoolbox" || codec == "av1_videotoolbox") {
 		// Mac VideoToolbox H264/H265/AV1
 		config.min_quality = 0;
 		config.max_quality = 100;
 		config.quality_label = "(100: best, 0: worst)"; // todo: add balanced when i know what a good value is
 	}
-	else if (codec == L"prores_videotoolbox") {
+	else if (codec == "prores_videotoolbox") {
 		// Mac ProRes
 		config.min_quality = 0;
 		config.max_quality = 4;
 		config.quality_label = "(0: proxy, 1: lt, 2: std, 3: hq, 4: 4444xq)";
 	}
-	else if (codec == L"libx264" || codec == L"libx265") {
+	else if (codec == "libx264" || codec == "libx265") {
 		// CPU x264/x265
 		config.min_quality = 0;
 		config.max_quality = 51;
 		config.quality_label = "(0: lossless, 23: balanced, 51: worst)";
 	}
-	else if (codec == L"libaom-av1" || codec == L"libvpx-vp9") {
+	else if (codec == "libaom-av1" || codec == "libvpx-vp9") {
 		// CPU AV1/VP9
 		config.min_quality = 15;
 		config.max_quality = 50;

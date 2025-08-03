@@ -8,49 +8,6 @@ namespace {
 	// std::set<std::string> hw_encoders;
 }
 
-// NOLINTBEGIN gpt ass code
-std::wstring u::towstring(const std::string& str) {
-	if (str.empty())
-		return std::wstring();
-
-#ifdef _WIN32
-	// Windows-specific implementation
-	int size_needed = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), nullptr, 0);
-	std::wstring result(size_needed, 0);
-	MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), &result[0], size_needed);
-	return result;
-#else
-	// POSIX systems (Linux, macOS, etc.)
-	std::vector<wchar_t> buf(str.size() + 1);
-	std::mbstowcs(&buf[0], str.c_str(), str.size() + 1);
-	return std::wstring(&buf[0]);
-#endif
-}
-
-std::string u::tostring(const std::wstring& wstr) {
-	if (wstr.empty()) {
-		return std::string();
-	}
-
-#ifdef _WIN32
-	// Windows-specific implementation
-	int size_needed = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), (int)wstr.size(), nullptr, 0, nullptr, nullptr);
-	std::string result(size_needed, 0);
-	WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), (int)wstr.size(), &result[0], size_needed, nullptr, nullptr);
-	return result;
-#else
-	// POSIX systems (Linux, macOS, etc.)
-	std::vector<char> buf((wstr.size() + 1) * MB_CUR_MAX);
-	size_t converted = std::wcstombs(&buf[0], wstr.c_str(), buf.size());
-	if (converted == static_cast<size_t>(-1)) {
-		return std::string(); // Conversion failed
-	}
-	return std::string(&buf[0], converted);
-#endif
-}
-
-// NOLINTEND
-
 std::string u::trim(std::string_view str) {
 	str.remove_prefix(std::min(str.find_first_not_of(" \t\r\v\n"), str.size()));
 	str.remove_suffix(std::min(str.size() - str.find_last_not_of(" \t\r\v\n") - 1, str.size()));
@@ -268,7 +225,7 @@ u::VideoInfo u::get_video_info(const std::filesystem::path& path) {
 
 	bp::ipstream pipe_stream;
 	bp::child c(
-		blur.ffprobe_path.wstring(),
+		blur.ffprobe_path.string(),
 		"-v",
 		"error",
 		"-select_streams",
@@ -280,7 +237,7 @@ u::VideoInfo u::get_video_info(const std::filesystem::path& path) {
 		"format=duration",
 		"-of",
 		"default=noprint_wrappers=1",
-		path.wstring(),
+		path.string(),
 		bp::std_out > pipe_stream,
 		bp::std_err > bp::null
 #ifdef _WIN32
@@ -364,7 +321,7 @@ bool u::test_hardware_device(const std::string& device_type) {
 
 	bp::ipstream error_stream;
 	bp::child c(
-		blur.ffmpeg_path.wstring(),
+		blur.ffmpeg_path.string(),
 		"-init_hw_device",
 		(device_type + "=hw"),
 		"-loglevel",
@@ -424,11 +381,13 @@ std::vector<u::EncodingDevice> u::get_hardware_encoding_devices() {
 
 	for (size_t i = 0; i < tests.size(); ++i) {
 		if (futures[i].get()) {
-			devices.emplace_back(EncodingDevice{
-				.type = tests[i].type,
-				.method = tests[i].method,
-				.is_primary = devices.empty(),
-			});
+			devices.emplace_back(
+				EncodingDevice{
+					.type = tests[i].type,
+					.method = tests[i].method,
+					.is_primary = devices.empty(),
+				}
+			);
 		}
 	}
 
@@ -482,20 +441,20 @@ std::vector<std::string> u::get_supported_presets(bool gpu_encoding, const std::
 	return filtered_presets;
 }
 
-std::vector<std::wstring> u::ffmpeg_string_to_args(const std::wstring& str) {
-	std::vector<std::wstring> args;
+std::vector<std::string> u::ffmpeg_string_to_args(const std::string& str) {
+	std::vector<std::string> args;
 
 	bool in_quote = false;
-	std::wstring current_arg;
+	std::string current_arg;
 
 	for (size_t i = 0; i < str.length(); i++) {
-		wchar_t c = str[i];
+		char c = str[i];
 
-		if (c == L'"') {
+		if (c == '"') {
 			in_quote = !in_quote;
 			// don't add the quote character to the argument
 		}
-		else if (c == L' ' && !in_quote) {
+		else if (c == ' ' && !in_quote) {
 			if (!current_arg.empty()) {
 				args.push_back(current_arg);
 				current_arg.clear();
@@ -529,24 +488,24 @@ std::map<int, std::string> u::get_rife_gpus() {
 	bool vapoursynth_plugins_bundled = std::filesystem::exists(blur.resources_path / "vapoursynth-plugins");
 #endif
 
-	std::wstring get_gpus_script_path = (blur.resources_path / "lib/get_rife_gpus.py").wstring();
+	std::filesystem::path get_gpus_script_path = (blur.resources_path / "lib/get_rife_gpus.py");
 
 	bp::ipstream err_stream;
 
 	bp::child c(
-		blur.vspipe_path.wstring(),
-		L"-c",
-		L"y4m",
+		blur.vspipe_path.string(),
+		"-c",
+		"y4m",
 #if defined(__APPLE__)
-		L"-a",
-		std::format(L"macos_bundled={}", blur.used_installer ? L"true" : L"false"),
+		"-a",
+		std::format(L"macos_bundled={}", blur.used_installer ? "true" : "false"),
 #endif
 #if defined(__linux__)
-		L"-a",
-		std::format(L"linux_bundled={}", vapoursynth_plugins_bundled ? L"true" : L"false"),
+		"-a",
+		std::format("linux_bundled={}", vapoursynth_plugins_bundled ? "true" : "false"),
 #endif
-		get_gpus_script_path,
-		L"-",
+		get_gpus_script_path.string(),
+		"-",
 		bp::std_out.null(),
 		bp::std_err > err_stream,
 		env
@@ -589,7 +548,7 @@ int u::get_fastest_rife_gpu_index(
 	float fastest_time = FLT_MAX;
 	int fastest_index = -1;
 
-	std::wstring benchmark_gpus_script_path = (blur.resources_path / "lib/benchmark_rife_gpus.py").wstring();
+	std::filesystem::path benchmark_gpus_script_path = (blur.resources_path / "lib/benchmark_rife_gpus.py");
 
 	for (const auto& [gpu_index, gpu_name] : gpu_map) {
 		bp::environment env = boost::this_process::environment();
@@ -608,32 +567,32 @@ int u::get_fastest_rife_gpu_index(
 		auto start = std::chrono::steady_clock::now();
 
 		bp::child c(
-			blur.vspipe_path.wstring(),
-			L"-c",
-			L"y4m",
-			L"-p",
-			L"-a",
-			std::format(L"rife_model={}", rife_model_path.wstring()),
-			L"-a",
-			std::format(L"rife_gpu_index={}", gpu_index),
-			L"-a",
-			std::format(L"benchmark_video_path={}", benchmark_video_path.wstring()),
+			blur.vspipe_path.string(),
+			"-c",
+			"y4m",
+			"-p",
+			"-a",
+			std::format("rife_model={}", rife_model_path.string()),
+			"-a",
+			std::format("rife_gpu_index={}", gpu_index),
+			"-a",
+			std::format("benchmark_video_path={}", benchmark_video_path.string()),
 #if defined(__APPLE__)
-			L"-a",
-			std::format(L"macos_bundled={}", blur.used_installer ? L"true" : L"false"),
+			"-a",
+			std::format("macos_bundled={}", blur.used_installer ? "true" : "false"),
 #endif
 #if defined(__linux__)
-			L"-a",
-			std::format(L"linux_bundled={}", vapoursynth_plugins_bundled ? L"true" : L"false"),
+			"-a",
+			std::format("linux_bundled={}", vapoursynth_plugins_bundled ? "true" : "false"),
 #endif
 #if defined(_WIN32)
-			L"-a",
-			L"enable_lsmash=true",
+			"-a",
+			"enable_lsmash=true",
 #endif
-			L"-e",
-			L"2",
-			benchmark_gpus_script_path,
-			L"-",
+			"-e",
+			"2",
+			benchmark_gpus_script_path.string(),
+			"-",
 			bp::std_out.null(),
 			bp::std_err.null(),
 			env

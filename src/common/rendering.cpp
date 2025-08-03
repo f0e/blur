@@ -61,41 +61,41 @@ void Render::build_output_filename() {
 	// build output filename
 	int num = 1;
 	do {
-		std::wstring output_filename = this->m_video_name + L" - blur";
+		std::string output_filename = this->m_video_name + " - blur";
 
 		if (this->m_settings.detailed_filenames) {
-			std::wstring extra_details;
+			std::string extra_details;
 
 			// stupid
 			if (this->m_settings.blur) {
 				if (this->m_settings.interpolate) {
 					extra_details = std::format(
-						L"{}fps ({}, {})",
+						"{}fps ({}, {})",
 						this->m_settings.blur_output_fps,
-						u::towstring(this->m_settings.interpolated_fps),
+						this->m_settings.interpolated_fps,
 						this->m_settings.blur_amount
 					);
 				}
 				else {
 					extra_details =
-						std::format(L"{}fps ({})", this->m_settings.blur_output_fps, this->m_settings.blur_amount);
+						std::format("{}fps ({})", this->m_settings.blur_output_fps, this->m_settings.blur_amount);
 				}
 			}
 			else {
 				if (this->m_settings.interpolate) {
-					extra_details = std::format(L"{}fps", u::towstring(this->m_settings.interpolated_fps));
+					extra_details = std::format("{}fps", this->m_settings.interpolated_fps);
 				}
 			}
 
-			if (extra_details != L"") {
-				output_filename += L" ~ " + extra_details;
+			if (extra_details != "") {
+				output_filename += " ~ " + extra_details;
 			}
 		}
 
 		if (num > 1)
-			output_filename += std::format(L" ({})", num);
+			output_filename += std::format(" ({})", num);
 
-		output_filename += L"." + u::towstring(this->m_settings.advanced.video_container);
+		output_filename += "." + this->m_settings.advanced.video_container;
 
 		this->m_output_path = output_folder / output_filename;
 
@@ -115,7 +115,7 @@ Render::Render(
 	static uint32_t current_render_id = 1; // 0 is null
 	m_render_id = current_render_id++;
 
-	this->m_video_name = this->m_video_path.stem().wstring();
+	this->m_video_name = this->m_video_path.stem();
 	this->m_video_folder = this->m_video_path.parent_path();
 
 	// parse config file (do it now, not when rendering. nice for batch rendering the same file with different settings)
@@ -156,10 +156,7 @@ bool Render::remove_temp_path() {
 tl::expected<RenderCommands, std::string> Render::build_render_commands() {
 	RenderCommands commands;
 
-	std::wstring path_string = m_video_path.wstring();
-	std::ranges::replace(path_string, '\\', '/');
-
-	std::wstring blur_script_path = (blur.resources_path / "lib/blur.py").wstring();
+	std::filesystem::path blur_script_path = (blur.resources_path / "lib/blur.py");
 
 	auto settings_json = m_settings.to_json();
 	if (!settings_json)
@@ -176,51 +173,50 @@ tl::expected<RenderCommands, std::string> Render::build_render_commands() {
 #endif
 
 	// Build vspipe command
-	commands.vspipe = { L"-p",
-		                L"-c",
-		                L"y4m",
-		                L"-a",
-		                L"video_path=" + path_string,
-		                L"-a",
-		                std::format(L"fps_num={}", m_video_info.fps_num),
-		                L"-a",
-		                std::format(L"fps_den={}", m_video_info.fps_den),
-		                L"-a",
-		                L"color_range=" +
-		                    (m_video_info.color_range ? u::towstring(*m_video_info.color_range) : L"undefined"),
-		                L"-a",
-		                L"settings=" + u::towstring(settings_json->dump()),
+	commands.vspipe = { "-p",
+		                "-c",
+		                "y4m",
+		                "-a",
+		                "video_path=" + m_video_path.string(),
+		                "-a",
+		                std::format("fps_num={}", m_video_info.fps_num),
+		                "-a",
+		                std::format("fps_den={}", m_video_info.fps_den),
+		                "-a",
+		                "color_range=" + (m_video_info.color_range ? *m_video_info.color_range : "undefined"),
+		                "-a",
+		                "settings=" + settings_json->dump(),
 #if defined(__APPLE__)
-		                L"-a",
-		                std::format(L"macos_bundled={}", blur.used_installer ? L"true" : L"false"),
+		                "-a",
+		                std::format("macos_bundled={}", blur.used_installer ? "true" : "false"),
 #endif
 #if defined(_WIN32)
-		                L"-a",
-		                L"enable_lsmash=true",
+		                "-a",
+		                "enable_lsmash=true",
 #endif
 #if defined(__linux__)
-		                L"-a",
-		                std::format(L"linux_bundled={}", vapoursynth_plugins_bundled ? L"true" : L"false"),
+		                "-a",
+		                std::format("linux_bundled={}", vapoursynth_plugins_bundled ? "true" : "false"),
 #endif
 		                blur_script_path,
-		                L"-" };
+		                "-" };
 
 	// Build ffmpeg command
-	commands.ffmpeg = { L"-loglevel",
-		                L"error",
-		                L"-hide_banner",
-		                L"-stats",
-		                L"-y",
-		                L"-i",
-		                L"-", // piped output from video script
-		                L"-fflags",
-		                L"+genpts",
-		                L"-i",
-		                m_video_path.wstring(), // original video (for audio)
-		                L"-map",
-		                L"0:v",
-		                L"-map",
-		                L"1:a?" };
+	commands.ffmpeg = { "-loglevel",
+		                "error",
+		                "-hide_banner",
+		                "-stats",
+		                "-y",
+		                "-i",
+		                "-", // piped output from video script
+		                "-fflags",
+		                "+genpts",
+		                "-i",
+		                m_video_path.string(), // original video (for audio)
+		                "-map",
+		                "0:v",
+		                "-map",
+		                "1:a?" };
 
 	// handle colour metadata tagging
 	// (vspipe strips this input info, need to define it manually so ffmpeg knows about it)
@@ -251,63 +247,69 @@ tl::expected<RenderCommands, std::string> Render::build_render_commands() {
 			setparams_filter += params[i];
 		}
 
-		commands.ffmpeg.emplace_back(L"-vf");
-		commands.ffmpeg.emplace_back(u::towstring(setparams_filter));
+		commands.ffmpeg.emplace_back("-vf");
+		commands.ffmpeg.emplace_back(setparams_filter);
 	}
 
 	if (m_video_info.pix_fmt) {
-		commands.ffmpeg.emplace_back(L"-pix_fmt");
-		commands.ffmpeg.emplace_back(u::towstring(*m_video_info.pix_fmt));
+		commands.ffmpeg.emplace_back("-pix_fmt");
+		commands.ffmpeg.emplace_back(*m_video_info.pix_fmt);
 	}
 
 	// Handle audio filters
-	std::vector<std::wstring> audio_filters;
+	std::vector<std::string> audio_filters;
 	if (m_settings.timescale) {
 		if (m_settings.input_timescale != 1.f) {
-			audio_filters.push_back(std::format(
-				L"asetrate={}*{}",
-				m_video_info.sample_rate != -1 ? m_video_info.sample_rate : 48000,
-				(1 / m_settings.input_timescale)
-			));
-			audio_filters.emplace_back(L"aresample=48000");
+			audio_filters.push_back(
+				std::format(
+					"asetrate={}*{}",
+					m_video_info.sample_rate != -1 ? m_video_info.sample_rate : 48000,
+					(1 / m_settings.input_timescale)
+				)
+			);
+			audio_filters.emplace_back("aresample=48000");
 		}
 
 		if (m_settings.output_timescale != 1.f) {
 			if (m_settings.output_timescale_audio_pitch) {
-				audio_filters.push_back(std::format(
-					L"asetrate={}*{}",
-					m_video_info.sample_rate != -1 ? m_video_info.sample_rate : 48000,
-					m_settings.output_timescale
-				));
-				audio_filters.emplace_back(L"aresample=48000");
+				audio_filters.push_back(
+					std::format(
+						"asetrate={}*{}",
+						m_video_info.sample_rate != -1 ? m_video_info.sample_rate : 48000,
+						m_settings.output_timescale
+					)
+				);
+				audio_filters.emplace_back("aresample=48000");
 			}
 			else {
-				audio_filters.push_back(std::format(L"atempo={}", m_settings.output_timescale));
+				audio_filters.push_back(std::format("atempo={}", m_settings.output_timescale));
 			}
 		}
 	}
 
 	if (!audio_filters.empty()) {
-		commands.ffmpeg.emplace_back(L"-af");
-		commands.ffmpeg.push_back(std::accumulate(
-			std::next(audio_filters.begin()),
-			audio_filters.end(),
-			audio_filters[0],
-			[](const std::wstring& a, const std::wstring& b) {
-				return a + L"," + b;
-			}
-		));
+		commands.ffmpeg.emplace_back("-af");
+		commands.ffmpeg.push_back(
+			std::accumulate(
+				std::next(audio_filters.begin()),
+				audio_filters.end(),
+				audio_filters[0],
+				[](const std::string& a, const std::string& b) {
+					return a + "," + b;
+				}
+			)
+		);
 	}
 
 	if (!m_settings.advanced.ffmpeg_override.empty()) {
-		auto args = u::ffmpeg_string_to_args(u::towstring(m_settings.advanced.ffmpeg_override));
+		auto args = u::ffmpeg_string_to_args(m_settings.advanced.ffmpeg_override);
 
 		for (const auto& arg : args) {
 			commands.ffmpeg.push_back(arg);
 		}
 	}
 	else {
-		std::vector<std::wstring> preset_args = config_presets::get_preset_params(
+		std::vector<std::string> preset_args = config_presets::get_preset_params(
 			m_settings.gpu_encoding ? m_app_settings.gpu_type : "cpu",
 			u::to_lower(m_settings.encode_preset.empty() ? "h264" : m_settings.encode_preset),
 			m_settings.quality
@@ -316,29 +318,20 @@ tl::expected<RenderCommands, std::string> Render::build_render_commands() {
 		commands.ffmpeg.insert(commands.ffmpeg.end(), preset_args.begin(), preset_args.end());
 
 		// audio
-		commands.ffmpeg.insert(commands.ffmpeg.end(), { L"-c:a", L"aac", L"-b:a", L"320k" });
+		commands.ffmpeg.insert(commands.ffmpeg.end(), { "-c:a", "aac", "-b:a", "320k" });
 
 		// extra
-		commands.ffmpeg.insert(commands.ffmpeg.end(), { L"-movflags", L"+faststart" });
+		commands.ffmpeg.insert(commands.ffmpeg.end(), { "-movflags", "+faststart" });
 	}
 
 	// Output path
-	commands.ffmpeg.push_back(m_output_path.wstring());
+	commands.ffmpeg.push_back(m_output_path.string());
 
 	// Preview output if needed
 	if (m_settings.preview && blur.using_preview) {
 		commands.ffmpeg.insert(
 			commands.ffmpeg.end(),
-			{ L"-map",
-		      L"0:v",
-		      L"-q:v",
-		      L"2",
-		      L"-update",
-		      L"1",
-		      L"-atomic_writing",
-		      L"1",
-		      L"-y",
-		      m_preview_path.wstring() }
+			{ "-map", "0:v", "-q:v", "2", "-update", "1", "-atomic_writing", "1", "-y", m_preview_path.string() }
 		);
 	}
 
@@ -387,8 +380,8 @@ tl::expected<RenderResult, std::string> Render::do_render(RenderCommands render_
 #ifndef _DEBUG
 		if (m_settings.advanced.debug) {
 #endif
-			DEBUG_LOG(L"VSPipe command: {} {}", blur.vspipe_path.wstring(), u::join(render_commands.vspipe, L" "));
-			DEBUG_LOG(L"FFmpeg command: {} {}", blur.ffmpeg_path.wstring(), u::join(render_commands.ffmpeg, L" "));
+			DEBUG_LOG("VSPipe command: {} {}", blur.vspipe_path.string(), u::join(render_commands.vspipe, " "));
+			DEBUG_LOG("FFmpeg command: {} {}", blur.ffmpeg_path.string(), u::join(render_commands.ffmpeg, " "));
 #ifndef _DEBUG
 		}
 #endif
@@ -412,7 +405,7 @@ tl::expected<RenderResult, std::string> Render::do_render(RenderCommands render_
 
 		// Launch vspipe process
 		bp::child vspipe_process(
-			blur.vspipe_path.wstring(),
+			blur.vspipe_path.string(),
 			bp::args(render_commands.vspipe),
 			bp::std_out > vspipe_stdout,
 			bp::std_err > vspipe_stderr,
@@ -425,7 +418,7 @@ tl::expected<RenderResult, std::string> Render::do_render(RenderCommands render_
 
 		// Launch ffmpeg process
 		bp::child ffmpeg_process(
-			blur.ffmpeg_path.wstring(),
+			blur.ffmpeg_path.string(),
 			bp::args(render_commands.ffmpeg),
 			bp::std_in<vspipe_stdout, bp::std_out.null(), bp::std_err> ffmpeg_stderr,
 			env
@@ -595,7 +588,7 @@ tl::expected<RenderResult, std::string> Render::render() {
 	if (!blur.initialised)
 		return tl::unexpected("Blur not initialised");
 
-	u::log(L"Rendering '{}'\n", m_video_name);
+	u::log("Rendering '{}'\n", m_video_name);
 
 	if (blur.verbose) {
 		u::log("Render settings:");
@@ -627,7 +620,7 @@ tl::expected<RenderResult, std::string> Render::render() {
 
 	auto render = do_render(*render_commands);
 	if (!render) {
-		u::log(L"Failed to render '{}'", m_video_name);
+		u::log("Failed to render '{}'", m_video_name);
 
 		if (blur.verbose || m_settings.advanced.debug) {
 			u::log(render.error());
@@ -635,12 +628,12 @@ tl::expected<RenderResult, std::string> Render::render() {
 	}
 	else {
 		if (render->stopped) {
-			u::log(L"Stopped render '{}'", m_video_name);
+			u::log("Stopped render '{}'", m_video_name);
 			std::filesystem::remove(m_output_path);
 		}
 		else {
 			if (blur.verbose) {
-				u::log(L"Finished rendering '{}'", m_video_name);
+				u::log("Finished rendering '{}'", m_video_name);
 			}
 
 			if (m_settings.copy_dates) {
@@ -649,7 +642,7 @@ tl::expected<RenderResult, std::string> Render::render() {
 					std::filesystem::last_write_time(m_output_path, input_time);
 
 					if (m_settings.advanced.debug) {
-						u::log(L"Set output file modified time to match input file");
+						u::log("Set output file modified time to match input file");
 					}
 				}
 				catch (const std::exception& e) {

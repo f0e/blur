@@ -181,7 +181,7 @@ void configs::config_preview(ui::Container& container) {
 					static auto file_callback = [](void* userdata, const char* const* files, int filter) {
 						if (files != nullptr && *files != nullptr) {
 							const char* file = *files;
-							tasks::add_sample_video(u::towstring(file));
+							tasks::add_sample_video(file);
 						}
 					};
 
@@ -261,11 +261,7 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 		);
 
 		ui::add_button(
-			"fix config button",
-			content_container,
-			"Reset invalid config options to defaults",
-			fonts::dejavu,
-			[&] {
+			"fix config button", content_container, "Reset invalid config options to defaults", fonts::dejavu, [&] {
 				config_blur::validate(settings, true);
 			}
 		);

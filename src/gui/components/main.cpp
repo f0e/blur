@@ -15,7 +15,7 @@ void main::open_files_button(ui::Container& container, const std::string& label)
 	ui::add_button("open file button", container, label, fonts::dejavu, [] {
 		static auto file_callback = [](void* userdata, const char* const* files, int filter) {
 			if (files && *files) {
-				std::vector<std::wstring> wpaths;
+				std::vector<std::filesystem::path> wpaths;
 
 				std::span<const char* const> span_files(files, SIZE_MAX); // big size, we stop manually
 
@@ -23,7 +23,7 @@ void main::open_files_button(ui::Container& container, const std::string& label)
 					if (file == nullptr)
 						break; // null-terminated array
 
-					wpaths.push_back(u::towstring(file));
+					wpaths.emplace_back(file);
 				}
 
 				tasks::add_files(wpaths);
@@ -56,7 +56,7 @@ void main::render_screen(
 	ui::add_text(
 		std::format("video {} name text", render.get_render_id()),
 		container,
-		u::tostring(render.get_video_name()),
+		render.get_video_name(),
 		gfx::Color(255, 255, 255, (current ? 255 : 100)),
 		fonts::smaller_header_font,
 		FONT_CENTERED_X

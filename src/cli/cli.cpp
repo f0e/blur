@@ -11,7 +11,7 @@ bool cli::run(
 ) {
 	auto init_res = blur.initialise(verbose, preview);
 	if (!init_res) { // todo: preview in cli
-		u::log(L"Blur failed to initialise");
+		u::log("Blur failed to initialise");
 		u::log("Reason: {}", init_res.error());
 		return false;
 	}
@@ -25,14 +25,14 @@ bool cli::run(
 
 	bool manual_output_files = !outputs.empty();
 	if (manual_output_files && inputs.size() != outputs.size()) {
-		u::log(L"Input/output filename count mismatch ({} inputs, {} outputs).", inputs.size(), outputs.size());
+		u::log("Input/output filename count mismatch ({} inputs, {} outputs).", inputs.size(), outputs.size());
 		return false;
 	}
 
 	bool manual_config_files = !config_paths.empty();
 	if (manual_config_files && inputs.size() != config_paths.size()) {
 		u::log(
-			L"Input filename/config paths count mismatch ({} inputs, {} config paths).",
+			"Input filename/config paths count mismatch ({} inputs, {} config paths).",
 			inputs.size(),
 			config_paths.size()
 		);
@@ -54,7 +54,7 @@ bool cli::run(
 
 		if (!std::filesystem::exists(input_path)) {
 			// TODO: test with unicode
-			u::log(L"Video '{}' was not found (wrong path?)", input_path.wstring());
+			u::log("Video '{}' was not found (wrong path?)", input_path.string());
 			continue;
 		}
 
@@ -62,7 +62,7 @@ bool cli::run(
 
 		auto video_info = u::get_video_info(input_path);
 		if (!video_info.has_video_stream) {
-			u::log(L"Video '{}' is not a valid video or is unreadable", input_path.wstring());
+			u::log("Video '{}' is not a valid video or is unreadable", input_path.string());
 			continue;
 		}
 
@@ -85,9 +85,9 @@ bool cli::run(
 
 		if (blur.verbose) {
 			u::log(
-				L"Queued '{}' for render, outputting to '{}'",
+				"Queued '{}' for render, outputting to '{}'",
 				render.get_video_name(),
-				render.get_output_video_path().wstring()
+				render.get_output_video_path().string()
 			);
 		}
 	}
@@ -96,7 +96,7 @@ bool cli::run(
 	while (!blur.exiting && rendering.render_next_video())
 		;
 
-	u::log(L"Finished rendering");
+	u::log("Finished rendering");
 
 	return true;
 }

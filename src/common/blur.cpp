@@ -36,15 +36,15 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 
 	if (used_installer) {
 #if defined(_WIN32)
-		vspipe_path = (blur.resources_path / "lib\\vapoursynth\\vspipe.exe").wstring();
-		ffmpeg_path = (blur.resources_path / "lib\\ffmpeg\\ffmpeg.exe").wstring();
-		ffprobe_path = (blur.resources_path / "lib\\ffmpeg\\ffprobe.exe").wstring();
+		vspipe_path = (blur.resources_path / "lib\\vapoursynth\\vspipe.exe");
+		ffmpeg_path = (blur.resources_path / "lib\\ffmpeg\\ffmpeg.exe");
+		ffprobe_path = (blur.resources_path / "lib\\ffmpeg\\ffprobe.exe");
 #elif defined(__linux__)
 		// todo
 #elif defined(__APPLE__)
-		vspipe_path = (blur.resources_path / "vapoursynth/vspipe").wstring();
-		ffmpeg_path = (blur.resources_path / "ffmpeg/ffmpeg").wstring();
-		ffprobe_path = (blur.resources_path / "ffmpeg/ffprobe").wstring();
+		vspipe_path = (blur.resources_path / "vapoursynth/vspipe");
+		ffmpeg_path = (blur.resources_path / "ffmpeg/ffmpeg");
+		ffprobe_path = (blur.resources_path / "ffmpeg/ffprobe");
 #endif
 
 		const static std::string manual_troubleshooting_info = "Try redownloading the latest installer.";

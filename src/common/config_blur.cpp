@@ -181,9 +181,11 @@ tl::expected<void, std::string> config_blur::validate(BlurSettings& config, bool
 	}
 
 	if (!u::contains(SVP_INTERPOLATION_ALGORITHMS, config.advanced.svp_interpolation_algorithm)) {
-		errors.insert(std::format(
-			"SVP interpolation algorithm ({}) is not a valid option", config.advanced.svp_interpolation_algorithm
-		));
+		errors.insert(
+			std::format(
+				"SVP interpolation algorithm ({}) is not a valid option", config.advanced.svp_interpolation_algorithm
+			)
+		);
 
 		if (fix)
 			config.advanced.svp_interpolation_algorithm = DEFAULT_CONFIG.advanced.svp_interpolation_algorithm;
@@ -347,7 +349,7 @@ config_blur::ConfigRes config_blur::get_config(const std::filesystem::path& conf
 		if (!local_cfg_exists) {
 			create(config_filepath);
 
-			u::log(L"Configuration file not found, default config generated at {}", config_filepath.wstring());
+			u::log("Configuration file not found, default config generated at {}", config_filepath.string());
 		}
 
 		cfg_path = config_filepath;

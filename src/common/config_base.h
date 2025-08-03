@@ -82,7 +82,7 @@ namespace config_base {
 			create_func(config_path, ConfigType());
 
 			if (blur.verbose)
-				u::log(L"Configuration file not found, default config generated at {}", config_path.wstring());
+				u::log("Configuration file not found, default config generated at {}", config_path.string());
 		}
 
 		return parse_func(config_path);

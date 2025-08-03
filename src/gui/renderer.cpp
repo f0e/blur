@@ -291,7 +291,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 void gui::renderer::on_render_finished(Render* render, const tl::expected<RenderResult, std::string>& result) {
 	if (!result) {
 		gui::components::notifications::add(
-			std::format("Render '{}' failed. Click to copy error message", u::tostring(render->get_video_name())),
+			std::format("Render '{}' failed. Click to copy error message", render->get_video_name()),
 			ui::NotificationType::NOTIF_ERROR,
 			[result](const std::string& id) {
 				SDL_SetClipboardText(result.error().c_str());
@@ -317,7 +317,7 @@ void gui::renderer::on_render_finished(Render* render, const tl::expected<Render
 
 	if (result->stopped) {
 		gui::components::notifications::add(
-			std::format("Render '{}' stopped", u::tostring(render->get_video_name())), ui::NotificationType::INFO
+			std::format("Render '{}' stopped", render->get_video_name()), ui::NotificationType::INFO
 		);
 		return;
 	}
@@ -325,7 +325,7 @@ void gui::renderer::on_render_finished(Render* render, const tl::expected<Render
 	auto output_path = render->get_output_video_path();
 
 	gui::components::notifications::add(
-		std::format("Render '{}' completed", u::tostring(render->get_video_name())),
+		std::format("Render '{}' completed", render->get_video_name()),
 		ui::NotificationType::SUCCESS,
 		[output_path](const std::string& id) {
 			// Convert path to a file:// URL for SDL_OpenURL
