@@ -8,6 +8,7 @@
 
 #include "../ui/ui.h"
 #include "../render/render.h"
+#include <SDL3/SDL_dialog.h>
 
 namespace main = gui::components::main;
 
@@ -30,12 +31,18 @@ void main::open_files_button(ui::Container& container, const std::string& label)
 			}
 		};
 
+		const SDL_DialogFileFilter filters[] = {
+			{ "Video files",
+			  "webm;mkv;flv;vob;ogv;ogg;rrc;gifv;mng;mov;avi;qt;wmv;yuv;rm;rmvb;asf;amv;mp4;m4p;m4v;mpg;mp2;mpeg;mpe;"
+			  "mpv;svi;3gp;3g2;mxf;roq;nsv;f4v;f4p;f4a;f4b;mod;ts;m2ts;mts;divx;bik;wtv;drc" }
+		};
+
 		SDL_ShowOpenFileDialog(
 			file_callback, // Properly typed callback function
 			nullptr,       // userdata
 			nullptr,       // parent window (nullptr for default)
-			nullptr,       // file filters
-			0,             // number of filters
+			filters,       // file filters
+			1,             // number of filters
 			"",            // default path
 			true           // allow multiple files
 		);

@@ -128,7 +128,7 @@ void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
 
 		Render render(path, video_info);
 
-		u::log(L"queueing {}", path.wstring());
+		u::log("queueing {}", path.string());
 
 		if (gui::renderer::screen != gui::renderer::Screens::MAIN) {
 			gui::components::notifications::add(
@@ -164,10 +164,7 @@ void tasks::process_pending_files() {
 
 		if (!video_info.has_video_stream) {
 			gui::components::notifications::add(
-				std::format(
-					"File is not a valid video or is unreadable: {}",
-					u::tostring(render.get_input_video_path().wstring())
-				),
+				std::format("File is not a valid video or is unreadable: {}", render.get_input_video_path().string()),
 				ui::NotificationType::NOTIF_ERROR
 			);
 			continue;

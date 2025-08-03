@@ -498,7 +498,7 @@ std::map<int, std::string> u::get_rife_gpus() {
 		"y4m",
 #if defined(__APPLE__)
 		"-a",
-		std::format(L"macos_bundled={}", blur.used_installer ? "true" : "false"),
+		std::format("macos_bundled={}", blur.used_installer ? "true" : "false"),
 #endif
 #if defined(__linux__)
 		"-a",
