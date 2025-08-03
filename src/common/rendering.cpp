@@ -264,25 +264,21 @@ tl::expected<RenderCommands, std::string> Render::build_render_commands() {
 	std::vector<std::wstring> audio_filters;
 	if (m_settings.timescale) {
 		if (m_settings.input_timescale != 1.f) {
-			audio_filters.push_back(
-				std::format(
-					L"asetrate={}*{}",
-					m_video_info.sample_rate != -1 ? m_video_info.sample_rate : 48000,
-					(1 / m_settings.input_timescale)
-				)
-			);
+			audio_filters.push_back(std::format(
+				L"asetrate={}*{}",
+				m_video_info.sample_rate != -1 ? m_video_info.sample_rate : 48000,
+				(1 / m_settings.input_timescale)
+			));
 			audio_filters.emplace_back(L"aresample=48000");
 		}
 
 		if (m_settings.output_timescale != 1.f) {
 			if (m_settings.output_timescale_audio_pitch) {
-				audio_filters.push_back(
-					std::format(
-						L"asetrate={}*{}",
-						m_video_info.sample_rate != -1 ? m_video_info.sample_rate : 48000,
-						m_settings.output_timescale
-					)
-				);
+				audio_filters.push_back(std::format(
+					L"asetrate={}*{}",
+					m_video_info.sample_rate != -1 ? m_video_info.sample_rate : 48000,
+					m_settings.output_timescale
+				));
 				audio_filters.emplace_back(L"aresample=48000");
 			}
 			else {
@@ -293,16 +289,14 @@ tl::expected<RenderCommands, std::string> Render::build_render_commands() {
 
 	if (!audio_filters.empty()) {
 		commands.ffmpeg.emplace_back(L"-af");
-		commands.ffmpeg.push_back(
-			std::accumulate(
-				std::next(audio_filters.begin()),
-				audio_filters.end(),
-				audio_filters[0],
-				[](const std::wstring& a, const std::wstring& b) {
-					return a + L"," + b;
-				}
-			)
-		);
+		commands.ffmpeg.push_back(std::accumulate(
+			std::next(audio_filters.begin()),
+			audio_filters.end(),
+			audio_filters[0],
+			[](const std::wstring& a, const std::wstring& b) {
+				return a + L"," + b;
+			}
+		));
 	}
 
 	if (!m_settings.advanced.ffmpeg_override.empty()) {
@@ -404,8 +398,8 @@ tl::expected<RenderResult, std::string> Render::do_render(RenderCommands render_
 
 #if defined(__APPLE__)
 		if (blur.used_installer) {
-			env["PYTHONHOME"] = (blur.resources_path / "python").string();
-			env["PYTHONPATH"] = (blur.resources_path / "python/lib/python3.12/site-packages").string();
+			env["PYTHONHOME"] = (blur.resources_path / "python").native();
+			env["PYTHONPATH"] = (blur.resources_path / "python/lib/python3.12/site-packages").native();
 		}
 #endif
 
@@ -419,7 +413,8 @@ tl::expected<RenderResult, std::string> Render::do_render(RenderCommands render_
 
 		// Launch vspipe process
 		bp::child vspipe_process(
-			blur.vspipe_path.string(),
+			blur.vspipe_path.native(
+			), // TODO FISH: test if .string was gonna fail and if this is okay (and change in other places)
 			bp::args(render_commands.vspipe),
 			bp::std_out > vspipe_stdout,
 			bp::std_err > vspipe_stderr,
@@ -432,7 +427,7 @@ tl::expected<RenderResult, std::string> Render::do_render(RenderCommands render_
 
 		// Launch ffmpeg process
 		bp::child ffmpeg_process(
-			blur.ffmpeg_path.string(),
+			blur.ffmpeg_path.native(),
 			bp::args(render_commands.ffmpeg),
 			bp::std_in<vspipe_stdout, bp::std_out.null(), bp::std_err> ffmpeg_stderr,
 			env

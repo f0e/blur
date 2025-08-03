@@ -97,8 +97,8 @@ tl::expected<void, std::string> FrameRender::do_render(RenderCommands render_com
 
 #if defined(__APPLE__)
 		if (blur.used_installer) {
-			env["PYTHONHOME"] = (blur.resources_path / "python").string();
-			env["PYTHONPATH"] = (blur.resources_path / "python/lib/python3.12/site-packages").string();
+			env["PYTHONHOME"] = (blur.resources_path / "python").native();
+			env["PYTHONPATH"] = (blur.resources_path / "python/lib/python3.12/site-packages").native();
 		}
 #endif
 

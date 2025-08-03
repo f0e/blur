@@ -165,7 +165,7 @@ void tasks::process_pending_files() {
 
 		if (!video_info.has_video_stream) {
 			gui::components::notifications::add(
-				std::format("File is not a valid video or is unreadable: {}", render.get_input_video_path().string()),
+				std::format("File is not a valid video or is unreadable: {}", render.get_input_video_path()),
 				ui::NotificationType::NOTIF_ERROR
 			);
 			continue;

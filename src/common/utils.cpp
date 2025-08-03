@@ -111,7 +111,7 @@ std::optional<std::filesystem::path> u::get_program_path(const std::string& prog
 
 	fs::path program_path = bp::search_path(program_name);
 
-	std::filesystem::path path(program_path.string());
+	std::filesystem::path path(program_path.native());
 
 	if (!std::filesystem::exists(path))
 		return {};
@@ -424,13 +424,11 @@ std::vector<u::EncodingDevice> u::get_hardware_encoding_devices() {
 
 	for (size_t i = 0; i < tests.size(); ++i) {
 		if (futures[i].get()) {
-			devices.emplace_back(
-				EncodingDevice{
-					.type = tests[i].type,
-					.method = tests[i].method,
-					.is_primary = devices.empty(),
-				}
-			);
+			devices.emplace_back(EncodingDevice{
+				.type = tests[i].type,
+				.method = tests[i].method,
+				.is_primary = devices.empty(),
+			});
 		}
 	}
 
@@ -522,8 +520,8 @@ std::map<int, std::string> u::get_rife_gpus() {
 
 #if defined(__APPLE__)
 	if (blur.used_installer) {
-		env["PYTHONHOME"] = (blur.resources_path / "python").string();
-		env["PYTHONPATH"] = (blur.resources_path / "python/lib/python3.12/site-packages").string();
+		env["PYTHONHOME"] = (blur.resources_path / "python").native();
+		env["PYTHONPATH"] = (blur.resources_path / "python/lib/python3.12/site-packages").native();
 	}
 #endif
 
@@ -547,7 +545,7 @@ std::map<int, std::string> u::get_rife_gpus() {
 		"-a",
 		std::format("linux_bundled={}", vapoursynth_plugins_bundled ? "true" : "false"),
 #endif
-		get_gpus_script_path.string(),
+		get_gpus_script_path.native(),
 		"-",
 		bp::std_out.null(),
 		bp::std_err > err_stream,
@@ -598,8 +596,8 @@ int u::get_fastest_rife_gpu_index(
 
 #if defined(__APPLE__)
 		if (blur.used_installer) {
-			env["PYTHONHOME"] = (blur.resources_path / "python").string();
-			env["PYTHONPATH"] = (blur.resources_path / "python/lib/python3.12/site-packages").string();
+			env["PYTHONHOME"] = (blur.resources_path / "python").native();
+			env["PYTHONPATH"] = (blur.resources_path / "python/lib/python3.12/site-packages").native();
 		}
 #endif
 
