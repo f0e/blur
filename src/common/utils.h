@@ -26,6 +26,19 @@ struct fmt::formatter<std::filesystem::path> : fmt::formatter<std::string> {
 };
 
 namespace u {
+	std::wstring towstring(const std::string& str);
+	std::string tostring(const std::wstring& wstr);
+
+	inline std::string path_to_string(const std::filesystem::path& p) {
+		auto native = p.native();
+		if constexpr (std::is_same_v<decltype(native), std::wstring>) {
+			return u::tostring(native);
+		}
+		else {
+			return native;
+		}
+	}
+
 	namespace detail {
 		inline spdlog::logger& get_logger() {
 			static auto logger = []() {

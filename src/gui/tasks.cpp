@@ -128,7 +128,7 @@ void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
 
 		Render render(path, video_info);
 
-		u::log("queueing {}", path.string());
+		u::log("queueing {}", path);
 
 		if (gui::renderer::screen != gui::renderer::Screens::MAIN) {
 			gui::components::notifications::add(

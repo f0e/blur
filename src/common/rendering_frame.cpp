@@ -84,8 +84,8 @@ tl::expected<void, std::string> FrameRender::do_render(RenderCommands render_com
 #ifndef _DEBUG
 		if (settings.advanced.debug) {
 #endif
-			DEBUG_LOG("VSPipe command: {} {}", blur.vspipe_path.string(), u::join(render_commands.vspipe, " "));
-			DEBUG_LOG("FFmpeg command: {} {}", blur.ffmpeg_path.string(), u::join(render_commands.ffmpeg, " "));
+			DEBUG_LOG("VSPipe command: {} {}", blur.vspipe_path, u::join(render_commands.vspipe, " "));
+			DEBUG_LOG("FFmpeg command: {} {}", blur.ffmpeg_path, u::join(render_commands.ffmpeg, " "));
 #ifndef _DEBUG
 		}
 #endif

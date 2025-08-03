@@ -161,7 +161,7 @@ bool updates::update_to_tag(
 		// Open file for writing
 		std::ofstream installer_file(installer_path.string(), std::ios::binary);
 		if (!installer_file.is_open()) {
-			u::log("Failed to create installer file at {}", installer_path.string());
+			u::log("Failed to create installer file at {}", installer_path);
 			return false;
 		}
 

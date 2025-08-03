@@ -8,6 +8,49 @@ namespace {
 	// std::set<std::string> hw_encoders;
 }
 
+// NOLINTBEGIN gpt ass code
+std::wstring u::towstring(const std::string& str) {
+	if (str.empty())
+		return std::wstring();
+
+#ifdef _WIN32
+	// Windows-specific implementation
+	int size_needed = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), nullptr, 0);
+	std::wstring result(size_needed, 0);
+	MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), &result[0], size_needed);
+	return result;
+#else
+	// POSIX systems (Linux, macOS, etc.)
+	std::vector<wchar_t> buf(str.size() + 1);
+	std::mbstowcs(&buf[0], str.c_str(), str.size() + 1);
+	return std::wstring(&buf[0]);
+#endif
+}
+
+std::string u::tostring(const std::wstring& wstr) {
+	if (wstr.empty()) {
+		return std::string();
+	}
+
+#ifdef _WIN32
+	// Windows-specific implementation
+	int size_needed = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), (int)wstr.size(), nullptr, 0, nullptr, nullptr);
+	std::string result(size_needed, 0);
+	WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), (int)wstr.size(), &result[0], size_needed, nullptr, nullptr);
+	return result;
+#else
+	// POSIX systems (Linux, macOS, etc.)
+	std::vector<char> buf((wstr.size() + 1) * MB_CUR_MAX);
+	size_t converted = std::wcstombs(&buf[0], wstr.c_str(), buf.size());
+	if (converted == static_cast<size_t>(-1)) {
+		return std::string(); // Conversion failed
+	}
+	return std::string(&buf[0], converted);
+#endif
+}
+
+// NOLINTEND
+
 std::string u::trim(std::string_view str) {
 	str.remove_prefix(std::min(str.find_first_not_of(" \t\r\v\n"), str.size()));
 	str.remove_suffix(std::min(str.size() - str.find_last_not_of(" \t\r\v\n") - 1, str.size()));

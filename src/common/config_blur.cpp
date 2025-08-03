@@ -349,7 +349,7 @@ config_blur::ConfigRes config_blur::get_config(const std::filesystem::path& conf
 		if (!local_cfg_exists) {
 			create(config_filepath);
 
-			u::log("Configuration file not found, default config generated at {}", config_filepath.string());
+			u::log("Configuration file not found, default config generated at {}", config_filepath);
 		}
 
 		cfg_path = config_filepath;

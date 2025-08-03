@@ -140,7 +140,7 @@ void Blur::cleanup() {
 	rendering.stop_renders_and_wait();
 
 	// remove temp dirs
-	DEBUG_LOG("removing temp path {}", temp_path.string());
+	DEBUG_LOG("removing temp path {}", temp_path);
 	std::filesystem::remove_all(temp_path); // todo: is this unsafe lol
 
 	u::log("Application cleanup completed");
@@ -150,16 +150,16 @@ std::optional<std::filesystem::path> Blur::create_temp_path(const std::string& f
 	auto temp_dir = temp_path / folder_name;
 
 	if (std::filesystem::exists(temp_dir)) {
-		u::log("temp dir {} already exists, clearing and re-creating", temp_path.string());
+		u::log("temp dir {} already exists, clearing and re-creating", temp_path);
 		remove_temp_path(temp_dir);
 	}
 
-	u::log("trying to make temp dir {}", temp_dir.string());
+	u::log("trying to make temp dir {}", temp_dir);
 
 	if (!std::filesystem::create_directory(temp_dir))
 		return {};
 
-	u::log("created temp dir {}", temp_dir.string());
+	u::log("created temp dir {}", temp_dir);
 
 	return temp_dir;
 }
@@ -173,7 +173,7 @@ bool Blur::remove_temp_path(const std::filesystem::path& temp_path) {
 
 	try {
 		std::filesystem::remove_all(temp_path);
-		u::log("removed temp dir {}", temp_path.string());
+		u::log("removed temp dir {}", temp_path);
 
 		return true;
 	}

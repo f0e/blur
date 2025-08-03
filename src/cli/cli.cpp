@@ -54,7 +54,7 @@ bool cli::run(
 
 		if (!std::filesystem::exists(input_path)) {
 			// TODO: test with unicode
-			u::log("Video '{}' was not found (wrong path?)", input_path.string());
+			u::log("Video '{}' was not found (wrong path?)", input_path);
 			continue;
 		}
 
@@ -62,7 +62,7 @@ bool cli::run(
 
 		auto video_info = u::get_video_info(input_path);
 		if (!video_info.has_video_stream) {
-			u::log("Video '{}' is not a valid video or is unreadable", input_path.string());
+			u::log("Video '{}' is not a valid video or is unreadable", input_path);
 			continue;
 		}
 
@@ -85,9 +85,7 @@ bool cli::run(
 
 		if (blur.verbose) {
 			u::log(
-				"Queued '{}' for render, outputting to '{}'",
-				render.get_video_name(),
-				render.get_output_video_path().string()
+				"Queued '{}' for render, outputting to '{}'", render.get_video_name(), render.get_output_video_path()
 			);
 		}
 	}
