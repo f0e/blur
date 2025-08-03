@@ -181,7 +181,7 @@ void configs::config_preview(ui::Container& container) {
 					static auto file_callback = [](void* userdata, const char* const* files, int filter) {
 						if (files != nullptr && *files != nullptr) {
 							const char* file = *files;
-							tasks::add_sample_video(u::to_path(file));
+							tasks::add_sample_video(u::string_to_path(file));
 						}
 					};
 

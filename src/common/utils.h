@@ -303,7 +303,7 @@ namespace u {
 		return degree * (M_PI / 180.0);
 	}
 
-	static auto to_path(const auto& str) {
+	static auto string_to_path(const auto& str) {
 		if constexpr (std::is_same_v<std::filesystem::path::string_type, std::wstring>) {
 			return std::filesystem::path{ u::towstring(str) };
 		}
