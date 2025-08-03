@@ -40,7 +40,7 @@ bool desktop_notification::show(const std::string& title, const std::string& mes
 	try {
 		auto toast_xml = ToastNotificationManager::GetTemplateContent(ToastTemplateType::ToastText02);
 
-		auto text_elements = toast_xml.GetElementsByTagName("text");
+		auto text_elements = toast_xml.GetElementsByTagName(L"text");
 		text_elements.Item(0).AppendChild(toast_xml.CreateTextNode(winrt::to_hstring(title)));
 		text_elements.Item(1).AppendChild(toast_xml.CreateTextNode(winrt::to_hstring(message)));
 
