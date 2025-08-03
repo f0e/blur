@@ -261,7 +261,11 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 		);
 
 		ui::add_button(
-			"fix config button", content_container, "Reset invalid config options to defaults", fonts::dejavu, [&] {
+			"fix config button",
+			content_container,
+			"Reset invalid config options to defaults",
+			fonts::dejavu,
+			[&] {
 				config_blur::validate(settings, true);
 			}
 		);

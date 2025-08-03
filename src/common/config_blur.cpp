@@ -181,11 +181,9 @@ tl::expected<void, std::string> config_blur::validate(BlurSettings& config, bool
 	}
 
 	if (!u::contains(SVP_INTERPOLATION_ALGORITHMS, config.advanced.svp_interpolation_algorithm)) {
-		errors.insert(
-			std::format(
-				"SVP interpolation algorithm ({}) is not a valid option", config.advanced.svp_interpolation_algorithm
-			)
-		);
+		errors.insert(std::format(
+			"SVP interpolation algorithm ({}) is not a valid option", config.advanced.svp_interpolation_algorithm
+		));
 
 		if (fix)
 			config.advanced.svp_interpolation_algorithm = DEFAULT_CONFIG.advanced.svp_interpolation_algorithm;
