@@ -295,14 +295,12 @@ namespace u {
 		return str;
 	}
 
-	template<typename T>
-	static constexpr T rad_to_deg(T radian) {
+	static constexpr auto rad_to_deg(const auto& radian) {
 		return radian * (180.f / M_PI);
 	}
 
-	template<typename T>
-	static constexpr T deg_to_rad(T degree) {
-		return static_cast<T>(degree * (M_PI / 180.f));
+	static constexpr auto deg_to_rad(const auto& degree) {
+		return degree * (M_PI / 180.0);
 	}
 
 	static auto to_path(const auto& str) {
