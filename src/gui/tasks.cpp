@@ -100,7 +100,7 @@ void tasks::run(const std::vector<std::string>& arguments) {
 	std::vector<std::filesystem::path> paths;
 	paths.reserve(arguments.size());
 	for (const auto& argument : arguments) {
-		paths.emplace_back(u::towstring(argument));
+		paths.emplace_back(std::filesystem::u8path(argument));
 	}
 	// TODO FISH: TEST. should be fine.
 

@@ -115,7 +115,7 @@ Render::Render(
 	static uint32_t current_render_id = 1; // 0 is null
 	m_render_id = current_render_id++;
 
-	this->m_video_name = u::tostring(this->m_video_path.stem());
+	this->m_video_name = u::tostring(this->m_video_path.stem().wstring());
 	this->m_video_folder = this->m_video_path.parent_path();
 
 	// parse config file (do it now, not when rendering. nice for batch rendering the same file with different settings)
@@ -202,7 +202,7 @@ tl::expected<RenderCommands, std::string> Render::build_render_commands() {
 		                L"-a",
 		                std::format(L"linux_bundled={}", vapoursynth_plugins_bundled ? L"true" : L"false"),
 #endif
-		                blur_script_path,
+		                blur_script_path.wstring(),
 		                L"-" };
 
 	// Build ffmpeg command

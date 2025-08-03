@@ -24,7 +24,7 @@ void main::open_files_button(ui::Container& container, const std::string& label)
 					if (file == nullptr)
 						break; // null-terminated array
 
-					wpaths.emplace_back(u::towstring(file));
+					wpaths.emplace_back(std::filesystem::u8path(file));
 				}
 
 				// TODO FISH: TEST

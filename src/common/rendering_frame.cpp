@@ -47,7 +47,7 @@ tl::expected<RenderCommands, std::string> FrameRender::build_render_commands(
 		                L"-a",
 		                std::format(L"linux_bundled={}", vapoursynth_plugins_bundled ? L"true" : L"false"),
 #endif
-		                blur_script_path,
+		                blur_script_path.wstring(),
 		                L"-" };
 
 	// Build ffmpeg command
@@ -140,6 +140,7 @@ tl::expected<void, std::string> FrameRender::do_render(RenderCommands render_com
 		std::thread vspipe_stderr_thread([&]() {
 			std::string line;
 			while (std::getline(vspipe_stderr, line)) {
+				u::log("LINE BRO: {}", line);
 				vspipe_stderr_output << line << '\n';
 			}
 		});
