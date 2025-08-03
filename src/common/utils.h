@@ -305,6 +305,15 @@ namespace u {
 		return static_cast<T>(degree * (M_PI / 180.f));
 	}
 
+	static auto to_path(const auto& str) {
+		if constexpr (std::is_same_v<std::filesystem::path::string_type, std::wstring>) {
+			return std::filesystem::path{ u::towstring(str) };
+		}
+		else {
+			return std::filesystem::path{ str };
+		}
+	}
+
 	std::string trim(std::string_view str);
 	std::string random_string(int len);
 	std::vector<std::string> split_string(std::string str, const std::string& delimiter);
