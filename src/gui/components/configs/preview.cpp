@@ -181,14 +181,15 @@ void configs::config_preview(ui::Container& container) {
 					static auto file_callback = [](void* userdata, const char* const* files, int filter) {
 						if (files != nullptr && *files != nullptr) {
 							const char* file = *files;
-							tasks::add_sample_video(std::filesystem::u8path(file));
+							tasks::add_sample_video(u::to_path(file));
 						}
 					};
 
 					const SDL_DialogFileFilter filters[] = {
 						{ "Video files",
-						"webm;mkv;flv;vob;ogv;ogg;rrc;gifv;mng;mov;avi;qt;wmv;yuv;rm;rmvb;asf;amv;mp4;m4p;m4v;mpg;mp2;mpeg;mpe;"
-						"mpv;svi;3gp;3g2;mxf;roq;nsv;f4v;f4p;f4a;f4b;mod;ts;m2ts;mts;divx;bik;wtv;drc" }
+						  "webm;mkv;flv;vob;ogv;ogg;rrc;gifv;mng;mov;avi;qt;wmv;yuv;rm;rmvb;asf;amv;mp4;m4p;m4v;mpg;"
+						  "mp2;mpeg;mpe;"
+						  "mpv;svi;3gp;3g2;mxf;roq;nsv;f4v;f4p;f4a;f4b;mod;ts;m2ts;mts;divx;bik;wtv;drc" }
 					};
 
 					SDL_ShowOpenFileDialog(
