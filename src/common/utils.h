@@ -18,17 +18,35 @@
 		*_res;                                                                                                         \
 	})
 
+namespace u {
+	std::wstring towstring(const std::string& str);
+	std::string tostring(const std::wstring& wstr);
+}
+
 template<>
 struct fmt::formatter<std::filesystem::path> : fmt::formatter<std::string> {
 	auto format(const std::filesystem::path& p, format_context& ctx) const {
-		return fmt::formatter<std::string>::format(p.string(), ctx);
+#if defined(_WIN32)
+		return fmt::formatter<std::string, char>::format(u::tostring(p.native()), ctx);
+#else
+		return fmt::formatter<std::string, char>::format(p.native(), ctx);
+#endif
+	}
+};
+
+template<>
+struct std::formatter<std::filesystem::path, char> : std::formatter<std::string, char> {
+	template<typename FormatContext>
+	auto format(const std::filesystem::path& p, FormatContext& ctx) const {
+#if defined(_WIN32)
+		return std::formatter<std::string, char>::format(u::tostring(p.native()), ctx);
+#else
+		return std::formatter<std::string, char>::format(p.native(), ctx);
+#endif
 	}
 };
 
 namespace u {
-	std::wstring towstring(const std::string& str);
-	std::string tostring(const std::wstring& wstr);
-
 	namespace detail {
 		inline spdlog::logger& get_logger() {
 			static auto logger = []() {
@@ -375,15 +393,3 @@ namespace u {
 	bool windows_toggle_suspend_process(DWORD pid, bool to_suspend);
 #endif
 }
-
-template<>
-struct std::formatter<std::filesystem::path, char> : std::formatter<std::string, char> {
-	template<typename FormatContext>
-	auto format(const std::filesystem::path& p, FormatContext& ctx) const {
-#if defined(_WIN32)
-		return std::formatter<std::string, char>::format(u::tostring(p.native()), ctx);
-#else
-		return std::formatter<std::string, char>::format(p.native(), ctx);
-#endif
-	}
-};
