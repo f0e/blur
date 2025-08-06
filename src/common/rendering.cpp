@@ -413,8 +413,7 @@ tl::expected<RenderResult, std::string> Render::do_render(RenderCommands render_
 
 		// Launch vspipe process
 		bp::child vspipe_process(
-			blur.vspipe_path.native(
-			), // TODO FISH: test if .string was gonna fail and if this is okay (and change in other places)
+			boost::filesystem::path{ blur.vspipe_path },
 			bp::args(render_commands.vspipe),
 			bp::std_out > vspipe_stdout,
 			bp::std_err > vspipe_stderr,
@@ -427,9 +426,11 @@ tl::expected<RenderResult, std::string> Render::do_render(RenderCommands render_
 
 		// Launch ffmpeg process
 		bp::child ffmpeg_process(
-			blur.ffmpeg_path.native(),
+			boost::filesystem::path{ blur.ffmpeg_path },
 			bp::args(render_commands.ffmpeg),
-			bp::std_in<vspipe_stdout, bp::std_out.null(), bp::std_err> ffmpeg_stderr,
+			bp::std_out.null(),
+			bp::std_err > ffmpeg_stderr,
+			bp::std_in < vspipe_stdout,
 			env
 #ifdef _WIN32
 			,

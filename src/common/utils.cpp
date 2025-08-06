@@ -268,7 +268,7 @@ u::VideoInfo u::get_video_info(const std::filesystem::path& path) {
 
 	bp::ipstream pipe_stream;
 	bp::child c(
-		blur.ffprobe_path.native(),
+		boost::filesystem::path{ blur.ffprobe_path },
 		"-v",
 		"error",
 		"-select_streams",
@@ -280,11 +280,11 @@ u::VideoInfo u::get_video_info(const std::filesystem::path& path) {
 		"format=duration",
 		"-of",
 		"default=noprint_wrappers=1",
-		path.native(),
+		boost::filesystem::path{ path },
 		bp::std_out > pipe_stream,
-		bp::std_err > bp::null
+		bp::std_err.null()
 #ifdef _WIN32
-		,
+			,
 		bp::windows::create_no_window
 #endif
 	);
@@ -364,12 +364,12 @@ bool u::test_hardware_device(const std::string& device_type) {
 
 	bp::ipstream error_stream;
 	bp::child c(
-		blur.ffmpeg_path.native(),
+		boost::filesystem::path{ blur.ffmpeg_path },
 		"-init_hw_device",
 		(device_type + "=hw"),
 		"-loglevel",
 		"error",
-		bp::std_out > bp::null,
+		bp::std_out.null(),
 		bp::std_err > error_stream
 #ifdef _WIN32
 		,
@@ -534,7 +534,7 @@ std::map<int, std::string> u::get_rife_gpus() {
 	bp::ipstream err_stream;
 
 	bp::child c(
-		blur.vspipe_path.native(),
+		boost::filesystem::path{ blur.vspipe_path },
 		"-c",
 		"y4m",
 #if defined(__APPLE__)
@@ -545,7 +545,7 @@ std::map<int, std::string> u::get_rife_gpus() {
 		"-a",
 		std::format("linux_bundled={}", vapoursynth_plugins_bundled ? "true" : "false"),
 #endif
-		get_gpus_script_path.native(),
+		boost::filesystem::path{ get_gpus_script_path },
 		"-",
 		bp::std_out.null(),
 		bp::std_err > err_stream,
@@ -608,7 +608,7 @@ int u::get_fastest_rife_gpu_index(
 		auto start = std::chrono::steady_clock::now();
 
 		bp::child c(
-			blur.vspipe_path.native(),
+			boost::filesystem::path{ blur.vspipe_path },
 			"-c",
 			"y4m",
 			"-p",
@@ -632,7 +632,7 @@ int u::get_fastest_rife_gpu_index(
 #endif
 			"-e",
 			"2",
-			benchmark_gpus_script_path.native(),
+			boost::filesystem::path{ benchmark_gpus_script_path },
 			"-",
 			bp::std_out.null(),
 			bp::std_err.null(),

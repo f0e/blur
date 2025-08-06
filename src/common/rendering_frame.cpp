@@ -83,6 +83,7 @@ tl::expected<void, std::string> FrameRender::do_render(RenderCommands render_com
 		boost::asio::io_context io_context;
 		bp::pipe vspipe_stdout;
 		bp::ipstream vspipe_stderr;
+		bp::ipstream ffmpeg_stderr;
 
 #ifndef _DEBUG
 		if (settings.advanced.debug) {
@@ -112,7 +113,7 @@ tl::expected<void, std::string> FrameRender::do_render(RenderCommands render_com
 
 		// Declare as local variables first, then move or assign
 		auto vspipe_process = bp::child(
-			blur.vspipe_path.native(),
+			boost::filesystem::path{ blur.vspipe_path },
 			bp::args(render_commands.vspipe),
 			bp::std_out > vspipe_stdout,
 			bp::std_err > vspipe_stderr,
@@ -125,7 +126,7 @@ tl::expected<void, std::string> FrameRender::do_render(RenderCommands render_com
 		);
 
 		auto ffmpeg_process = bp::child(
-			blur.ffmpeg_path.native(),
+			boost::filesystem::path{ blur.ffmpeg_path },
 			bp::args(render_commands.ffmpeg),
 			bp::std_in < vspipe_stdout,
 			bp::std_out.null(),
