@@ -328,8 +328,7 @@ void gui::renderer::on_render_finished(Render* render, const tl::expected<Render
 		std::format("Render '{}' completed", render->get_video_name()),
 		ui::NotificationType::SUCCESS,
 		[output_path](const std::string& id) {
-			// Convert path to a file:// URL for SDL_OpenURL
-			std::string file_url = "file://" + output_path.string(); // TODO FISH: TEST
+			std::string file_url = std::format("file://{}", output_path);
 			if (!SDL_OpenURL(file_url.c_str())) {
 				u::log_error("Failed to open output folder: {}", SDL_GetError());
 			}
