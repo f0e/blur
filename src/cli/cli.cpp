@@ -2,9 +2,9 @@
 #include "common/rendering.h"
 
 bool cli::run(
-	std::vector<std::string> inputs,
-	std::vector<std::string> outputs,
-	std::vector<std::string> config_paths,
+	std::vector<std::filesystem::path> inputs,
+	std::vector<std::filesystem::path> outputs,
+	std::vector<std::filesystem::path> config_paths,
 	bool preview,
 	bool verbose,
 	bool disable_update_check
@@ -50,7 +50,7 @@ bool cli::run(
 	}
 
 	for (size_t i = 0; i < inputs.size(); ++i) {
-		std::filesystem::path input_path(inputs[i]);
+		std::filesystem::path input_path = inputs[i];
 
 		if (!std::filesystem::exists(input_path)) {
 			// TODO: test with unicode
@@ -70,10 +70,10 @@ bool cli::run(
 		std::optional<std::filesystem::path> config_path;
 
 		if (manual_config_files)
-			config_path = std::filesystem::canonical(config_paths[i]);
+			config_path = config_paths[i];
 
 		if (manual_output_files) {
-			output_path = std::filesystem::absolute(outputs[i]);
+			output_path = outputs[i];
 
 			// create output directory if needed
 			if (!std::filesystem::exists(output_path->parent_path()))

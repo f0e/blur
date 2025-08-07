@@ -323,9 +323,17 @@ namespace u {
 
 	static auto string_to_path(const auto& str) {
 		if constexpr (std::is_same_v<std::filesystem::path::string_type, std::wstring>) {
-			return std::filesystem::path{ u::towstring(str) };
+			if constexpr (std::is_same_v<std::decay_t<decltype(str)>, std::wstring>) {
+				// str is already wstring, no conversion needed
+				return std::filesystem::path{ str };
+			}
+			else {
+				// str is string, convert to wstring first
+				return std::filesystem::path{ u::towstring(str) };
+			}
 		}
 		else {
+			// filesystem path expects std::string, so just forward
 			return std::filesystem::path{ str };
 		}
 	}

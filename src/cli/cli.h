@@ -2,9 +2,9 @@
 
 namespace cli {
 	bool run(
-		std::vector<std::string> inputs,
-		std::vector<std::string> outputs,
-		std::vector<std::string> config_paths,
+		std::vector<std::filesystem::path> inputs,
+		std::vector<std::filesystem::path> outputs,
+		std::vector<std::filesystem::path> config_paths,
 		bool preview,
 		bool verbose,
 		bool disable_update_check = false
