@@ -20,6 +20,11 @@ int wmain(int argc, wchar_t* argv[]) {
 #else
 int main(int argc, char* argv[]) {
 #endif
+	// fix logs on windows
+#ifdef WIN32
+	SetConsoleOutputCP(CP_UTF8);
+#endif
+
 	CLI::App app{ "Add motion blur to videos" };
 
 	std::vector<PathStr> input_strs;
