@@ -141,7 +141,6 @@ tl::expected<void, std::string> FrameRender::do_render(RenderCommands render_com
 		std::thread vspipe_stderr_thread([&]() {
 			std::string line;
 			while (std::getline(vspipe_stderr, line)) {
-				u::log("LINE BRO: {}", line);
 				vspipe_stderr_output << line << '\n';
 			}
 		});
