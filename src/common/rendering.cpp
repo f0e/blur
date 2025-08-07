@@ -115,7 +115,11 @@ Render::Render(
 	static uint32_t current_render_id = 1; // 0 is null
 	m_render_id = current_render_id++;
 
-	this->m_video_name = std::format("{}", this->m_video_path.stem()); // gorilla
+#ifdef WIN32
+	this->m_video_name = u::tostring(this->m_video_path.stem().wstring());
+#else
+	this->m_video_name = this->m_video_path.stem();
+#endif
 
 	this->m_video_folder = this->m_video_path.parent_path();
 
