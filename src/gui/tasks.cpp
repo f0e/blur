@@ -102,7 +102,6 @@ void tasks::run(const std::vector<std::string>& arguments) {
 	for (const auto& argument : arguments) {
 		paths.emplace_back(u::string_to_path(argument));
 	}
-	// TODO FISH: TEST. should be fine.
 
 	add_files(paths); // todo: mac packaged app support (& linux? does it work?)
 

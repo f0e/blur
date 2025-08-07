@@ -27,7 +27,6 @@ void main::open_files_button(ui::Container& container, const std::string& label)
 					wpaths.emplace_back(u::string_to_path(file));
 				}
 
-				// TODO FISH: TEST
 				tasks::add_files(wpaths);
 			}
 		};
