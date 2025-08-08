@@ -4,6 +4,7 @@ old
 
 # tests
 tests/assets/*
+test_outputs/
 
 # outputs
 build/
