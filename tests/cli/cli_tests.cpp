@@ -7,6 +7,8 @@ namespace test_utils {
 	const std::filesystem::path TEST_VIDEO_PATH = CURRENT_DIR / "../assets/test_video.mp4";
 
 	bool copy_test_video(const std::filesystem::path& path) {
+		assert(std::filesystem::exists(TEST_VIDEO_PATH));
+
 		try {
 			std::filesystem::copy_file(TEST_VIDEO_PATH, path, std::filesystem::copy_options::overwrite_existing);
 			return true;
