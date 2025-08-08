@@ -24,6 +24,11 @@ bool Rendering::render_next_video() {
 	tl::expected<RenderResult, std::string> render_result;
 	try {
 		render_result = render->render();
+
+		if (!render_result) {
+			u::log(render_result.error());
+			u::log("Failed to render {}", render->get_video_name());
+		}
 	}
 	catch (const std::exception& e) {
 		u::log("Render exception: {}", e.what());
