@@ -159,9 +159,9 @@ jobs:
               iscc installer/setup.iss
               mv installer/output/blur-installer.exe installer/output/blur-Windows-Installer-x64.exe
 
-              files+=(
-                "$PWD/installer/output/blur-Windows-Installer-x64.exe"
-              )
+              # files+=(
+              #   "$PWD/installer/output/blur-Windows-Installer-x64.exe"
+              # )
               ;;
 
             "Linux")
