@@ -436,6 +436,7 @@ namespace ui {
 	void remove_video(AnimatedElement& element);
 
 	void render_videos();
+	void handle_videos_event(const SDL_Event& event, bool& to_render);
 
 	void render_button(const Container& container, const AnimatedElement& element);
 	bool update_button(const Container& container, AnimatedElement& element);

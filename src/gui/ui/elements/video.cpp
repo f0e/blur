@@ -15,6 +15,22 @@ void ui::render_videos() {
 	}
 }
 
+void ui::handle_videos_event(const SDL_Event& event, bool& to_render) {
+	for (auto& [id, player] : video_players) {
+		if (player) {
+			switch (event.type) {
+				case SDL_EVENT_KEY_DOWN:
+					player->handle_key_press(event.key.key);
+					break;
+
+				default:
+					player->handle_mpv_event(event, to_render);
+					break;
+			}
+		}
+	}
+}
+
 void ui::render_video(const Container& container, const AnimatedElement& element) {
 	const auto& video_data = std::get<VideoElementData>(element.element->data);
 	float anim = element.animations.at(hasher("main")).current;
