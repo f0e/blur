@@ -85,6 +85,15 @@ void VideoPlayer::initialize_mpv() {
 		},
 	};
 
+	// Tell libmpv that you will call mpv_render_context_update() on render
+	// context update callbacks, and that you will _not_ block on the core
+	// ever (see <libmpv/render.h> "Threading" section for what libmpv
+	// functions you can call at all when this is active).
+	// In particular, this means you must call e.g. mpv_command_async()
+	// instead of mpv_command().
+	// If you want to use synchronous calls, either make them on a separate
+	// thread, or remove the option below (this will disable features like
+	// DR and is not recommended anyway).
 	int advanced_control = 1;
 
 	std::vector<mpv_render_param> params{ { .type = MPV_RENDER_PARAM_API_TYPE,
