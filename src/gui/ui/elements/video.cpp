@@ -92,7 +92,7 @@ std::optional<ui::AnimatedElement*> ui::add_video(
 			auto player_ref = video_players.emplace(video_path.string(), std::make_unique<VideoPlayer>());
 			player = player_ref.first->second.get();
 			player->load_file(video_path.string().c_str());
-			u::log_error("{} loaded video from {}", id, video_path.string());
+			u::log("{} loaded video from {}", id, video_path.string());
 		}
 		catch (const std::exception& e) {
 			u::log_error("{} failed to load video from {} ({})", id, video_path.string(), e.what());
