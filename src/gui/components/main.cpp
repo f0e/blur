@@ -27,7 +27,7 @@ void main::open_files_button(ui::Container& container, const std::string& label)
 					wpaths.emplace_back(u::string_to_path(file));
 				}
 
-				tasks::add_files_for_render(wpaths);
+				tasks::set_video_player_path(wpaths[0]);
 			}
 		};
 
@@ -226,7 +226,7 @@ void main::home_screen(ui::Container& container, float delta_time) {
 		ui::add_video(
 			"test video",
 			container,
-			"test.mp4",
+			tasks::video_player_path,
 			gfx::Size(container.get_usable_rect().w, container.get_usable_rect().h / 2)
 		);
 

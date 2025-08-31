@@ -2,6 +2,7 @@
 
 #include "../render/render.h"
 #include "helpers/text_input.h"
+#include "helpers/video.h"
 
 namespace ui {
 	inline size_t frame = 0;
@@ -132,6 +133,7 @@ namespace ui {
 
 	struct VideoElementData {
 		std::filesystem::path video_path;
+		VideoPlayer* player;
 
 		bool operator==(const VideoElementData& other) const {
 			return video_path == other.video_path;

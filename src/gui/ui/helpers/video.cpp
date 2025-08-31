@@ -25,14 +25,25 @@ void VideoPlayer::load_file(const char* file_path) {
 }
 
 void VideoPlayer::render(int w, int h) {
+	glGenFramebuffers(1, &m_fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+	glGenTextures(1, &m_tex);
+	glBindTexture(GL_TEXTURE_2D, m_tex);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_tex, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 	mpv_opengl_fbo fbo{
-		.fbo = 0,
+		.fbo = (int)m_fbo,
 		.w = w,
 		.h = h,
-		.internal_format = 0,
+		.internal_format = GL_RGB,
 	};
 
-	int flip_y = 1;
+	int flip_y = 0;
 
 	std::vector<mpv_render_param> params{ { .type = MPV_RENDER_PARAM_OPENGL_FBO, .data = &fbo },
 		                                  { .type = MPV_RENDER_PARAM_FLIP_Y, .data = &flip_y },

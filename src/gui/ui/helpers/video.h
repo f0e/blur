@@ -31,6 +31,9 @@ public:
 
 	void handle_mpv_event(const SDL_Event& event, bool& redraw);
 
+	GLuint m_fbo;
+	GLuint m_tex;
+
 private:
 	mpv_handle* m_mpv = nullptr;
 	mpv_render_context* m_mpv_gl = nullptr;

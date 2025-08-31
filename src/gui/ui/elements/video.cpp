@@ -10,7 +10,7 @@ namespace {
 void ui::render_videos() {
 	for (auto& [id, player] : video_players) {
 		if (player) {
-			player->render(100, 100);
+			player->render(1000, 1000);
 		}
 	}
 }
@@ -38,6 +38,13 @@ void ui::render_video(const Container& container, const AnimatedElement& element
 	int alpha = anim * 255;
 	int stroke_alpha = anim * 125;
 
+	render::imgui.drawlist->AddImage(
+		video_data.player->m_tex,
+		element.element->rect.origin(),
+		element.element->rect.max(),
+		ImVec2(0, 0),
+		ImVec2(1, 1)
+	);
 	render::borders(
 		element.element->rect, gfx::Color(155, 155, 155, stroke_alpha), gfx::Color(80, 80, 80, stroke_alpha)
 	);
@@ -84,9 +91,13 @@ void ui::remove_video(AnimatedElement& element) {
 std::optional<ui::AnimatedElement*> ui::add_video(
 	const std::string& id, Container& container, const std::filesystem::path& video_path, const gfx::Size& max_size
 ) {
+	if (video_path.empty()) {
+		return {};
+	}
 	VideoPlayer* player = nullptr;
 
 	auto video_player_it = video_players.find(video_path.string());
+
 	if (video_player_it == video_players.end()) {
 		try {
 			auto player_ref = video_players.emplace(video_path.string(), std::make_unique<VideoPlayer>());
@@ -131,6 +142,7 @@ std::optional<ui::AnimatedElement*> ui::add_video(
 		video_rect,
 		VideoElementData{
 			.video_path = video_path,
+			.player = player,
 		},
 		render_video,
 		update_video,

@@ -12,6 +12,7 @@
 #include "components/configs/configs.h"
 
 namespace {
+	std::filesystem::path video_player_path;
 	std::vector<std::filesystem::path> pending_video_paths;
 	std::mutex pending_video_paths_mutex;
 }
@@ -193,4 +194,8 @@ void tasks::add_sample_video(const std::filesystem::path& path_str) {
 	gui::components::notifications::add("Added sample video", ui::NotificationType::SUCCESS);
 
 	gui::components::configs::just_added_sample_video = true;
+}
+
+void tasks::set_video_player_path(const std::filesystem::path& path_str) {
+	video_player_path = path_str;
 }
