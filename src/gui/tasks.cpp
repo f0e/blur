@@ -103,7 +103,7 @@ void tasks::run(const std::vector<std::string>& arguments) {
 		paths.emplace_back(u::string_to_path(argument));
 	}
 
-	add_files(paths); // todo: mac packaged app support (& linux? does it work?)
+	add_files_for_render(paths); // todo: mac packaged app support (& linux? does it work?)
 
 	std::thread([] {
 		while (!blur.exiting) {
@@ -124,7 +124,7 @@ void tasks::run(const std::vector<std::string>& arguments) {
 	}
 }
 
-void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
+void tasks::add_files_for_render(const std::vector<std::filesystem::path>& path_strs) {
 	std::lock_guard<std::mutex> lock(pending_video_paths_mutex);
 
 	for (const auto& path_str : path_strs) {

@@ -63,7 +63,7 @@ int gui::run() {
 						}
 					}
 
-					tasks::add_files(paths);
+					tasks::add_files_for_render(paths);
 
 					break;
 				}

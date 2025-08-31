@@ -27,7 +27,7 @@ void main::open_files_button(ui::Container& container, const std::string& label)
 					wpaths.emplace_back(u::string_to_path(file));
 				}
 
-				tasks::add_files(wpaths);
+				tasks::add_files_for_render(wpaths);
 			}
 		};
 
