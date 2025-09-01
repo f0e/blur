@@ -39,12 +39,13 @@ void ui::render_video(const Container& container, const AnimatedElement& element
 	int stroke_alpha = anim * 125;
 
 	render::imgui.drawlist->AddImage(
-		video_data.player->m_tex,
+		video_data.player->get_frame_texture_for_render(),
 		element.element->rect.origin(),
 		element.element->rect.max(),
 		ImVec2(0, 0),
 		ImVec2(1, 1)
 	);
+
 	render::borders(
 		element.element->rect, gfx::Color(155, 155, 155, stroke_alpha), gfx::Color(80, 80, 80, stroke_alpha)
 	);

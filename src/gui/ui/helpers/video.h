@@ -14,6 +14,7 @@ public:
 		}
 
 		initialize_mpv();
+		gen_fbo_texture();
 	}
 
 	VideoPlayer(const VideoPlayer&) = default;
@@ -29,16 +30,20 @@ public:
 
 	void render(int w, int h);
 
-	void handle_mpv_event(const SDL_Event& event, bool& redraw);
+	[[nodiscard]] GLuint get_frame_texture_for_render() const {
+		return m_tex;
+	}
 
-	GLuint m_fbo;
-	GLuint m_tex;
+	void handle_mpv_event(const SDL_Event& event, bool& redraw);
 
 private:
 	mpv_handle* m_mpv = nullptr;
 	mpv_render_context* m_mpv_gl = nullptr;
 	Uint32 m_wakeup_on_mpv_render_update;
 	Uint32 m_wakeup_on_mpv_events;
+
+	GLuint m_fbo;
+	GLuint m_tex;
 
 	void initialize_mpv();
 
@@ -47,4 +52,8 @@ private:
 	void on_mpv_render_update();
 
 	void process_mpv_events();
+
+	void gen_fbo_texture();
+
+	void setup_fbo_texture(int w, int h) const;
 };

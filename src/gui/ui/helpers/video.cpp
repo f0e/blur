@@ -24,17 +24,33 @@ void VideoPlayer::load_file(const char* file_path) {
 	mpv_command_async(m_mpv, 0, cmd.data());
 }
 
-void VideoPlayer::render(int w, int h) {
+void VideoPlayer::gen_fbo_texture() {
 	glGenFramebuffers(1, &m_fbo);
 	glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+
 	glGenTextures(1, &m_tex);
 	glBindTexture(GL_TEXTURE_2D, m_tex);
+
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_tex, 0);
+
 	glBindTexture(GL_TEXTURE_2D, 0);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void VideoPlayer::setup_fbo_texture(int w, int h) const {
+	glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+	glBindTexture(GL_TEXTURE_2D, m_tex);
+
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_tex, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void VideoPlayer::render(int w, int h) {
+	setup_fbo_texture(w, h);
 
 	mpv_opengl_fbo fbo{
 		.fbo = (int)m_fbo,
