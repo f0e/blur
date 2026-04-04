@@ -130,7 +130,7 @@ Render::Render(
 
 	// parse config file (do it now, not when rendering. nice for batch rendering the same file with different settings)
 	auto config_res = config_blur::get_config(
-		config_path.has_value() ? output_path.value() : config_blur::get_config_filename(m_video_folder),
+		config_path.has_value() ? config_path.value() : config_blur::get_config_filename(m_video_folder),
 		!config_path.has_value() // use global only if no config path is specified
 	);
 
