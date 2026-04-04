@@ -75,9 +75,10 @@ bool cli::run(
 		if (manual_output_files) {
 			output_path = outputs[i];
 
-			// create output directory if needed
-			if (!std::filesystem::exists(output_path->parent_path()))
-				std::filesystem::create_directories(output_path->parent_path());
+			// create output directory if needed (skip if parent is empty, i.e., current dir)
+			auto parent = output_path->parent_path();
+			if (!parent.empty() && !std::filesystem::exists(parent))
+				std::filesystem::create_directories(parent);
 		}
 
 		// set up render
