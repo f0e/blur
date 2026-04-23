@@ -33,46 +33,6 @@ def find_next_good_frame(clip, duplicate_index: int, threshold: float, max_frame
     return None
 
 
-def create_rife_interp(good_frames, duped_frames, model_path: str, gpu_index: int):
-    interp = blur.interpolate.RIFE(
-        good_frames,
-        new_fps=duped_frames,
-        model_path=model_path,
-        gpu_index=gpu_index,
-    )
-
-    return interp[1 : 1 + duped_frames]  # first frame is a duplicate
-
-
-def create_svp_interp(
-    good_frames,
-    duped_frames,
-    svp_preset: str,
-    svp_algorithm: int,
-    svp_blocksize: int,
-    svp_masking: int,
-    svp_gpu: bool,
-):
-    [super_string, vectors_string, smooth_string] = (
-        blur.interpolate.generate_svp_strings(
-            new_fps=duped_frames,
-            preset=svp_preset,
-            algorithm=svp_algorithm,
-            blocksize=svp_blocksize,
-            # overlap=2,
-            # speed="medium",
-            masking=svp_masking,
-            gpu=svp_gpu,
-        )
-    )
-
-    interp = blur.interpolate.SVP(
-        good_frames, super_string, vectors_string, smooth_string
-    )
-
-    return interp[1 : 1 + duped_frames]  # first frame is a duplicate
-
-
 def get_interp(
     clip,
     duplicate_index: int,
@@ -152,6 +112,17 @@ def create_frame_handler(video, threshold, max_frames, interp_creator, debug, **
     return handle_frames
 
 
+def create_rife_interp(good_frames, duped_frames, model_path: str, gpu_index: int):
+    interp = blur.interpolate.RIFE(
+        good_frames,
+        new_fps=duped_frames,
+        model_path=model_path,
+        gpu_index=gpu_index,
+    )
+
+    return interp[1 : 1 + duped_frames]  # first frame is a duplicate
+
+
 def fill_drops_rife(
     _video: vs.VideoNode,
     video_info: u.VideoInfo,
@@ -182,6 +153,35 @@ def fill_drops_rife(
         vs.RGBS,
         process,
     )
+
+
+def create_svp_interp(
+    good_frames,
+    duped_frames,
+    svp_preset: str,
+    svp_algorithm: int,
+    svp_blocksize: int,
+    svp_masking: int,
+    svp_gpu: bool,
+):
+    [super_string, vectors_string, smooth_string] = (
+        blur.interpolate.generate_svp_strings(
+            new_fps=duped_frames,
+            preset=svp_preset,
+            algorithm=svp_algorithm,
+            blocksize=svp_blocksize,
+            # overlap=2,
+            # speed="medium",
+            masking=svp_masking,
+            gpu=svp_gpu,
+        )
+    )
+
+    interp = blur.interpolate.SVP(
+        good_frames, super_string, vectors_string, smooth_string
+    )
+
+    return interp[1 : 1 + duped_frames]  # first frame is a duplicate
 
 
 def fill_drops_svp(
