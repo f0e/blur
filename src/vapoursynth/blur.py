@@ -142,6 +142,7 @@ try:
                     gpu_index=rife_gpu_index,
                     threshold=deduplicate_threshold,
                     max_frames=deduplicate_range,
+                    duplicate_mode=settings["duplicate_mode"],
                     debug=settings["debug"],
                 )
 
@@ -152,6 +153,7 @@ try:
                     max_frames=deduplicate_range,
                     blocksize=interpolation_blocksize,
                     masking=interpolation_mask_area,
+                    duplicate_mode=settings["duplicate_mode"],
                     debug=settings["debug"],
                 )
 
@@ -161,6 +163,7 @@ try:
                     video_info=video_info,
                     threshold=deduplicate_threshold,
                     max_frames=deduplicate_range,
+                    duplicate_mode=settings["duplicate_mode"],
                     debug=settings["debug"],
                     svp_preset=settings["svp_interpolation_preset"],
                     svp_algorithm=svp_interpolation_algorithm,

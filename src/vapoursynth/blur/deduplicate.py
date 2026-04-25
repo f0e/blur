@@ -70,11 +70,26 @@ class DupeState:
         threshold: float,
         max_frames: int,
         interp_creator,
-        duplicate_mode: Literal["hold_last", "hold_next"],
+        duplicate_mode: str,
     ):
         self.num_duped_frames = 0
 
-        if duplicate_mode == "hold_last":  # A, A, A, B
+        if duplicate_mode == "surrounding frames":
+            self.last_good_idx = find_last_good_frame(
+                clip, duplicate_index, threshold, max_frames
+            )
+            self.next_good_idx = find_next_good_frame(
+                clip, duplicate_index, threshold, max_frames
+            )
+
+            if self.last_good_idx == -1 or self.next_good_idx == -1:
+                return
+
+            self.start_idx = duplicate_index
+            self.end_idx = self.next_good_idx - 1
+
+            u.log(f"last good: {self.last_good_idx}, next good: {self.next_good_idx}")
+        elif duplicate_mode == "previous to duplicate":  # A, A, A, B
             self.last_good_idx = duplicate_index - 1
             self.next_good_idx = find_next_good_frame(
                 clip, duplicate_index, threshold, max_frames
@@ -83,10 +98,11 @@ class DupeState:
             if self.next_good_idx == -1:
                 return
 
+            u.log(f"last good: {self.last_good_idx}, next good: {self.next_good_idx}")
+
             # TODO: review
-            self.start_idx = self.last_good_idx
-            self.end_idx = self.next_good_idx
-            self.num_duped_frames = self.next_good_idx - self.last_good_idx
+            self.start_idx = duplicate_index
+            self.end_idx = self.next_good_idx - 1
 
         else:  # A, B, B, B
             self.last_good_idx = find_last_good_frame(
@@ -120,8 +136,6 @@ class DupeState:
                 f"last good: {self.last_good_idx}, next good: {self.next_good_idx} (actual: {self.end_idx})"
             )
 
-            self.num_duped_frames = self.end_idx - self.last_good_idx
-
         # generate fake clip which includes the two good frames. this will be used to interpolate between them.
         # todo: possibly including more frames will result in better results?
         good_frames = clip[self.last_good_idx] + clip[self.next_good_idx]
@@ -130,6 +144,7 @@ class DupeState:
             f"doing interp. input frames: {self.last_good_idx} and {self.next_good_idx}"
         )
 
+        self.num_duped_frames = self.next_good_idx - self.last_good_idx
         self.cur_interp = interp_creator(good_frames, self.num_duped_frames)
         self.cur_interp = core.std.AssumeFPS(self.cur_interp, fpsnum=1, fpsden=1)
         self.dupe_idx += 1
@@ -145,7 +160,7 @@ class DupeState:
         threshold: float,
         max_frames: int,
         interp_creator,
-        duplicate_mode: Literal["hold_last", "hold_next"],
+        duplicate_mode: str,
     ):
         clip1 = core.std.AssumeFPS(clip, fpsnum=1, fpsden=1)
 
@@ -194,8 +209,17 @@ def create_frame_handler(
     max_frames,
     interp_creator,
     debug,
-    duplicate_mode: Literal["hold_last", "hold_next"],
+    duplicate_mode: str,
 ):
+    if duplicate_mode not in [
+        "previous to duplicate",
+        "duplicate to next",
+        "surrounding frames",
+    ]:
+        raise u.BlurException(
+            "Duplicate mode must be one of: 'previous to duplicate', 'duplicate to next', 'surrounding frames'"
+        )
+
     state = DupeState()
 
     def handle_frames(n):
@@ -216,7 +240,10 @@ def create_frame_handler(
                     f"using previous interp ({state.start_idx} <= {n} <= {state.end_idx})"
                 )
         else:
-            if duplicate_mode == "hold_next":
+            if duplicate_mode in [
+                "duplicate to next",
+                "surrounding frames",
+            ]:
                 if n + 1 >= len(video):
                     u.log("cant diff past end of vid")
                     return video
@@ -289,8 +316,8 @@ def fill_drops_rife(
     model_path: str,
     gpu_index: int,
     threshold: float,
-    max_frames: int | None = None,
-    duplicate_mode: Literal["hold_last", "hold_next"] = "hold_next",
+    max_frames: int | None,
+    duplicate_mode: str,
     debug=False,
 ):
     u.check_model_path(model_path)
@@ -352,8 +379,8 @@ def fill_drops_svp(
     _video: vs.VideoNode,
     video_info: u.VideoInfo,
     threshold: float,
-    max_frames: int | None = None,
-    duplicate_mode: Literal["hold_last", "hold_next"] = "hold_next",
+    max_frames: int | None,
+    duplicate_mode: str,
     svp_preset=blur.interpolate.DEFAULT_PRESET,
     svp_algorithm=blur.interpolate.DEFAULT_ALGORITHM,
     svp_blocksize=blur.interpolate.DEFAULT_BLOCKSIZE,
@@ -435,8 +462,8 @@ def create_mvtools_interp(
 def fill_drops_mvtools(
     video: vs.VideoNode,
     threshold: float,
-    max_frames: int | None = None,
-    duplicate_mode: Literal["hold_last", "hold_next"] = "hold_next",
+    max_frames: int | None,
+    duplicate_mode: str,
     blocksize: int = 4,
     masking: int = 100,
     pel: int = 1,

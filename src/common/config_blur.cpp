@@ -115,6 +115,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "- advanced deduplication" << "\n";
 			output << "deduplicate range: " << settings.advanced.deduplicate_range << "\n";
 			output << "deduplicate threshold: " << settings.advanced.deduplicate_threshold << "\n";
+			output << "deduplicate frames to interpolate: " << settings.advanced.duplicate_mode << "\n";
 
 			output << "\n";
 			output << "- advanced rendering" << "\n";
@@ -230,15 +231,15 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "blur", settings.blur);
 	config_base::extract_config_value(config_map, "blur amount", settings.blur_amount);
 	config_base::extract_config_value(config_map, "blur output fps", settings.blur_output_fps);
-	config_base::extract_config_string(config_map, "blur weighting", settings.blur_weighting);
+	config_base::extract_config_value(config_map, "blur weighting", settings.blur_weighting);
 	config_base::extract_config_value(config_map, "blur gamma", settings.blur_gamma);
 
 	config_base::extract_config_value(config_map, "interpolate", settings.interpolate);
-	config_base::extract_config_string(config_map, "interpolated fps", settings.interpolated_fps);
-	config_base::extract_config_string(config_map, "interpolation method", settings.interpolation_method);
+	config_base::extract_config_value(config_map, "interpolated fps", settings.interpolated_fps);
+	config_base::extract_config_value(config_map, "interpolation method", settings.interpolation_method);
 
 	config_base::extract_config_value(config_map, "pre-interpolate", settings.pre_interpolate);
-	config_base::extract_config_string(config_map, "pre-interpolated fps", settings.pre_interpolated_fps);
+	config_base::extract_config_value(config_map, "pre-interpolated fps", settings.pre_interpolated_fps);
 
 	config_base::extract_config_value(config_map, "deduplicate", settings.deduplicate);
 	config_base::extract_config_value(config_map, "deduplicate method", settings.deduplicate_method);
@@ -270,14 +271,15 @@ BlurSettings config_blur::parse_from_map(
 
 	if (settings.override_advanced) {
 		config_base::extract_config_value(config_map, "deduplicate range", settings.advanced.deduplicate_range);
-		config_base::extract_config_string(
-			config_map, "deduplicate threshold", settings.advanced.deduplicate_threshold
+		config_base::extract_config_value(config_map, "deduplicate threshold", settings.advanced.deduplicate_threshold);
+		config_base::extract_config_value(
+			config_map, "deduplicate frames to interpolate", settings.advanced.duplicate_mode
 		);
 
 		config_base::extract_config_value(config_map, "video container", settings.advanced.video_container);
-		config_base::extract_config_string(config_map, "custom ffmpeg filters", settings.advanced.ffmpeg_override);
+		config_base::extract_config_value(config_map, "custom ffmpeg filters", settings.advanced.ffmpeg_override);
 		config_base::extract_config_value(config_map, "debug", settings.advanced.debug);
-		config_base::extract_config_string(config_map, "resizing chroma location", settings.advanced.resize_chromaloc);
+		config_base::extract_config_value(config_map, "resizing chroma location", settings.advanced.resize_chromaloc);
 
 		config_base::extract_config_value(
 			config_map, "blur weighting gaussian std dev", settings.advanced.blur_weighting_gaussian_std_dev
@@ -285,27 +287,27 @@ BlurSettings config_blur::parse_from_map(
 		config_base::extract_config_value(
 			config_map, "blur weighting gaussian mean", settings.advanced.blur_weighting_gaussian_mean
 		);
-		config_base::extract_config_string(
+		config_base::extract_config_value(
 			config_map, "blur weighting gaussian bound", settings.advanced.blur_weighting_gaussian_bound
 		);
 
-		config_base::extract_config_string(
+		config_base::extract_config_value(
 			config_map, "svp interpolation preset", settings.advanced.svp_interpolation_preset
 		);
-		config_base::extract_config_string(
+		config_base::extract_config_value(
 			config_map, "svp interpolation algorithm", settings.advanced.svp_interpolation_algorithm
 		);
-		config_base::extract_config_string(
+		config_base::extract_config_value(
 			config_map, "interpolation block size", settings.advanced.interpolation_blocksize
 		);
 		config_base::extract_config_value(
 			config_map, "interpolation mask area", settings.advanced.interpolation_mask_area
 		);
-		config_base::extract_config_string(config_map, "rife model", settings.advanced.rife_model);
+		config_base::extract_config_value(config_map, "rife model", settings.advanced.rife_model);
 		config_base::extract_config_value(config_map, "manual svp", settings.advanced.manual_svp);
-		config_base::extract_config_string(config_map, "super string", settings.advanced.super_string);
-		config_base::extract_config_string(config_map, "vectors string", settings.advanced.vectors_string);
-		config_base::extract_config_string(config_map, "smooth string", settings.advanced.smooth_string);
+		config_base::extract_config_value(config_map, "super string", settings.advanced.super_string);
+		config_base::extract_config_value(config_map, "vectors string", settings.advanced.vectors_string);
+		config_base::extract_config_value(config_map, "smooth string", settings.advanced.smooth_string);
 	}
 
 	u::verify_gpu_encoding(settings);
@@ -415,6 +417,7 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 	// advanced
 	j["deduplicate_range"] = this->advanced.deduplicate_range;
 	j["deduplicate_threshold"] = this->advanced.deduplicate_threshold;
+	j["duplicate_mode"] = this->advanced.duplicate_mode;
 
 	// j["video_container"] = this->advanced.video_container;
 	// j["ffmpeg_override"] = this->advanced.ffmpeg_override;

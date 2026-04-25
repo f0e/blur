@@ -506,6 +506,19 @@ void configs::options(ui::Container& container) {
 			);
 		}
 
+		ui::add_dropdown(
+			"deduplicate frames to interpolate input",
+			container,
+			"deduplicate frames to interpolate",
+			{
+				"surrounding frames",
+				"previous to duplicate",
+				"duplicate to next",
+			},
+			settings.advanced.duplicate_mode,
+			fonts::dejavu
+		);
+
 		/*
 		    Advanced Rendering
 		*/

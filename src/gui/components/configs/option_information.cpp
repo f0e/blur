@@ -153,6 +153,17 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"deduplicate frames to interpolate input",
+			{
+				"If 'surrounding frames', the duplicate frame will be ignored, and the frames surrounding it will "
+				"be interpolated. This will result in more interpolation artifacts, but the smoothest output.",
+				"If 'previous to duplicate', duplicate frames after the first will be interpolated to the next unique "
+				"frame.",
+				"If 'duplicate to next', duplicate frames up to the last will be interpolated with the previous unique "
+				"frame.",
+			},
+		},
+		{
 			"deduplicate method dropdown",
 			{
 				// todo: update with mvtools

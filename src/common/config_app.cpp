@@ -49,8 +49,8 @@ GlobalAppSettings config_app::parse(const std::filesystem::path& config_filepath
 
 	GlobalAppSettings settings;
 
-	config_base::extract_config_string(config_map, "output prefix", settings.output_prefix);
-	config_base::extract_config_string(config_map, "gpu type (nvidia/amd/intel)", settings.gpu_type);
+	config_base::extract_config_value(config_map, "output prefix", settings.output_prefix);
+	config_base::extract_config_value(config_map, "gpu type (nvidia/amd/intel)", settings.gpu_type);
 	config_base::extract_config_value(config_map, "rife gpu number", settings.rife_gpu_index);
 
 	config_base::extract_config_value(config_map, "window width", settings.gui_width);
