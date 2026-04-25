@@ -2,8 +2,8 @@
 
 struct AdvancedSettings {
 	std::string video_container = "mp4";
-	int deduplicate_range = 2;
-	std::string deduplicate_threshold = "0.01";
+	int deduplicate_range = 5;
+	std::string deduplicate_threshold = "0.003";
 	std::string duplicate_mode = "surrounding frames + future check";
 	int max_future_checks = 3;
 	std::string ffmpeg_override;
