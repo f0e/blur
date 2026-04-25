@@ -64,7 +64,8 @@ void VideoPlayer::handle_key_press(SDL_Keycode key) {
 void VideoPlayer::load_file(const std::filesystem::path& file_path) {
 	run_command_async({ "loadfile", u::path_to_string(file_path) });
 
-	m_video_loaded = false; // reset video loaded state
+	m_current_file_path = file_path;
+	m_loaded_file = {};
 	m_is_seeking = false;
 
 	m_cached_percent_pos = -1.0;
@@ -127,7 +128,7 @@ bool VideoPlayer::render(int w, int h) {
 	}
 
 	// don't render until video is actually loaded and ready
-	if (!m_video_loaded) {
+	if (!m_loaded_file) {
 		return false;
 	}
 
@@ -288,7 +289,7 @@ void VideoPlayer::mpv_thread() {
 			return (m_queued_seek.has_value() && !m_is_seeking) || m_thread_exit || blur.exiting;
 		});
 
-		if (!m_mpv || !m_video_loaded) {
+		if (!m_mpv || !m_loaded_file) {
 			continue;
 		}
 
@@ -340,24 +341,28 @@ void VideoPlayer::process_mpv_events() {
 				}
 				break;
 			}
-			case MPV_EVENT_START_FILE:
+			case MPV_EVENT_START_FILE: {
 				u::log("MPV: Starting file");
-				m_video_loaded = false;
+				m_loaded_file = {};
 				m_is_seeking = false;
 				break;
-			case MPV_EVENT_FILE_LOADED:
+			}
+			case MPV_EVENT_FILE_LOADED: {
 				u::log("MPV: File loaded");
 				break;
-			case MPV_EVENT_VIDEO_RECONFIG:
+			}
+			case MPV_EVENT_VIDEO_RECONFIG: {
 				u::log("MPV: Video reconfigured");
 				// video is now ready to render
-				m_video_loaded = true;
+				m_loaded_file = m_current_file_path;
 				break;
-			case MPV_EVENT_PLAYBACK_RESTART:
+			}
+			case MPV_EVENT_PLAYBACK_RESTART: {
 				u::log("MPV: Playback restarted");
 				m_is_seeking = false;
 				m_seek_cv.notify_one();
 				break;
+			}
 			case MPV_EVENT_END_FILE: {
 				auto* end_event = static_cast<mpv_event_end_file*>(mp_event->data);
 				if (end_event->reason == MPV_END_FILE_REASON_ERROR) {
@@ -366,7 +371,7 @@ void VideoPlayer::process_mpv_events() {
 				else {
 					u::log("MPV: File ended normally");
 				}
-				m_video_loaded = false;
+				m_loaded_file = {};
 				break;
 			}
 			case MPV_EVENT_PROPERTY_CHANGE: {

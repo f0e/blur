@@ -148,18 +148,19 @@ namespace ui {
 		struct Video {
 			UIVideo data;
 			gfx::Size size;
-			std::shared_ptr<VideoPlayer> player;
 			std::optional<StoredWaveform*> waveform;
 			std::optional<gui_utils::ThumbnailRes> thumbnail;
 
 			bool operator==(const Video& other) const {
-				return data == other.data && size == other.size && player == other.player &&
-				       waveform == other.waveform && thumbnail == other.thumbnail;
+				return data == other.data && size == other.size && waveform == other.waveform &&
+				       thumbnail == other.thumbnail;
 			}
 		};
 
 		struct TrimHandleInfo {
 			bool grabbing;
+			bool grab_moving = false;
+			std::optional<int> grab_start_mouse_x;
 			// for the future
 		};
 

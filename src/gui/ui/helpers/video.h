@@ -80,7 +80,7 @@ public:
 	}
 
 	[[nodiscard]] bool is_video_ready() const {
-		return m_video_loaded;
+		return m_loaded_file.has_value();
 	}
 
 	void seek(float time, bool exact) {
@@ -127,28 +127,30 @@ public:
 	}
 
 	void set_end(float percent) {
+		if (percent == m_end_percent)
+			return;
+
 		m_end_percent = percent;
 
 		update_playback_range();
 	}
 
 	void set_start(float percent) {
+		if (percent == m_start_percent)
+			return;
+
 		m_start_percent = percent;
 
 		update_playback_range();
 	}
 
-	[[nodiscard]] bool is_focused_player() const {
-		return m_focused_player;
-	}
-
-	void set_focused_player(bool focused) {
-		m_focused_player = focused;
-	}
-
 	std::optional<Seek> get_queued_seek() {
 		std::lock_guard<std::mutex> lock(m_mutex);
 		return m_queued_seek;
+	}
+
+	std::optional<std::filesystem::path> get_current_file_path() {
+		return m_current_file_path;
 	}
 
 	// std::optional<Seek> get_seek() {
@@ -170,8 +172,8 @@ private:
 	int m_current_width{};
 	int m_current_height{};
 
-	bool m_video_loaded{};
-	bool m_focused_player{};
+	std::optional<std::filesystem::path> m_current_file_path;
+	std::optional<std::filesystem::path> m_loaded_file;
 
 	std::mutex m_mutex;
 	std::condition_variable m_seek_cv;
@@ -207,7 +209,7 @@ private:
 
 	template<typename VariableType>
 	std::optional<VariableType> get_property(const std::string& key, mpv_format variable_format) const {
-		if (!m_mpv || !m_video_loaded)
+		if (!m_mpv || !m_loaded_file)
 			return {};
 
 		VariableType data = 0;
