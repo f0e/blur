@@ -362,7 +362,7 @@ void gui::renderer::on_render_finished(
 		std::format("Render '{}' completed", video_name),
 		ui::NotificationType::SUCCESS,
 		[output_path = result->output_path](const std::string& id) {
-			std::string file_url = std::format("file://{}", output_path);
+			std::string file_url = std::format("file://{}", u::path_to_string(output_path));
 			if (!SDL_OpenURL(file_url.c_str())) {
 				u::log_error("Failed to open output folder: {}", SDL_GetError());
 			}
