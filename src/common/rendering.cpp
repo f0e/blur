@@ -58,7 +58,7 @@ tl::expected<std::filesystem::path, std::string> rendering::detail::create_temp_
 tl::expected<std::filesystem::path, std::string> rendering::detail::build_output_filename(
 	const std::filesystem::path& input_path, const BlurSettings& settings, const GlobalAppSettings& app_settings
 ) {
-	auto output_folder = input_path.parent_path() / app_settings.output_prefix;
+	auto output_folder = (input_path.parent_path() / app_settings.output_prefix).lexically_normal();
 
 	try {
 		std::filesystem::create_directories(output_folder);
