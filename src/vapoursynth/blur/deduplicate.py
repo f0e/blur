@@ -5,20 +5,16 @@ from typing import Literal
 import blur.interpolate
 import blur.utils as u
 
-cur_interp = None
-dupe_last_good_idx = -1
-dupe_next_good_idx = -1
-dupe_start_idx = -1
-dupe_end_idx = -1
-num_duped_frames = 0
-dupe_idx = 0
-
 DEBUG_ENABLED = False
 
 
 def debug_print(*args):
     if DEBUG_ENABLED:
         print("[DEBUG]:", *args)
+
+
+def frames_diff(framea: vs.VideoNode, frameb: vs.VideoNode):
+    return core.std.PlaneStats(framea, frameb).get_frame(0).props["PlaneStatsDiff"]
 
 
 def find_next_good_frame(clip, duplicate_index: int, threshold: float, max_frames: int):
@@ -32,12 +28,8 @@ def find_next_good_frame(clip, duplicate_index: int, threshold: float, max_frame
             last_possible_index = max_permitted
 
     while index <= last_possible_index:
-        test_frame = clip[index]
-        diffclip = core.std.PlaneStats(test_frame, duped_frame)
-
-        for frame2 in diffclip.frames():
-            if frame2.props["PlaneStatsDiff"] >= threshold:
-                return index
+        if frames_diff(duped_frame, clip[index]) >= threshold:
+            return index
 
         index += 1
 
@@ -55,146 +47,150 @@ def find_last_good_frame(clip, duplicate_index: int, threshold: float, max_frame
             first_possible_index = max_back
 
     while index >= first_possible_index:
-        test_frame = clip[index]
-        diffclip = core.std.PlaneStats(test_frame, duped_frame)
-
-        for frame2 in diffclip.frames():
-            if frame2.props["PlaneStatsDiff"] >= threshold:
-                return index
+        if frames_diff(duped_frame, clip[index]) >= threshold:
+            return index
 
         index -= 1
 
     return -1
 
 
-def get_interp(
-    clip,
-    duplicate_index: int,
-    threshold: float,
-    max_frames: int,
-    interp_creator,
-    duplicate_mode: Literal["hold_last", "hold_next"],
-):
-    global \
-        cur_interp, \
-        dupe_last_good_idx, \
-        dupe_next_good_idx, \
-        num_duped_frames, \
-        dupe_idx
-    global dupe_start_idx, dupe_end_idx
+class DupeState:
+    def __init__(self):
+        self.cur_interp = None
+        self.last_good_idx = -1
+        self.next_good_idx = -1
+        self.start_idx = -1
+        self.end_idx = -1
+        self.num_duped_frames = 0
+        self.dupe_idx = 0
 
-    num_duped_frames = 0
+    def reset_interp(self):
+        self.cur_interp = None
 
-    if duplicate_mode == "hold_last":  # A, A, A, B
-        dupe_last_good_idx = duplicate_index - 1
-        dupe_next_good_idx = find_next_good_frame(
-            clip, duplicate_index, threshold, max_frames
-        )
+    def compute_interp(
+        self,
+        clip,
+        duplicate_index: int,
+        threshold: float,
+        max_frames: int,
+        interp_creator,
+        duplicate_mode: Literal["hold_last", "hold_next"],
+    ):
+        self.num_duped_frames = 0
 
-        if dupe_next_good_idx == -1:
-            return
+        if duplicate_mode == "hold_last":  # A, A, A, B
+            self.last_good_idx = duplicate_index - 1
+            self.next_good_idx = find_next_good_frame(
+                clip, duplicate_index, threshold, max_frames
+            )
 
-        # TODO: review
-        dupe_start_idx = dupe_last_good_idx
-        dupe_end_idx = dupe_next_good_idx
-
-        num_duped_frames = dupe_next_good_idx - dupe_last_good_idx
-
-    else:  # A, B, B, B
-        dupe_last_good_idx = find_last_good_frame(
-            clip, duplicate_index, threshold, max_frames
-        )
-        dupe_next_good_idx = duplicate_index
-
-        if dupe_last_good_idx == -1:
-            return
-
-        dupe_start_idx = dupe_next_good_idx
-        next_frame = find_next_good_frame(
-            clip, dupe_last_good_idx + 1, threshold, max_frames
-        )
-        if next_frame == -1:
-            if not max_frames:
-                # hit end of video, assume things change there
-                next_frame = len(clip)
-            else:
-                # just abort to avoid weirdness TODO: check this is right
+            if self.next_good_idx == -1:
                 return
 
-        dupe_end_idx = next_frame - 1  # dupes end the frame before the next good frame
+            # TODO: review
+            self.start_idx = self.last_good_idx
+            self.end_idx = self.next_good_idx
+            self.num_duped_frames = self.next_good_idx - self.last_good_idx
+
+        else:  # A, B, B, B
+            self.last_good_idx = find_last_good_frame(
+                clip, duplicate_index, threshold, max_frames
+            )
+            self.next_good_idx = duplicate_index
+
+            if self.last_good_idx == -1:
+                return
+
+            self.start_idx = self.next_good_idx
+            next_frame = find_next_good_frame(
+                clip, self.last_good_idx + 1, threshold, max_frames
+            )
+
+            if next_frame == -1:
+                if not max_frames:
+                    # hit end of video, assume things change there
+                    next_frame = len(clip)
+                else:
+                    # just abort to avoid weirdness TODO: check this is right
+                    # thoughts in meantime, if no good frame is found then it could very well be a false positive duplicate frame
+                    # e.g. only text is moving on the screen, every frame is gonna be detected as a 'dupe', but that's wrong.
+                    # if no good frame is found, just back out and don't dedupe,
+                    # *nothing's changing anyway, it's not like frames being duplicated matters*
+                    return
+
+            self.end_idx = next_frame - 1
+
+            debug_print(
+                f"last good: {self.last_good_idx}, next good: {self.next_good_idx} (actual: {self.end_idx})"
+            )
+
+            self.num_duped_frames = self.end_idx - self.last_good_idx
+
+        # generate fake clip which includes the two good frames. this will be used to interpolate between them.
+        # todo: possibly including more frames will result in better results?
+        good_frames = clip[self.last_good_idx] + clip[self.next_good_idx]
 
         debug_print(
-            f"last good: {dupe_last_good_idx}, next good: {dupe_next_good_idx} (actual: {dupe_end_idx})"
+            f"doing interp. input frames: {self.last_good_idx} and {self.next_good_idx}"
         )
 
-        num_duped_frames = dupe_end_idx - dupe_last_good_idx
+        self.cur_interp = interp_creator(good_frames, self.num_duped_frames)
+        self.cur_interp = core.std.AssumeFPS(self.cur_interp, fpsnum=1, fpsden=1)
+        self.dupe_idx += 1
 
-    # generate fake clip which includes the two good frames. this will be used to interpolate between them.
-    # todo: possibly including more frames will result in better results?
-    good_frames = clip[dupe_last_good_idx] + clip[dupe_next_good_idx]
-
-    debug_print(
-        f"doing interp. input frames: {dupe_last_good_idx} and {dupe_next_good_idx}"
-    )
-    cur_interp = interp_creator(good_frames, num_duped_frames)
-    cur_interp = core.std.AssumeFPS(cur_interp, fpsnum=1, fpsden=1)
-    dupe_idx += 1
-
-    debug_print(
-        f"interpolated {len(cur_interp)} frames from {len(good_frames)} source frames"
-    )
-
-
-def interpolate_dupes(
-    clip: vs.VideoNode,
-    frame_index: int,
-    threshold: float,
-    max_frames: int,
-    interp_creator,
-    duplicate_mode: Literal["hold_last", "hold_next"],
-):
-    global cur_interp, dupe_last_good_idx, dupe_next_good_idx
-    global dupe_start_idx, dupe_end_idx
-
-    clip1 = core.std.AssumeFPS(clip, fpsnum=1, fpsden=1)
-
-    if cur_interp is None:
-        # haven't interpolated yet
-        debug_print("havent interpolated yet")
-        get_interp(
-            clip1,
-            frame_index,
-            threshold,
-            max_frames,
-            interp_creator,
-            duplicate_mode,
+        debug_print(
+            f"interpolated {len(self.cur_interp)} frames from {len(good_frames)} source frames"
         )
 
-    if cur_interp is None:
-        # interpolated but no dedupe solution. get out
-        return clip, False
+    def interpolate_dupes(
+        self,
+        clip: vs.VideoNode,
+        frame_index: int,
+        threshold: float,
+        max_frames: int,
+        interp_creator,
+        duplicate_mode: Literal["hold_last", "hold_next"],
+    ):
+        clip1 = core.std.AssumeFPS(clip, fpsnum=1, fpsden=1)
 
-    debug_print("creating interpolated output")
+        if self.cur_interp is None:
+            # haven't interpolated yet
+            debug_print("havent interpolated yet")
+            self.compute_interp(
+                clip1,
+                frame_index,
+                threshold,
+                max_frames,
+                interp_creator,
+                duplicate_mode,
+            )
 
-    # combine the good frames with the interpolated ones so that vapoursynth can use them by indexing
-    # (i hate how you have to do this, there might be nicer way idk)
-    joined = core.std.Trim(clip1, first=0, last=dupe_start_idx - 1)
-    debug_print(f"0-{dupe_start_idx}")
+        if self.cur_interp is None:
+            # interpolated but no dedupe solution. get out
+            return clip, False
 
-    joined += cur_interp
-    debug_print(f"({len(cur_interp)} interpolated frames)")
+        debug_print("creating interpolated output")
 
-    if dupe_end_idx + 1 < len(clip):
-        joined += core.std.Trim(clip1, first=dupe_end_idx + 1)
-        debug_print(f"{dupe_end_idx}-end")
+        # combine the good frames with the interpolated ones so that vapoursynth can use them by indexing
+        # (i hate how you have to do this, there might be nicer way idk)
+        joined = core.std.Trim(clip1, first=0, last=self.start_idx - 1)
+        debug_print(f"0-{self.start_idx}")
 
-    debug_print(f"debug len check: {len(clip)} == {len(joined)}")
+        joined += self.cur_interp
+        debug_print(f"({len(self.cur_interp)} interpolated frames)")
 
-    if frame_index >= dupe_end_idx:
-        # last frame of this interp, reset it
-        cur_interp = None
+        if self.end_idx + 1 < len(clip):
+            joined += core.std.Trim(clip1, first=self.end_idx + 1)
+            debug_print(f"{self.end_idx}-end")
 
-    return core.std.AssumeFPS(joined, src=clip), True
+        debug_print(f"debug len check: {len(clip)} == {len(joined)}")
+
+        if frame_index >= self.end_idx:
+            # last frame of this interp, reset it
+            self.reset_interp()
+
+        return core.std.AssumeFPS(joined, src=clip), True
 
 
 def create_frame_handler(
@@ -205,39 +201,57 @@ def create_frame_handler(
     debug,
     duplicate_mode: Literal["hold_last", "hold_next"],
 ):
-    def handle_frames(n):
-        global cur_interp
-        debug_print(f"\n\n--{n}--\n\n")
+    state = DupeState()
 
-        debug_print(f"start: {n}/{len(video) - 1} ({dupe_start_idx}-{dupe_end_idx})")
+    def handle_frames(n):
+        debug_print(f"\n\n--{n}/{len(video) - 1}--\n")
 
         diff = -1
+        debug_parts = []
 
-        if n >= dupe_start_idx and n <= dupe_end_idx:
+        if debug:
+            debug_parts.append(f"{n}/{len(video)}")
+
+        if state.start_idx <= n <= state.end_idx:
             # inside a dupe range already
-            pass
+            debug_print(f"inside a dupe ({state.start_idx}-{state.end_idx})")
+
+            if debug:
+                debug_parts.append(
+                    f"using previous interp ({state.start_idx} <= {n} <= {state.end_idx})"
+                )
         else:
             if duplicate_mode == "hold_next":
                 if n + 1 >= len(video):
                     debug_print("cant diff past end of vid")
                     return video
 
-                diffclip = core.std.PlaneStats(video[n], video[n + 1])
+                diff = frames_diff(video[n], video[n + 1])
             else:
                 if n == 0:
                     return video
 
-                diffclip = core.std.PlaneStats(video[n - 1], video[n])
+                diff = frames_diff(video[n - 1], video[n])
 
-            diff = next(diffclip.frames()).props["PlaneStatsDiff"]
+            debug_print(f"diff: {diff}/{threshold}")
 
-            debug_print(f"diff: {diff}")
+            if debug:
+                debug_parts.append(f"diff: {diff:.6f}")
+
+            # return core.text.Text(
+            #     clip=video,
+            #     text=f"{n} |{'' if diff >= threshold else ' >DUPE<'} diff: {diff:.6f}/{threshold:.6f}",
+            #     alignment=8,
+            # )
 
             if diff >= threshold:
-                cur_interp = None
+                debug_print("not a dupe")
+                state.reset_interp()
                 return video
 
-        out_video, was_dupe = interpolate_dupes(
+            debug_print("its a dupe")
+
+        out_video, was_dupe = state.interpolate_dupes(
             video,
             n,
             threshold,
@@ -248,18 +262,15 @@ def create_frame_handler(
 
         if debug:
             if was_dupe:
-                gap = num_duped_frames - 1
-                return core.text.Text(
-                    clip=out_video,
-                    text=f"{n} | duplicate, {gap} gap, diff: {diff:.4f} | dupe_idx: {dupe_idx}, dupe_last_good_idx: {dupe_last_good_idx}, dupe_next_good_idx: {dupe_next_good_idx}, num_duped_frames: {num_duped_frames} | start: {dupe_start_idx}, end: {dupe_end_idx}",
-                    alignment=8,
+                debug_parts.append(
+                    f"dupe_idx: {state.dupe_idx}, dupe_last_good_idx: {state.last_good_idx}, dupe_next_good_idx: {state.next_good_idx}, num_duped_frames: {state.num_duped_frames}"
                 )
-            else:
-                return core.text.Text(
-                    clip=out_video,
-                    text=f"{n}",
-                    alignment=8,
-                )
+
+            return core.text.Text(
+                clip=out_video,
+                text=" | ".join(debug_parts),
+                alignment=8,
+            )
 
         return out_video
 
@@ -282,7 +293,7 @@ def fill_drops_rife(
     video_info: u.VideoInfo,
     model_path: str,
     gpu_index: int,
-    threshold: float = 0.1,
+    threshold: float,
     max_frames: int | None = None,
     duplicate_mode: Literal["hold_last", "hold_next"] = "hold_next",
     debug=False,
@@ -345,7 +356,7 @@ def create_svp_interp(
 def fill_drops_svp(
     _video: vs.VideoNode,
     video_info: u.VideoInfo,
-    threshold: float = 0.1,
+    threshold: float,
     max_frames: int | None = None,
     duplicate_mode: Literal["hold_last", "hold_next"] = "hold_next",
     svp_preset=blur.interpolate.DEFAULT_PRESET,
@@ -428,7 +439,7 @@ def create_mvtools_interp(
 
 def fill_drops_mvtools(
     video: vs.VideoNode,
-    threshold: float = 0.1,
+    threshold: float,
     max_frames: int | None = None,
     duplicate_mode: Literal["hold_last", "hold_next"] = "hold_next",
     blocksize: int = 4,
@@ -496,7 +507,7 @@ def fill_drops_old(clip, threshold=0.1, debug=False):
 
 # def fill_drops_old_svp(
 #     video,
-#     threshold: float = 0.1,
+#     threshold: float,
 #     svp_preset=blur.interpolate.DEFAULT_PRESET,
 #     svp_algorithm=blur.interpolate.DEFAULT_ALGORITHM,
 #     svp_blocksize=blur.interpolate.DEFAULT_BLOCKSIZE,
