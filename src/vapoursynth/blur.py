@@ -143,6 +143,7 @@ try:
                     threshold=deduplicate_threshold,
                     max_frames=deduplicate_range,
                     duplicate_mode=settings["duplicate_mode"],
+                    max_future_checks=settings["max_future_checks"],
                     debug=settings["debug"],
                 )
 
@@ -154,6 +155,7 @@ try:
                     blocksize=interpolation_blocksize,
                     masking=interpolation_mask_area,
                     duplicate_mode=settings["duplicate_mode"],
+                    max_future_checks=settings["max_future_checks"],
                     debug=settings["debug"],
                 )
 
@@ -164,6 +166,7 @@ try:
                     threshold=deduplicate_threshold,
                     max_frames=deduplicate_range,
                     duplicate_mode=settings["duplicate_mode"],
+                    max_future_checks=settings["max_future_checks"],
                     debug=settings["debug"],
                     svp_preset=settings["svp_interpolation_preset"],
                     svp_algorithm=svp_interpolation_algorithm,

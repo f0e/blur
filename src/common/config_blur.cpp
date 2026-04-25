@@ -116,6 +116,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "deduplicate range: " << settings.advanced.deduplicate_range << "\n";
 			output << "deduplicate threshold: " << settings.advanced.deduplicate_threshold << "\n";
 			output << "deduplicate frames to interpolate: " << settings.advanced.duplicate_mode << "\n";
+			output << "deduplicate max future checks: " << settings.advanced.max_future_checks << "\n";
 
 			output << "\n";
 			output << "- advanced rendering" << "\n";
@@ -275,6 +276,9 @@ BlurSettings config_blur::parse_from_map(
 		config_base::extract_config_value(
 			config_map, "deduplicate frames to interpolate", settings.advanced.duplicate_mode
 		);
+		config_base::extract_config_value(
+			config_map, "deduplicate max future checks", settings.advanced.max_future_checks
+		);
 
 		config_base::extract_config_value(config_map, "video container", settings.advanced.video_container);
 		config_base::extract_config_value(config_map, "custom ffmpeg filters", settings.advanced.ffmpeg_override);
@@ -418,6 +422,7 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 	j["deduplicate_range"] = this->advanced.deduplicate_range;
 	j["deduplicate_threshold"] = this->advanced.deduplicate_threshold;
 	j["duplicate_mode"] = this->advanced.duplicate_mode;
+	j["max_future_checks"] = this->advanced.max_future_checks;
 
 	// j["video_container"] = this->advanced.video_container;
 	// j["ffmpeg_override"] = this->advanced.ffmpeg_override;

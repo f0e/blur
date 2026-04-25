@@ -473,6 +473,7 @@ namespace u {
 	};
 
 	VideoInfo get_video_info(const std::filesystem::path& path);
+	std::string get_timecodes(const std::filesystem::path& path);
 	int16_t get_audio_percentile_peak(const std::vector<int16_t>& samples, float percentile);
 
 	struct EncodingDevice {
@@ -512,9 +513,10 @@ namespace u {
 		std::string user_message;
 		std::string technical_details;
 		bool is_blur_exception = false;
+		std::string logs;
 
 		[[nodiscard]] std::string to_string() const {
-			return user_message + "\n\n" + technical_details;
+			return user_message + "\n\n" + technical_details + "\n\n[logs]\n" + logs;
 		}
 	};
 

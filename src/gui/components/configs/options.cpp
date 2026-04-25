@@ -520,6 +520,18 @@ void configs::options(ui::Container& container) {
 			fonts::dejavu
 		);
 
+		if (settings.advanced.duplicate_mode == "surrounding frames + future check") {
+			ui::add_slider(
+				"max future checks slider",
+				container,
+				0,
+				10,
+				&settings.advanced.max_future_checks,
+				"max future checks: {}",
+				fonts::dejavu
+			);
+		}
+
 		/*
 		    Advanced Rendering
 		*/

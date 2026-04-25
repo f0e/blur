@@ -5,6 +5,7 @@ struct AdvancedSettings {
 	int deduplicate_range = 2;
 	std::string deduplicate_threshold = "0.01";
 	std::string duplicate_mode = "surrounding frames + future check";
+	int max_future_checks = 3;
 	std::string ffmpeg_override;
 	bool debug = false;
 	std::string resize_chromaloc = "default";

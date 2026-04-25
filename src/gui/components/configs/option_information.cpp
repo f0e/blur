@@ -167,6 +167,14 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"max future checks slider",
+			{
+				"Maximum amount of times future duplicate frames can be skipped when using 'surrounding frames + "
+				"future check' for 'deduplicate frames to interpolate'. If this limit is passed, the first future "
+				"duplicate is used for interpolation.",
+			},
+		},
+		{
 			"deduplicate method dropdown",
 			{
 				// todo: update with mvtools

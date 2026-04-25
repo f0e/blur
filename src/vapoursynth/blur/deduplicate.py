@@ -59,6 +59,7 @@ class DupeState:
         max_frames: int,
         interp_creator,
         duplicate_mode: str,
+        max_future_checks: int,
     ):
         self.num_interped_frames = 0
 
@@ -75,8 +76,16 @@ class DupeState:
                 find_next_good_frame(clip, duplicate_index, threshold, max_frames)
             )
 
+            if any(idx == -1 for idx in interp_inputs):
+                return
+
             if duplicate_mode == "surrounding frames + future check":
-                while interp_inputs[-1] != -1 and interp_inputs[-1] + 1 < len(clip):
+                backup = interp_inputs.copy()
+
+                for _ in range(max_future_checks):
+                    if interp_inputs[-1] + 1 >= len(clip):
+                        break
+
                     u.log(f"checking {interp_inputs[-1]} vs {interp_inputs[-1]}")
 
                     diff = frames_diff(
@@ -92,12 +101,16 @@ class DupeState:
                         f"next_good_frame itself is a duplicate ({interp_inputs[-1]}=={interp_inputs[-1] + 1} (diff: {diff:.6f})), continuing the search"
                     )
 
-                    # TODO: should max_frames be lower now that we've already searched some frames?
                     interp_inputs.append(
                         find_next_good_frame(
                             clip, interp_inputs[-1], threshold, max_frames
                         )
                     )
+                else:
+                    u.log(
+                        f"exceeded max future checks ({max_future_checks}), just using the first next good frame found, even though it's a dupe"
+                    )
+                    interp_inputs = backup
 
             u.log("interp inputs:", ", ".join([str(idx) for idx in interp_inputs]))
 
@@ -148,9 +161,11 @@ class DupeState:
         good_frames = clip[interp_inputs[0]] + clip[interp_inputs[-1]]
         # good_frames = core.std.Splice([clip[idx] for idx in interp_inputs]) (this doesnt work because interp needs to do at least 2x input fps)
 
-        good_frames = core.std.AssumeFPS(good_frames, fpsnum=1, fpsden=1)
+        u.log(
+            f"doing interp. input frames: {interp_inputs[0]}, {interp_inputs[-1]} (len {len(good_frames)})"
+        )
 
-        u.log(f"doing interp. input frames: {interp_inputs} (len {len(good_frames)})")
+        good_frames = core.std.AssumeFPS(good_frames, fpsnum=1, fpsden=1)
 
         self.num_interped_frames = interp_inputs[-1] - interp_inputs[0]
         self.cur_interp = interp_creator(good_frames, self.num_interped_frames)
@@ -170,6 +185,7 @@ class DupeState:
         max_frames: int,
         interp_creator,
         duplicate_mode: str,
+        max_future_checks: int,
     ):
         clip1 = core.std.AssumeFPS(clip, fpsnum=1, fpsden=1)
 
@@ -183,6 +199,7 @@ class DupeState:
                 max_frames,
                 interp_creator,
                 duplicate_mode,
+                max_future_checks,
             )
 
         if self.cur_interp is None:
@@ -193,15 +210,20 @@ class DupeState:
 
         # combine the good frames with the interpolated ones so that vapoursynth can use them by indexing
         # (i hate how you have to do this, there might be nicer way idk)
-        joined = core.std.Trim(clip1, first=0, last=self.start_idx - 1)
-        u.log(f"0-{self.start_idx - 1}")
+        parts = []
 
-        joined += self.cur_interp
+        if self.start_idx != 0:
+            parts.append(core.std.Trim(clip1, first=0, last=self.start_idx - 1))
+            u.log(f"0-{self.start_idx - 1}")
+
+        parts.append(self.cur_interp)
         u.log(f"({len(self.cur_interp)} interpolated frames)")
 
         if self.end_idx + 1 < len(clip):
-            joined += core.std.Trim(clip1, first=self.end_idx + 1)
+            parts.append(core.std.Trim(clip1, first=self.end_idx + 1))
             u.log(f"{self.end_idx + 1}-end ({len(clip)})")
+
+        joined = core.std.Splice(parts)
 
         # TODO: commented this out because it randomly failed? is this a race condition thing? im so scared...
         # if len(joined) != len(clip):
@@ -225,6 +247,7 @@ def create_frame_handler(
     interp_creator,
     debug,
     duplicate_mode: str,
+    max_future_checks: int,
 ):
     if duplicate_mode not in [
         "previous to duplicate",
@@ -283,7 +306,6 @@ def create_frame_handler(
                 #     text=f"{n} |{'' if diff >= threshold else ' >DUPE<'} diff: {diff:.6f}/{threshold:.6f}",
                 #     alignment=8,
                 # )
-
                 if diff >= threshold:
                     u.log("not a dupe")
                     state.reset_interp()
@@ -298,6 +320,7 @@ def create_frame_handler(
                 max_frames,
                 interp_creator,
                 duplicate_mode,
+                max_future_checks,
             )
 
             if debug:
@@ -340,6 +363,7 @@ def fill_drops_rife(
     threshold: float,
     max_frames: int | None,
     duplicate_mode: str,
+    max_future_checks: int,
     debug=False,
 ):
     u.check_model_path(model_path)
@@ -357,6 +381,7 @@ def fill_drops_rife(
             ),
             debug,
             duplicate_mode,
+            max_future_checks,
         )
         return core.std.FrameEval(video, handler)
 
@@ -403,6 +428,7 @@ def fill_drops_svp(
     threshold: float,
     max_frames: int | None,
     duplicate_mode: str,
+    max_future_checks: int,
     svp_preset=blur.interpolate.DEFAULT_PRESET,
     svp_algorithm=blur.interpolate.DEFAULT_ALGORITHM,
     svp_blocksize=blur.interpolate.DEFAULT_BLOCKSIZE,
@@ -428,6 +454,7 @@ def fill_drops_svp(
             ),
             debug,
             duplicate_mode,
+            max_future_checks,
         )
         return core.std.FrameEval(video, handler)
 
@@ -486,6 +513,7 @@ def fill_drops_mvtools(
     threshold: float,
     max_frames: int | None,
     duplicate_mode: str,
+    max_future_checks: int,
     blocksize: int = 4,
     masking: int = 100,
     pel: int = 1,
@@ -516,6 +544,7 @@ def fill_drops_mvtools(
         ),
         debug,
         duplicate_mode,
+        max_future_checks,
     )
     return core.std.FrameEval(video, handler)
 
