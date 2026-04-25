@@ -5,7 +5,6 @@ namespace render {
 }
 
 namespace gui_utils {
-
 	struct ThumbnailRes {
 		std::string error;
 		std::shared_ptr<render::Texture> texture;

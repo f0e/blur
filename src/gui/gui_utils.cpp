@@ -80,6 +80,8 @@ namespace gui_utils {
 			std::optional<gfx::Size> size,
 			double timestamp
 		) {
+			u::log("spawning thumbnail thread for {}", u::path_to_string(video_path));
+
 			std::thread([video_path, key, size, timestamp] {
 				SDL_Surface* surface = ffmpeg_get_thumbnail_surface(video_path, size, timestamp);
 
@@ -107,16 +109,16 @@ namespace gui_utils {
 		auto it = thumbnails.find(key);
 
 		if (it == thumbnails.end()) {
+			thumbnails[key] = {};
+
 			ffmpeg_get_thumbnail_surface_async(video_path, key, size, timestamp);
+
 			return {};
 		}
 
 		auto& thumb = it->second;
 
 		switch (thumb.state) {
-			case ThumbnailState::GENERATING:
-				return {};
-
 			case ThumbnailState::FAILED:
 				return ThumbnailRes{ .error = "failed to generate thumbnail" };
 
@@ -142,6 +144,10 @@ namespace gui_utils {
 
 			case ThumbnailState::READY:
 				return ThumbnailRes{ .texture = thumb.texture };
+
+			default:
+			case ThumbnailState::GENERATING:
+				return {};
 		}
 
 		return {};
