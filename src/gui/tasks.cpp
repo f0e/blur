@@ -112,6 +112,22 @@ void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
 
 		u::log("queueing {}", path);
 
+		bool video_already_queued = false;
+		for (const auto& pending_video : pending_videos) {
+			if (path != pending_video->video_path)
+				continue;
+
+			video_already_queued = true;
+			break;
+		}
+
+		if (video_already_queued) {
+			gui::components::notifications::add(
+				std::format("Video '{}' is already queued for rendering", path.filename()), ui::NotificationType::INFO
+			);
+			continue;
+		}
+
 		if (gui::renderer::screen != gui::renderer::Screens::MAIN) {
 			gui::components::notifications::add(
 				std::format("Queued '{}' for rendering", path.filename()), ui::NotificationType::INFO
