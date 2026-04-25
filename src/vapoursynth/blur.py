@@ -122,7 +122,9 @@ try:
         try:
             deduplicate_threshold = float(settings["deduplicate_threshold"])
         except (ValueError, TypeError, KeyError):
-            deduplicate_threshold = 0.001
+            raise u.BlurException(
+                f"Deduplicate threshold is not a number: '{settings['deduplicate_threshold']}'"
+            )
 
         match settings["deduplicate_method"]:
             case "old":
