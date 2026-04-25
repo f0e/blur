@@ -8,11 +8,6 @@ import blur.utils as u
 DEBUG_ENABLED = False
 
 
-def debug_print(*args):
-    if DEBUG_ENABLED:
-        print("[DEBUG]:", *args)
-
-
 def frames_diff(framea: vs.VideoNode, frameb: vs.VideoNode):
     return core.std.PlaneStats(framea, frameb).get_frame(0).props["PlaneStatsDiff"]
 
@@ -121,7 +116,7 @@ class DupeState:
 
             self.end_idx = next_frame - 1
 
-            debug_print(
+            u.log(
                 f"last good: {self.last_good_idx}, next good: {self.next_good_idx} (actual: {self.end_idx})"
             )
 
@@ -131,7 +126,7 @@ class DupeState:
         # todo: possibly including more frames will result in better results?
         good_frames = clip[self.last_good_idx] + clip[self.next_good_idx]
 
-        debug_print(
+        u.log(
             f"doing interp. input frames: {self.last_good_idx} and {self.next_good_idx}"
         )
 
@@ -139,7 +134,7 @@ class DupeState:
         self.cur_interp = core.std.AssumeFPS(self.cur_interp, fpsnum=1, fpsden=1)
         self.dupe_idx += 1
 
-        debug_print(
+        u.log(
             f"interpolated {len(self.cur_interp)} frames from {len(good_frames)} source frames"
         )
 
@@ -156,7 +151,7 @@ class DupeState:
 
         if self.cur_interp is None:
             # haven't interpolated yet
-            debug_print("havent interpolated yet")
+            u.log("havent interpolated yet")
             self.compute_interp(
                 clip1,
                 frame_index,
@@ -170,21 +165,21 @@ class DupeState:
             # interpolated but no dedupe solution. get out
             return clip, False
 
-        debug_print("creating interpolated output")
+        u.log("creating interpolated output")
 
         # combine the good frames with the interpolated ones so that vapoursynth can use them by indexing
         # (i hate how you have to do this, there might be nicer way idk)
         joined = core.std.Trim(clip1, first=0, last=self.start_idx - 1)
-        debug_print(f"0-{self.start_idx}")
+        u.log(f"0-{self.start_idx}")
 
         joined += self.cur_interp
-        debug_print(f"({len(self.cur_interp)} interpolated frames)")
+        u.log(f"({len(self.cur_interp)} interpolated frames)")
 
         if self.end_idx + 1 < len(clip):
             joined += core.std.Trim(clip1, first=self.end_idx + 1)
-            debug_print(f"{self.end_idx}-end")
+            u.log(f"{self.end_idx}-end")
 
-        debug_print(f"debug len check: {len(clip)} == {len(joined)}")
+        u.log(f"debug len check: {len(clip)} == {len(joined)}")
 
         if frame_index >= self.end_idx:
             # last frame of this interp, reset it
@@ -204,7 +199,7 @@ def create_frame_handler(
     state = DupeState()
 
     def handle_frames(n):
-        debug_print(f"\n\n--{n}/{len(video) - 1}--\n")
+        u.log(f"\n\n--{n}/{len(video) - 1}--\n")
 
         diff = -1
         debug_parts = []
@@ -214,7 +209,7 @@ def create_frame_handler(
 
         if state.start_idx <= n <= state.end_idx:
             # inside a dupe range already
-            debug_print(f"inside a dupe ({state.start_idx}-{state.end_idx})")
+            u.log(f"inside a dupe ({state.start_idx}-{state.end_idx})")
 
             if debug:
                 debug_parts.append(
@@ -223,7 +218,7 @@ def create_frame_handler(
         else:
             if duplicate_mode == "hold_next":
                 if n + 1 >= len(video):
-                    debug_print("cant diff past end of vid")
+                    u.log("cant diff past end of vid")
                     return video
 
                 diff = frames_diff(video[n], video[n + 1])
@@ -233,7 +228,7 @@ def create_frame_handler(
 
                 diff = frames_diff(video[n - 1], video[n])
 
-            debug_print(f"diff: {diff}/{threshold}")
+            u.log(f"diff: {diff}/{threshold}")
 
             if debug:
                 debug_parts.append(f"diff: {diff:.6f}")
@@ -245,11 +240,11 @@ def create_frame_handler(
             # )
 
             if diff >= threshold:
-                debug_print("not a dupe")
+                u.log("not a dupe")
                 state.reset_interp()
                 return video
 
-            debug_print("its a dupe")
+            u.log("its a dupe")
 
         out_video, was_dupe = state.interpolate_dupes(
             video,
