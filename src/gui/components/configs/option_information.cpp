@@ -157,8 +157,11 @@ void configs::option_information(ui::Container& container) {
 			{
 				"If 'surrounding frames', the duplicate frame will be ignored, and the frames surrounding it will "
 				"be interpolated. This will result in more interpolation artifacts, but the smoothest output.",
+				"'surrounding frames + future check' is the same as above, but if the next frame (not of this "
+				"duplicate set) is also a duplicate, it'll continue searching until it finds a truly non-duplicate "
+				"frame. This is the new default behaviour.",
 				"If 'previous to duplicate', duplicate frames after the first will be interpolated to the next unique "
-				"frame.",
+				"frame. This is the old default behaviour.",
 				"If 'duplicate to next', duplicate frames up to the last will be interpolated with the previous unique "
 				"frame.",
 			},

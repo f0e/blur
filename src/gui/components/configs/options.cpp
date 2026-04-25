@@ -511,6 +511,7 @@ void configs::options(ui::Container& container) {
 			container,
 			"deduplicate frames to interpolate",
 			{
+				"surrounding frames + future check",
 				"surrounding frames",
 				"previous to duplicate",
 				"duplicate to next",
