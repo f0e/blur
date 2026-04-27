@@ -19,6 +19,7 @@ struct AdvancedSettings {
 	std::string interpolation_blocksize = "8";
 	int interpolation_mask_area = 0;
 	std::string rife_model = "rife-v4.26_ensembleFalse";
+	std::string rife_trt_model = "4.26";
 
 	bool manual_svp = false;
 	std::string super_string;
@@ -46,6 +47,7 @@ struct BlurSettings {
 
 	bool pre_interpolate = false;
 	std::string pre_interpolated_fps = "360";
+	std::string pre_interpolation_method = "rife";
 
 	bool timescale = false;
 	float input_timescale = 1.f;

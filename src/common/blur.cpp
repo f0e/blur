@@ -107,7 +107,7 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 	initialised = true;
 
 	std::thread([this] {
-		initialise_rife_gpus();
+		initialise_device_lists();
 	}).detach();
 
 	return {};
@@ -198,20 +198,31 @@ void Blur::update(
 	updates::update_to_tag(tag, progress_callback);
 }
 
-void Blur::initialise_rife_gpus() {
-	rife_gpus = u::get_rife_gpus();
+void Blur::initialise_device_lists() {
+	rife_devices = u::get_devices("rife");
+	tensorrt_devices = u::get_devices("tensorrt");
 
 	std::ranges::copy(
 		std::ranges::transform_view(
-			rife_gpus,
+			rife_devices,
 			[](const auto& pair) {
 				return pair.second;
 			}
 		),
-		std::back_inserter(rife_gpu_names)
+		std::back_inserter(rife_device_names)
 	);
 
-	initialised_rife_gpus = true;
+	std::ranges::copy(
+		std::ranges::transform_view(
+			tensorrt_devices,
+			[](const auto& pair) {
+				return pair.second;
+			}
+		),
+		std::back_inserter(tensorrt_device_names)
+	);
+
+	initialised_devices = true;
 }
 
 void cleanup_handler(int signal) {

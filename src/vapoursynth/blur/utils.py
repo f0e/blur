@@ -206,7 +206,10 @@ def with_format(
                 "range": video_info.is_full_color_range,
             }
 
-            if target_format == vs.RGBS and orig_format.color_family == vs.YUV:
+            if (
+                target_format in [vs.RGBS, vs.RGBH]
+                and orig_format.color_family == vs.YUV
+            ):
                 # @HACK - some videos (adobe -_-) dont set the color transfer & primaries for example which means resizing fails cause it doesnt have the required information
                 # here im just making educated guesses as to what they are but this is so dumb
                 props = dict(video.get_frame(0).props)
@@ -251,7 +254,10 @@ def with_format(
                 "range": video_info.is_full_color_range,
             }
 
-            if target_format == vs.RGBS and orig_format.color_family == vs.YUV:
+            if (
+                target_format in [vs.RGBS, vs.RGBH]
+                and orig_format.color_family == vs.YUV
+            ):
                 convert_back_kwargs["matrix_s"] = "709"
 
             log("conversion back kwargs", convert_back_kwargs)
@@ -266,3 +272,26 @@ def with_format(
             "Failed to convert video format back after processing. Please copy the extended log and report this to GitHub issues or the Discord.",
             e,
         )
+
+
+def with_padding(
+    video: vs.VideoNode,
+    multiple: int | None,
+    process_func,
+):
+    if multiple is not None:
+        w, h = video.width, video.height
+        pad_w = math.ceil(w / multiple) * multiple
+        pad_h = math.ceil(h / multiple) * multiple
+        needs_padding = pad_w != w or pad_h != h
+
+        if needs_padding:
+            video = video.std.AddBorders(right=pad_w - w, bottom=pad_h - h)
+
+    video = process_func(video)
+
+    if multiple is not None:
+        if needs_padding:
+            video = video.std.Crop(right=pad_w - w, bottom=pad_h - h)
+
+    return video

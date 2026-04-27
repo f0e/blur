@@ -261,7 +261,13 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 		});
 
 		auto vspipe_process = u::run_command(
-			blur.vspipe_path, commands.vspipe_video, env, bp::std_out > vspipe_stdout, bp::std_err > vspipe_stderr
+			blur.vspipe_path,
+			commands.vspipe_video,
+			env,
+			bp::std_out > vspipe_stdout,
+			bp::std_err > vspipe_stderr,
+			bp::std_in < bp::null // stdin is an invalid handle otherwise, which breaks
+		                          // subprocess.run(stdout=sys.stderr) in rife-trt (FUN!)
 		);
 
 		auto ffmpeg_process = u::run_command(

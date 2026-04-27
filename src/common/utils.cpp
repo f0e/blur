@@ -367,7 +367,6 @@ u::VideoInfo u::get_video_info(const std::filesystem::path& path) {
 
 	return info;
 }
-}
 
 int16_t u::get_audio_percentile_peak(const std::vector<int16_t>& samples, float percentile) {
 	if (samples.empty())
@@ -609,7 +608,7 @@ std::vector<std::string> u::ffmpeg_string_to_args(const std::string& str) {
 	return args;
 }
 
-std::map<int, std::string> u::get_rife_gpus() {
+std::map<int, std::string> u::get_devices(const std::string& type) {
 	namespace bp = boost::process;
 
 	auto env = setup_vspipe_environment();
@@ -618,15 +617,17 @@ std::map<int, std::string> u::get_rife_gpus() {
 	bool vapoursynth_plugins_bundled = std::filesystem::exists(blur.resources_path / "vapoursynth-plugins");
 #endif
 
-	std::filesystem::path get_gpus_script_path = (blur.resources_path / "lib/get_rife_gpus.py");
+	std::filesystem::path get_devices_script_path = (blur.resources_path / "lib/get_devices.py");
 
-	bp::ipstream err_stream;
+	bp::ipstream out_stream, err_stream;
 
 	auto c = u::run_command(
 		blur.vspipe_path,
 		{
 			"-c",
 			"y4m",
+			"-a",
+			std::format("type={}", type),
 #if defined(__APPLE__)
 			"-a",
 			std::format("macos_bundled={}", blur.used_installer ? "true" : "false"),
@@ -635,28 +636,48 @@ std::map<int, std::string> u::get_rife_gpus() {
 			"-a",
 			std::format("linux_bundled={}", vapoursynth_plugins_bundled ? "true" : "false"),
 #endif
-			u::path_to_string(get_gpus_script_path),
+			u::path_to_string(get_devices_script_path),
 			"-",
 		},
-		bp::std_out.null(),
+		bp::std_out > out_stream,
 		bp::std_err > err_stream,
 		env
 	);
 
 	std::map<int, std::string> gpu_map;
 
-	std::regex gpu_line_pattern(R"(\[(\d+)\s+(.*?)\])"); // regex to match: [0 GPU NAME]
+	if (type == "rife") {
+		std::regex gpu_line_pattern(R"(\[(\d+)\s+(.*?)\])");
 
-	std::string line;
-	while (err_stream && std::getline(err_stream, line)) {
-		boost::algorithm::trim(line);
+		std::string line;
+		while (err_stream && std::getline(err_stream, line)) {
+			boost::algorithm::trim(line);
 
-		std::smatch match;
-		if (std::regex_search(line, match, gpu_line_pattern)) {
-			int gpu_index = std::stoi(match[1].str());
-			std::string gpu_name = match[2].str();
+			std::smatch match;
+			if (std::regex_search(line, match, gpu_line_pattern)) {
+				gpu_map[std::stoi(match[1].str())] = match[2].str();
+			}
+		}
+	}
+	else if (type == "tensorrt") {
+		std::string output(std::istreambuf_iterator<char>(out_stream), {});
+		boost::algorithm::trim(output);
 
-			gpu_map[gpu_index] = gpu_name;
+		if (!output.empty()) {
+			try {
+				auto json = nlohmann::json::parse(output);
+
+				for (const auto& entry : json) {
+					int device_id = entry.at("device_id").get<int>();
+					const auto& props = entry.at("properties");
+
+					std::string name = props.value("name", "Unknown Device");
+					gpu_map[device_id] = name;
+				}
+			}
+			catch (const nlohmann::json::exception& e) {
+				// optionally log: e.what()
+			}
 		}
 	}
 
@@ -665,61 +686,71 @@ std::map<int, std::string> u::get_rife_gpus() {
 	return gpu_map;
 }
 
-int u::get_fastest_rife_gpu_index(
-	const std::map<int, std::string>& gpu_map,
-	const std::filesystem::path& rife_model_path,
-	const std::filesystem::path& benchmark_video_path
+int u::get_fastest_device_index(
+	const std::map<int, std::string>& device_map,
+	const std::filesystem::path& benchmark_video_path,
+	const std::string& benchmark_type,
+	const std::vector<std::string>& extra_args
 ) {
 	namespace bp = boost::process;
 
-	std::map<int, float> benchmark_map;
 	float fastest_time = FLT_MAX;
 	int fastest_index = -1;
 
-	std::filesystem::path benchmark_gpus_script_path = (blur.resources_path / "lib/benchmark_rife_gpus.py");
+	std::filesystem::path benchmark_script_path = blur.resources_path / "lib/benchmarks.py";
 
-	for (const auto& [gpu_index, gpu_name] : gpu_map) {
+#if defined(__linux__)
+	bool vapoursynth_plugins_bundled = std::filesystem::exists(blur.resources_path / "vapoursynth-plugins");
+#endif
+
+	auto run_benchmark = [&](int device_index) {
 		auto env = setup_vspipe_environment();
 
-#if defined(__linux__)
-		bool vapoursynth_plugins_bundled = std::filesystem::exists(blur.resources_path / "vapoursynth-plugins");
-#endif
-
-		auto start = std::chrono::steady_clock::now();
-
-		auto c = u::run_command(
-			blur.vspipe_path,
-			{
-				"-c",
-				"y4m",
-				"-p",
-				"-a",
-				std::format("rife_model={}", rife_model_path),
-				"-a",
-				std::format("rife_gpu_index={}", gpu_index),
-				"-a",
-				std::format("benchmark_video_path={}", benchmark_video_path),
+		std::vector<std::string> args = {
+			"-c",
+			"y4m",
+			"-p",
+			"-a",
+			std::format("type={}", benchmark_type),
+			"-a",
+			std::format("device_index={}", device_index),
+			"-a",
+			std::format("benchmark_video_path={}", benchmark_video_path),
 #if defined(__APPLE__)
-				"-a",
-				std::format("macos_bundled={}", blur.used_installer ? "true" : "false"),
+			"-a",
+			std::format("macos_bundled={}", blur.used_installer ? "true" : "false"),
 #endif
 #if defined(__linux__)
-				"-a",
-				std::format("linux_bundled={}", vapoursynth_plugins_bundled ? "true" : "false"),
+			"-a",
+			std::format("linux_bundled={}", vapoursynth_plugins_bundled ? "true" : "false"),
 #endif
 #if defined(_WIN32)
-				"-a",
-				"enable_lsmash=true",
+			"-a",
+			"enable_lsmash=true",
 #endif
-				"-e",
-				"2",
-				u::path_to_string(benchmark_gpus_script_path),
-				"-",
-			},
-			env,
-			bp::std_out.null(),
-			bp::std_err.null()
-		);
+			"-e",
+			"2",
+		};
+
+		for (const auto& extra_arg : extra_args) {
+			args.push_back("-a");
+			args.push_back(extra_arg);
+		}
+
+		args.push_back(u::path_to_string(benchmark_script_path));
+		args.push_back("-");
+
+		return u::run_command(blur.vspipe_path, args, env, bp::std_out.null(), bp::std_err.null());
+	};
+
+	if (benchmark_type == "rife (tensorrt)") {
+		// need to warm up engine probably
+		run_benchmark(device_map.begin()->first).wait();
+	}
+
+	for (const auto& [device_index, device_name] : device_map) {
+		auto start = std::chrono::steady_clock::now();
+		auto c = run_benchmark(device_index);
 
 		bool killed_early = false;
 
@@ -740,51 +771,94 @@ int u::get_fastest_rife_gpu_index(
 			float elapsed_seconds =
 				std::chrono::duration_cast<std::chrono::duration<float>>(std::chrono::steady_clock::now() - start)
 					.count();
-			u::log("gpu {} took {}", gpu_index, elapsed_seconds);
+			u::log("device {} took {}", device_index, elapsed_seconds);
 
 			if (elapsed_seconds < fastest_time) {
 				fastest_time = elapsed_seconds;
-				fastest_index = gpu_index;
+				fastest_index = device_index;
 			}
 		}
 		else {
-			u::log("gpu {} killed early (too slow)", gpu_index);
+			u::log("device {} killed early (too slow)", device_index);
 		}
 	}
 
 	return fastest_index;
 }
 
-void u::set_fastest_rife_gpu(BlurSettings& settings) {
+std::optional<size_t> u::get_fastest_rife_device(BlurSettings& settings) {
 	auto app_config = config_app::get_app_config();
-	if (app_config.rife_gpu_index != -1)
+	if (app_config.rife_device_index != -1)
+		return std::nullopt;
+
+	if (!blur.initialised_devices || blur.rife_devices.empty())
+		return std::nullopt;
+
+	if (blur.rife_devices.size() == 1)
+		return 0;
+
+	auto sample_video_path = blur.settings_path / "sample_video.mp4";
+	if (!std::filesystem::exists(sample_video_path))
+		return std::nullopt;
+
+	auto rife_model_path = settings.get_rife_model_path();
+	if (!rife_model_path)
+		return std::nullopt;
+
+	return u::get_fastest_device_index(
+		blur.rife_devices, sample_video_path, "rife", { std::format("rife_model_path={}", *rife_model_path) }
+	);
+}
+
+std::optional<size_t> u::get_fastest_tensorrt_device(BlurSettings& settings) {
+	auto app_config = config_app::get_app_config();
+	if (app_config.tensorrt_device_index != -1)
+		return std::nullopt;
+
+	if (!blur.initialised_devices || blur.tensorrt_devices.empty())
+		return std::nullopt;
+
+	if (blur.tensorrt_devices.size() == 1)
+		return 0;
+
+	auto sample_video_path = blur.settings_path / "sample_video.mp4";
+	if (!std::filesystem::exists(sample_video_path))
+		return std::nullopt;
+
+	auto rife_trt_model = settings.advanced.rife_trt_model;
+	if (rife_trt_model.empty())
+		return std::nullopt;
+
+	return u::get_fastest_device_index(
+		blur.tensorrt_devices,
+		sample_video_path,
+		"rife (tensorrt)",
+		{ std::format("rife_trt_model={}", rife_trt_model) }
+	);
+}
+
+void u::set_fastest_devices(BlurSettings& settings) {
+	auto app_config = config_app::get_app_config();
+
+	auto rife_result = u::get_fastest_rife_device(settings);
+	auto tensorrt_result = u::get_fastest_tensorrt_device(settings);
+
+	if (!rife_result && !tensorrt_result)
 		return;
 
-	if (!blur.initialised_rife_gpus || blur.rife_gpus.empty())
-		return;
-
-	if (blur.rife_gpus.size() == 1) {
-		// only one gpu, so it's the fastest. don't need to benchmark.
-		app_config.rife_gpu_index = 0;
+	if (rife_result) {
+		app_config.rife_device_index = *rife_result;
+		u::log("set rife_device_index to the fastest device ({})", app_config.rife_device_index);
 	}
-	else {
-		auto sample_video_path = blur.settings_path / "sample_video.mp4";
-		if (!std::filesystem::exists(sample_video_path))
-			return;
 
-		auto rife_model_path = settings.get_rife_model_path();
-		if (!rife_model_path)
-			return;
-
-		int fastest_gpu_index = u::get_fastest_rife_gpu_index(blur.rife_gpus, *rife_model_path, sample_video_path);
-		app_config.rife_gpu_index = fastest_gpu_index;
+	if (tensorrt_result) {
+		app_config.tensorrt_device_index = *tensorrt_result;
+		u::log("set tensorrt_device_index to the fastest device ({})", app_config.tensorrt_device_index);
 	}
 
 	// todo: this is dumb
 	auto app_config_path = config_app::get_app_config_path();
 	config_app::create(app_config_path, app_config);
-
-	u::log("set rife_gpu_index to the fastest gpu ({})", app_config.rife_gpu_index);
 }
 
 void u::verify_gpu_encoding(BlurSettings& settings) {

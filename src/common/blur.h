@@ -41,12 +41,15 @@ public:
 		const std::optional<std::function<void(const std::string& text, bool done)>>& progress_callback = {}
 	);
 
-	std::map<int, std::string> rife_gpus;
-	std::vector<std::string> rife_gpu_names;
-	bool initialised_rife_gpus = false;
+	// TODO: this stuff probably shouldn't be here
+	std::map<int, std::string> rife_devices;
+	std::vector<std::string> rife_device_names;
 
-	void initialise_rife_gpus();
-	void pick_fastest_rife_gpu(BlurSettings& settings);
+	std::map<int, std::string> tensorrt_devices;
+	std::vector<std::string> tensorrt_device_names;
+	bool initialised_devices = false;
+
+	void initialise_device_lists();
 
 	void setup_signal_handlers();
 };

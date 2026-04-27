@@ -4,7 +4,8 @@ struct GlobalAppSettings {
 	std::string output_prefix;
 
 	std::string gpu_type;
-	int rife_gpu_index = -1;
+	int rife_device_index = -1;
+	int tensorrt_device_index = -1;
 
 	int gui_width = 591;
 	int gui_height = 381;

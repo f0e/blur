@@ -473,7 +473,6 @@ namespace u {
 	};
 
 	VideoInfo get_video_info(const std::filesystem::path& path);
-	std::string get_timecodes(const std::filesystem::path& path);
 	int16_t get_audio_percentile_peak(const std::vector<int16_t>& samples, float percentile);
 
 	struct EncodingDevice {
@@ -495,14 +494,19 @@ namespace u {
 
 	std::vector<std::string> ffmpeg_string_to_args(const std::string& str);
 
-	std::map<int, std::string> get_rife_gpus();
-	int get_fastest_rife_gpu_index(
-		const std::map<int, std::string>& gpu_map,
-		const std::filesystem::path& rife_model_path,
-		const std::filesystem::path& benchmark_video_path
+	std::map<int, std::string> get_devices(const std::string& type);
+
+	int get_fastest_device_index(
+		const std::map<int, std::string>& device_map,
+		const std::filesystem::path& benchmark_video_path,
+		const std::string& benchmark_type,
+		const std::vector<std::string>& extra_args
 	);
 
-	void set_fastest_rife_gpu(BlurSettings& settings);
+	std::optional<size_t> get_fastest_rife_device(BlurSettings& settings);
+	std::optional<size_t> get_fastest_tensorrt_device(BlurSettings& settings);
+
+	void set_fastest_devices(BlurSettings& settings);
 	void verify_gpu_encoding(BlurSettings& settings);
 
 #ifdef WIN32

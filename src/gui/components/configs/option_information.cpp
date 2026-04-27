@@ -76,9 +76,8 @@ void configs::option_information(ui::Container& container) {
 			"interpolation method dropdown",
 			{
 				// todo: update with mvtools
-				"Quality: rife > svp",
-				"Speed: svp > rife",
-				"NOTE: svp requires resizing to YV12. Can make colours in high-chroma inputs look worse (e.g. 4:4:4)",
+				"Quality: rife = rife (tensorrt) > svp",
+				"Speed: svp >> rife (tensorrt) > rife",
 			},
 		},
 		// pre-interp settings
@@ -178,9 +177,9 @@ void configs::option_information(ui::Container& container) {
 			"deduplicate method dropdown",
 			{
 				// todo: update with mvtools
-				"Quality: rife > svp",
-				"Speed: old > svp > rife",
-				"NOTE: svp requires resizing to YV12. Can make colours in high-chroma inputs look worse (e.g. 4:4:4)",
+				"Quality: rife = rife (tensorrt) > svp",
+				"Speed: old > svp >>> rife",
+				"rife (tensorrt) is probably slower than rife here, but it'll depend on your gpu.",
 			},
 		},
 		{

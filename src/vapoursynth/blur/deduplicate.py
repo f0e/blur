@@ -344,12 +344,12 @@ def create_frame_handler(
     return handle_frames
 
 
-def create_rife_interp(good_frames, duped_frames, model_path: str, gpu_index: int):
+def create_rife_interp(good_frames, duped_frames, model_path: str, device_index: int):
     interp = blur.interpolate.RIFE(
         good_frames,
         new_fps=duped_frames,
         model_path=model_path,
-        gpu_index=gpu_index,
+        device_index=device_index,
     )
 
     return interp[1:duped_frames]  # first frame is a duplicate
@@ -359,7 +359,7 @@ def fill_drops_rife(
     _video: vs.VideoNode,
     video_info: u.VideoInfo,
     model_path: str,
-    gpu_index: int,
+    device_index: int,
     threshold: float,
     max_frames: int | None,
     duplicate_mode: str,
@@ -377,7 +377,7 @@ def fill_drops_rife(
                 good_frames,
                 duped_frames,
                 model_path,
-                gpu_index,
+                device_index,
             ),
             debug,
             duplicate_mode,
@@ -462,6 +462,57 @@ def fill_drops_svp(
         _video,
         vs.YUV420P8,
         process,
+    )
+
+
+def create_rife_vsmlrt_interp(good_frames, duped_frames, model: str, backend):
+    interp = blur.interpolate.RIFE_vsmlrt(
+        good_frames,
+        new_fps=duped_frames,
+        model=model,
+        backend=backend,
+    )
+
+    interp = core.resize.Point(interp, format=vs.RGBS)
+
+    return interp[1:duped_frames]  # first frame is a duplicate
+
+
+def fill_drops_rife_vsmlrt(
+    _video: vs.VideoNode,
+    video_info: u.VideoInfo,
+    model: str,
+    device_index: int,
+    threshold: float,
+    max_frames: int | None,
+    duplicate_mode: str,
+    max_future_checks: int,
+    debug=False,
+):
+    def process(video: vs.VideoNode, backend) -> vs.VideoNode:
+        handler = create_frame_handler(
+            video,
+            threshold,
+            max_frames,
+            lambda good_frames, duped_frames: create_rife_vsmlrt_interp(
+                good_frames,
+                duped_frames,
+                model,
+                backend,
+            ),
+            debug,
+            duplicate_mode,
+            max_future_checks,
+        )
+        return core.std.FrameEval(video, handler)
+
+    return blur.interpolate.prepare_rife_vsmlrt(
+        video=_video,
+        video_info=video_info,
+        process_func=process,
+        backend_str="tensorrt",
+        device_index=device_index,
+        override_format=vs.RGBS,
     )
 
 

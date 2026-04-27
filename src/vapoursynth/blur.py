@@ -75,9 +75,13 @@ try:
     if resize_chromaloc == "default":
         resize_chromaloc = None
 
-    rife_gpu_index = settings["rife_gpu_index"]
-    if rife_gpu_index == -1:  # haven't benchmarked yet..?
-        rife_gpu_index = 0
+    rife_device_index = settings["rife_device_index"]
+    if rife_device_index == -1:  # haven't benchmarked yet..?
+        rife_device_index = 0
+
+    tensorrt_device_index = settings["tensorrt_device_index"]
+    if tensorrt_device_index == -1:  # haven't benchmarked yet..?
+        tensorrt_device_index = 0
 
     if vars().get("enable_lsmash") == "true":
         video = core.lsmas.LWLibavSource(
@@ -139,7 +143,20 @@ try:
                     video,
                     video_info=video_info,
                     model_path=settings["rife_model"],
-                    gpu_index=rife_gpu_index,
+                    device_index=rife_device_index,
+                    threshold=deduplicate_threshold,
+                    max_frames=deduplicate_range,
+                    duplicate_mode=settings["duplicate_mode"],
+                    max_future_checks=settings["max_future_checks"],
+                    debug=settings["debug"],
+                )
+
+            case "rife (tensorrt)":
+                video = blur.deduplicate.fill_drops_rife_vsmlrt(
+                    video,
+                    video_info=video_info,
+                    model=settings["rife_trt_model"],
+                    device_index=tensorrt_device_index,
                     threshold=deduplicate_threshold,
                     max_frames=deduplicate_range,
                     duplicate_mode=settings["duplicate_mode"],
@@ -209,7 +226,10 @@ try:
 
         interpolated_fps = parse_fps_setting("interpolated_fps")
 
-        if settings["interpolation_method"] != "rife" and settings["pre_interpolate"]:
+        if (
+            settings["interpolation_method"] != settings["pre_interpolation_method"]
+            and settings["pre_interpolate"]
+        ):
             pre_interpolated_fps = parse_fps_setting("pre_interpolated_fps")
 
             if (
@@ -219,13 +239,29 @@ try:
 
                 u.log(f"pre-interpolating to {pre_interpolated_fps}")
 
-                video = blur.interpolate.interpolate_rife(
-                    video,
-                    video_info=video_info,
-                    new_fps=pre_interpolated_fps,
-                    model_path=settings["rife_model"],
-                    gpu_index=rife_gpu_index,
-                )
+                match settings["pre_interpolation_method"]:
+                    case "rife":
+                        video = blur.interpolate.interpolate_rife(
+                            video,
+                            video_info=video_info,
+                            new_fps=pre_interpolated_fps,
+                            model_path=settings["rife_model"],
+                            device_index=rife_device_index,
+                        )
+
+                    case "rife (tensorrt)":
+                        video = blur.interpolate.interpolate_rife_vsmlrt(
+                            video,
+                            video_info=video_info,
+                            new_fps=pre_interpolated_fps,
+                            model=settings["rife_trt_model"],
+                            device_index=tensorrt_device_index,
+                        )
+
+                    case _:
+                        raise u.BlurException(
+                            f"Invalid pre-interpolation method: '{settings['pre_interpolation_method']}'. Should be one of: 'rife', '(tensorrt)'"
+                        )
 
                 fps_added = video.fps - old_fps
                 u.log(
@@ -239,24 +275,7 @@ try:
             old_fps = video.fps
 
             match settings["interpolation_method"]:
-                case "rife":
-                    video = blur.interpolate.interpolate_rife(
-                        video,
-                        video_info=video_info,
-                        new_fps=interpolated_fps,
-                        model_path=settings["rife_model"],
-                        gpu_index=rife_gpu_index,
-                    )
-
-                case "mvtools":
-                    video = blur.interpolate.interpolate_mvtools(
-                        video,
-                        interpolated_fps,
-                        blocksize=int(settings["interpolation_blocksize"]),
-                        masking=int(settings["interpolation_mask_area"]),
-                    )
-
-                case _:  # svp
+                case "svp":
                     if not settings["manual_svp"]:
                         video = blur.interpolate.interpolate_svp(
                             video,
@@ -283,6 +302,37 @@ try:
                             vectors_string=settings["vectors_string"],
                             smooth_str=smooth_str,
                         )
+
+                case "rife":
+                    video = blur.interpolate.interpolate_rife(
+                        video,
+                        video_info=video_info,
+                        new_fps=interpolated_fps,
+                        model_path=settings["rife_model"],
+                        device_index=rife_device_index,
+                    )
+
+                case "rife (tensorrt)":
+                    video = blur.interpolate.interpolate_rife_vsmlrt(
+                        video,
+                        video_info=video_info,
+                        new_fps=interpolated_fps,
+                        model=settings["rife_trt_model"],
+                        device_index=tensorrt_device_index,
+                    )
+
+                case "mvtools":
+                    video = blur.interpolate.interpolate_mvtools(
+                        video,
+                        interpolated_fps,
+                        blocksize=int(settings["interpolation_blocksize"]),
+                        masking=int(settings["interpolation_mask_area"]),
+                    )
+
+                case _:
+                    raise u.BlurException(
+                        f"Invalid interpolation method: '{settings['interpolation_method']}'. Should be one of: 'svp', 'rife', '(tensorrt)', 'mvtools'"
+                    )
 
             fps_added = video.fps - old_fps
             u.log(

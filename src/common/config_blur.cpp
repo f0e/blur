@@ -37,6 +37,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "pre-interpolate: " << (settings.pre_interpolate ? "true" : "false") << "\n";
 		if (!concise || settings.pre_interpolate) {
 			output << "pre-interpolated fps: " << settings.pre_interpolated_fps << "\n";
+			output << "pre-interpolation method: " << settings.pre_interpolation_method << "\n";
 		}
 	}
 
@@ -142,6 +143,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "interpolation block size: " << settings.advanced.interpolation_blocksize << "\n";
 			output << "interpolation mask area: " << settings.advanced.interpolation_mask_area << "\n";
 			output << "rife model: " << settings.advanced.rife_model << "\n";
+			output << "rife (tensorrt) model: " << settings.advanced.rife_trt_model << "\n";
 
 			if (!concise || settings.advanced.manual_svp) {
 				output << "\n";
@@ -241,6 +243,7 @@ BlurSettings config_blur::parse_from_map(
 
 	config_base::extract_config_value(config_map, "pre-interpolate", settings.pre_interpolate);
 	config_base::extract_config_value(config_map, "pre-interpolated fps", settings.pre_interpolated_fps);
+	config_base::extract_config_value(config_map, "pre-interpolation method", settings.pre_interpolation_method);
 
 	config_base::extract_config_value(config_map, "deduplicate", settings.deduplicate);
 	config_base::extract_config_value(config_map, "deduplicate method", settings.deduplicate_method);
@@ -308,6 +311,7 @@ BlurSettings config_blur::parse_from_map(
 			config_map, "interpolation mask area", settings.advanced.interpolation_mask_area
 		);
 		config_base::extract_config_value(config_map, "rife model", settings.advanced.rife_model);
+		config_base::extract_config_value(config_map, "rife (tensorrt) model", settings.advanced.rife_trt_model);
 		config_base::extract_config_value(config_map, "manual svp", settings.advanced.manual_svp);
 		config_base::extract_config_value(config_map, "super string", settings.advanced.super_string);
 		config_base::extract_config_value(config_map, "vectors string", settings.advanced.vectors_string);
@@ -315,7 +319,7 @@ BlurSettings config_blur::parse_from_map(
 	}
 
 	u::verify_gpu_encoding(settings);
-	u::set_fastest_rife_gpu(settings);
+	u::set_fastest_devices(settings);
 
 	if (config_filepath) {
 		// rewrite config with proper structure and default values
@@ -388,6 +392,7 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 
 	j["pre_interpolate"] = this->pre_interpolate;
 	j["pre_interpolated_fps"] = this->pre_interpolated_fps;
+	j["pre_interpolation_method"] = this->pre_interpolation_method;
 
 	j["deduplicate"] = this->deduplicate;
 	j["deduplicate_method"] = this->deduplicate_method;
@@ -444,6 +449,8 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 		return tl::unexpected(rife_model_path.error());
 
 	j["rife_model"] = *rife_model_path;
+
+	j["rife_trt_model"] = this->advanced.rife_trt_model;
 
 	j["manual_svp"] = this->advanced.manual_svp;
 	j["super_string"] = this->advanced.super_string;
