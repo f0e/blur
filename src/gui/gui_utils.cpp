@@ -1,168 +1,151 @@
 #include "gui_utils.h"
 #include "render/render.h"
 
-namespace gui_utils {
-	namespace {
-		enum class ThumbnailState : std::uint8_t {
-			GENERATING,
-			PENDING_UPLOAD,
-			READY,
-			FAILED
+namespace {
+	enum class ThumbnailState : std::uint8_t {
+		GENERATING,
+		PENDING_UPLOAD,
+		READY,
+		FAILED
+	};
+
+	struct Thumbnail {
+		ThumbnailState state = ThumbnailState::GENERATING;
+		SDL_Surface* surface = nullptr;
+		std::shared_ptr<render::Texture> texture;
+	};
+
+	std::unordered_map<std::string, Thumbnail> thumbnails;
+	std::mutex thumbnail_mutex;
+
+	SDL_Surface* ffmpeg_get_thumbnail_surface(
+		const std::filesystem::path& path, std::optional<gfx::Size> size, double timestamp
+	) {
+		namespace bp = boost::process;
+
+		bp::ipstream pipe_stream;
+
+		std::vector<std::string> ffmpeg_args = {
+			"-v", "error", "-ss", std::to_string(timestamp), "-i", u::path_to_string(path), "-frames:v", "1",
 		};
 
-		struct Thumbnail {
-			ThumbnailState state = ThumbnailState::GENERATING;
-			SDL_Surface* surface = nullptr;
-			std::shared_ptr<render::Texture> texture;
-		};
-
-		std::unordered_map<std::string, Thumbnail> thumbnails;
-		std::mutex thumbnail_mutex;
-
-		SDL_Surface* ffmpeg_get_thumbnail_surface(
-			const std::filesystem::path& path, std::optional<gfx::Size> size, double timestamp
-		) {
-			namespace bp = boost::process;
-
-			bp::ipstream pipe_stream;
-
-			std::vector<std::string> ffmpeg_args = {
-				"-v", "error", "-ss", std::to_string(timestamp), "-i", u::path_to_string(path), "-frames:v", "1",
-			};
-
-			if (size) {
-				ffmpeg_args.insert(
-					ffmpeg_args.end(),
-					{
-						"-vf",
-						"scale=" + std::to_string(size->w) + ":" + std::to_string(size->h),
-					}
-				);
-			}
-
+		if (size) {
 			ffmpeg_args.insert(
 				ffmpeg_args.end(),
 				{
-					"-f",
-					"image2pipe",
-					"-vcodec",
-					"mjpeg",
-					"-",
+					"-vf",
+					"scale=" + std::to_string(size->w) + ":" + std::to_string(size->h),
 				}
 			);
-
-			auto c = u::run_command(blur.ffmpeg_path, ffmpeg_args, bp::std_out > pipe_stream, bp::std_err > stdout);
-
-			std::vector<char> buffer{ std::istreambuf_iterator<char>(pipe_stream), std::istreambuf_iterator<char>() };
-
-			c.wait();
-
-			if (buffer.empty())
-				return nullptr;
-
-			SDL_IOStream* io = SDL_IOFromConstMem(buffer.data(), buffer.size());
-			if (!io)
-				return nullptr;
-
-			SDL_Surface* surface = IMG_LoadTyped_IO(io, true, "JPG"); // closeio = true
-			if (!surface)
-				return nullptr;
-
-			SDL_Surface* rgb = SDL_ConvertSurface(surface, SDL_PIXELFORMAT_RGBA32);
-			SDL_DestroySurface(surface);
-
-			return rgb;
 		}
 
-		void ffmpeg_get_thumbnail_surface_async(
-			const std::filesystem::path& video_path,
-			const std::string& key,
-			std::optional<gfx::Size> size,
-			double timestamp
-		) {
-			u::log("spawning thumbnail thread for {}", u::path_to_string(video_path));
+		ffmpeg_args.insert(
+			ffmpeg_args.end(),
+			{
+				"-f",
+				"image2pipe",
+				"-vcodec",
+				"mjpeg",
+				"-",
+			}
+		);
 
-			std::thread([video_path, key, size, timestamp] {
-				SDL_Surface* surface = ffmpeg_get_thumbnail_surface(video_path, size, timestamp);
+		auto c = u::run_command(blur.ffmpeg_path, ffmpeg_args, bp::std_out > pipe_stream, bp::std_err > stdout);
 
-				std::unique_lock lock(thumbnail_mutex);
+		std::vector<char> buffer{ std::istreambuf_iterator<char>(pipe_stream), std::istreambuf_iterator<char>() };
+		c.wait();
 
-				auto& thumb = thumbnails[key];
-				if (!surface) {
-					thumb.state = ThumbnailState::FAILED;
-					return;
-				}
+		if (buffer.empty())
+			return nullptr;
 
-				thumb.surface = surface;
-				thumb.state = ThumbnailState::PENDING_UPLOAD;
-			}).detach();
-		}
+		return render::jpeg_bytes_to_surface(buffer.data(), buffer.size());
 	}
 
-	std::optional<ThumbnailRes> get_thumbnail(
-		const std::filesystem::path& video_path, std::optional<gfx::Size> size, double timestamp
+	void ffmpeg_get_thumbnail_surface_async(
+		const std::filesystem::path& video_path, const std::string& key, std::optional<gfx::Size> size, double timestamp
 	) {
-		const auto key = video_path.string();
+		u::log("spawning thumbnail thread for {}", u::path_to_string(video_path));
 
-		std::unique_lock lock(thumbnail_mutex);
+		std::thread([video_path, key, size, timestamp] {
+			SDL_Surface* surface = ffmpeg_get_thumbnail_surface(video_path, size, timestamp);
 
-		auto it = thumbnails.find(key);
+			std::unique_lock lock(thumbnail_mutex);
 
-		if (it == thumbnails.end()) {
-			thumbnails[key] = {};
-
-			ffmpeg_get_thumbnail_surface_async(video_path, key, size, timestamp);
-
-			return {};
-		}
-
-		auto& thumb = it->second;
-
-		switch (thumb.state) {
-			case ThumbnailState::FAILED:
-				return ThumbnailRes{ .error = "failed to generate thumbnail" };
-
-			case ThumbnailState::PENDING_UPLOAD: {
-				// need to turn surface into opengl texture
-				// (has to run on render thread)
-				auto tex = std::make_shared<render::Texture>();
-				tex->load_from_surface(thumb.surface);
-
-				SDL_DestroySurface(thumb.surface);
-				thumb.surface = nullptr;
-
-				if (!tex->is_valid()) {
-					thumb.state = ThumbnailState::FAILED;
-					return ThumbnailRes{ .error = "failed to generate thumbnail" };
-				}
-
-				thumb.texture = tex;
-				thumb.state = ThumbnailState::READY;
-
-				return ThumbnailRes{ .texture = thumb.texture };
+			auto& thumb = thumbnails[key];
+			if (!surface) {
+				thumb.state = ThumbnailState::FAILED;
+				return;
 			}
 
-			case ThumbnailState::READY:
-				return ThumbnailRes{ .texture = thumb.texture };
+			thumb.surface = surface;
+			thumb.state = ThumbnailState::PENDING_UPLOAD;
+		}).detach();
+	}
+}
 
-			default:
-			case ThumbnailState::GENERATING:
-				return {};
-		}
+std::optional<gui_utils::ThumbnailRes> gui_utils::get_thumbnail(
+	const std::filesystem::path& video_path, std::optional<gfx::Size> size, double timestamp
+) {
+	const auto key = video_path.string();
+
+	std::unique_lock lock(thumbnail_mutex);
+
+	auto it = thumbnails.find(key);
+
+	if (it == thumbnails.end()) {
+		thumbnails[key] = {};
+
+		ffmpeg_get_thumbnail_surface_async(video_path, key, size, timestamp);
 
 		return {};
 	}
 
-	void delete_thumbnail(const std::filesystem::path& video_path) {
-		std::unique_lock lock(thumbnail_mutex);
+	auto& thumb = it->second;
 
-		auto it = thumbnails.find(video_path.string());
-		if (it == thumbnails.end())
-			return;
+	switch (thumb.state) {
+		case ThumbnailState::FAILED:
+			return ThumbnailRes{ .error = "failed to generate thumbnail" };
 
-		if (it->second.surface)
-			SDL_DestroySurface(it->second.surface);
+		case ThumbnailState::PENDING_UPLOAD: {
+			// need to turn surface into opengl texture
+			// (has to run on render thread)
+			auto tex = std::make_shared<render::Texture>();
+			tex->load_from_surface(thumb.surface);
 
-		thumbnails.erase(it);
+			SDL_DestroySurface(thumb.surface);
+			thumb.surface = nullptr;
+
+			if (!tex->is_valid()) {
+				thumb.state = ThumbnailState::FAILED;
+				return ThumbnailRes{ .error = "failed to generate thumbnail" };
+			}
+
+			thumb.texture = tex;
+			thumb.state = ThumbnailState::READY;
+
+			return ThumbnailRes{ .texture = thumb.texture };
+		}
+
+		case ThumbnailState::READY:
+			return ThumbnailRes{ .texture = thumb.texture };
+
+		default:
+		case ThumbnailState::GENERATING:
+			return {};
 	}
+
+	return {};
+}
+
+void gui_utils::delete_thumbnail(const std::filesystem::path& video_path) {
+	std::unique_lock lock(thumbnail_mutex);
+
+	auto it = thumbnails.find(video_path.string());
+	if (it == thumbnails.end())
+		return;
+
+	if (it->second.surface)
+		SDL_DestroySurface(it->second.surface);
+
+	thumbnails.erase(it);
 }
