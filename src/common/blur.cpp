@@ -102,8 +102,6 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 	if (atexit_res != 0)
 		DEBUG_LOG("failed to register atexit");
 
-	initialise_base_temp_path();
-
 	initialised = true;
 
 	std::thread([this] {
@@ -111,20 +109,6 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 	}).detach();
 
 	return {};
-}
-
-void Blur::initialise_base_temp_path() {
-	temp_path = std::filesystem::temp_directory_path() / APPLICATION_NAME;
-	int i = 0;
-	while (true) {
-		if (std::filesystem::exists(temp_path)) {
-			temp_path = std::filesystem::temp_directory_path() / std::format("{}-{}", APPLICATION_NAME, ++i);
-			continue;
-		}
-
-		std::filesystem::create_directory(temp_path);
-		break;
-	}
 }
 
 void Blur::cleanup() {
@@ -144,43 +128,6 @@ void Blur::cleanup() {
 	std::filesystem::remove_all(temp_path); // todo: is this unsafe lol
 
 	u::log("Application cleanup completed");
-}
-
-std::optional<std::filesystem::path> Blur::create_temp_path(const std::string& folder_name) const {
-	auto temp_dir = temp_path / folder_name;
-
-	if (std::filesystem::exists(temp_dir)) {
-		u::log("temp dir {} already exists, clearing and re-creating", temp_path);
-		remove_temp_path(temp_dir);
-	}
-
-	u::log("trying to make temp dir {}", temp_dir);
-
-	if (!std::filesystem::create_directory(temp_dir))
-		return {};
-
-	u::log("created temp dir {}", temp_dir);
-
-	return temp_dir;
-}
-
-bool Blur::remove_temp_path(const std::filesystem::path& temp_path) {
-	if (temp_path.empty())
-		return false;
-
-	if (!std::filesystem::exists(temp_path))
-		return false;
-
-	try {
-		std::filesystem::remove_all(temp_path);
-		u::log("removed temp dir {}", temp_path);
-
-		return true;
-	}
-	catch (const std::filesystem::filesystem_error& e) {
-		u::log_error("Error removing temp path: {}", e.what());
-		return false;
-	}
 }
 
 tl::expected<updates::UpdateCheckRes, std::string> Blur::check_updates() {

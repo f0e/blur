@@ -30,11 +30,6 @@ public:
 
 	void cleanup();
 
-	void initialise_base_temp_path();
-
-	[[nodiscard]] std::optional<std::filesystem::path> create_temp_path(const std::string& folder_name) const;
-	static bool remove_temp_path(const std::filesystem::path& temp_path);
-
 	static tl::expected<updates::UpdateCheckRes, std::string> check_updates();
 	static void update(
 		const std::string& tag,

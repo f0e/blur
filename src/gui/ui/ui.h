@@ -120,14 +120,12 @@ namespace ui {
 	}
 
 	struct ImageElementData {
-		std::filesystem::path image_path;
 		std::shared_ptr<render::Texture> texture;
 		std::string image_id;
 		gfx::Color image_color;
 
 		bool operator==(const ImageElementData& other) const {
-			return image_path == other.image_path && texture == other.texture && image_id == other.image_id &&
-			       image_color == other.image_color;
+			return texture == other.texture && image_id == other.image_id && image_color == other.image_color;
 		}
 	};
 
@@ -592,6 +590,15 @@ namespace ui {
 		std::string image_id = "",
 		gfx::Color image_color = gfx::Color::white()
 	); // use image_id to distinguish images that have the same filename and reload it (e.g. if its updated)
+
+	std::optional<AnimatedElement*> add_image(
+		const std::string& id,
+		Container& container,
+		std::shared_ptr<render::Texture> texture,
+		const gfx::Size& max_size,
+		const std::string& image_id = "",
+		gfx::Color image_color = gfx::Color::white()
+	);
 
 	std::optional<AnimatedElement*> add_videos(
 		const std::string& id,

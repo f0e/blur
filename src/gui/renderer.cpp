@@ -249,6 +249,14 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		}
 	}
 
+	// config preview cleanup TODO: hate this code pattern? how else do i do this nicely tho?
+	static Screens last_screen = screen;
+	if (last_screen != screen) {
+		if (last_screen == Screens::CONFIG)
+			components::configs::reset_config_preview();
+		last_screen = screen;
+	}
+
 	components::notifications::render(notification_container);
 
 	ui::center_elements_in_container(nav_container);

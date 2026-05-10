@@ -925,3 +925,18 @@ std::vector<std::string> render::wrap_text(
 
 	return lines;
 }
+
+SDL_Surface* render::jpeg_bytes_to_surface(const void* data, size_t size) {
+	SDL_IOStream* io = SDL_IOFromConstMem(data, size);
+	if (!io)
+		return nullptr;
+
+	SDL_Surface* surface = IMG_LoadTyped_IO(io, /*closeio=*/true, "JPG");
+	if (!surface)
+		return nullptr;
+
+	SDL_Surface* rgba = SDL_ConvertSurface(surface, SDL_PIXELFORMAT_RGBA32);
+	SDL_DestroySurface(surface);
+
+	return rgba;
+}

@@ -82,11 +82,6 @@ namespace rendering {
 			return m_paused;
 		}
 
-		std::filesystem::path get_preview_path() {
-			std::lock_guard lock(m_mutex);
-			return m_preview_path;
-		}
-
 		Progress get_progress() {
 			std::lock_guard lock(m_mutex);
 			return m_progress;
@@ -116,10 +111,14 @@ namespace rendering {
 			const std::function<void()>& progress_callback
 		);
 
-	private:
+	public:
+		// TODO: shitcode but getters are bloat
+		bool m_read_stdout_jpg = false;
+		std::mutex m_preview_mutex;
+		std::vector<uint8_t> m_preview_jpeg;
+
 		std::mutex m_mutex;
 
-		std::filesystem::path m_preview_path;
 		Progress m_progress;
 		bool m_paused = false;
 
@@ -161,10 +160,6 @@ namespace rendering {
 		);
 
 		boost::process::native_environment setup_environment();
-
-		tl::expected<std::filesystem::path, std::string> create_temp_output_path(
-			const std::string& prefix, const std::string& extension = "jpg"
-		);
 
 		tl::expected<std::filesystem::path, std::string> build_output_filename(
 			const std::filesystem::path& input_path, const BlurSettings& settings, const GlobalAppSettings& app_settings
@@ -273,7 +268,12 @@ namespace rendering {
 
 	inline VideoRenderQueue video_render_queue;
 
-	tl::expected<RenderResult, std::variant<std::string, RenderError>> render_frame(
+	struct FrameRenderResult {
+		std::vector<uint8_t> frame_jpeg;
+		bool stopped = false;
+	};
+
+	tl::expected<FrameRenderResult, std::variant<std::string, RenderError>> render_frame(
 		const std::filesystem::path& input_path,
 		const BlurSettings& settings,
 		const GlobalAppSettings& app_settings = config_app::get_app_config(),

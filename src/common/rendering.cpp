@@ -43,18 +43,6 @@ std::vector<std::string> rendering::detail::build_vspipe_args(
 	return args;
 }
 
-tl::expected<std::filesystem::path, std::string> rendering::detail::create_temp_output_path(
-	const std::string& prefix, const std::string& extension
-) {
-	static std::atomic<size_t> counter = 0;
-	auto temp_path = blur.create_temp_path(std::format("{}-{}", prefix, counter++));
-
-	if (!temp_path)
-		return tl::unexpected("Failed to create temp path");
-
-	return *temp_path / std::format("output.{}", extension);
-}
-
 tl::expected<std::filesystem::path, std::string> rendering::detail::build_output_filename(
 	const std::filesystem::path& input_path, const BlurSettings& settings, const GlobalAppSettings& app_settings
 ) {
@@ -158,6 +146,7 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 		auto env = u::setup_vspipe_environment();
 
 		bp::pipe vspipe_stdout;
+		bp::ipstream ffmpeg_stdout;
 
 		bp::ipstream vspipe_stderr;
 		bp::ipstream ffmpeg_stderr;
@@ -260,6 +249,45 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 			}
 		});
 
+		std::thread ffmpeg_stdout_thread([&]() {
+			if (!state->m_read_stdout_jpg)
+				return;
+
+			std::vector<uint8_t> buf;
+			buf.reserve(1024 * 512);
+
+			uint8_t byte;
+			bool in_jpeg = false;
+
+			while (ffmpeg_stdout.read(reinterpret_cast<char*>(&byte), 1)) {
+				if (!in_jpeg) {
+					if (byte == 0xFF) {
+						buf.push_back(byte);
+					}
+					else if (!buf.empty() && byte == 0xD8) {
+						buf.push_back(byte);
+						in_jpeg = true;
+					}
+					else {
+						buf.clear();
+					}
+				}
+				else {
+					buf.push_back(byte);
+
+					if (buf.size() >= 2 && buf[buf.size() - 2] == 0xFF && buf[buf.size() - 1] == 0xD9) {
+						{
+							std::lock_guard lock(state->m_preview_mutex);
+							state->m_preview_jpeg = buf;
+						}
+
+						buf.clear();
+						in_jpeg = false;
+					}
+				}
+			}
+		});
+
 		auto vspipe_process = u::run_command(
 			blur.vspipe_path,
 			commands.vspipe_video,
@@ -270,9 +298,19 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 		                          // subprocess.run(stdout=sys.stderr) in rife-trt (FUN!)
 		);
 
-		auto ffmpeg_process = u::run_command(
-			blur.ffmpeg_path, commands.ffmpeg, env, bp::std_err > ffmpeg_stderr, bp::std_in < vspipe_stdout
-		);
+		auto ffmpeg_process =
+			state->m_read_stdout_jpg
+				? u::run_command(
+					  blur.ffmpeg_path,
+					  commands.ffmpeg,
+					  env,
+					  bp::std_out > ffmpeg_stdout,
+					  bp::std_err > ffmpeg_stderr,
+					  bp::std_in < vspipe_stdout
+				  )
+				: u::run_command(
+					  blur.ffmpeg_path, commands.ffmpeg, env, bp::std_err > ffmpeg_stderr, bp::std_in < vspipe_stdout
+				  );
 
 		bool killed = false;
 		while (ffmpeg_process.running()) {
@@ -295,6 +333,9 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 		vspipe_process.terminate();
 
 		// wait for threads to finish
+		if (ffmpeg_stdout_thread.joinable())
+			ffmpeg_stdout_thread.join();
+
 		if (ffmpeg_stderr_thread.joinable())
 			ffmpeg_stderr_thread.join();
 
@@ -360,7 +401,7 @@ void rendering::detail::copy_file_timestamp(const std::filesystem::path& from, c
 	}
 }
 
-tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>> rendering::render_frame(
+tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::RenderError>> rendering::render_frame(
 	const std::filesystem::path& input_path,
 	const BlurSettings& settings,
 	const GlobalAppSettings& app_settings,
@@ -376,38 +417,37 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 	if (!merged_settings)
 		return tl::unexpected(merged_settings.error());
 
-	auto output_path = detail::create_temp_output_path("frame-preview");
-	if (!output_path)
-		return tl::unexpected(output_path.error());
-
 	RenderCommands commands = {
-		.vspipe_video = detail::build_vspipe_args(input_path, *merged_settings),
-		.ffmpeg = {
-			"-loglevel",
-			"error",
-			"-hide_banner",
-			"-stats",
-			"-ss",
-			"00:00:00.200",
-			"-y",
-			"-i",
-			"-",
-			"-map",
-			"0:v",
-			"-vframes",
-			"1",
-			"-q:v",
-			"2",
-			"-y",
-			output_path->string(),
-		},
-	};
+        .vspipe_video = detail::build_vspipe_args(input_path, *merged_settings),
+        .ffmpeg = {
+            "-loglevel", "error",
+            "-hide_banner",
+            "-stats",
+            "-ss", "00:00:00.200",
+            "-i", "-",
+            "-map", "0:v",
+            "-vframes", "1",
+            "-q:v", "2",
+            "-f", "image2pipe",
+            "-vcodec", "mjpeg",
+            "-",
+        },
+    };
+
+	{
+		std::lock_guard lock(state->m_mutex);
+		state->m_read_stdout_jpg = true;
+	}
 
 	auto pipeline_result = detail::execute_pipeline(commands, state, settings.advanced.debug, false, nullptr);
+
 	if (!pipeline_result)
 		return tl::unexpected(pipeline_result.error());
 
-	return RenderResult{ .output_path = *output_path, .stopped = pipeline_result->stopped };
+	return FrameRenderResult{
+		.frame_jpeg = std::move(state->m_preview_jpeg),
+		.stopped = pipeline_result->stopped,
+	};
 }
 
 tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>> rendering::detail::
@@ -599,10 +639,19 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 		}
 	}
 
+	// auto remove_pix_fmt = [&] {
+	// 	// not strictly necessary, the second -pix_fmt should override the first, but that's ugly.
+	// 	if (auto it = std::ranges::find(ffmpeg_args, "-pix_fmt"); it != ffmpeg_args.end())
+	// 		ffmpeg_args.erase(it, it + 2);
+	// };
+
 	// encoding args
 	if (!settings.advanced.ffmpeg_override.empty()) {
 		auto args = u::ffmpeg_string_to_args(settings.advanced.ffmpeg_override);
 		for (const auto& arg : args) {
+			// if (arg == "-pix_fmt")
+			// 	remove_pix_fmt();
+
 			ffmpeg_args.push_back(arg);
 		}
 	}
@@ -614,40 +663,36 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 		);
 
 		for (const auto& arg : preset_args) {
+			// if (arg == "-pix_fmt")
+			// 	remove_pix_fmt();
+
 			ffmpeg_args.push_back(arg);
 		}
-
-		ffmpeg_args.insert(ffmpeg_args.end(), { "-c:a", "aac", "-b:a", "320k", "-movflags", "+faststart" });
 	}
 
 	ffmpeg_args.push_back(u::path_to_string(output_path));
 
-	// add preview output if needed
-	std::filesystem::path preview_path;
+	// add preview pipe if needed
 	if (settings.preview && blur.using_preview) {
-		auto temp_preview = detail::create_temp_output_path("preview");
-		if (temp_preview) {
+		ffmpeg_args.insert(
+			ffmpeg_args.end(),
 			{
-				std::lock_guard lock(state->m_mutex);
-				state->m_preview_path = temp_preview.value();
+				"-map",
+				"0:v",
+				"-q:v",
+				"2",
+				"-update",
+				"1",
+				"-f",
+				"image2pipe",
+				"-vcodec",
+				"mjpeg",
+				"-",
 			}
+		);
 
-			ffmpeg_args.insert(
-				ffmpeg_args.end(),
-				{
-					"-map",
-					"0:v",
-					"-q:v",
-					"2",
-					"-update",
-					"1",
-					"-atomic_writing",
-					"1",
-					"-y",
-					u::path_to_string(state->m_preview_path),
-				}
-			);
-		}
+		std::lock_guard lock(state->m_mutex);
+		state->m_read_stdout_jpg = true;
 	}
 
 	RenderCommands commands = {
@@ -672,12 +717,10 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 		}
 	}
 
-	// clean up preview temp path if created
-	if (!preview_path.empty()) {
-		Blur::remove_temp_path(preview_path.parent_path());
-	}
-
-	return RenderResult{ .output_path = output_path, .stopped = pipeline_result->stopped };
+	return RenderResult{
+		.output_path = output_path,
+		.stopped = pipeline_result->stopped,
+	};
 }
 
 rendering::QueueAddRes rendering::VideoRenderQueue::add(

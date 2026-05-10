@@ -263,4 +263,6 @@ namespace render {
 	std::vector<std::string> wrap_text(
 		const std::string& text, const gfx::Size& dimensions, const Font& font, int line_height = 0
 	);
+
+	SDL_Surface* jpeg_bytes_to_surface(const void* data, size_t size);
 }

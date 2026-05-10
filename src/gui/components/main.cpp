@@ -80,14 +80,35 @@ void main::render_progress(
 
 	int bar_width = 300;
 
-	std::string preview_path = u::path_to_string(render.state->get_preview_path());
+	static std::shared_ptr<render::Texture> preview_texture;
+
+	// create texture from current render preview (here cause its main thread)
+	auto get_preview_texture = [&] { // lambda just so i can return lol
+		std::lock_guard lock(render.state->m_preview_mutex);
+		if (render.state->m_preview_jpeg.empty())
+			return;
+
+		SDL_Surface* rgba =
+			render::jpeg_bytes_to_surface(render.state->m_preview_jpeg.data(), render.state->m_preview_jpeg.size());
+		render.state->m_preview_jpeg.clear();
+
+		if (rgba) {
+			auto tex = std::make_shared<render::Texture>();
+			if (tex->load_from_surface(rgba))
+				preview_texture = tex;
+			SDL_DestroySurface(rgba);
+		}
+	};
+
+	get_preview_texture();
+
 	auto progress = render.state->get_progress();
 
-	if (!preview_path.empty() && progress.current_frame > 0) {
+	if (preview_texture && progress.current_frame > 0) {
 		auto element = ui::add_image(
 			"preview image",
 			container,
-			preview_path,
+			preview_texture,
 			gfx::Size(container.get_usable_rect().w, container.get_usable_rect().h / 2),
 			std::to_string(progress.current_frame)
 		);
@@ -95,7 +116,6 @@ void main::render_progress(
 			bar_width = (*element)->element->rect.w;
 		}
 	}
-
 	if (progress.rendered_a_frame) {
 		float render_progress = (float)progress.current_frame / (float)progress.total_frames;
 		bar_percent = u::lerp(bar_percent, render_progress, 5.f * delta_time, 0.005f);
