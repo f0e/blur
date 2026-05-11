@@ -289,6 +289,10 @@ void configs::options(ui::Container& container) {
 
 	auto presets = u::get_supported_presets(settings.gpu_encoding, app_settings.gpu_type);
 
+	if (!u::contains(presets, settings.encode_preset)) {
+		settings.encode_preset = presets[0];
+	}
+
 	if (presets.empty()) {
 		ui::add_text(
 			"no presets text",
