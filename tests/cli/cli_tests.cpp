@@ -238,5 +238,15 @@ TEST_F(CLITest, MixedSuccessAndFailure) {
 	EXPECT_TRUE(std::filesystem::exists(outputs[3]));  // second valid video should succeed
 }
 
+TEST_F(CLITest, OutputWithNoDirectory) {
+	std::vector<std::filesystem::path> inputs{ m_test_video };
+
+	std::vector<std::filesystem::path> outputs{ std::filesystem::path("output_no_dir.mp4") };
+
+	EXPECT_TRUE(cli::run(inputs, outputs, {}, false, true, true));
+
+	std::filesystem::remove("output_no_dir.mp4");
+}
+
 // TODO: add tests for things that i've had to fix
 // e.g. variable framerate output length, configs with invalid values printing the right errors, etc.
