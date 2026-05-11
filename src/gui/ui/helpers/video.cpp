@@ -61,10 +61,7 @@ void VideoPlayer::handle_key_press(SDL_Keycode key) {
 	}
 }
 
-void VideoPlayer::load_file(const std::filesystem::path& file_path) {
-	run_command_async({ "loadfile", u::path_to_string(file_path) });
-
-	m_current_file_path = file_path;
+void VideoPlayer::reset_loaded_file() {
 	m_loaded_file = {};
 	m_is_seeking = false;
 
@@ -74,6 +71,20 @@ void VideoPlayer::load_file(const std::filesystem::path& file_path) {
 	m_cached_pause = true;
 	m_cached_width = 0;
 	m_cached_height = 0;
+}
+
+void VideoPlayer::load_file(const std::filesystem::path& file_path) {
+	run_command_async({ "loadfile", u::path_to_string(file_path) });
+
+	m_current_file_path = file_path;
+	reset_loaded_file();
+}
+
+void VideoPlayer::stop() {
+	run_command_async({ "stop" });
+
+	m_current_file_path = {};
+	reset_loaded_file();
 }
 
 void VideoPlayer::gen_fbo_texture() {

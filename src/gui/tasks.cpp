@@ -190,9 +190,16 @@ void tasks::add_sample_video(const std::filesystem::path& path_str) {
 	gui::components::configs::just_added_sample_video = true;
 }
 
-void tasks::cancel_pending() {
+void tasks::cancel_all_pending() {
 	std::lock_guard<std::mutex> lock(pending_videos_mutex);
 	pending_videos.clear();
+}
+
+void tasks::cancel_pending(size_t video_id) {
+	std::lock_guard<std::mutex> lock(pending_videos_mutex);
+	std::erase_if(pending_videos, [video_id](const std::shared_ptr<PendingVideo>& pv) {
+		return pv->video_id == video_id;
+	});
 }
 
 void tasks::start_pending_videos() {

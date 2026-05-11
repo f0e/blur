@@ -8,7 +8,7 @@ constexpr int TRACK_HEIGHT = 4;
 constexpr int LINE_HEIGHT_ADD = 7;
 constexpr int TRACK_LABEL_GAP = 10;
 constexpr int TOOLTIP_GAP = 4;
-const std::string TIED_ICON = "a"; // chain
+const std::string TIED_ICON = "b"; // chain
 constexpr int TIED_ICON_GAP = 3;
 constexpr gfx::Size TIE_PAD(5, 3);
 constexpr float TIE_ROUNDING = 4.0f;
@@ -143,7 +143,6 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 			auto& observer = slider_observers[element.element->id];
 
 			if (*slider_data.is_tied && slider_data.tied_value) {
-				// Get current tied value
 				float current_tied_val = std::visit(to_float_ptr, *slider_data.tied_value);
 
 				if (observer.init && current_tied_val != observer.last_tied_value) {

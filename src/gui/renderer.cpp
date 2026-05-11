@@ -175,12 +175,12 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 						ui::set_next_same_line(nav_container);
 						ui::add_button("cancel button", nav_container, "Cancel", fonts::dejavu, [] {
-							tasks::cancel_pending();
+							tasks::cancel_all_pending();
 						});
 
 						// escape = cancel
 						if (keys::is_key_pressed(SDL_SCANCODE_ESCAPE)) {
-							tasks::cancel_pending();
+							tasks::cancel_all_pending();
 						}
 
 						ui::set_next_same_line(nav_container);

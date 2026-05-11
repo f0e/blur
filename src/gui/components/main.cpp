@@ -12,6 +12,10 @@
 
 namespace main = gui::components::main;
 
+namespace {
+	size_t pending_index = 0;
+}
+
 void main::open_files_button(ui::Container& container, const std::string& label) {
 	ui::add_button("open file button", container, label, fonts::dejavu, [] {
 		static auto file_callback = [](void* userdata, const char* const* files, int filter) {
@@ -223,7 +227,6 @@ void main::render_progress(
 }
 
 void main::render_pending(ui::Container& container, const std::vector<std::shared_ptr<tasks::PendingVideo>>& pending) {
-	static size_t pending_index = 0;
 	pending_index = (size_t)std::clamp((int)pending_index, 0, int(pending.size() - 1));
 
 	auto& pending_video = pending[pending_index];
@@ -265,7 +268,18 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 
 	float volume = app_config.preview_volume; // todo: make a gui element for controlling it? idk
 
-	ui::add_videos("test video", container, ui_videos, pending_index, pending_video->start, pending_video->end, volume);
+	ui::add_videos(
+		"test video",
+		container,
+		ui_videos,
+		pending_index,
+		pending_video->start,
+		pending_video->end,
+		volume,
+		[&](size_t removed_video_id) {
+			tasks::cancel_pending(removed_video_id);
+		}
+	);
 }
 
 void main::render_home(ui::Container& container) {
@@ -316,6 +330,9 @@ main::MainScreen main::screen(ui::Container& container, float delta_time) {
 	if (pending.size() > 0) {
 		render_pending(container, pending);
 		return MainScreen::PENDING;
+	}
+	else {
+		pending_index = 0;
 	}
 
 	const auto& queue = rendering::video_render_queue.get_queue_copy();

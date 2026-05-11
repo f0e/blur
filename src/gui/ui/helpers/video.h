@@ -36,6 +36,7 @@ public:
 	void handle_key_press(SDL_Keycode key);
 
 	void load_file(const std::filesystem::path& file_path);
+	void stop();
 
 	bool render(int w, int h);
 
@@ -206,6 +207,8 @@ private:
 	void gen_fbo_texture();
 
 	void setup_fbo_texture(int w, int h);
+
+	void reset_loaded_file();
 
 	template<typename VariableType>
 	std::optional<VariableType> get_property(const std::string& key, mpv_format variable_format) const {

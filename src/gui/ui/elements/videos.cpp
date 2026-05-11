@@ -6,11 +6,20 @@
 #include "frame_snap.h"
 #include "common/waveforms.h"
 
+// animations
+constexpr float VIDEO_OFFSET_ANIMATION_SPEED = 25.f;
+constexpr float EACH_VIDEO_OFFSET_ANIMATION_SPEED = 25.f;
+
 // videos
 constexpr gfx::Size LOADER_SIZE(20, 20);
 constexpr gfx::Size LOADER_PAD(5, 5);
 constexpr float START_FADE = 0.5f;
 constexpr int VIDEO_GAP = 30;
+constexpr int REMOVE_BUTTON_GAP = 22;
+constexpr int REMOVE_BUTTON_RADIUS = 12;
+constexpr gfx::Color REMOVE_BUTTON_COLOUR(17, 17, 17);
+constexpr gfx::Color REMOVE_BUTTON_HOVER_COLOUR(153, 40, 40);
+const std::string REMOVE_ICON = "c"; // x
 
 // track
 constexpr int TRACK_GAP = 10;
@@ -73,17 +82,26 @@ namespace {
 
 		std::vector<gfx::Rect> rects;
 
-		float offset = 0.f;
+		for (const auto& video : video_data.videos) {
+			auto it = element.animations.find(ui::hasher("video_offset_" + std::to_string(video.data.video_id)));
+			float offset = (it != element.animations.end()) ? it->second.current : 0.f;
 
-		for (auto [i, video] : u::enumerate(video_data.videos)) {
-			gfx::Rect player_rect(rect.origin().offset_x(offset), video.size);
-
-			rects.push_back(player_rect);
-
-			offset += player_rect.w + VIDEO_GAP;
+			rects.emplace_back(rect.origin().offset_x(offset), video.size);
 		}
 
 		return rects;
+	}
+
+	std::unordered_map<size_t, float> compute_video_goal_offsets(
+		const std::vector<ui::VideoElementData::Video>& videos
+	) {
+		std::unordered_map<size_t, float> goals;
+		float offset = 0.f;
+		for (const auto& video : videos) {
+			goals[video.data.video_id] = offset;
+			offset += video.size.w + VIDEO_GAP;
+		}
+		return goals;
 	}
 
 	// track
@@ -262,6 +280,20 @@ namespace {
 			DEBUG_LOG("initialised zoom");
 		}
 	}
+
+	void update_video_offsets(ui::AnimatedElement& element) {
+		auto& video_data = std::get<ui::VideoElementData>(element.element->data);
+		auto goals = compute_video_goal_offsets(video_data.videos);
+
+		for (auto& [id, goal] : goals) {
+			auto key = ui::hasher("video_offset_" + std::to_string(id));
+
+			auto [it, inserted] =
+				element.animations.try_emplace(key, ui::AnimationState(EACH_VIDEO_OFFSET_ANIMATION_SPEED, 0.f));
+
+			it->second.set_goal(goal);
+		}
+	}
 }
 
 void ui::handle_videos_event(const SDL_Event& event, bool& to_render) {
@@ -288,6 +320,8 @@ void render_videos_actual(const ui::Container& container, const ui::AnimatedElem
 
 	float anim = element.animations.at(ui::hasher("main")).current;
 	float offset = element.animations.at(ui::hasher("video_offset")).current;
+	float active_video_hover = element.animations.at(ui::hasher("active_video_hover")).current;
+	float remove_button_hover = element.animations.at(ui::hasher("remove_button_hover")).current;
 
 	int alpha = anim * 255;
 
@@ -343,6 +377,28 @@ void render_videos_actual(const ui::Container& container, const ui::AnimatedElem
 		}
 
 		render::borders(video_rect, gfx::Color(50, 50, 50, alpha), gfx::Color(15, 15, 15, alpha));
+
+		if (i == *video_data.index) {
+			// remove button
+			float remove_button_alpha = anim * active_video_hover;
+			if (remove_button_alpha > 0) {
+				gfx::Point remove_button_pos = video_rect.top_right().offset(-REMOVE_BUTTON_GAP, REMOVE_BUTTON_GAP);
+
+				auto remove_button_colour =
+					gfx::Color::lerp(REMOVE_BUTTON_COLOUR, REMOVE_BUTTON_HOVER_COLOUR, remove_button_hover)
+						.adjust_alpha(remove_button_alpha);
+
+				render::circle_filled(remove_button_pos, REMOVE_BUTTON_RADIUS, remove_button_colour);
+
+				render::text(
+					remove_button_pos,
+					gfx::Color(255, 255, 255).adjust_alpha(remove_button_alpha),
+					REMOVE_ICON,
+					fonts::icons,
+					FONT_CENTERED_X | FONT_CENTERED_Y
+				);
+			}
+		}
 	}
 }
 
@@ -751,13 +807,25 @@ bool update_track(const ui::Container& container, ui::AnimatedElement& element) 
 
 	// [/g = start
 	if (keys::is_key_pressed(SDL_SCANCODE_LEFTBRACKET) || keys::is_key_pressed(SDL_SCANCODE_G)) {
-		*video_data.start = std::clamp(current_percent, 0.f, video_data.end ? *video_data.end : 1.f);
+		*video_data.start = std::clamp(current_percent, 0.f, 1.f);
+
+		if (*video_data.end < *video_data.start) {
+			// reset end if before new start
+			*video_data.end = 1.f;
+		}
+
 		updated = true;
 	}
 
 	// ]/h = end
 	if (keys::is_key_pressed(SDL_SCANCODE_RIGHTBRACKET) || keys::is_key_pressed(SDL_SCANCODE_H)) {
-		*video_data.end = std::clamp(current_percent, video_data.start ? *video_data.start : 0.f, 1.f);
+		*video_data.end = std::clamp(current_percent, 0.f, 1.f);
+
+		if (*video_data.start > *video_data.end) {
+			// reset start if after new end
+			*video_data.start = 0.f;
+		}
+
 		updated = true;
 	}
 
@@ -777,24 +845,51 @@ bool update_videos_actual(const ui::Container& container, ui::AnimatedElement& e
 
 	auto track_rect = get_track_rect(element.element->rect.origin(), active_video->size);
 
+	auto& active_video_hover_anim = element.animations.at(ui::hasher("active_video_hover"));
+	auto& remove_button_hover_anim = element.animations.at(ui::hasher("remove_button_hover"));
+
 	auto& offset_anim = element.animations.at(ui::hasher("video_offset"));
 	auto rect = get_video_rect(element.element->rect.origin(), active_video->size, offset_anim.current);
 
 	// clicking on videos
 	std::vector<gfx::Rect> rects = get_video_rects(element, rect);
 
+	bool active_video_hovered = false;
+	bool remove_button_hovered = false;
+
 	for (auto [i, video] : u::enumerate(video_data.videos)) {
 		if (!rects[i].contains(keys::mouse_pos))
 			continue;
 
 		if (i == *video_data.index) {
-			if (video_player) {
+			active_video_hovered = true;
+
+			gfx::Point remove_button_pos = rects[i].top_right().offset(-REMOVE_BUTTON_GAP, REMOVE_BUTTON_GAP);
+			float dist = std::hypot(keys::mouse_pos.x - remove_button_pos.x, keys::mouse_pos.y - remove_button_pos.y);
+			remove_button_hovered = dist <= REMOVE_BUTTON_RADIUS;
+
+			if (remove_button_hovered) {
 				ui::set_cursor(SDL_SYSTEM_CURSOR_POINTER);
 
 				if (keys::is_mouse_down()) {
-					// same video, pause/unpause
 					keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
-					video_player->cycle_paused();
+
+					if (video_player)
+						video_player->stop();
+
+					// remove
+					video_data.on_remove(video.data.video_id);
+				}
+			}
+			else {
+				if (video_player) {
+					ui::set_cursor(SDL_SYSTEM_CURSOR_POINTER);
+
+					if (keys::is_mouse_down()) {
+						// same video, pause/unpause
+						keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
+						video_player->cycle_paused();
+					}
 				}
 			}
 		}
@@ -805,16 +900,19 @@ bool update_videos_actual(const ui::Container& container, ui::AnimatedElement& e
 				// different video, switch to it
 				keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
 
-				if (video_player->get_current_file_path() != video.data.path)
-					video_player->load_file(video.data.path);
+				*video_data.index = i;
 
 				if (video_player)
-					video_player->set_paused(true);
+					video_player->stop();
 
-				*video_data.index = i;
+				auto& progress_anim = element.animations.at(ui::hasher("progress"));
+				progress_anim.set_goal(0.f);
 			}
 		}
 	}
+
+	active_video_hover_anim.set_goal(active_video_hovered ? 1.f : 0.f);
+	remove_button_hover_anim.set_goal(remove_button_hovered ? 1.f : 0.f);
 
 	return false;
 }
@@ -854,15 +952,14 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 	size_t& index,
 	float& start,
 	float& end,
-	float& volume
+	float& volume,
+	const std::function<void(size_t video_id)>& on_remove
 ) {
 	if (ui_videos.empty())
 		return {};
 
-	if (!video_player) {
+	if (!video_player)
 		video_player = std::make_shared<VideoPlayer>(volume);
-		video_player->load_file(ui_videos[0].path);
-	}
 
 	std::vector<VideoElementData::Video> videos;
 
@@ -891,7 +988,13 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 
 	auto& active_video = videos[index];
 
+	if (video_player->get_current_file_path() != active_video.data.path) {
+		video_player->load_file(active_video.data.path);
+		video_player->set_paused(true);
+	}
+
 	auto track_rect = get_track_rect(container.current_position, active_video.size);
+	auto goal_offsets = compute_video_goal_offsets(videos);
 
 	Element element(
 		id,
@@ -907,6 +1010,7 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 			.index = &index,
 			.start = &start,
 			.end = &end,
+			.on_remove = on_remove,
 		},
 		render_videos,
 		update_videos,
@@ -921,12 +1025,14 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 		container.element_gap,
 		{
 			{ hasher("main"), AnimationState(25.f) },
-			{ hasher("video_offset"), AnimationState(25.f, offset ? *offset : 0.f, 1.f) },
+			{ hasher("video_offset"), AnimationState(VIDEO_OFFSET_ANIMATION_SPEED, offset ? *offset : 0.f, 1.f) },
 			{ hasher("progress"), AnimationState(70.f) },
 			{ hasher("seeking"), AnimationState(70.f) },
 			{ hasher("seek"), AnimationState(70.f) },
 			{ hasher("left_grab"), AnimationState(150.f) },
 			{ hasher("right_grab"), AnimationState(150.f) },
+			{ hasher("active_video_hover"), AnimationState(25.f) },
+			{ hasher("remove_button_hover"), AnimationState(50.f) },
 		}
 	);
 
@@ -934,6 +1040,7 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 
 	// some stuff has to update every time, not just on events
 	update_progress(*elem);
+	update_video_offsets(*elem);
 
 	// update offset animation
 	if (offset) {

@@ -168,6 +168,7 @@ namespace ui {
 		float* end;
 		std::optional<float> saved_percent;
 		TrimHandleInfo handle_info;
+		std::function<void(size_t video_id)> on_remove;
 
 		// persistent
 		std::optional<std::filesystem::path> last_active_video;
@@ -607,7 +608,8 @@ namespace ui {
 		size_t& index,
 		float& start,
 		float& end,
-		float& volume
+		float& volume,
+		const std::function<void(size_t video_id)>& on_remove
 	);
 
 	AnimatedElement* add_button(
