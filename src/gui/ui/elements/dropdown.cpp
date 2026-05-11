@@ -10,7 +10,7 @@ const int LABEL_GAP = 10;
 const int OPTIONS_GAP = 3;
 const gfx::Size OPTIONS_PADDING(10, 3);
 // const float DROPDOWN_ARROW_SIZE = 10.0f;
-const std::string DROPDOWN_ARROW_ICON = "b";
+const std::string DROPDOWN_ARROW_ICON = "a"; // dropdown arrow thing
 const int DROPDOWN_ARROW_PAD = 2;
 
 namespace {

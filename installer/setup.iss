@@ -40,10 +40,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: envPath; Description: "Add to PATH"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-
 [Files]
 Source: ".\resources\blur-gui.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: ".\resources\blur-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: ".\resources\libmpv-2.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: ".\dependencies\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: ".\redist\VC_redist.x64.exe"; DestDir: {tmp}; Flags: deleteafterinstall
 

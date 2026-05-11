@@ -37,6 +37,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "pre-interpolate: " << (settings.pre_interpolate ? "true" : "false") << "\n";
 		if (!concise || settings.pre_interpolate) {
 			output << "pre-interpolated fps: " << settings.pre_interpolated_fps << "\n";
+			output << "pre-interpolation method: " << settings.pre_interpolation_method << "\n";
 		}
 	}
 
@@ -63,6 +64,9 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 	}
 	if (!concise || settings.copy_dates) {
 		output << "copy dates: " << (settings.copy_dates ? "true" : "false") << "\n";
+	}
+	if (!concise || settings.upscale) {
+		output << "upscale: " << (settings.upscale ? "true" : "false") << "\n";
 	}
 
 	// GPU acceleration section
@@ -112,6 +116,8 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "- advanced deduplication" << "\n";
 			output << "deduplicate range: " << settings.advanced.deduplicate_range << "\n";
 			output << "deduplicate threshold: " << settings.advanced.deduplicate_threshold << "\n";
+			output << "deduplicate frames to interpolate: " << settings.advanced.duplicate_mode << "\n";
+			output << "deduplicate max future checks: " << settings.advanced.max_future_checks << "\n";
 
 			output << "\n";
 			output << "- advanced rendering" << "\n";
@@ -122,6 +128,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			if (!concise || settings.advanced.debug) {
 				output << "debug: " << (settings.advanced.debug ? "true" : "false") << "\n";
 			}
+			output << "resizing chroma location: " << settings.advanced.resize_chromaloc << "\n";
 
 			output << "\n";
 			output << "- advanced blur" << "\n";
@@ -136,6 +143,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "interpolation block size: " << settings.advanced.interpolation_blocksize << "\n";
 			output << "interpolation mask area: " << settings.advanced.interpolation_mask_area << "\n";
 			output << "rife model: " << settings.advanced.rife_model << "\n";
+			output << "rife (tensorrt) model: " << settings.advanced.rife_trt_model << "\n";
 
 			if (!concise || settings.advanced.manual_svp) {
 				output << "\n";
@@ -226,15 +234,16 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "blur", settings.blur);
 	config_base::extract_config_value(config_map, "blur amount", settings.blur_amount);
 	config_base::extract_config_value(config_map, "blur output fps", settings.blur_output_fps);
-	config_base::extract_config_string(config_map, "blur weighting", settings.blur_weighting);
+	config_base::extract_config_value(config_map, "blur weighting", settings.blur_weighting);
 	config_base::extract_config_value(config_map, "blur gamma", settings.blur_gamma);
 
 	config_base::extract_config_value(config_map, "interpolate", settings.interpolate);
-	config_base::extract_config_string(config_map, "interpolated fps", settings.interpolated_fps);
-	config_base::extract_config_string(config_map, "interpolation method", settings.interpolation_method);
+	config_base::extract_config_value(config_map, "interpolated fps", settings.interpolated_fps);
+	config_base::extract_config_value(config_map, "interpolation method", settings.interpolation_method);
 
 	config_base::extract_config_value(config_map, "pre-interpolate", settings.pre_interpolate);
-	config_base::extract_config_string(config_map, "pre-interpolated fps", settings.pre_interpolated_fps);
+	config_base::extract_config_value(config_map, "pre-interpolated fps", settings.pre_interpolated_fps);
+	config_base::extract_config_value(config_map, "pre-interpolation method", settings.pre_interpolation_method);
 
 	config_base::extract_config_value(config_map, "deduplicate", settings.deduplicate);
 	config_base::extract_config_value(config_map, "deduplicate method", settings.deduplicate_method);
@@ -244,6 +253,7 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "preview", settings.preview);
 	config_base::extract_config_value(config_map, "detailed filenames", settings.detailed_filenames);
 	config_base::extract_config_value(config_map, "copy dates", settings.copy_dates);
+	config_base::extract_config_value(config_map, "upscale", settings.upscale);
 
 	config_base::extract_config_value(config_map, "gpu decoding", settings.gpu_decoding);
 	config_base::extract_config_value(config_map, "gpu interpolation", settings.gpu_interpolation);
@@ -265,13 +275,18 @@ BlurSettings config_blur::parse_from_map(
 
 	if (settings.override_advanced) {
 		config_base::extract_config_value(config_map, "deduplicate range", settings.advanced.deduplicate_range);
-		config_base::extract_config_string(
-			config_map, "deduplicate threshold", settings.advanced.deduplicate_threshold
+		config_base::extract_config_value(config_map, "deduplicate threshold", settings.advanced.deduplicate_threshold);
+		config_base::extract_config_value(
+			config_map, "deduplicate frames to interpolate", settings.advanced.duplicate_mode
+		);
+		config_base::extract_config_value(
+			config_map, "deduplicate max future checks", settings.advanced.max_future_checks
 		);
 
 		config_base::extract_config_value(config_map, "video container", settings.advanced.video_container);
-		config_base::extract_config_string(config_map, "custom ffmpeg filters", settings.advanced.ffmpeg_override);
+		config_base::extract_config_value(config_map, "custom ffmpeg filters", settings.advanced.ffmpeg_override);
 		config_base::extract_config_value(config_map, "debug", settings.advanced.debug);
+		config_base::extract_config_value(config_map, "resizing chroma location", settings.advanced.resize_chromaloc);
 
 		config_base::extract_config_value(
 			config_map, "blur weighting gaussian std dev", settings.advanced.blur_weighting_gaussian_std_dev
@@ -279,31 +294,32 @@ BlurSettings config_blur::parse_from_map(
 		config_base::extract_config_value(
 			config_map, "blur weighting gaussian mean", settings.advanced.blur_weighting_gaussian_mean
 		);
-		config_base::extract_config_string(
+		config_base::extract_config_value(
 			config_map, "blur weighting gaussian bound", settings.advanced.blur_weighting_gaussian_bound
 		);
 
-		config_base::extract_config_string(
+		config_base::extract_config_value(
 			config_map, "svp interpolation preset", settings.advanced.svp_interpolation_preset
 		);
-		config_base::extract_config_string(
+		config_base::extract_config_value(
 			config_map, "svp interpolation algorithm", settings.advanced.svp_interpolation_algorithm
 		);
-		config_base::extract_config_string(
+		config_base::extract_config_value(
 			config_map, "interpolation block size", settings.advanced.interpolation_blocksize
 		);
 		config_base::extract_config_value(
 			config_map, "interpolation mask area", settings.advanced.interpolation_mask_area
 		);
-		config_base::extract_config_string(config_map, "rife model", settings.advanced.rife_model);
+		config_base::extract_config_value(config_map, "rife model", settings.advanced.rife_model);
+		config_base::extract_config_value(config_map, "rife (tensorrt) model", settings.advanced.rife_trt_model);
 		config_base::extract_config_value(config_map, "manual svp", settings.advanced.manual_svp);
-		config_base::extract_config_string(config_map, "super string", settings.advanced.super_string);
-		config_base::extract_config_string(config_map, "vectors string", settings.advanced.vectors_string);
-		config_base::extract_config_string(config_map, "smooth string", settings.advanced.smooth_string);
+		config_base::extract_config_value(config_map, "super string", settings.advanced.super_string);
+		config_base::extract_config_value(config_map, "vectors string", settings.advanced.vectors_string);
+		config_base::extract_config_value(config_map, "smooth string", settings.advanced.smooth_string);
 	}
 
 	u::verify_gpu_encoding(settings);
-	u::set_fastest_rife_gpu(settings);
+	u::set_fastest_devices(settings);
 
 	if (config_filepath) {
 		// rewrite config with proper structure and default values
@@ -376,6 +392,7 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 
 	j["pre_interpolate"] = this->pre_interpolate;
 	j["pre_interpolated_fps"] = this->pre_interpolated_fps;
+	j["pre_interpolation_method"] = this->pre_interpolation_method;
 
 	j["deduplicate"] = this->deduplicate;
 	j["deduplicate_method"] = this->deduplicate_method;
@@ -392,6 +409,7 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 
 	j["encode preset"] = this->encode_preset;
 	j["quality"] = this->quality;
+	j["upscale"] = this->upscale;
 	j["preview"] = this->preview;
 	j["detailed_filenames"] = this->detailed_filenames;
 	// j["copy_dates"] = this->copy_dates;
@@ -408,10 +426,13 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 	// advanced
 	j["deduplicate_range"] = this->advanced.deduplicate_range;
 	j["deduplicate_threshold"] = this->advanced.deduplicate_threshold;
+	j["duplicate_mode"] = this->advanced.duplicate_mode;
+	j["max_future_checks"] = this->advanced.max_future_checks;
 
 	// j["video_container"] = this->advanced.video_container;
 	// j["ffmpeg_override"] = this->advanced.ffmpeg_override;
 	j["debug"] = this->advanced.debug;
+	j["resize_chromaloc"] = this->advanced.resize_chromaloc;
 
 	j["blur_weighting_gaussian_std_dev"] = this->advanced.blur_weighting_gaussian_std_dev;
 	j["blur_weighting_gaussian_mean"] = this->advanced.blur_weighting_gaussian_mean;
@@ -422,11 +443,14 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 	j["interpolation_blocksize"] = this->advanced.interpolation_blocksize;
 	j["interpolation_mask_area"] = this->advanced.interpolation_mask_area;
 
+	// TODO: doing this here is stupid probably
 	auto rife_model_path = get_rife_model_path();
 	if (!rife_model_path)
 		return tl::unexpected(rife_model_path.error());
 
 	j["rife_model"] = *rife_model_path;
+
+	j["rife_trt_model"] = this->advanced.rife_trt_model;
 
 	j["manual_svp"] = this->advanced.manual_svp;
 	j["super_string"] = this->advanced.super_string;

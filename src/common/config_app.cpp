@@ -10,11 +10,18 @@ void config_app::create(const std::filesystem::path& filepath, const GlobalAppSe
 	output << "- pc-specific blur settings" << "\n";
 	output << "output prefix: " << settings.output_prefix << "\n";
 	output << "gpu type (nvidia/amd/intel): " << settings.gpu_type << "\n";
-	output << "rife gpu number: " << settings.rife_gpu_index << "\n";
+	output << "rife gpu number: " << settings.rife_device_index << "\n";
+	output << "rife (tensorrt) gpu number: " << settings.tensorrt_device_index << "\n";
 
 	output << "\n";
 	output << "- gui" << "\n";
+	output << "window width: " << settings.gui_width << "\n";
+	output << "window height: " << settings.gui_height << "\n";
 	output << "blur amount tied to fps: " << (settings.blur_amount_tied_to_fps ? "true" : "false") << "\n";
+
+	output << "\n";
+	output << "- preview" << "\n";
+	output << "preview volume: " << settings.preview_volume << "\n";
 
 	output << "\n";
 	output << "- desktop notifications" << "\n";
@@ -43,11 +50,16 @@ GlobalAppSettings config_app::parse(const std::filesystem::path& config_filepath
 
 	GlobalAppSettings settings;
 
-	config_base::extract_config_string(config_map, "output prefix", settings.output_prefix);
-	config_base::extract_config_string(config_map, "gpu type (nvidia/amd/intel)", settings.gpu_type);
-	config_base::extract_config_value(config_map, "rife gpu number", settings.rife_gpu_index);
+	config_base::extract_config_value(config_map, "output prefix", settings.output_prefix);
+	config_base::extract_config_value(config_map, "gpu type (nvidia/amd/intel)", settings.gpu_type);
+	config_base::extract_config_value(config_map, "rife gpu number", settings.rife_device_index);
+	config_base::extract_config_value(config_map, "rife (tensorrt) gpu number", settings.tensorrt_device_index);
 
+	config_base::extract_config_value(config_map, "window width", settings.gui_width);
+	config_base::extract_config_value(config_map, "window height", settings.gui_height);
 	config_base::extract_config_value(config_map, "blur amount tied to fps", settings.blur_amount_tied_to_fps);
+
+	config_base::extract_config_value(config_map, "preview volume", settings.preview_volume);
 
 	config_base::extract_config_value(
 		config_map, "render success notifications", settings.render_success_notifications
@@ -85,7 +97,8 @@ tl::expected<nlohmann::json, std::string> GlobalAppSettings::to_json() const {
 	nlohmann::json j;
 
 	j["gpu_type"] = this->gpu_type;
-	j["rife_gpu_index"] = this->rife_gpu_index;
+	j["rife_device_index"] = this->rife_device_index;
+	j["tensorrt_device_index"] = this->tensorrt_device_index;
 
 	return j;
 }

@@ -1,10 +1,14 @@
 #pragma once
 
+// need to include this shit cause this is also included from .mm file which doesnt get pch
 #include <tl/expected.hpp>
+#include "render/primitives/size.h"
 
 namespace sdl {
 	inline SDL_Window* window = nullptr;
 	inline SDL_GLContext gl_context = nullptr;
+
+	inline constexpr gfx::Size MINIMUM_WINDOW_SIZE(450, 250);
 
 	inline const float VSYNC_EXTRA_FPS = 50;
 	inline const float MIN_FPS = 10.f;

@@ -13,6 +13,7 @@
 
 #include "components/main.h"
 #include "components/notifications.h"
+#include "components/test.h"
 #include "components/configs/configs.h"
 
 #define DEBUG_RENDER 0
@@ -128,7 +129,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	);
 
 	gfx::Rect notification_container_rect = rect;
-	notification_container_rect.w = 230;
+	notification_container_rect.w = ui::NOTIFICATION_DEFAULT_W;
 	notification_container_rect.x =
 		rect.x2() - notification_container_rect.w - components::notifications::NOTIFICATIONS_PAD_X;
 	notification_container_rect.h = 300;
@@ -137,31 +138,82 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	ui::reset_container(notification_container, sdl::window, notification_container_rect, 6, {});
 
 	switch (screen) {
+		case Screens::TEST: {
+			components::test::screen(main_container, delta_time);
+
+			ui::add_button("back button", nav_container, "Back", fonts::dejavu, [] {
+				screen = Screens::MAIN;
+			});
+			break;
+		}
 		case Screens::MAIN: {
 			components::configs::loaded_config = false;
 
-			components::main::home_screen(main_container, delta_time);
+			auto main_screen = components::main::screen(main_container, delta_time);
 
 			if (initialisation_res) {
-				auto current_render = rendering::video_render_queue.front();
-				if (current_render) {
-					ui::add_button(
-						current_render->state->is_paused() ? "resume render button" : "pause render button",
-						nav_container,
-						current_render->state->is_paused() ? "Resume" : "Pause",
-						fonts::dejavu,
-						[&current_render] {
-							current_render->state->toggle_pause();
+				switch (main_screen) {
+					case components::main::MainScreen::HOME: {
+#ifdef _DEBUG
+						ui::add_button("test button", nav_container, "Test", fonts::dejavu, [] {
+							screen = Screens::TEST;
+						});
+#endif
+						break;
+					}
+					case components::main::MainScreen::PENDING: {
+						const auto& pending = tasks::get_pending_copy();
+
+						ui::add_button("start button", nav_container, "Start", fonts::dejavu, [] {
+							tasks::start_pending_videos();
+						});
+
+						// r = start rendering
+						if (keys::is_key_pressed(SDL_SCANCODE_R)) {
+							tasks::start_pending_videos();
 						}
-					);
 
-					ui::set_next_same_line(nav_container);
-					ui::add_button("stop render button", nav_container, "Cancel", fonts::dejavu, [&current_render] {
-						current_render->state->stop();
-					});
+						ui::set_next_same_line(nav_container);
+						ui::add_button("cancel button", nav_container, "Cancel", fonts::dejavu, [] {
+							tasks::cancel_all_pending();
+						});
 
-					ui::set_next_same_line(nav_container);
-					components::main::open_files_button(nav_container, "Add files");
+						// escape = cancel
+						if (keys::is_key_pressed(SDL_SCANCODE_ESCAPE)) {
+							tasks::cancel_all_pending();
+						}
+
+						ui::set_next_same_line(nav_container);
+						components::main::open_files_button(nav_container, "Add files");
+
+						break;
+					}
+					case components::main::MainScreen::PROGRESS: {
+						auto current_render = rendering::video_render_queue.front();
+						if (current_render) {
+							ui::add_button(
+								current_render->state->is_paused() ? "resume render button" : "pause render button",
+								nav_container,
+								current_render->state->is_paused() ? "Resume" : "Pause",
+								fonts::dejavu,
+								[] {
+									auto current_render = rendering::video_render_queue.front();
+									current_render->state->toggle_pause();
+								}
+							);
+						}
+
+						ui::set_next_same_line(nav_container);
+						ui::add_button("stop render button", nav_container, "Cancel", fonts::dejavu, [] {
+							auto current_render = rendering::video_render_queue.front();
+							current_render->state->stop();
+						});
+
+						ui::set_next_same_line(nav_container);
+						components::main::open_files_button(nav_container, "Add files");
+
+						break;
+					}
 				}
 
 				ui::set_next_same_line(nav_container);
@@ -195,6 +247,14 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 			break;
 		}
+	}
+
+	// config preview cleanup TODO: hate this code pattern? how else do i do this nicely tho?
+	static Screens last_screen = screen;
+	if (last_screen != screen) {
+		if (last_screen == Screens::CONFIG)
+			components::configs::reset_config_preview();
+		last_screen = screen;
 	}
 
 	components::notifications::render(notification_container);
@@ -283,33 +343,21 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 }
 
 void gui::renderer::on_render_finished(
-	const rendering::VideoRenderDetails& render, const tl::expected<rendering::RenderResult, std::string>& result
+	const rendering::VideoRenderDetails& render,
+	const tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>>& result
 ) {
 	std::string video_name = u::path_to_string(render.input_path.stem());
 
 	if (!result) {
-		gui::components::notifications::add(
-			std::format("Render '{}' failed. Click to copy error message", video_name),
-			ui::NotificationType::NOTIF_ERROR,
-			[result](const std::string& id) {
-				SDL_SetClipboardText(result.error().c_str());
-
-				gui::components::notifications::close(id);
-
-				gui::components::notifications::add(
-					"Copied error message to clipboard",
-					ui::NotificationType::INFO,
-					{},
-					std::chrono::duration<float>(2.f)
-				);
-			},
-			std::nullopt
+		components::notifications::show_failure_notification(
+			std::format("Render '{}' failed.", video_name), result.error(), std::nullopt
 		);
 
 		auto app_config = config_app::get_app_config();
 		if (app_config.render_failure_notifications) {
-			desktop_notification::show("Blur render failed", u::truncate_with_ellipsis(result.error(), 100));
+			desktop_notification::show("Blur render failed", std::format("Failed to render video {}", video_name));
 		}
+
 		return;
 	}
 
@@ -321,8 +369,8 @@ void gui::renderer::on_render_finished(
 	gui::components::notifications::add(
 		std::format("Render '{}' completed", video_name),
 		ui::NotificationType::SUCCESS,
-		[&result](const std::string& id) {
-			std::string file_url = std::format("file://{}", result->output_path);
+		[output_path = result->output_path](const std::string& id) {
+			std::string file_url = std::format("file://{}", u::path_to_string(output_path));
 			if (!SDL_OpenURL(file_url.c_str())) {
 				u::log_error("Failed to open output folder: {}", SDL_GetError());
 			}

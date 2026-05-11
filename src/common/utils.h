@@ -1,3 +1,5 @@
+#include <utility>
+
 #pragma once
 
 #ifdef _DEBUG
@@ -226,10 +228,6 @@ namespace u {
 			std::is_const_v<container_type>,
 			typename container_type::const_iterator,
 			typename container_type::iterator>;
-		using pointer_type = std::conditional_t<
-			std::is_const_v<container_type>,
-			typename container_type::const_pointer,
-			typename container_type::pointer>;
 		using reference_type = std::conditional_t<
 			std::is_const_v<container_type>,
 			typename container_type::const_reference,
@@ -237,7 +235,7 @@ namespace u {
 
 		constexpr enumerate_wrapper(container_type& c) : container(c) {}
 
-		struct enumerate_wrapper_iter {
+		struct iter {
 			size_t index;
 			iterator_type value;
 
@@ -245,23 +243,59 @@ namespace u {
 				return value != other;
 			}
 
-			constexpr enumerate_wrapper_iter& operator++() {
+			constexpr iter& operator++() {
 				++index;
 				++value;
 				return *this;
 			}
 
 			constexpr std::pair<size_t, reference_type> operator*() {
-				return std::pair<size_t, reference_type>{ index, *value };
+				return { index, *value };
 			}
 		};
 
-		constexpr enumerate_wrapper_iter begin() {
+		struct reverse_iter {
+			size_t index;
+			std::reverse_iterator<iterator_type> value;
+
+			constexpr bool operator!=(const std::reverse_iterator<iterator_type>& other) const {
+				return value != other;
+			}
+
+			constexpr reverse_iter& operator++() {
+				++value;
+				--index;
+				return *this;
+			}
+
+			constexpr std::pair<size_t, reference_type> operator*() {
+				return { index, *value };
+			}
+		};
+
+		constexpr iter begin() {
 			return { 0, std::begin(container) };
 		}
 
 		constexpr iterator_type end() {
 			return std::end(container);
+		}
+
+		// --- Reverse range wrapper ---
+		struct reverse_range {
+			enumerate_wrapper& parent;
+
+			constexpr reverse_iter begin() {
+				return { parent.container.size() - 1, std::rbegin(parent.container) };
+			}
+
+			constexpr std::reverse_iterator<iterator_type> end() {
+				return std::rend(parent.container);
+			}
+		};
+
+		constexpr reverse_range reverse() {
+			return reverse_range{ *this };
 		}
 
 		container_type& container;
@@ -397,9 +431,17 @@ namespace u {
 
 	std::string get_executable_path();
 
-	float lerp(
-		float value, float target, float speed, float snap_offset = 0.01f
-	); // if animations are jumping at the end then lower snap offset. todo: maybe dynamically generate it somehow
+	template<typename T>
+	T lerp(
+		T value, T target, T reset_speed, T snap_offset = 0.01f
+	) { // if animations are jumping at the end then lower snap offset. todo: maybe dynamically generate it somehow
+		value = std::lerp(value, target, reset_speed);
+
+		if (std::abs(value - target) < snap_offset) // todo: is this too small
+			value = target;
+
+		return value;
+	}
 
 	void sleep(double seconds); // https://blog.bearcats.nl/perfect-sleep-function/ kill windows
 
@@ -418,9 +460,20 @@ namespace u {
 		int sample_rate = -1;
 		int fps_num = -1;
 		int fps_den = -1;
+		float duration = 0.f;
+		int width = -1;
+		int height = -1;
+
+		std::vector<int> audio_sample_rates;
+
+		double video_start_time = 0.0;
+		std::vector<double> audio_start_times;
+
+		bool operator==(const VideoInfo& other) const = default;
 	};
 
 	VideoInfo get_video_info(const std::filesystem::path& path);
+	int16_t get_audio_percentile_peak(const std::vector<int16_t>& samples, float percentile);
 
 	struct EncodingDevice {
 		std::string type;   // "nvidia", "amd", "intel", "mac"
@@ -434,21 +487,42 @@ namespace u {
 	std::vector<std::string> get_available_gpu_types();
 	std::string get_primary_gpu_type();
 
+	bool test_codec(const std::string& codec);
+	std::set<std::string> get_available_codecs(const std::set<std::string>& codecs);
+
 	std::vector<std::string> get_supported_presets(bool gpu_encoding, const std::string& gpu_type);
 
 	std::vector<std::string> ffmpeg_string_to_args(const std::string& str);
 
-	std::map<int, std::string> get_rife_gpus();
-	int get_fastest_rife_gpu_index(
-		const std::map<int, std::string>& gpu_map,
-		const std::filesystem::path& rife_model_path,
-		const std::filesystem::path& benchmark_video_path
+	std::map<int, std::string> get_devices(const std::string& type);
+
+	int get_fastest_device_index(
+		const std::map<int, std::string>& device_map,
+		const std::filesystem::path& benchmark_video_path,
+		const std::string& benchmark_type,
+		const std::vector<std::string>& extra_args
 	);
 
-	void set_fastest_rife_gpu(BlurSettings& settings);
+	std::optional<size_t> get_fastest_rife_device(BlurSettings& settings);
+	std::optional<size_t> get_fastest_tensorrt_device(BlurSettings& settings);
+
+	void set_fastest_devices(BlurSettings& settings);
 	void verify_gpu_encoding(BlurSettings& settings);
 
 #ifdef WIN32
 	bool windows_toggle_suspend_process(DWORD pid, bool to_suspend);
 #endif
+
+	struct ParsedError {
+		std::string user_message;
+		std::string technical_details;
+		bool is_blur_exception = false;
+		std::string logs;
+
+		[[nodiscard]] std::string to_string() const {
+			return user_message + "\n\n" + technical_details + "\n\n[logs]\n" + logs;
+		}
+	};
+
+	tl::expected<ParsedError, std::string> parse_error_output(const std::string& stderr_output);
 }

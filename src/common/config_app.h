@@ -4,9 +4,14 @@ struct GlobalAppSettings {
 	std::string output_prefix;
 
 	std::string gpu_type;
-	int rife_gpu_index = -1;
+	int rife_device_index = -1;
+	int tensorrt_device_index = -1;
 
+	int gui_width = 591;
+	int gui_height = 381;
 	bool blur_amount_tied_to_fps = true;
+
+	int preview_volume = 70;
 
 	bool render_success_notifications = false;
 	bool render_failure_notifications = false;

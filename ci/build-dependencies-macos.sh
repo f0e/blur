@@ -241,6 +241,15 @@ meson build
 ninja -C build
 " "build" "vapoursynth-plugins"
 
+## fmtconv
+build "https://gitlab.com/EleonoreMizo/fmtconv.git" "--single-branch" "259b702e4e3c1e2fc6d7b2c8e83d95b612519e89" "fmtconv" "
+cd build/unix
+./autogen.sh
+./configure
+make
+cd ../..
+" "build/unix/.libs" "vapoursynth-plugins"
+
 PATH="/opt/homebrew/opt/llvm@20/bin:$PATH"
 ZSTD_PREFIX=$(brew --prefix zstd)
 

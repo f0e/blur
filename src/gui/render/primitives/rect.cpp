@@ -1,6 +1,7 @@
 #include "point.h"
 #include "size.h"
 #include "rect.h"
+#include "../render.h"
 #include "../../ui/keys.h"
 
 namespace gfx {
@@ -26,6 +27,16 @@ namespace gfx {
 			percent = std::clamp(percent, 0.f, 1.f);
 
 		return percent;
+	}
+
+	bool Rect::on_screen() const {
+		if (x2() < 0 || x > render::window_size.w)
+			return false;
+
+		if (y2() < 0 || y > render::window_size.h)
+			return false;
+
+		return true;
 	}
 
 	void Rect::clamp_to(const Rect& boundary) {

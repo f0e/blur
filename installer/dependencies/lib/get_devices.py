@@ -1,0 +1,1 @@
+../../../src/vapoursynth/get_devices.py

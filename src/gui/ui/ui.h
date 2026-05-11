@@ -2,6 +2,7 @@
 
 #include "../render/render.h"
 #include "helpers/text_input.h"
+#include "helpers/video.h"
 
 namespace ui {
 	inline size_t frame = 0;
@@ -23,6 +24,7 @@ namespace ui {
 		BAR,
 		TEXT,
 		IMAGE,
+		VIDEO,
 		BUTTON,
 		NOTIFICATION,
 		SLIDER,
@@ -32,7 +34,7 @@ namespace ui {
 		SEPARATOR,
 		WEIGHTING_GRAPH,
 		TABS,
-		HINT,
+		HINT
 	};
 
 	struct BarElementData {
@@ -118,14 +120,62 @@ namespace ui {
 	}
 
 	struct ImageElementData {
-		std::filesystem::path image_path;
 		std::shared_ptr<render::Texture> texture;
 		std::string image_id;
 		gfx::Color image_color;
 
 		bool operator==(const ImageElementData& other) const {
-			return image_path == other.image_path && texture == other.texture && image_id == other.image_id &&
-			       image_color == other.image_color;
+			return texture == other.texture && image_id == other.image_id && image_color == other.image_color;
+		}
+	};
+
+	struct UIVideo {
+		size_t video_id;
+		std::filesystem::path path;
+		std::optional<u::VideoInfo> video_info;
+
+		bool operator==(const UIVideo& other) const = default;
+	};
+
+	struct VideoElementData {
+		struct StoredWaveform {
+			std::vector<int16_t> samples;
+			int16_t max_sample = 0;
+		};
+
+		struct Video {
+			UIVideo data;
+			gfx::Size size;
+			std::optional<StoredWaveform*> waveform;
+			std::optional<gui_utils::ThumbnailRes> thumbnail;
+
+			bool operator==(const Video& other) const {
+				return data == other.data && size == other.size && waveform == other.waveform &&
+				       thumbnail == other.thumbnail;
+			}
+		};
+
+		struct TrimHandleInfo {
+			bool grabbing;
+			bool grab_moving = false;
+			std::optional<int> grab_start_mouse_x;
+			// for the future
+		};
+
+		std::vector<Video> videos;
+		size_t* index;
+		float* start;
+		float* end;
+		std::optional<float> saved_percent;
+		TrimHandleInfo handle_info;
+		std::function<void(size_t video_id)> on_remove;
+
+		// persistent
+		std::optional<std::filesystem::path> last_active_video;
+		std::optional<int> last_pan_x;
+
+		bool operator==(const VideoElementData& other) const {
+			return videos == other.videos && index == other.index && start == other.start && end == other.end;
 		}
 	};
 
@@ -264,6 +314,7 @@ namespace ui {
 		BarElementData,
 		TextElementData,
 		ImageElementData,
+		VideoElementData,
 		ButtonElementData,
 		NotificationElementData,
 		SliderElementData,
@@ -279,9 +330,11 @@ namespace ui {
 		float speed;
 		float current = 0.f;
 		float goal = 0.f;
+		float snap = 0.001f;
 		bool complete = false;
 
-		AnimationState(float speed, float value = 0.f) : speed(speed), current(value), goal(value) {}
+		AnimationState(float speed, float value = 0.f, float snap = 0.001f)
+			: speed(speed), current(value), goal(value), snap(snap) {}
 
 		// delete default constructor since we always need a duration
 		AnimationState() = delete;
@@ -293,7 +346,7 @@ namespace ui {
 		bool update(float delta_time) {
 			float old_current = current;
 			current = std::clamp(
-				u::lerp(current, goal, speed * delta_time, 0.001f), std::min(current, goal), std::max(current, goal)
+				u::lerp(current, goal, speed * delta_time, snap), std::min(current, goal), std::max(current, goal)
 			);
 
 			complete = current == goal;
@@ -313,6 +366,7 @@ namespace ui {
 		ElementData data;
 		std::function<void(const Container&, const AnimatedElement&)> render_fn;
 		std::optional<std::function<bool(const Container&, AnimatedElement&)>> update_fn;
+		std::optional<std::function<void(AnimatedElement&)>> remove_fn;
 		bool fixed = false;
 		gfx::Rect orig_rect;
 
@@ -323,10 +377,11 @@ namespace ui {
 			ElementData data,
 			std::function<void(const Container&, const AnimatedElement&)> render_fn,
 			std::optional<std::function<bool(const Container&, AnimatedElement&)>> update_fn = std::nullopt,
+			std::optional<std::function<void(AnimatedElement&)>> remove_fn = std::nullopt,
 			bool fixed = false
 		)
 			: id(std::move(id)), type(type), rect(rect), data(std::move(data)), render_fn(std::move(render_fn)),
-			  update_fn(std::move(update_fn)), fixed(fixed), orig_rect(rect) {}
+			  update_fn(std::move(update_fn)), remove_fn(std::move(remove_fn)), fixed(fixed), orig_rect(rect) {}
 
 		bool update(const Element& other) {
 			this->id = other.id;
@@ -334,6 +389,7 @@ namespace ui {
 			this->rect = other.rect;
 			this->render_fn = other.render_fn;
 			this->update_fn = other.update_fn;
+			this->remove_fn = other.remove_fn;
 			this->fixed = other.fixed;
 			this->orig_rect = other.orig_rect;
 
@@ -400,6 +456,7 @@ namespace ui {
 	inline auto hasher = std::hash<std::string>{};
 
 	inline std::vector<SDL_Event> text_event_queue;
+	inline std::vector<SDL_Event> event_queue;
 
 	struct SliderObserver {
 		bool init = false;
@@ -417,14 +474,23 @@ namespace ui {
 
 	void render_image(const Container& container, const AnimatedElement& element);
 
+	void render_videos(const Container& container, const AnimatedElement& element);
+	bool update_videos(const Container& container, AnimatedElement& element);
+	void remove_videos(AnimatedElement& element);
+
+	void handle_videos_event(const SDL_Event& event, bool& to_render);
+
 	void render_button(const Container& container, const AnimatedElement& element);
 	bool update_button(const Container& container, AnimatedElement& element);
+
+	inline const int NOTIFICATION_DEFAULT_W = 270;
 
 	void render_notification(const Container& container, const AnimatedElement& element);
 	bool update_notification(const Container& container, AnimatedElement& element);
 
 	void render_slider(const Container& container, const AnimatedElement& element);
 	bool update_slider(const Container& container, AnimatedElement& element);
+	void remove_slider(AnimatedElement& element);
 
 	void render_text_input(const Container& container, const AnimatedElement& element);
 	bool update_text_input(const Container& container, AnimatedElement& element);
@@ -525,6 +591,26 @@ namespace ui {
 		std::string image_id = "",
 		gfx::Color image_color = gfx::Color::white()
 	); // use image_id to distinguish images that have the same filename and reload it (e.g. if its updated)
+
+	std::optional<AnimatedElement*> add_image(
+		const std::string& id,
+		Container& container,
+		std::shared_ptr<render::Texture> texture,
+		const gfx::Size& max_size,
+		const std::string& image_id = "",
+		gfx::Color image_color = gfx::Color::white()
+	);
+
+	std::optional<AnimatedElement*> add_videos(
+		const std::string& id,
+		Container& container,
+		const std::vector<UIVideo>& ui_videos,
+		size_t& index,
+		float& start,
+		float& end,
+		float& volume,
+		const std::function<void(size_t video_id)>& on_remove
+	);
 
 	AnimatedElement* add_button(
 		const std::string& id,
@@ -637,6 +723,7 @@ namespace ui {
 	void set_active_element(AnimatedElement& element, const std::string& type = "");
 	AnimatedElement* get_active_element();
 	std::string get_active_element_type();
+	bool is_active_element(const AnimatedElement& element, const std::string& type = "");
 	void reset_active_element();
 
 	bool set_hovered_element(AnimatedElement& element);

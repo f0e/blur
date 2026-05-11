@@ -4,11 +4,13 @@
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_opengl3.h>
 #include <misc/freetype/imgui_freetype.h>
+#include <imgui_internal.h>
+
+#include <algorithm>
 
 #include "../fonts/dejavu_sans.h"
-#include "../fonts/eb_garamond.h"
+#include "../fonts/nv_garamond.h"
 #include "../fonts/icons.h"
-#include "imgui_internal.h"
 
 namespace {
 	gfx::Color interpolate_color(const std::vector<gfx::Color>& colors, const std::vector<float>& positions, float t) {
@@ -79,37 +81,19 @@ bool render::init(SDL_Window* window, const SDL_GLContext& context) {
 	if (!imgui.init(window, context))
 		return false;
 
-	// TODO: Consider using ImFontGlyphRangesBuilder to build glyph ranges from textual data.
-
-	// ImFontGlyphRangesBuilder builder;
-	// builder.AddRanges(imgui.io->Fonts->GetGlyphRangesDefault());
-	// // builder.AddRanges(imgui.io->Fonts->GetGlyphRangesGreek());
-	// // builder.AddRanges(imgui.io->Fonts->GetGlyphRangesKorean());
-	// // builder.AddRanges(imgui.io->Fonts->GetGlyphRangesJapanese());
-	// // builder.AddRanges(imgui.io->Fonts->GetGlyphRangesChineseSimplifiedCommon());
-	// // builder.AddRanges(imgui.io->Fonts->GetGlyphRangesCyrillic());
-	// // builder.AddRanges(imgui.io->Fonts->GetGlyphRangesThai());
-	// // builder.AddRanges(imgui.io->Fonts->GetGlyphRangesVietnamese());
-	// ImVector<ImWchar> custom_ranges;
-	// builder.BuildRanges(&custom_ranges);
-
-	// ^ TODO: RANDOM CRASH TODO REFACTOR  IMPORTANT FIX  YES
-	const auto* ranges = imgui.io->Fonts->GetGlyphRangesDefault();
-
 	ImFontConfig font_cfg;
-	font_cfg.RasterizerDensity = SDL_GetWindowPixelDensity(window); // TODO PORT: update when changing screen
 
 	// init fonts
-	if (!fonts::dejavu.init(DEJAVU_SANS_COMPRESSED_DATA, 13.f, &font_cfg, ranges))
+	if (!fonts::dejavu.init(DEJAVU_SANS_COMPRESSED_DATA, 13.f, &font_cfg))
 		return false;
 
-	if (!fonts::header_font.init(EB_GARAMOND_COMPRESSED_DATA, 30.f, &font_cfg, ranges))
+	if (!fonts::header_font.init(NV_GARAMOND_COMPRESSED_DATA, 32.f, &font_cfg))
 		return false;
 
-	if (!fonts::smaller_header_font.init(EB_GARAMOND_COMPRESSED_DATA, 18.f, &font_cfg, ranges))
+	if (!fonts::smaller_header_font.init(NV_GARAMOND_COMPRESSED_DATA, 20.f, &font_cfg))
 		return false;
 
-	if (!fonts::icons.init(ICONS_COMPRESSED_DATA, 14.f, &font_cfg, ranges))
+	if (!fonts::icons.init(ICONS_COMPRESSED_DATA, 14.f, &font_cfg))
 		return false;
 
 	return true;
@@ -166,6 +150,7 @@ void render::ImGuiWrap::end(SDL_Window* window) { // NOLINT(readability-convert-
 		clear_colour.w
 	);
 	glClear(GL_COLOR_BUFFER_BIT);
+
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	SDL_GL_SwapWindow(window);
 }
@@ -392,14 +377,7 @@ void render::quadrilateral_stroke(
 	);
 }
 
-void render::triangle_filled(
-	const gfx::Point& p1,
-	const gfx::Point& p2,
-	const gfx::Point& p3,
-	const gfx::Color& col,
-	float thickness,
-	bool anti_aliased
-) {
+void render::triangle_filled(const gfx::Point& p1, const gfx::Point& p2, const gfx::Point& p3, const gfx::Color& col) {
 	imgui.drawlist->AddTriangleFilled(p1, p2, p3, col.to_imgui());
 }
 
@@ -460,7 +438,7 @@ void render::text(
 	if (!font)
 		return;
 
-	ImGui::PushFont(font.im_font());
+	ImGui::PushFont(font.im_font(), font.im_font()->LegacySize);
 
 	int vtx_idx_begin = imgui.drawlist->_VtxCurrentIdx;
 
@@ -609,24 +587,6 @@ void render::image(const gfx::Rect& rect, const Texture& texture, const gfx::Col
 	);
 }
 
-void render::image_with_borders(
-	const gfx::Rect& rect,
-	const Texture& texture,
-	const gfx::Color& border_color,
-	const gfx::Color& inner_border_color,
-	float border_thickness,
-	const gfx::Color& tint_color
-) {
-	if (!texture.is_valid())
-		return;
-
-	image(rect.shrink(3), texture, tint_color);
-
-	rect_stroke(rect.shrink(2), border_color, border_thickness);
-	rect_stroke(rect.shrink(1), inner_border_color, border_thickness);
-	rect_stroke(rect, border_color, border_thickness);
-}
-
 void render::image_rounded(
 	const gfx::Rect& rect,
 	const Texture& texture,
@@ -667,6 +627,189 @@ void render::rounded_image_with_borders(
 	rounded_rect_stroke(rect.shrink(2), border_color, rounding, rounding_flags, border_thickness);
 	rounded_rect_stroke(rect.shrink(1), inner_border_color, rounding, rounding_flags, border_thickness);
 	rounded_rect_stroke(rect, border_color, rounding, rounding_flags, border_thickness);
+}
+
+void render::borders(const gfx::Rect& rect, const gfx::Color& border_color, const gfx::Color& inner_border_color) {
+	rect_stroke(rect.shrink(2), border_color, 1.f);
+	rect_stroke(rect.shrink(1), inner_border_color, 1.f);
+	rect_stroke(rect, border_color, 1.f);
+}
+
+void render::loader(const gfx::Rect& rect, const gfx::Color& color, const std::string& loader_text) {
+	// TODO: make this nicer? use in other places too?
+	text(rect.center(), color, loader_text, fonts::dejavu, FONT_CENTERED_X | FONT_CENTERED_Y);
+}
+
+static gfx::Point catmull_rom(
+	const gfx::Point& p0, const gfx::Point& p1, const gfx::Point& p2, const gfx::Point& p3, float t
+) {
+	float t2 = t * t;
+	float t3 = t2 * t;
+
+	float x = 0.5f * ((2.0f * p1.x) + (-p0.x + p2.x) * t + (2.0f * p0.x - 5.0f * p1.x + 4.0f * p2.x - p3.x) * t2 +
+	                  (-p0.x + 3.0f * p1.x - 3.0f * p2.x + p3.x) * t3);
+
+	float y = 0.5f * ((2.0f * p1.y) + (-p0.y + p2.y) * t + (2.0f * p0.y - 5.0f * p1.y + 4.0f * p2.y - p3.y) * t2 +
+	                  (-p0.y + 3.0f * p1.y - 3.0f * p2.y + p3.y) * t3);
+
+	return { (int)x, (int)y };
+}
+
+void render::waveform(
+	const gfx::Rect& rect,
+	const gfx::Rect& active_rect,
+	const gfx::Color& color,
+	const std::vector<int16_t>& samples,
+	int16_t max_sample,
+	float zoom_start,
+	float zoom_end
+) {
+	if (samples.empty() || max_sample <= 0 || rect.w <= 1)
+		return;
+
+	zoom_start = std::clamp(zoom_start, 0.0f, 1.0f);
+	zoom_end = std::clamp(zoom_end, 0.0f, 1.0f);
+	if (zoom_start >= zoom_end)
+		return;
+
+	const int width = rect.w;
+	const int height = rect.h;
+	const int y_center = rect.y + height / 2;
+	const float scale = height * 0.5f;
+
+	const size_t total_samples = samples.size();
+	const size_t start_idx = static_cast<size_t>(zoom_start * total_samples);
+	const size_t end_idx = std::min(static_cast<size_t>(zoom_end * total_samples), total_samples);
+
+	if (start_idx >= end_idx)
+		return;
+
+	const size_t sample_range = end_idx - start_idx;
+	const float samples_per_pixel = static_cast<float>(sample_range) / width;
+
+	int16_t display_max = u::get_audio_percentile_peak(samples, 1.f); // 0.999f);
+
+	if (samples_per_pixel >= 2.0f) {
+		// Zoomed out: draw amplitude envelope
+		for (int x = 0; x < width; ++x) {
+			const size_t pixel_start = start_idx + static_cast<size_t>(x * samples_per_pixel);
+			const size_t pixel_end = std::min(start_idx + static_cast<size_t>((x + 1) * samples_per_pixel), end_idx);
+
+			// Find peak amplitude in this pixel range
+			float peak_amplitude = 0.0f;
+			for (size_t i = pixel_start; i < pixel_end; ++i) {
+				float amplitude = std::abs(static_cast<float>(samples[i])) / display_max;
+				amplitude = std::min(amplitude, 1.0f);
+				peak_amplitude = std::max(peak_amplitude, amplitude);
+			}
+
+			// Draw symmetric line above and below center
+			const int amplitude_height = static_cast<int>(peak_amplitude * scale);
+
+			if (amplitude_height > 0) {
+				const int y_top = y_center - amplitude_height;
+				const int y_bottom = y_center + amplitude_height;
+
+				const gfx::Point p1{ rect.x + x, y_top };
+				const gfx::Point p2{ rect.x + x, y_bottom };
+
+				auto line_color = color;
+				if (!active_rect.contains(p1) && !active_rect.contains(p2)) {
+					line_color = line_color.adjust_alpha(0.5f);
+				}
+
+				line(p1, p2, line_color, true, 1.0f);
+			}
+			else {
+				gfx::Point point{ rect.x + x, y_center };
+
+				auto point_color = color;
+				if (!active_rect.contains(point)) {
+					point_color = point_color.adjust_alpha(0.5f);
+				}
+
+				rect_filled(gfx::Rect(point, gfx::Size(1, 1)), point_color);
+			}
+		}
+	}
+	else {
+		// Zoomed in: draw smooth interpolated curve
+		std::vector<gfx::Point> points;
+		points.reserve(sample_range);
+
+		for (size_t i = start_idx; i < end_idx; ++i) {
+			float amplitude = std::abs(static_cast<float>(samples[i])) / display_max;
+			amplitude = std::min(amplitude, 1.0f);
+
+			const int x = rect.x + static_cast<int>((i - start_idx) * width / static_cast<float>(sample_range));
+
+			// Alternate above/below center based on sample index
+			const bool draw_above = (i % 2 == 0);
+			const int y = draw_above ? y_center - static_cast<int>(amplitude * scale)  // Above center
+			                         : y_center + static_cast<int>(amplitude * scale); // Below center
+
+			points.push_back({ x, y });
+		}
+
+		if (points.size() >= 4) {
+			// Draw Catmull-Rom spline
+			// TODO MR: really small amplitudes still drawing 2 pixels high line? copy zoomed out rect thingy to make it
+			// 1 pixel?
+			for (size_t i = 1; i + 2 < points.size(); ++i) {
+				const gfx::Point& p0 = points[i - 1];
+				const gfx::Point& p1 = points[i];
+				const gfx::Point& p2 = points[i + 1];
+				const gfx::Point& p3 = points[i + 2];
+
+				auto segment_color = color;
+				if (!active_rect.contains(p1) && !active_rect.contains(p2)) {
+					segment_color = segment_color.adjust_alpha(0.5f);
+				}
+
+				gfx::Point prev = p1;
+				for (int j = 1; j <= 12; ++j) {
+					const float t = j / 12.0f;
+					const gfx::Point current = catmull_rom(p0, p1, p2, p3, t);
+					line(prev, current, segment_color, true, 1.5f);
+					prev = current;
+				}
+			}
+		}
+		else if (points.size() >= 2) {
+			for (size_t i = 1; i < points.size(); ++i) {
+				auto segment_color = color;
+				if (!active_rect.contains(points[i - 1]) && !active_rect.contains(points[i])) {
+					segment_color = segment_color.adjust_alpha(0.5f);
+				}
+				line(points[i - 1], points[i], segment_color, true, 1.5f);
+			}
+		}
+	}
+}
+
+void render::rect_side(const gfx::Rect& rect, const gfx::Color& color, RectSide side, int thickness) {
+	switch (side) {
+		case RectSide::LEFT: {
+			// Top horizontal
+			rect_filled(gfx::Rect{ rect.x, rect.y - thickness, rect.w, thickness }, color);
+			// Vertical
+			rect_filled(
+				gfx::Rect{ rect.x - thickness, rect.y - thickness, thickness, rect.h + (thickness * 2) }, color
+			);
+			// Bottom horizontal
+			rect_filled(gfx::Rect{ rect.x, rect.y + rect.h, rect.w, thickness }, color);
+			break;
+		}
+		case RectSide::RIGHT: {
+			// Top horizontal
+			rect_filled(gfx::Rect{ rect.x, rect.y - thickness, rect.w, thickness }, color);
+			// Vertical
+			rect_filled(gfx::Rect{ rect.x + rect.w, rect.y - thickness, thickness, rect.h + (thickness * 2) }, color);
+			// Bottom horizontal
+			rect_filled(gfx::Rect{ rect.x, rect.y + rect.h, rect.w, thickness }, color);
+			break;
+		}
+	}
 }
 
 void render::push_clip_rect(const gfx::Rect& rect, bool intersect_clip_rect) {
@@ -734,43 +877,66 @@ std::vector<std::string> render::wrap_text(
 		return lines;
 
 	std::istringstream iss(text);
-	std::string word;
-	std::string current_line;
+	std::string line;
 
-	while (iss >> word) {
-		std::string test_line = current_line;
-		if (!test_line.empty())
-			test_line += ' ';
-		test_line += word;
+	while (std::getline(iss, line)) {
+		std::istringstream line_stream(line);
+		std::string word;
+		std::string current_line;
 
-		if (font.calc_size(test_line).w > dimensions.w) {
-			if (!current_line.empty()) {
-				lines.push_back(current_line);
-				current_line = word;
-			}
-			else {
-				// Word itself is too long, hard break
-				std::string sub_word;
-				for (char c : word) {
-					sub_word += c;
-					if (font.calc_size(sub_word).w > dimensions.w) {
-						if (sub_word.length() > 1) {
-							lines.push_back(sub_word.substr(0, sub_word.length() - 1));
-							sub_word = sub_word.back();
+		while (line_stream >> word) {
+			std::string test_line = current_line;
+			if (!test_line.empty())
+				test_line += ' ';
+			test_line += word;
+
+			if (font.calc_size(test_line).w > dimensions.w) {
+				if (!current_line.empty()) {
+					lines.push_back(current_line);
+					current_line = word;
+				}
+				else {
+					// Word itself is too long, hard break
+					std::string sub_word;
+					for (char c : word) {
+						sub_word += c;
+						if (font.calc_size(sub_word).w > dimensions.w) {
+							if (sub_word.length() > 1) {
+								lines.push_back(sub_word.substr(0, sub_word.length() - 1));
+								sub_word = sub_word.back();
+							}
 						}
 					}
+					current_line = sub_word;
 				}
-				current_line = sub_word;
+			}
+			else {
+				current_line = test_line;
 			}
 		}
-		else {
-			current_line = test_line;
-		}
-	}
 
-	if (!current_line.empty()) {
-		lines.push_back(current_line);
+		if (!current_line.empty()) {
+			lines.push_back(current_line);
+		}
+		else {
+			lines.push_back("");
+		}
 	}
 
 	return lines;
+}
+
+SDL_Surface* render::jpeg_bytes_to_surface(const void* data, size_t size) {
+	SDL_IOStream* io = SDL_IOFromConstMem(data, size);
+	if (!io)
+		return nullptr;
+
+	SDL_Surface* surface = IMG_LoadTyped_IO(io, /*closeio=*/true, "JPG");
+	if (!surface)
+		return nullptr;
+
+	SDL_Surface* rgba = SDL_ConvertSurface(surface, SDL_PIXELFORMAT_RGBA32);
+	SDL_DestroySurface(surface);
+
+	return rgba;
 }

@@ -85,7 +85,7 @@ def average(clip: vs.VideoNode, weights: list[float], divisor: float | None = No
 
 def average_bright(
     _video: vs.VideoNode,
-    is_full_color_range: bool,
+    video_info: u.VideoInfo,
     gamma: float,
     weights: list[float],
     divisor: float | None = None,
@@ -104,4 +104,9 @@ def average_bright(
 
         return video
 
-    return u.with_format(_video, is_full_color_range, vs.RGBS, process)
+    return u.with_format(
+        _video,
+        video_info,
+        vs.RGBS,
+        process,
+    )

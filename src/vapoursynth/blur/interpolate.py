@@ -5,8 +5,13 @@ from vapoursynth import core
 
 import json
 import math
+from fractions import Fraction
+from typing import Any, Callable
+from pathlib import Path
 
 import blur.utils as u
+
+from external.vsmlrt import RIFE as VSMLRT_RIFE, BackendV2, RIFEModel
 
 LEGACY_PRESETS = ["weak", "film", "smooth", "animation"]
 NEW_PRESETS = ["default", "test"]
@@ -38,7 +43,7 @@ def generate_svp_strings(
     }
 
     # build vectors json
-    vectors_json = {
+    vectors_json: dict = {
         "block": {
             "w": blocksize,
             "overlap": overlap,
@@ -83,14 +88,13 @@ def generate_svp_strings(
     return [json.dumps(obj) for obj in [super_json, vectors_json, smooth_json]]
 
 
-def svp(
-    _video: vs.VideoNode,
-    is_full_color_range: bool,
+def SVP(
+    video: vs.VideoNode,
     super_string: str,
     vectors_string: str,
     smooth_str: str,
 ):
-    def process(video):
+    try:
         super = core.svp1.Super(video, super_string)
         vectors = core.svp1.Analyse(super["clip"], super["data"], video, vectors_string)
         return core.svp2.SmoothFps(
@@ -101,13 +105,35 @@ def svp(
             vectors["data"],
             smooth_str,
         )
+    except vs.Error as e:
+        raise u.BlurException(
+            user_error="Failed to initialise SVP. Ensure your GPU drivers are up to date. You may need to disable 'gpu interpolation'.",
+            original_exception=e,
+        )
 
-    return u.with_format(_video, is_full_color_range, vs.YUV420P8, process)
+
+def svp(
+    _video: vs.VideoNode,
+    video_info: u.VideoInfo,
+    super_string: str,
+    vectors_string: str,
+    smooth_str: str,
+):
+    _video = core.fmtc.bitdepth(_video, bits=8)
+
+    def process(video):
+        return SVP(video, super_string, vectors_string, smooth_str)
+
+    return u.with_scaled_luminance(
+        _video,
+        vs.YUV420P8,
+        process,
+    )
 
 
 def interpolate_svp(
     video: vs.VideoNode,
-    is_full_color_range: bool,
+    video_info: u.VideoInfo,
     new_fps: int,
     preset=DEFAULT_PRESET,
     algorithm=DEFAULT_ALGORITHM,
@@ -127,24 +153,30 @@ def interpolate_svp(
         new_fps, preset, algorithm, blocksize, overlap, speed, masking, gpu
     )
 
-    return svp(video, is_full_color_range, super_string, vectors_string, smooth_string)
-
-
-def change_fps(clip, fpsnum, fpsden=1):  # this is just directly from havsfunc
-    if not isinstance(clip, vs.VideoNode):
-        raise vs.Error("ChangeFPS: This is not a clip")
-
-    factor = (fpsnum / fpsden) * (clip.fps_den / clip.fps_num)
-
-    def frame_adjuster(n):
-        real_n = math.floor(n / factor)
-        one_frame_clip = clip[real_n] * (len(clip) + 100)
-        return one_frame_clip
-
-    attribute_clip = clip.std.BlankClip(
-        length=math.floor(len(clip) * factor), fpsnum=fpsnum, fpsden=fpsden
+    return svp(
+        video,
+        video_info,
+        super_string,
+        vectors_string,
+        smooth_string,
     )
-    return attribute_clip.std.FrameEval(eval=frame_adjuster)
+
+
+def change_fps(
+    clip: vs.VideoNode, fpsnum, fpsden=1
+) -> vs.VideoNode:  # https://github.com/Jaded-Encoding-Thaumaturgy/vs-jetpack
+    src_num, src_den = clip.fps_num, clip.fps_den
+
+    if (fpsnum, fpsden) == (src_num, src_den):
+        return clip
+
+    factor = (fpsnum / fpsden) * (src_den / src_num)
+
+    new_fps_clip = clip.std.BlankClip(
+        length=math.floor(clip.num_frames * factor), fpsnum=fpsnum, fpsden=fpsden
+    )
+
+    return new_fps_clip.std.FrameEval(lambda n: clip[round(n / factor)])
 
 
 def interpolate_mvtools(
@@ -182,22 +214,167 @@ def interpolate_mvtools(
     )
 
 
-def interpolate_rife(
-    _video: vs.VideoNode,
-    is_full_color_range: bool,
-    new_fps: int,
-    model_path: str,
-    gpu_index: int,
-):
-    u.check_model_path(model_path)
-
-    def process(video):
+def RIFE(video: vs.VideoNode, new_fps: int, model_path: str, device_index: int):
+    try:
         return core.rife.RIFE(
             video,
             fps_num=new_fps,
             fps_den=1,
             model_path=model_path,
-            gpu_id=gpu_index,
+            gpu_id=device_index,
+        )
+    except vs.Error as e:
+        raise u.BlurException(
+            user_error="Failed to initialise RIFE. Ensure your 'rife gpu' is set correctly, and your GPU drivers are up to date. You may need to switch to a different interpolation method.",
+            original_exception=e,
         )
 
-    return u.with_format(_video, is_full_color_range, vs.RGBS, process)
+
+def interpolate_rife(
+    _video: vs.VideoNode,
+    video_info: u.VideoInfo,
+    new_fps: int,
+    model_path: str,
+    device_index: int,
+):
+    u.check_model_path(model_path)
+
+    def process(video):
+        return RIFE(
+            video,
+            new_fps=new_fps,
+            model_path=model_path,
+            device_index=device_index,
+        )
+
+    return u.with_format(
+        _video,
+        video_info,
+        vs.RGBS,
+        process,
+    )
+
+
+def RIFE_vsmlrt(video: vs.VideoNode, new_fps: int, model: str, backend):
+    multi_frac = Fraction(int(new_fps), int(video.fps))
+
+    def parse_rife_model(value: str) -> RIFEModel:
+        RIFE_MODEL_MAP: dict[str, RIFEModel] = {
+            member.name.replace("_", "."): member for member in RIFEModel
+        }
+
+        key = value.replace(".", "_")
+
+        try:
+            return RIFEModel[key]
+        except KeyError:
+            raise ValueError(
+                f"Unknown RIFE model: {value!r}. Valid options: {list(RIFE_MODEL_MAP)}"
+            )
+
+    res = VSMLRT_RIFE(
+        video,
+        multi=multi_frac,
+        model=parse_rife_model(model),
+        ensemble=False,
+        backend=backend,
+        video_player=False,
+        _implementation=2,
+    )
+
+    return res
+
+
+def prepare_rife_vsmlrt(
+    video: vs.VideoNode,
+    video_info: u.VideoInfo,
+    process_func: Callable[[vs.VideoNode, Any], vs.VideoNode],
+    backend_str: str,
+    device_index: int,
+    override_format: str | None = None,
+):
+    pad_mult: int | None = None
+    target_format = vs.RGBH
+
+    engine_folder = Path() / "vsmlrt-engines"
+
+    match backend_str:
+        case "tensorrt":
+            backend = BackendV2.TRT(
+                num_streams=4,
+                fp16=True,
+                output_format=1,
+                use_cuda_graph=True,
+                engine_folder=engine_folder,
+                device_id=device_index,
+            )
+            pad_mult = 64
+
+        case "tensorrt rtx":
+            backend = BackendV2.TRT_RTX(
+                num_streams=4,
+                fp16=True,
+                use_cuda_graph=True,
+                engine_folder=engine_folder,
+                device_id=device_index,
+            )
+            pad_mult = 64
+
+        case "vsort cuda":
+            backend = BackendV2.ORT_CUDA(
+                num_streams=4,
+                fp16=True,
+                device_id=device_index,
+            )
+
+        case "openvino cpu":
+            backend = BackendV2.OV_CPU(num_streams=4, bf16=True)
+
+        case "openvino gpu":
+            backend = BackendV2.OV_GPU(
+                num_streams=4,
+                fp16=True,
+                device_id=device_index,
+            )
+
+        case "ncnn":
+            backend = BackendV2.NCNN_VK(
+                num_streams=4,
+                fp16=True,
+                device_id=device_index,
+            )
+
+        case _:
+            raise u.BlurException(f"Invalid RIFE backend: '{backend_str}'.")
+
+    if override_format:
+        target_format = override_format
+
+    return u.with_format(
+        video,
+        video_info,
+        target_format,
+        lambda _video: u.with_padding(
+            _video,
+            multiple=pad_mult,
+            process_func=lambda __video: process_func(__video, backend),
+        ),
+    )
+
+
+def interpolate_rife_vsmlrt(
+    video: vs.VideoNode,
+    video_info: u.VideoInfo,
+    new_fps: int,
+    model: str,
+    device_index: int,
+):
+    return prepare_rife_vsmlrt(
+        video=video,
+        video_info=video_info,
+        process_func=lambda _video, backend: RIFE_vsmlrt(
+            _video, new_fps=new_fps, model=model, backend=backend
+        ),
+        backend_str="tensorrt",
+        device_index=device_index,
+    )

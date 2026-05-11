@@ -99,6 +99,22 @@ namespace gfx {
 		return { x + w, y + h };
 	}
 
+	constexpr Point Rect::top_center() const {
+		return { x + (w / 2), y };
+	}
+
+	constexpr Point Rect::bottom_center() const {
+		return { x + (w / 2), y + h };
+	}
+
+	constexpr Point Rect::left_center() const {
+		return { x, y + (h / 2) };
+	}
+
+	constexpr Point Rect::right_center() const {
+		return { x + w, y + (h / 2) };
+	}
+
 	constexpr Point Rect::center() const {
 		return { x + (w / 2), y + (h / 2) };
 	}

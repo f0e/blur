@@ -26,12 +26,6 @@ namespace config_base {
 
 			value = u::trim(value);
 
-			if (key != "custom ffmpeg filters") {
-				// remove all spaces in values (it breaks stringstream string parsing, this is a dumb workaround)
-				// todo: better solution
-				std::erase(value, ' ');
-			}
-
 			config[key] = value;
 		}
 
@@ -43,31 +37,27 @@ namespace config_base {
 		const std::map<std::string, std::string>& config, const std::string& var, T& out
 	) { // todo: this (i think) takes more time than necessary sometimes (happened when i imported a config that was
 		// just one value)
-		if (!config.contains(var)) {
+		auto it = config.find(var);
+		if (it == config.end()) {
 			DEBUG_LOG("config missing variable '{}'", var);
 			return;
 		}
 
-		try {
-			std::stringstream ss(config.at(var));
-			ss.exceptions(std::ios::failbit); // enable exceptions
-			ss >> std::boolalpha >> out;      // boolalpha: enable true/false bool parsing
-		}
-		catch (const std::exception&) {
-			DEBUG_LOG("failed to parse config variable '{}' (value: {})", var, config.at(var));
-			return;
-		}
-	}
+		const auto& raw_value = it->second;
 
-	inline void extract_config_string(
-		const std::map<std::string, std::string>& config, const std::string& var, std::string& out
-	) {
-		if (!config.contains(var)) {
-			DEBUG_LOG("config missing variable '{}'", var);
-			return;
+		if constexpr (std::is_same_v<T, std::string>) {
+			out = raw_value;
 		}
-
-		out = config.at(var);
+		else {
+			try {
+				std::stringstream ss(raw_value);
+				ss.exceptions(std::ios::failbit); // enable exceptions
+				ss >> std::boolalpha >> out;      // boolalpha: enable true/false bool parsing
+			}
+			catch (const std::exception&) {
+				DEBUG_LOG("failed to parse config variable '{}' (value: {})", var, config.at(var));
+			}
+		}
 	}
 
 	template<typename ConfigType>

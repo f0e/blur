@@ -2,10 +2,13 @@
 
 struct AdvancedSettings {
 	std::string video_container = "mp4";
-	int deduplicate_range = 2;
-	std::string deduplicate_threshold = "0.001";
+	int deduplicate_range = 5;
+	std::string deduplicate_threshold = "0.003";
+	std::string duplicate_mode = "surrounding frames + future check";
+	int max_future_checks = 3;
 	std::string ffmpeg_override;
 	bool debug = false;
+	std::string resize_chromaloc = "default";
 
 	float blur_weighting_gaussian_std_dev = 1.f;
 	float blur_weighting_gaussian_mean = 2.f;
@@ -16,6 +19,7 @@ struct AdvancedSettings {
 	std::string interpolation_blocksize = "8";
 	int interpolation_mask_area = 0;
 	std::string rife_model = "rife-v4.26_ensembleFalse";
+	std::string rife_trt_model = "4.26";
 
 	bool manual_svp = false;
 	std::string super_string;
@@ -43,6 +47,7 @@ struct BlurSettings {
 
 	bool pre_interpolate = false;
 	std::string pre_interpolated_fps = "360";
+	std::string pre_interpolation_method = "rife";
 
 	bool timescale = false;
 	float input_timescale = 1.f;
@@ -56,6 +61,7 @@ struct BlurSettings {
 
 	std::string encode_preset = "h264";
 	int quality = 16;
+	bool upscale = false;
 
 	bool deduplicate = true;
 #ifdef __APPLE__
@@ -68,7 +74,7 @@ struct BlurSettings {
 	bool detailed_filenames = false;
 	bool copy_dates = false;
 
-	bool gpu_decoding = true;
+	bool gpu_decoding = false;
 	bool gpu_interpolation = true;
 	bool gpu_encoding = false;
 
@@ -99,6 +105,10 @@ namespace config_blur {
 	};
 
 	inline const std::vector<std::string> INTERPOLATION_BLOCK_SIZES = { "4", "8", "16", "32" };
+
+	inline const std::vector<std::string> RESIZE_CHROMA_LOCATIONS = {
+		"default", "left", "center", "top_left", "top", "bottom_left", "bottom",
+	};
 
 	const std::string CONFIG_FILENAME = ".blur-config.cfg";
 

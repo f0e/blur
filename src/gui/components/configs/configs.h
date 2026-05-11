@@ -41,7 +41,10 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	void set_pre_interpolated_fps();
 
 	void options(ui::Container& container);
+
 	void config_preview(ui::Container& container);
+	void reset_config_preview();
+
 	void preview(ui::Container& header_container, ui::Container& content_container);
 	void option_information(ui::Container& container);
 

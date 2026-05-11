@@ -2,6 +2,9 @@ name: Build
 
 on: [push]
 
+env:
+  MPV_VERSION: "20260118-git-468d34c"
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -40,7 +43,8 @@ jobs:
             gcc-13 g++-13 \
             libfontconfig1-dev \
             autoconf automake libtool pkg-config libltdl-dev \
-            libnotify-dev
+            libnotify-dev \
+            libmpv-dev
 
       - name: Install GCC
         if: runner.os == 'Linux'
@@ -63,7 +67,7 @@ jobs:
       - name: Collect dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install ffmpeg libass zimg imagemagick autoconf automake libtool gcc ffmpeg llvm@20 meson xxhash vapoursynth fftw dylibbundler
+          brew install ffmpeg libass zimg imagemagick autoconf automake libtool gcc ffmpeg llvm@20 meson xxhash vapoursynth fftw dylibbundler mpv
           cd ci
           bash build-dependencies-macos.sh
 
@@ -72,6 +76,19 @@ jobs:
         run: |
           cd ci
           pwsh build-dependencies-windows.ps1
+
+      - name: Download libmpv (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          curl -L https://sourceforge.net/projects/mpv-player-windows/files/libmpv/mpv-dev-x86_64-v3-${{ env.MPV_VERSION }}.7z/download > mpv.7z
+          7z x mpv.7z
+          mkdir mpv
+          mv include mpv
+          gendef libmpv-2.dll
+          mv libmpv-2.dll mpv/libmpv-2.dll
+          mv libmpv-2.def mpv.def
+          mv mpv.def libmpv.dll.a mpv/
+        shell: bash
 
       - name: Collect dependencies (Linux)
         if: runner.os == 'Linux'
@@ -151,6 +168,7 @@ jobs:
               curl -L https://aka.ms/vs/17/release/vc_redist.x64.exe -o installer/redist/vc_redist.x64.exe
               cp "$build_dir/blur-cli-$config.exe" installer/resources/blur-cli.exe
               cp "$build_dir/blur-$config.exe" installer/resources/blur-gui.exe
+              cp "mpv/libmpv-2.dll" installer/resources/
               iscc installer/setup.iss
 
               # Copy everything to bundle

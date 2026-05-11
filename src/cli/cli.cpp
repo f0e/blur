@@ -80,12 +80,17 @@ bool cli::run(
 				std::filesystem::create_directories(output_path->parent_path());
 		}
 
-		rendering::video_render_queue.add(
+		auto add_res = rendering::video_render_queue.add(
 			input_path, video_info, config_path, config_app::get_app_config(), output_path
 		);
 
-		if (blur.verbose) {
-			u::log("Queued '{}' for render", input_path.stem());
+		if (add_res.error) {
+			u::log("Failed to queue '{}' for render: {}", input_path.stem(), *add_res.error);
+		}
+		else {
+			if (blur.verbose) {
+				u::log("Queued '{}' for render", input_path.stem());
+			}
 		}
 	}
 

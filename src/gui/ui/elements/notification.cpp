@@ -2,6 +2,7 @@
 #include "../../render/render.h"
 #include "../keys.h"
 
+const gfx::Size NOTIFICATION_DEFAULT_SIZE = { ui::NOTIFICATION_DEFAULT_W, 100 }; // height is a maximum to start with
 const gfx::Size NOTIFICATION_TEXT_PADDING = { 10, 7 };
 static const float NOTIFICATION_ROUNDING = 7.f;
 static const int CLOSE_BUTTON_SIZE = 16;
@@ -145,7 +146,7 @@ ui::AnimatedElement* ui::add_notification(
 	std::optional<std::function<void(const std::string& id)>> on_click,
 	std::optional<std::function<void(const std::string& id)>> on_close
 ) {
-	gfx::Size notification_size = { 230, 100 }; // height is a maximum to start with
+	gfx::Size notification_size = NOTIFICATION_DEFAULT_SIZE;
 
 	const int line_height = font.height() + 5;
 

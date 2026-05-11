@@ -48,6 +48,10 @@ namespace gfx {
 		[[nodiscard]] constexpr Point top_right() const;
 		[[nodiscard]] constexpr Point bottom_left() const;
 		[[nodiscard]] constexpr Point bottom_right() const;
+		[[nodiscard]] constexpr Point top_center() const;
+		[[nodiscard]] constexpr Point bottom_center() const;
+		[[nodiscard]] constexpr Point left_center() const;
+		[[nodiscard]] constexpr Point right_center() const;
 		[[nodiscard]] constexpr Point center() const;
 
 		[[nodiscard]] constexpr Point origin() const {
@@ -144,10 +148,11 @@ namespace gfx {
 			return { nx, ny, nx2 - nx, ny2 - ny };
 		}
 
-		// Non-constexpr methods that need external state or implementation
+		// methods that need external state or implementation
 		[[nodiscard]] bool hovered() const;
 		[[nodiscard]] float mouse_percent_x(bool uncapped = false) const;
 		[[nodiscard]] float mouse_percent_y(bool uncapped = false) const;
+		[[nodiscard]] bool on_screen() const;
 		void clamp_to(const Rect& boundary);
 
 		constexpr Rect operator+(const Point& offset) const;

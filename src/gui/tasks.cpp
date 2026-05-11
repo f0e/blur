@@ -12,8 +12,9 @@
 #include "components/configs/configs.h"
 
 namespace {
-	std::vector<std::filesystem::path> pending_video_paths;
-	std::mutex pending_video_paths_mutex;
+	size_t pending_index = 0;
+	std::vector<std::shared_ptr<tasks::PendingVideo>> pending_videos;
+	std::mutex pending_videos_mutex;
 }
 
 void tasks::run(const std::vector<std::string>& arguments) {
@@ -80,13 +81,13 @@ void tasks::run(const std::vector<std::string>& arguments) {
 
 	add_files(paths); // todo: mac packaged app support (& linux? does it work?)
 
-	std::thread([] {
+	std::thread video_info_thread([] {
 		while (!blur.exiting) {
 			process_pending_files();
 
 			std::this_thread::sleep_for(std::chrono::milliseconds(50));
 		}
-	}).detach();
+	});
 
 	while (!blur.exiting) {
 		if (!rendering::video_render_queue.process_next()) {
@@ -97,10 +98,12 @@ void tasks::run(const std::vector<std::string>& arguments) {
 			finished_renders++;
 		}
 	}
+
+	video_info_thread.join();
 }
 
 void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
-	std::lock_guard<std::mutex> lock(pending_video_paths_mutex);
+	std::lock_guard<std::mutex> lock(pending_videos_mutex);
 
 	for (const auto& path_str : path_strs) {
 		std::filesystem::path path = std::filesystem::canonical(path_str);
@@ -109,57 +112,65 @@ void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
 
 		u::log("queueing {}", path);
 
-		gui::components::notifications::add(
-			std::format("Queued '{}' for rendering", path.stem()), ui::NotificationType::INFO
-		);
+		bool video_already_queued = false;
+		for (const auto& pending_video : pending_videos) {
+			if (path != pending_video->video_path)
+				continue;
 
-		pending_video_paths.push_back(path);
+			video_already_queued = true;
+			break;
+		}
+
+		if (video_already_queued) {
+			gui::components::notifications::add(
+				std::format("Video '{}' is already queued for rendering", path.filename()), ui::NotificationType::INFO
+			);
+			continue;
+		}
+
+		if (gui::renderer::screen != gui::renderer::Screens::MAIN) {
+			gui::components::notifications::add(
+				std::format("Queued '{}' for rendering", path.filename()), ui::NotificationType::INFO
+			);
+		}
+
+		static size_t next_video_id = 0;
+
+		pending_videos.push_back(
+			std::make_shared<PendingVideo>(PendingVideo{
+				.video_id = next_video_id++,
+				.video_path = path,
+			})
+		);
 	}
 }
 
 void tasks::process_pending_files() {
-	std::vector<std::filesystem::path> video_paths_to_process;
+	std::unique_lock<std::mutex> lock(pending_videos_mutex);
 
-	{
-		std::lock_guard<std::mutex> lock(pending_video_paths_mutex);
-		if (pending_video_paths.empty())
-			return;
+	auto it = std::ranges::find_if(pending_videos, [](const auto& pv) {
+		return !pv->video_info.has_value();
+	});
 
-		video_paths_to_process = std::move(pending_video_paths);
-		pending_video_paths.clear();
+	if (it == pending_videos.end()) {
+		return;
 	}
 
-	auto app_config = config_app::get_app_config();
+	auto video_path = (*it)->video_path;
+	auto index = std::ranges::distance(pending_videos.begin(), it);
 
-	for (auto& video_path : video_paths_to_process) {
-		auto video_info = u::get_video_info(video_path);
+	auto video_info = u::get_video_info(video_path);
 
+	if (index < pending_videos.size() && pending_videos[index]->video_path == video_path) {
 		if (!video_info.has_video_stream) {
 			gui::components::notifications::add(
 				std::format("File is not a valid video or is unreadable: {}", video_path.filename()),
 				ui::NotificationType::NOTIF_ERROR
 			);
-			continue;
+			pending_videos.erase(pending_videos.begin() + index);
 		}
-
-		auto queue_config_res = rendering::video_render_queue.add(
-			video_path,
-			video_info,
-			{},
-			config_app::get_app_config(),
-			{},
-			{},
-			[](const rendering::VideoRenderDetails& render,
-		       const tl::expected<rendering::RenderResult, std::string>& result) {
-				gui::renderer::on_render_finished(render, result);
-			}
-		);
-
-		if (app_config.notify_about_config_override) {
-			if (!queue_config_res.is_global_config)
-				gui::components::notifications::add(
-					"Using override config from video folder", ui::NotificationType::INFO
-				);
+		else {
+			pending_videos[index]->video_info = video_info;
 		}
 	}
 }
@@ -177,4 +188,68 @@ void tasks::add_sample_video(const std::filesystem::path& path_str) {
 	gui::components::notifications::add("Added sample video", ui::NotificationType::SUCCESS);
 
 	gui::components::configs::just_added_sample_video = true;
+}
+
+void tasks::cancel_all_pending() {
+	std::lock_guard<std::mutex> lock(pending_videos_mutex);
+	pending_videos.clear();
+}
+
+void tasks::cancel_pending(size_t video_id) {
+	std::lock_guard<std::mutex> lock(pending_videos_mutex);
+	std::erase_if(pending_videos, [video_id](const std::shared_ptr<PendingVideo>& pv) {
+		return pv->video_id == video_id;
+	});
+}
+
+void tasks::start_pending_videos() {
+	std::lock_guard<std::mutex> lock(pending_videos_mutex);
+
+	while (!pending_videos.empty()) {
+		auto pending_video = std::move(pending_videos.front());
+		pending_videos.erase(pending_videos.begin());
+
+		if (!pending_video->video_info)
+			continue;
+
+		auto app_config = config_app::get_app_config();
+
+		auto queue_config_res = rendering::video_render_queue.add(
+			pending_video->video_path,
+			*pending_video->video_info,
+			{},
+			app_config,
+			{},
+			pending_video->start,
+			pending_video->end,
+			{},
+			[](const rendering::VideoRenderDetails& render,
+		       const tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>>& result) {
+				gui::renderer::on_render_finished(render, result);
+			}
+		);
+
+		// Show notification if config override is used
+		if (app_config.notify_about_config_override) {
+			if (!queue_config_res.is_global_config)
+				gui::components::notifications::add(
+					"Using override config from video folder", ui::NotificationType::INFO
+				);
+		}
+
+		if (queue_config_res.error) {
+			gui::components::notifications::add(
+				std::format(
+					"Failed to queue '{}' for render: {}", pending_video->video_path.stem(), *queue_config_res.error
+				),
+				ui::NotificationType::NOTIF_ERROR,
+				{},
+				std::chrono::duration<float>(6.f)
+			);
+		}
+	}
+}
+
+std::vector<std::shared_ptr<tasks::PendingVideo>> tasks::get_pending_copy() {
+	return pending_videos;
 }

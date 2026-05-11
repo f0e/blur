@@ -53,7 +53,8 @@ function Extract-Files {
             if (Test-Path $filePath) {
                 Copy-Item -Path $filePath -Destination $DestinationPath
                 Write-Host "Copied $pattern to $DestinationPath"
-            } else {
+            }
+            else {
                 Write-Warning "Could not find $pattern in the extracted files."
             }
         }
@@ -96,8 +97,8 @@ function Download-ModelFiles {
 }
 
 # Download and install VapourSynth
-$vapoursynthInstallerUrl = "https://github.com/vapoursynth/vapoursynth/releases/download/R70/Install-Portable-VapourSynth-R70.ps1"
-$vapoursynthInstallerPath = Join-Path $vapoursynthDir "Install-Portable-VapourSynth-R70.ps1"
+$vapoursynthInstallerUrl = "https://github.com/vapoursynth/vapoursynth/releases/download/R72/Install-Portable-VapourSynth-R72.ps1"
+$vapoursynthInstallerPath = Join-Path $vapoursynthDir "Install-Portable-VapourSynth-R72.ps1"
 Download-File -Url $vapoursynthInstallerUrl -OutFile $vapoursynthInstallerPath
 
 # Run VapourSynth installer
@@ -116,38 +117,38 @@ Set-Location $PWD
 # Plugin installations
 $plugins = @(
     @{
-        Name = "Akarin";
-        Url = "https://github.com/AkarinVS/vapoursynth-plugin/releases/download/v0.96/akarin-release-lexpr-amd64-v0.96g3.7z";
+        Name         = "Akarin";
+        Url          = "https://github.com/AkarinVS/vapoursynth-plugin/releases/download/v0.96/akarin-release-lexpr-amd64-v0.96g3.7z";
         FilePatterns = @("akarin.dll");
     },
     @{
-        Name = "BestSource";
-        Url = "https://github.com/vapoursynth/bestsource/releases/download/R11/BestSource-R11.7z";
+        Name         = "BestSource";
+        Url          = "https://github.com/vapoursynth/bestsource/releases/download/R11/BestSource-R11.7z";
         FilePatterns = @("BestSource.dll");
     },
     @{
-        Name = "LSmashSource";
-        Url = "https://github.com/HomeOfAviSynthPlusEvolution/L-SMASH-Works/releases/download/1194.0.0.0/L-SMASH-Works-r1194.0.0.0.7z";
+        Name         = "LSmashSource";
+        Url          = "https://github.com/HomeOfAviSynthPlusEvolution/L-SMASH-Works/releases/download/1194.0.0.0/L-SMASH-Works-r1194.0.0.0.7z";
         FilePatterns = @("x64/LSMASHSource.dll");
     },
     @{
-        Name = "MVTools";
-        Url = "https://github.com/dubhater/vapoursynth-mvtools/releases/download/v24/vapoursynth-mvtools-v24-win64.7z";
+        Name         = "MVTools";
+        Url          = "https://github.com/dubhater/vapoursynth-mvtools/releases/download/v24/vapoursynth-mvtools-v24-win64.7z";
         FilePatterns = @("libmvtools.dll");
     },
     @{
-        Name = "VapourSynth-RIFE-ncnn-Vulkan";
-        Url = "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/releases/download/r9_mod_v32/librife_windows_x86-64.dll";
+        Name        = "VapourSynth-RIFE-ncnn-Vulkan";
+        Url         = "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/releases/download/r9_mod_v32/librife_windows_x86-64.dll";
         IsDirectDll = $true;
-    },,
+    }, ,
     @{
-        Name = "Adjust";
-        Url = "https://github.com/f0e/Vapoursynth-adjust/releases/download/v1/adjust.dll";
+        Name        = "Adjust";
+        Url         = "https://github.com/f0e/Vapoursynth-adjust/releases/download/v1/adjust.dll";
         IsDirectDll = $true;
     },
     @{
-        Name = "SVPFlow";
-        Url = "https://web.archive.org/web/20190322064557if_/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip";
+        Name         = "SVPFlow";
+        Url          = "https://web.archive.org/web/20190322064557if_/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip";
         FilePatterns = @(
             "svpflow-4.2.0.142/lib-windows/vapoursynth/x64/svpflow1_vs64.dll",
             "svpflow-4.2.0.142/lib-windows/vapoursynth/x64/svpflow2_vs64.dll"
@@ -165,9 +166,10 @@ foreach ($plugin in $plugins) {
         # Direct DLL download (no extraction needed)
         $dllPath = Join-Path $pluginsDir "$($plugin.Name.ToLower()).dll"
         Download-File -Url $plugin.Url -OutFile $dllPath
-    } else {
+    }
+    else {
         # Archive download that needs extraction
-        $archiveExt = if ($plugin.Url.EndsWith('.zip')) {'.zip'} else {'.7z'}
+        $archiveExt = if ($plugin.Url.EndsWith('.zip')) { '.zip' } else { '.7z' }
         $archivePath = Join-Path $vapoursynthDir "$($plugin.Name.ToLower())$archiveExt"
         Download-File -Url $plugin.Url -OutFile $archivePath
         Extract-Files -ArchivePath $archivePath -FilePatterns $plugin.FilePatterns -DestinationPath $pluginsDir
@@ -186,9 +188,9 @@ Extract-Files -ArchivePath $ffmpegArchive -FilePatterns @(
 # Define model downloads
 $modelDownloads = @(
     @{
-        BaseUrl = "https://raw.githubusercontent.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/a2579e656dac7909a66e7da84578a2f80ccba41c/models/rife-v4.26_ensembleFalse";
+        BaseUrl   = "https://raw.githubusercontent.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/a2579e656dac7909a66e7da84578a2f80ccba41c/models/rife-v4.26_ensembleFalse";
         ModelName = "rife-v4.26_ensembleFalse";
-        FileList = @("flownet.bin", "flownet.param");
+        FileList  = @("flownet.bin", "flownet.param");
     }
 )
 
@@ -196,5 +198,3 @@ $modelDownloads = @(
 foreach ($model in $modelDownloads) {
     Download-ModelFiles -BaseUrl $model.BaseUrl -ModelName $model.ModelName -FileList $model.FileList
 }
-
-Write-Host "Done"

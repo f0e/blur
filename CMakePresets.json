@@ -25,7 +25,9 @@
       },
       "cacheVariables": {
         "CMAKE_C_COMPILER": "cl",
-        "CMAKE_CXX_COMPILER": "cl"
+        "CMAKE_CXX_COMPILER": "cl",
+        "MPV_INCLUDE_DIR": "${sourceDir}/mpv/include",
+        "MPV_LIBRARY": "${sourceDir}/mpv/libmpv-2.dll"
       },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {

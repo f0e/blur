@@ -4,8 +4,6 @@
 
 namespace {
 	bool init_hw = false;
-	// std::set<std::string> hw_accels; // TODO: re-add?
-	// std::set<std::string> hw_encoders;
 }
 
 // NOLINTBEGIN gpt ass code
@@ -143,15 +141,6 @@ std::string u::get_executable_path() {
 }
 
 // NOLINTEND
-
-float u::lerp(float value, float target, float reset_speed, float snap_offset) {
-	value = std::lerp(value, target, reset_speed);
-
-	if (std::abs(value - target) < snap_offset) // todo: is this too small
-		value = target;
-
-	return value;
-}
 
 constexpr int64_t PERIOD = 1;
 constexpr int64_t TOLERANCE = 1'020'000;
@@ -294,90 +283,108 @@ u::VideoInfo u::get_video_info(const std::filesystem::path& path) {
 		{
 			"-v",
 			"error",
-			"-select_streams",
-			"v:0", // only want to analyse first video stream
 			"-show_entries",
-			"stream=codec_type,codec_name,duration,color_range,sample_rate,r_frame_rate,pix_fmt,color_space,color_"
-			"transfer,"
-			"color_primaries",
+			// clang-format off
+			"stream=index,codec_type,sample_rate,color_range,r_frame_rate,pix_fmt,color_space,color_transfer,color_primaries,width,height,start_time",
+			// clang-format on
 			"-show_entries",
 			"format=duration",
 			"-of",
-			"default=noprint_wrappers=1",
+			"json",
 			u::path_to_string(path),
 		},
 		bp::std_out > pipe_stream,
 		bp::std_err.null()
 	);
 
-	VideoInfo info;
-
-	bool has_video_stream = false;
-	double duration = 0.0;
-	std::string codec_name;
-
-	std::string line;
-	while (pipe_stream && std::getline(pipe_stream, line)) {
-		boost::algorithm::trim(line);
-
-		if (line.find("codec_type=video") != std::string::npos) {
-			has_video_stream = true;
-		}
-		else if (line.find("codec_name=") != std::string::npos) {
-			codec_name = line.substr(line.find('=') + 1);
-		}
-		else if (line.find("duration=") != std::string::npos) {
-			try {
-				duration = std::stod(line.substr(line.find('=') + 1));
-			}
-			catch (...) {
-				duration = 0.0;
-			}
-		}
-		else if (line.find("color_range=") != std::string::npos) {
-			info.color_range = line.substr(line.find('=') + 1);
-		}
-		else if (line.find("pix_fmt=") != std::string::npos) {
-			info.pix_fmt = line.substr(line.find('=') + 1);
-		}
-		else if (line.find("color_space=") != std::string::npos) {
-			info.color_space = line.substr(line.find('=') + 1);
-		}
-		else if (line.find("color_transfer=") != std::string::npos) {
-			info.color_transfer = line.substr(line.find('=') + 1);
-		}
-		else if (line.find("color_primaries=") != std::string::npos) {
-			info.color_primaries = line.substr(line.find('=') + 1);
-		}
-		else if (line.find("sample_rate=") != std::string::npos) {
-			info.sample_rate = std::stoi(line.substr(line.find('=') + 1));
-		}
-		else if (line.find("r_frame_rate=") != std::string::npos) {
-			std::string frame_rate_str = line.substr(line.find('=') + 1);
-			auto fps_split = u::split_string(frame_rate_str, "/");
-			if (fps_split.size() == 2) {
-				info.fps_num = std::stoi(fps_split[0]);
-				info.fps_den = std::stoi(fps_split[1]);
-			}
-			else {
-				// todo: throw? what??
-			}
-		}
-	}
+	std::string output(std::istreambuf_iterator<char>(pipe_stream), {});
 
 	c.wait();
 
-	// 1. It must have a video stream
-	// 2. Either it has a non-zero duration or it's an animated format
-	// Static images will typically have duration=0 or N/A
-	bool is_animated_format = u::contains(codec_name, "gif") || u::contains(codec_name, "webp");
-	info.has_video_stream = has_video_stream && (duration > 0.1 || is_animated_format);
+	DEBUG_LOG("[ffprobe] {}", output);
 
-	if (info.sample_rate == -1) {
-		// todo: throw?
+	const auto j = nlohmann::json::parse(output);
+
+	VideoInfo info;
+
+	// format
+	if (j.contains("format")) {
+		const auto& fmt = j["format"];
+
+		if (fmt.contains("duration"))
+			info.duration = std::stod(fmt["duration"].get<std::string>());
+	}
+
+	// streams
+	bool first_video_stream = false;
+
+	for (const auto& stream : j.value("streams", nlohmann::json::array())) {
+		const auto codec_type = stream.value("codec_type", "");
+
+		if (codec_type == "video") {
+			info.has_video_stream = true;
+
+			if (first_video_stream)
+				continue;
+
+			first_video_stream = true;
+
+			info.width = stream.value("width", 0);
+			info.height = stream.value("height", 0);
+			info.pix_fmt = stream.value("pix_fmt", "");
+			info.color_range = stream.value("color_range", "");
+			info.color_space = stream.value("color_space", "");
+
+			if (stream.contains("color_transfer") &&
+			    (stream["color_transfer"] != "unknown" && stream["color_transfer"] != "reserved"))
+			{
+				info.color_transfer = stream["color_transfer"];
+			}
+
+			if (stream.contains("color_primaries") &&
+			    (stream["color_primaries"] != "unknown" && stream["color_primaries"] != "reserved"))
+			{
+				info.color_primaries = stream["color_primaries"];
+			}
+
+			if (stream.contains("r_frame_rate")) {
+				const auto fps = u::split_string(stream["r_frame_rate"].get<std::string>(), "/");
+				info.fps_num = std::stoi(fps[0]);
+				info.fps_den = std::stoi(fps[1]);
+			}
+
+			if (stream.contains("start_time"))
+				info.video_start_time = std::stod(stream["start_time"].get<std::string>());
+		}
+		else if (codec_type == "audio") {
+			if (stream.contains("sample_rate"))
+				info.audio_sample_rates.push_back(std::stoi(stream["sample_rate"].get<std::string>()));
+
+			if (stream.contains("start_time"))
+				info.audio_start_times.push_back(std::stod(stream["start_time"].get<std::string>()));
+		}
 	}
 
 	return info;
+}
+
+int16_t u::get_audio_percentile_peak(const std::vector<int16_t>& samples, float percentile) {
+	if (samples.empty())
+		return 1;
+
+	// sort samples from quietest->loudest
+	std::vector<int16_t> abs_samples;
+	abs_samples.reserve(samples.size());
+	for (int16_t sample : samples) {
+		abs_samples.push_back(std::abs(sample));
+	}
+
+	std::ranges::sort(abs_samples);
+
+	// get xth percentile amplitude
+	auto idx = static_cast<size_t>(percentile * abs_samples.size());
+	idx = std::min(idx, abs_samples.size() - 1);
+	return std::max(abs_samples[idx], static_cast<int16_t>(1));
 }
 
 bool u::test_hardware_device(const std::string& device_type) {
@@ -472,19 +479,80 @@ std::vector<std::string> u::get_available_gpu_types() {
 std::string u::get_primary_gpu_type() {
 	auto devices = get_hardware_encoding_devices();
 
-	// First try to find device marked as primary
 	for (const auto& device : devices) {
 		if (device.is_primary) {
 			return device.type;
 		}
 	}
 
-	// If no primary device found but we have devices, return the first one
 	if (!devices.empty()) {
 		return devices[0].type;
 	}
 
 	return "cpu";
+}
+
+bool u::test_codec(const std::string& codec) {
+	namespace bp = boost::process;
+
+	bp::ipstream error_stream;
+
+	auto c = u::run_command(
+		blur.ffmpeg_path,
+		{
+			"-loglevel",
+			"error",
+			"-f",
+			"lavfi",
+			"-i",
+			"nullsrc",
+			"-c:v",
+			codec,
+			"-frames:v",
+			"1",
+			"-f",
+			"null",
+			"-",
+		},
+		bp::std_out.null(),
+		bp::std_err > error_stream
+	);
+
+	c.wait();
+
+	return c.exit_code() == 0;
+}
+
+std::set<std::string> u::get_available_codecs(const std::set<std::string>& codecs) {
+	static std::unordered_map<std::string, bool> codec_available_cache;
+
+	std::set<std::string> result;
+	std::vector<std::future<std::pair<std::string, bool>>> futures;
+
+	for (const auto& codec : codecs) {
+		if (codec_available_cache.contains(codec)) {
+			if (codec_available_cache[codec])
+				result.insert(codec);
+
+			continue;
+		}
+
+		futures.push_back(std::async(std::launch::async, [&codec]() {
+			bool available = test_codec(codec);
+			return std::make_pair(codec, available);
+		}));
+	}
+
+	for (auto& future : futures) {
+		auto [codec, available] = future.get();
+
+		codec_available_cache[codec] = available;
+
+		if (available)
+			result.insert(codec);
+	}
+
+	return result;
 }
 
 std::vector<std::string> u::get_supported_presets(bool gpu_encoding, const std::string& gpu_type) {
@@ -493,12 +561,17 @@ std::vector<std::string> u::get_supported_presets(bool gpu_encoding, const std::
 
 	auto available_presets = config_presets::get_available_presets(gpu_encoding, gpu_type);
 
-	std::vector<std::string> filtered_presets;
-
+	std::set<std::string> all_codecs;
 	for (const auto& preset : available_presets) {
-		// if (hw_encoders.contains(preset.codec)) {
-		filtered_presets.push_back(preset.name);
-		// }
+		all_codecs.insert(preset.codec);
+	}
+
+	auto available_codecs = get_available_codecs(all_codecs);
+
+	std::vector<std::string> filtered_presets;
+	for (const auto& preset : available_presets) {
+		if (available_codecs.contains(preset.codec))
+			filtered_presets.push_back(preset.name);
 	}
 
 	return filtered_presets;
@@ -535,7 +608,7 @@ std::vector<std::string> u::ffmpeg_string_to_args(const std::string& str) {
 	return args;
 }
 
-std::map<int, std::string> u::get_rife_gpus() {
+std::map<int, std::string> u::get_devices(const std::string& type) {
 	namespace bp = boost::process;
 
 	auto env = setup_vspipe_environment();
@@ -544,15 +617,17 @@ std::map<int, std::string> u::get_rife_gpus() {
 	bool vapoursynth_plugins_bundled = std::filesystem::exists(blur.resources_path / "vapoursynth-plugins");
 #endif
 
-	std::filesystem::path get_gpus_script_path = (blur.resources_path / "lib/get_rife_gpus.py");
+	std::filesystem::path get_devices_script_path = (blur.resources_path / "lib/get_devices.py");
 
-	bp::ipstream err_stream;
+	bp::ipstream out_stream, err_stream;
 
 	auto c = u::run_command(
 		blur.vspipe_path,
 		{
 			"-c",
 			"y4m",
+			"-a",
+			std::format("type={}", type),
 #if defined(__APPLE__)
 			"-a",
 			std::format("macos_bundled={}", blur.used_installer ? "true" : "false"),
@@ -561,28 +636,48 @@ std::map<int, std::string> u::get_rife_gpus() {
 			"-a",
 			std::format("linux_bundled={}", vapoursynth_plugins_bundled ? "true" : "false"),
 #endif
-			u::path_to_string(get_gpus_script_path),
+			u::path_to_string(get_devices_script_path),
 			"-",
 		},
-		bp::std_out.null(),
+		bp::std_out > out_stream,
 		bp::std_err > err_stream,
 		env
 	);
 
 	std::map<int, std::string> gpu_map;
 
-	std::regex gpu_line_pattern(R"(\[(\d+)\s+(.*?)\])"); // regex to match: [0 GPU NAME]
+	if (type == "rife") {
+		std::regex gpu_line_pattern(R"(\[(\d+)\s+(.*?)\])");
 
-	std::string line;
-	while (err_stream && std::getline(err_stream, line)) {
-		boost::algorithm::trim(line);
+		std::string line;
+		while (err_stream && std::getline(err_stream, line)) {
+			boost::algorithm::trim(line);
 
-		std::smatch match;
-		if (std::regex_search(line, match, gpu_line_pattern)) {
-			int gpu_index = std::stoi(match[1].str());
-			std::string gpu_name = match[2].str();
+			std::smatch match;
+			if (std::regex_search(line, match, gpu_line_pattern)) {
+				gpu_map[std::stoi(match[1].str())] = match[2].str();
+			}
+		}
+	}
+	else if (type == "tensorrt") {
+		std::string output(std::istreambuf_iterator<char>(out_stream), {});
+		boost::algorithm::trim(output);
 
-			gpu_map[gpu_index] = gpu_name;
+		if (!output.empty()) {
+			try {
+				auto json = nlohmann::json::parse(output);
+
+				for (const auto& entry : json) {
+					int device_id = entry.at("device_id").get<int>();
+					const auto& props = entry.at("properties");
+
+					std::string name = props.value("name", "Unknown Device");
+					gpu_map[device_id] = name;
+				}
+			}
+			catch (const nlohmann::json::exception& e) {
+				// optionally log: e.what()
+			}
 		}
 	}
 
@@ -591,61 +686,71 @@ std::map<int, std::string> u::get_rife_gpus() {
 	return gpu_map;
 }
 
-int u::get_fastest_rife_gpu_index(
-	const std::map<int, std::string>& gpu_map,
-	const std::filesystem::path& rife_model_path,
-	const std::filesystem::path& benchmark_video_path
+int u::get_fastest_device_index(
+	const std::map<int, std::string>& device_map,
+	const std::filesystem::path& benchmark_video_path,
+	const std::string& benchmark_type,
+	const std::vector<std::string>& extra_args
 ) {
 	namespace bp = boost::process;
 
-	std::map<int, float> benchmark_map;
 	float fastest_time = FLT_MAX;
 	int fastest_index = -1;
 
-	std::filesystem::path benchmark_gpus_script_path = (blur.resources_path / "lib/benchmark_rife_gpus.py");
+	std::filesystem::path benchmark_script_path = blur.resources_path / "lib/benchmarks.py";
 
-	for (const auto& [gpu_index, gpu_name] : gpu_map) {
+#if defined(__linux__)
+	bool vapoursynth_plugins_bundled = std::filesystem::exists(blur.resources_path / "vapoursynth-plugins");
+#endif
+
+	auto run_benchmark = [&](int device_index) {
 		auto env = setup_vspipe_environment();
 
-#if defined(__linux__)
-		bool vapoursynth_plugins_bundled = std::filesystem::exists(blur.resources_path / "vapoursynth-plugins");
-#endif
-
-		auto start = std::chrono::steady_clock::now();
-
-		auto c = u::run_command(
-			blur.vspipe_path,
-			{
-				"-c",
-				"y4m",
-				"-p",
-				"-a",
-				std::format("rife_model={}", rife_model_path),
-				"-a",
-				std::format("rife_gpu_index={}", gpu_index),
-				"-a",
-				std::format("benchmark_video_path={}", benchmark_video_path),
+		std::vector<std::string> args = {
+			"-c",
+			"y4m",
+			"-p",
+			"-a",
+			std::format("type={}", benchmark_type),
+			"-a",
+			std::format("device_index={}", device_index),
+			"-a",
+			std::format("benchmark_video_path={}", benchmark_video_path),
 #if defined(__APPLE__)
-				"-a",
-				std::format("macos_bundled={}", blur.used_installer ? "true" : "false"),
+			"-a",
+			std::format("macos_bundled={}", blur.used_installer ? "true" : "false"),
 #endif
 #if defined(__linux__)
-				"-a",
-				std::format("linux_bundled={}", vapoursynth_plugins_bundled ? "true" : "false"),
+			"-a",
+			std::format("linux_bundled={}", vapoursynth_plugins_bundled ? "true" : "false"),
 #endif
 #if defined(_WIN32)
-				"-a",
-				"enable_lsmash=true",
+			"-a",
+			"enable_lsmash=true",
 #endif
-				"-e",
-				"2",
-				u::path_to_string(benchmark_gpus_script_path),
-				"-",
-			},
-			env,
-			bp::std_out.null(),
-			bp::std_err.null()
-		);
+			"-e",
+			"2",
+		};
+
+		for (const auto& extra_arg : extra_args) {
+			args.push_back("-a");
+			args.push_back(extra_arg);
+		}
+
+		args.push_back(u::path_to_string(benchmark_script_path));
+		args.push_back("-");
+
+		return u::run_command(blur.vspipe_path, args, env, bp::std_out.null(), bp::std_err.null());
+	};
+
+	if (benchmark_type == "rife (tensorrt)") {
+		// need to warm up engine probably
+		run_benchmark(device_map.begin()->first).wait();
+	}
+
+	for (const auto& [device_index, device_name] : device_map) {
+		auto start = std::chrono::steady_clock::now();
+		auto c = run_benchmark(device_index);
 
 		bool killed_early = false;
 
@@ -666,51 +771,94 @@ int u::get_fastest_rife_gpu_index(
 			float elapsed_seconds =
 				std::chrono::duration_cast<std::chrono::duration<float>>(std::chrono::steady_clock::now() - start)
 					.count();
-			u::log("gpu {} took {}", gpu_index, elapsed_seconds);
+			u::log("device {} took {}", device_index, elapsed_seconds);
 
 			if (elapsed_seconds < fastest_time) {
 				fastest_time = elapsed_seconds;
-				fastest_index = gpu_index;
+				fastest_index = device_index;
 			}
 		}
 		else {
-			u::log("gpu {} killed early (too slow)", gpu_index);
+			u::log("device {} killed early (too slow)", device_index);
 		}
 	}
 
 	return fastest_index;
 }
 
-void u::set_fastest_rife_gpu(BlurSettings& settings) {
+std::optional<size_t> u::get_fastest_rife_device(BlurSettings& settings) {
 	auto app_config = config_app::get_app_config();
-	if (app_config.rife_gpu_index != -1)
+	if (app_config.rife_device_index != -1)
+		return std::nullopt;
+
+	if (!blur.initialised_devices || blur.rife_devices.empty())
+		return std::nullopt;
+
+	if (blur.rife_devices.size() == 1)
+		return 0;
+
+	auto sample_video_path = blur.settings_path / "sample_video.mp4";
+	if (!std::filesystem::exists(sample_video_path))
+		return std::nullopt;
+
+	auto rife_model_path = settings.get_rife_model_path();
+	if (!rife_model_path)
+		return std::nullopt;
+
+	return u::get_fastest_device_index(
+		blur.rife_devices, sample_video_path, "rife", { std::format("rife_model_path={}", *rife_model_path) }
+	);
+}
+
+std::optional<size_t> u::get_fastest_tensorrt_device(BlurSettings& settings) {
+	auto app_config = config_app::get_app_config();
+	if (app_config.tensorrt_device_index != -1)
+		return std::nullopt;
+
+	if (!blur.initialised_devices || blur.tensorrt_devices.empty())
+		return std::nullopt;
+
+	if (blur.tensorrt_devices.size() == 1)
+		return 0;
+
+	auto sample_video_path = blur.settings_path / "sample_video.mp4";
+	if (!std::filesystem::exists(sample_video_path))
+		return std::nullopt;
+
+	auto rife_trt_model = settings.advanced.rife_trt_model;
+	if (rife_trt_model.empty())
+		return std::nullopt;
+
+	return u::get_fastest_device_index(
+		blur.tensorrt_devices,
+		sample_video_path,
+		"rife (tensorrt)",
+		{ std::format("rife_trt_model={}", rife_trt_model) }
+	);
+}
+
+void u::set_fastest_devices(BlurSettings& settings) {
+	auto app_config = config_app::get_app_config();
+
+	auto rife_result = u::get_fastest_rife_device(settings);
+	auto tensorrt_result = u::get_fastest_tensorrt_device(settings);
+
+	if (!rife_result && !tensorrt_result)
 		return;
 
-	if (!blur.initialised_rife_gpus || blur.rife_gpus.empty())
-		return;
-
-	if (blur.rife_gpus.size() == 1) {
-		// only one gpu, so it's the fastest. don't need to benchmark.
-		app_config.rife_gpu_index = 0;
+	if (rife_result) {
+		app_config.rife_device_index = *rife_result;
+		u::log("set rife_device_index to the fastest device ({})", app_config.rife_device_index);
 	}
-	else {
-		auto sample_video_path = blur.settings_path / "sample_video.mp4";
-		if (!std::filesystem::exists(sample_video_path))
-			return;
 
-		auto rife_model_path = settings.get_rife_model_path();
-		if (!rife_model_path)
-			return;
-
-		int fastest_gpu_index = u::get_fastest_rife_gpu_index(blur.rife_gpus, *rife_model_path, sample_video_path);
-		app_config.rife_gpu_index = fastest_gpu_index;
+	if (tensorrt_result) {
+		app_config.tensorrt_device_index = *tensorrt_result;
+		u::log("set tensorrt_device_index to the fastest device ({})", app_config.tensorrt_device_index);
 	}
 
 	// todo: this is dumb
 	auto app_config_path = config_app::get_app_config_path();
 	config_app::create(app_config_path, app_config);
-
-	u::log("set rife_gpu_index to the fastest gpu ({})", app_config.rife_gpu_index);
 }
 
 void u::verify_gpu_encoding(BlurSettings& settings) {
@@ -770,3 +918,30 @@ bool u::windows_toggle_suspend_process(DWORD pid, bool to_suspend) {
 	return true;
 }
 #endif
+
+tl::expected<u::ParsedError, std::string> u::parse_error_output(const std::string& stderr_output) {
+	ParsedError result;
+	result.is_blur_exception = false;
+
+	size_t json_start = stderr_output.find('{');
+	size_t json_end = stderr_output.rfind('}');
+
+	if (json_start != std::string::npos && json_end != std::string::npos && json_end > json_start) {
+		try {
+			std::string json_str = stderr_output.substr(json_start, json_end - json_start + 1);
+			auto json = nlohmann::json::parse(json_str);
+
+			if (json.contains("error_type") && json["error_type"] == "BlurException") {
+				result.is_blur_exception = true;
+				result.user_message = json.value("user_message", "An error occurred during processing");
+				result.technical_details = json.value("technical_details", stderr_output);
+				return result;
+			}
+		}
+		catch (const nlohmann::json::exception& e) {
+			DEBUG_LOG("Failed to parse JSON error: {}", e.what());
+		}
+	}
+
+	return tl::unexpected(stderr_output);
+}

@@ -95,6 +95,8 @@ namespace render {
 	bool init(SDL_Window* window, const SDL_GLContext& context);
 	void destroy();
 
+	// TODO: antialiased doesnt do anything anywhere
+
 	void line(
 		const gfx::Point& pos1,
 		const gfx::Point& pos2,
@@ -166,14 +168,7 @@ namespace render {
 		float thickness = 1.f
 	);
 
-	void triangle_filled(
-		const gfx::Point& p1,
-		const gfx::Point& p2,
-		const gfx::Point& p3,
-		const gfx::Color& col,
-		float thickness = 1.f,
-		bool anti_aliased = false
-	);
+	void triangle_filled(const gfx::Point& p1, const gfx::Point& p2, const gfx::Point& p3, const gfx::Color& col);
 
 	void triangle_stroke(
 		const gfx::Point& p1,
@@ -216,17 +211,7 @@ namespace render {
 		int rotation_pivot_y = 0
 	);
 
-	// New image functions
 	void image(const gfx::Rect& rect, const Texture& texture, const gfx::Color& tint_color = gfx::Color::white());
-
-	void image_with_borders(
-		const gfx::Rect& rect,
-		const Texture& texture,
-		const gfx::Color& border_color,
-		const gfx::Color& inner_border_color,
-		float border_thickness = 1.0f,
-		const gfx::Color& tint_color = gfx::Color::white()
-	);
 
 	void image_rounded(
 		const gfx::Rect& rect,
@@ -247,6 +232,27 @@ namespace render {
 		const gfx::Color& tint_color = gfx::Color::white()
 	);
 
+	void borders(const gfx::Rect& rect, const gfx::Color& border_color, const gfx::Color& inner_border_color);
+
+	void loader(const gfx::Rect& rect, const gfx::Color& color, const std::string& loader_text = "loading...");
+
+	void waveform(
+		const gfx::Rect& rect,
+		const gfx::Rect& active_rect,
+		const gfx::Color& color,
+		const std::vector<int16_t>& samples,
+		int16_t max_sample,
+		float zoom_start = 0.0f,
+		float zoom_end = 1.0f
+	);
+
+	enum class RectSide {
+		LEFT,
+		RIGHT
+	};
+
+	void rect_side(const gfx::Rect& rect, const gfx::Color& color, RectSide side, int thickness = 1);
+
 	void push_clip_rect(const gfx::Rect& rect, bool intersect_clip_rect = false);
 	void push_clip_rect(int x1, int y1, int x2, int y2, bool intersect_clip_rect = false);
 	void push_fullscreen_clip_rect();
@@ -257,4 +263,6 @@ namespace render {
 	std::vector<std::string> wrap_text(
 		const std::string& text, const gfx::Size& dimensions, const Font& font, int line_height = 0
 	);
+
+	SDL_Surface* jpeg_bytes_to_surface(const void* data, size_t size);
 }

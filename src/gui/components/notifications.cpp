@@ -65,6 +65,40 @@ void notifications::close(const std::string& id) {
 	}
 }
 
+void notifications::show_failure_notification(
+	const std::string& error_header,
+	const std::variant<std::string, rendering::RenderError>& error,
+	std::optional<std::chrono::duration<float>> duration
+) {
+	std::string error_message;
+	std::string clipboard_text;
+	bool is_blur_error = true;
+
+	if (std::holds_alternative<rendering::RenderError>(error)) {
+		const auto& err = std::get<rendering::RenderError>(error);
+		error_message = err.user_message;
+		clipboard_text = err.to_string();
+		is_blur_error = err.is_blur_exception;
+	}
+	else {
+		const auto& err_str = std::get<std::string>(error);
+		error_message = err_str;
+		clipboard_text = err_str;
+	}
+
+	add(
+		std::format("{}\n\n{}\n\nClick to copy detailed error log.", error_header, error_message),
+		ui::NotificationType::NOTIF_ERROR,
+		[clipboard_text](const std::string& id) {
+			SDL_SetClipboardText(clipboard_text.c_str());
+
+			close(id);
+			add("Copied error message to clipboard", ui::NotificationType::INFO, {}, std::chrono::duration<float>(2.f));
+		},
+		duration
+	);
+}
+
 void notifications::render(ui::Container& container) {
 	std::lock_guard<std::mutex> lock(notification_mutex);
 

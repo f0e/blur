@@ -3,9 +3,7 @@
 #include <imgui.h>
 #include <misc/freetype/imgui_freetype.h>
 
-bool render::Font::init(
-	std::span<const unsigned char> data, float size, ImFontConfig* font_cfg, const ImWchar* glyph_ranges
-) {
+bool render::Font::init(std::span<const unsigned char> data, float size, ImFontConfig* font_cfg) {
 	ImGuiIO* io = &ImGui::GetIO();
 	m_size = size;
 
@@ -15,8 +13,7 @@ bool render::Font::init(
 
 	font_cfg->FontDataOwnedByAtlas = false;
 
-	// Pass pointer and size from the span
-	m_font = io->Fonts->AddFontFromMemoryCompressedTTF(data.data(), data.size(), m_size, font_cfg, glyph_ranges);
+	m_font = io->Fonts->AddFontFromMemoryCompressedTTF(data.data(), data.size(), m_size, font_cfg);
 
 	m_height = calc_size("Q").h;
 

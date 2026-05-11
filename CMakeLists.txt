@@ -20,6 +20,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
     ${PROJECT_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE})
 set(CMAKE_BINARY_DIR ${PROJECT_SOURCE_DIR}/build/${CMAKE_BUILD_TYPE})
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
 # packages
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(cpr CONFIG REQUIRED)
@@ -144,6 +146,27 @@ target_compile_definitions(blur PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
 
 # stb
 target_include_directories(blur PRIVATE ${PROJECT_SOURCE_DIR}/dependencies/stb)
+
+# mpv
+find_package(MPV REQUIRED)
+
+target_include_directories(blur PRIVATE ${MPV_INCLUDE_DIRS})
+
+if(WIN32)
+  target_link_libraries(blur PRIVATE ${MPV_LIBRARY})
+
+  if(MPV_DLL)
+    add_custom_command(TARGET blur POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${MPV_DLL}"
+        "$<TARGET_FILE_DIR:blur>/"
+      COMMENT "Copying mpv DLL to output directory"
+    )
+  endif()
+else()
+  target_link_libraries(blur PRIVATE ${MPV_LIBRARY})
+  target_link_directories(blur PRIVATE ${MPV_LIBRARY_DIRS})
+endif()
 
 target_link_libraries(
   blur PRIVATE blur-common SDL3::SDL3 SDL3_image::SDL3_image Freetype::Freetype

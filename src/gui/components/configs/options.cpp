@@ -34,6 +34,10 @@ void configs::set_interpolated_fps() {
 }
 
 void configs::options(ui::Container& container) {
+	// try set fastest devices if it hasnt been set yet. this will run on config load, but devices may not have been
+	// initialised by the time you switch to the config screen. this catches that case.
+	u::set_fastest_devices(settings);
+
 	static const gfx::Color section_color = gfx::Color::white(renderer::MUTED_SHADE);
 
 	bool first_section = true;
@@ -167,14 +171,21 @@ void configs::options(ui::Container& container) {
 			);
 		}
 
+		std::vector<std::string> interpolation_options = {
+			"svp",
+			"rife",
+			"mvtools",
+		};
+
+		if (blur.initialised_devices && !blur.tensorrt_devices.empty()) {
+			interpolation_options.insert(interpolation_options.begin() + 2, "rife (tensorrt)");
+		}
+
 		ui::add_dropdown(
 			"interpolation method dropdown",
 			container,
 			"interpolation method",
-			{
-				"svp",
-				"rife", // plugins broken on mac rn idk why todo: fix when its fixed
-			},
+			interpolation_options,
 			settings.interpolation_method,
 			fonts::dejavu
 		);
@@ -183,7 +194,7 @@ void configs::options(ui::Container& container) {
 	/*
 	    Pre-interpolation
 	*/
-	if (settings.interpolate && settings.interpolation_method != "rife") {
+	if (settings.interpolate) {
 		section_component("pre-interpolation", &settings.pre_interpolate);
 
 		if (settings.pre_interpolate) {
@@ -227,6 +238,23 @@ void configs::options(ui::Container& container) {
 					}
 				);
 			}
+
+			std::vector<std::string> pre_interpolation_options = {
+				"rife",
+			};
+
+			if (blur.initialised_devices && !blur.tensorrt_devices.empty()) {
+				pre_interpolation_options.insert(pre_interpolation_options.end(), "rife (tensorrt)");
+			}
+
+			ui::add_dropdown(
+				"pre-interpolation method dropdown",
+				container,
+				"pre-interpolation method",
+				pre_interpolation_options,
+				settings.pre_interpolation_method,
+				fonts::dejavu
+			);
 		}
 	}
 
@@ -245,6 +273,8 @@ void configs::options(ui::Container& container) {
 			{
 				"svp",
 				"rife",
+				"rife (tensorrt)",
+				"mvtools",
 				"old",
 			},
 			settings.deduplicate_method,
@@ -257,14 +287,31 @@ void configs::options(ui::Container& container) {
 	*/
 	section_component("rendering");
 
-	ui::add_dropdown(
-		"codec dropdown",
-		container,
-		std::format("encode preset ({})", settings.gpu_encoding ? "gpu: " + app_settings.gpu_type : "cpu"),
-		u::get_supported_presets(settings.gpu_encoding, app_settings.gpu_type),
-		settings.encode_preset,
-		fonts::dejavu
-	);
+	auto presets = u::get_supported_presets(settings.gpu_encoding, app_settings.gpu_type);
+
+	if (!u::contains(presets, settings.encode_preset)) {
+		settings.encode_preset = presets[0];
+	}
+
+	if (presets.empty()) {
+		ui::add_text(
+			"no presets text",
+			container,
+			"no presets available. try toggling 'gpu encoding'",
+			gfx::Color(252, 186, 3, 150),
+			fonts::dejavu
+		);
+	}
+	else {
+		ui::add_dropdown(
+			"codec dropdown",
+			container,
+			std::format("encode preset ({})", settings.gpu_encoding ? "gpu: " + app_settings.gpu_type : "cpu"),
+			presets,
+			settings.encode_preset,
+			fonts::dejavu
+		);
+	}
 
 	if (settings.advanced.ffmpeg_override.empty()) {
 		std::vector<std::string> preset_args = config_presets::get_preset_params(
@@ -312,6 +359,8 @@ void configs::options(ui::Container& container) {
 
 	ui::add_text_input("output path input", container, app_settings.output_prefix, "output path", fonts::dejavu);
 
+	ui::add_checkbox("upscale checkbox", container, "upscale", settings.upscale, fonts::dejavu);
+
 	/*
 	    GPU Acceleration
 	*/
@@ -350,31 +399,66 @@ void configs::options(ui::Container& container) {
 		);
 	}
 
-	static std::string rife_gpu;
+	static std::string rife_device;
 
-	if (app_settings.rife_gpu_index == -1) {
-		rife_gpu = "default - will use first available";
+	if (app_settings.rife_device_index == -1) {
+		rife_device = "default - will use first available";
 	}
 	else {
-		if (blur.initialised_rife_gpus && !blur.rife_gpus.empty()) {
-			rife_gpu = blur.rife_gpus.at(app_settings.rife_gpu_index);
+		if (blur.initialised_devices && !blur.rife_devices.empty()) {
+			rife_device = blur.rife_devices.at(app_settings.rife_device_index);
 		}
 		else {
-			rife_gpu = std::format("gpu {}", app_settings.rife_gpu_index);
+			rife_device = std::format("gpu {}", app_settings.rife_device_index);
 		}
 	}
 
 	ui::add_dropdown(
-		"rife gpu dropdown",
+		"rife device dropdown",
 		container,
-		"rife gpu",
-		blur.rife_gpu_names,
-		rife_gpu,
+		"rife device",
+		blur.rife_device_names,
+		rife_device,
 		fonts::dejavu,
 		[&](std::string* new_gpu_name) {
-			for (const auto& [gpu_index, gpu_name] : blur.rife_gpus) {
+			for (const auto& [device_index, gpu_name] : blur.rife_devices) {
 				if (gpu_name == *new_gpu_name) {
-					app_settings.rife_gpu_index = gpu_index;
+					app_settings.rife_device_index = device_index;
+				}
+			}
+		}
+	);
+
+	static std::string tensorrt_device;
+
+	if (app_settings.tensorrt_device_index == -1) {
+		if (blur.initialised_devices) {
+			tensorrt_device = "no tensorrt devices available";
+		}
+		else {
+			tensorrt_device = "default - will use first available";
+		}
+	}
+	else {
+		if (blur.initialised_devices && !blur.tensorrt_devices.empty()) {
+			tensorrt_device = blur.tensorrt_devices.at(app_settings.tensorrt_device_index);
+		}
+		else {
+			tensorrt_device = std::format("gpu {}", app_settings.tensorrt_device_index);
+		}
+	}
+
+	ui::add_dropdown(
+		"tensorrt device dropdown",
+		container,
+		"rife (tensorrt) device",
+		blur.tensorrt_device_names,
+		tensorrt_device,
+		fonts::dejavu,
+		[&](std::string* new_gpu_name) {
+			for (const auto& [device_index, gpu_name] : blur.tensorrt_devices) {
+				if (gpu_name == *new_gpu_name) {
+					app_settings.tensorrt_device_index = device_index;
 				}
 			}
 		}
@@ -489,6 +573,32 @@ void configs::options(ui::Container& container) {
 			);
 		}
 
+		ui::add_dropdown(
+			"deduplicate frames to interpolate input",
+			container,
+			"deduplicate frames to interpolate",
+			{
+				"surrounding frames + future check",
+				"surrounding frames",
+				"previous to duplicate",
+				"duplicate to next",
+			},
+			settings.advanced.duplicate_mode,
+			fonts::dejavu
+		);
+
+		if (settings.advanced.duplicate_mode == "surrounding frames + future check") {
+			ui::add_slider(
+				"max future checks slider",
+				container,
+				0,
+				10,
+				&settings.advanced.max_future_checks,
+				"max future checks: {}",
+				fonts::dejavu
+			);
+		}
+
 		/*
 		    Advanced Rendering
 		*/
@@ -524,6 +634,15 @@ void configs::options(ui::Container& container) {
 		}
 
 		ui::add_checkbox("debug checkbox", container, "debug", settings.advanced.debug, fonts::dejavu);
+
+		ui::add_dropdown(
+			"resize chroma location dropdown",
+			container,
+			"resize chroma location",
+			config_blur::RESIZE_CHROMA_LOCATIONS,
+			settings.advanced.resize_chromaloc,
+			fonts::dejavu
+		);
 
 		/*
 		    Advanced Interpolation
@@ -570,6 +689,10 @@ void configs::options(ui::Container& container) {
 		);
 
 		ui::add_text_input("rife model", container, settings.advanced.rife_model, "rife model", fonts::dejavu);
+
+		ui::add_text_input(
+			"rife (tensorrt) model", container, settings.advanced.rife_trt_model, "rife (tensorrt) model", fonts::dejavu
+		);
 
 		/*
 		    Advanced Blur

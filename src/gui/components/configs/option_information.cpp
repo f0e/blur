@@ -75,8 +75,9 @@ void configs::option_information(ui::Container& container) {
 		{
 			"interpolation method dropdown",
 			{
-				"Quality: rife > svp",
-				"Speed: svp > rife",
+				// todo: update with mvtools
+				"Quality: rife = rife (tensorrt) > svp",
+				"Speed: svp >> rife (tensorrt) > rife",
 			},
 		},
 		// pre-interp settings
@@ -151,10 +152,40 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"deduplicate frames to interpolate input",
+			{
+				"If 'surrounding frames', the duplicate frame will be ignored, and the frames surrounding it will "
+				"be interpolated. This will result in more interpolation artifacts, but the smoothest output.",
+				"'surrounding frames + future check' is the same as above, but if the next frame (not of this "
+				"duplicate set) is also a duplicate, it'll continue searching until it finds a truly non-duplicate "
+				"frame. This is the new default behaviour.",
+				"If 'previous to duplicate', duplicate frames after the first will be interpolated to the next unique "
+				"frame. This is the old default behaviour.",
+				"If 'duplicate to next', duplicate frames up to the last will be interpolated with the previous unique "
+				"frame.",
+			},
+		},
+		{
+			"max future checks slider",
+			{
+				"Maximum amount of times future duplicate frames can be skipped when using 'surrounding frames + "
+				"future check' for 'deduplicate frames to interpolate'. If this limit is passed, the first future "
+				"duplicate is used for interpolation.",
+			},
+		},
+		{
 			"deduplicate method dropdown",
 			{
-				"Quality: rife > svp",
-				"Speed: old > svp > rife",
+				// todo: update with mvtools
+				"Quality: rife = rife (tensorrt) > svp",
+				"Speed: old > svp >>> rife",
+				"rife (tensorrt) is probably slower than rife here, but it'll depend on your gpu.",
+			},
+		},
+		{
+			"upscale checkbox",
+			{
+				"Upscales to 4K using nearest-neighbour interpolation",
 			},
 		},
 		{
@@ -167,6 +198,14 @@ void configs::option_information(ui::Container& container) {
 			"detailed filenames checkbox",
 			{
 				"Adds blur settings to generated filenames",
+			},
+		},
+
+		// gpu acceleration
+		{
+			"gpu decoding",
+			{
+				"Note: GPU decoding can cause issues with colour handling",
 			},
 		},
 
@@ -219,7 +258,20 @@ void configs::option_information(ui::Container& container) {
 				"(overrides GPU & quality options)",
 			},
 		},
-		// { "debug checkbox", { "Shows debug window and prints commands used by blur", } }
+		{
+			"debug checkbox",
+			{
+				"Logs ffmpeg & vspipe commands, and adds a text overlay displaying frame similarity onto duplicate "
+				"frames",
+			},
+		},
+		{
+			"resize chroma location dropdown",
+			{
+				"Sets the chroma location used when resizing. Can fix colours being moved slightly off from where "
+				"they should be",
+			},
+		},
 		{
 			"copy dates checkbox",
 			{

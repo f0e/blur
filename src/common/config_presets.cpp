@@ -61,17 +61,6 @@ PresetSettings config_presets::parse(const std::filesystem::path& config_filepat
 				}
 			}
 
-			// new gpu type
-			if (!current_presets) {
-				auto& new_entry = settings.all_gpu_presets.emplace_back(
-					PresetSettings::GpuPresets{
-						.gpu_type = current_gpu_type,
-						.presets = {},
-					}
-				);
-				current_presets = &new_entry.presets;
-			}
-
 			continue;
 		}
 
@@ -79,10 +68,8 @@ PresetSettings config_presets::parse(const std::filesystem::path& config_filepat
 		if (delimiter_pos != std::string::npos && current_presets) {
 			std::string preset_name = u::trim(line.substr(0, delimiter_pos));
 
-			if (!preset_name.empty() && preset_name[0] == '*') {
-				// default preset (or imposter), skip
-				DEBUG_LOG("skipping default preset (line: {})", line);
-				continue;
+			if (!preset_name.empty() && preset_name.front() == '*') {
+				preset_name.erase(0, 1);
 			}
 
 			// don't allow presets with same name as defaults (e.g. h265)

@@ -18,6 +18,8 @@ bool keys::process_event(const SDL_Event& event) {
 		}
 	}
 
+	ui::event_queue.push_back(event);
+
 	switch (event.type) {
 		case SDL_EVENT_WINDOW_MOUSE_LEAVE: {
 			mouse_pos = { -1, -1 };
@@ -60,7 +62,13 @@ bool keys::process_event(const SDL_Event& event) {
 			// if (event.wheel.type()) // trackpad
 			// 	scroll_delta_precise = event.wheelDelta().y;
 			// else // mouse
-			scroll_delta = -event.wheel.y * 1500.f;
+
+			if (scroll_delta == 0.f && scroll_x_delta == 0.f)
+				// start of a scroll, see which direction it's (primarily) in
+				scroll_is_horizontal = std::abs(event.wheel.x) > std::abs(event.wheel.y);
+
+			scroll_delta += scroll_is_horizontal ? 0 : -event.wheel.y;
+			scroll_x_delta += scroll_is_horizontal ? -event.wheel.x : 0;
 			// todo: better trackpad scrolling (https://github.com/libsdl-org/SDL/pull/5382)
 			return true;
 		}

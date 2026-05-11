@@ -12,6 +12,7 @@ namespace gui::renderer {
 	inline constexpr float FPS_SMOOTHING = 0.95f;
 
 	enum class Screens : uint8_t {
+		TEST,
 		MAIN,
 		CONFIG
 	};
@@ -29,6 +30,7 @@ namespace gui::renderer {
 	bool redraw_window(bool rendered_last, bool want_to_render);
 
 	void on_render_finished(
-		const rendering::VideoRenderDetails& render, const tl::expected<rendering::RenderResult, std::string>& result
+		const rendering::VideoRenderDetails& render,
+		const tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>>& result
 	);
 }

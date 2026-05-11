@@ -127,6 +127,11 @@ ui::AnimatedElement* ui::add_element(
 	_element.orig_rect = _element.rect;
 
 	if (animated_element.element) {
+		// add new animations
+		for (const auto& [animation_key, animation] : animations) {
+			animated_element.animations.emplace(animation_key, animation);
+		}
+
 		if (animated_element.element->update(_element)) {
 			container.updated = true;
 		}
@@ -258,6 +263,10 @@ std::string ui::get_active_element_type() {
 	return active_element_type;
 }
 
+bool ui::is_active_element(const AnimatedElement& element, const std::string& type) {
+	return active_element == &element && active_element_type == type;
+}
+
 void ui::reset_active_element() {
 	active_element = nullptr;
 	active_element_type = "";
@@ -294,20 +303,20 @@ bool ui::update_container_input(Container& container) {
 	hovered_id = hovered_element_internal ? hovered_element_internal->element->id : "";
 
 	// scroll
-	if (keys::scroll_delta != 0.f || keys::scroll_delta_precise != 0.f) {
+	if (keys::scroll_delta != 0.f) { // || keys::scroll_delta_precise != 0.f) {
 		if (container.rect.contains(keys::mouse_pos)) {
 			if (can_scroll(container)) {
-				container.scroll_speed_y += keys::scroll_delta;
+				container.scroll_speed_y += keys::scroll_delta * 1500.f;
 				keys::scroll_delta = 0.f;
 
-				if (keys::scroll_delta_precise != 0.f) {
-					container.scroll_y += keys::scroll_delta_precise;
-					keys::scroll_delta_precise = 0.f;
+				// if (keys::scroll_delta_precise != 0.f) {
+				// 	container.scroll_y += keys::scroll_delta_precise;
+				// 	keys::scroll_delta_precise = 0.f;
 
-					// immediately clamp to edges todo: overscroll with trackpad?
-					int max_scroll = get_max_scroll(container);
-					container.scroll_y = std::clamp(container.scroll_y, 0.f, (float)max_scroll);
-				}
+				// 	// immediately clamp to edges todo: overscroll with trackpad?
+				// 	int max_scroll = get_max_scroll(container);
+				// 	container.scroll_y = std::clamp(container.scroll_y, 0.f, (float)max_scroll);
+				// }
 
 				updated |=
 					true; // if != 0 checks imply that scroll speed changed, no need to explicitly check if it has
@@ -325,10 +334,13 @@ void ui::on_update_input_start() {
 void ui::on_update_input_end() {
 	// reset scroll, shouldn't scroll stuff on a later update
 	keys::scroll_delta = 0.f;
-	keys::scroll_delta_precise = 0.f;
+	keys::scroll_x_delta = 0.f;
+	// keys::scroll_delta_precise = 0.f;
 
 	// empty text events if they werent processed for some reason
 	text_event_queue.clear();
+
+	event_queue.clear();
 
 	// set cursor based on if an element wanted pointer
 	sdl::set_cursor(desired_cursor);
@@ -366,7 +378,7 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 				container.scroll_speed_y =
 					u::lerp(container.scroll_speed_y, 0.f, scroll_speed_overscroll_reset_speed * delta_time);
 				container.scroll_y =
-					u::lerp(container.scroll_y, max_scroll, scroll_overscroll_reset_speed * delta_time);
+					u::lerp(container.scroll_y, (float)max_scroll, scroll_overscroll_reset_speed * delta_time);
 			}
 
 			if (container.scroll_speed_y != 0.f) {
@@ -400,9 +412,9 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 			need_to_render_animation_update |= animation.update(delta_time);
 		}
 
-		if (stale && main_animation.complete) {
-			// animation complete and element stale, remove
-			slider_observers.erase(id);
+		if (stale && main_animation.complete) { // animation complete and element stale, remove
+			if (element.element->remove_fn)
+				(*element.element->remove_fn)(element);
 
 			u::log("removed {}", id);
 			it = container.elements.erase(it);

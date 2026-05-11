@@ -17,13 +17,10 @@ void ui::render_image(const Container& container, const AnimatedElement& element
 
 	gfx::Color tint_color = image_data.image_color.adjust_alpha(anim);
 
-	render::image_with_borders(
-		element.element->rect,
-		*image_data.texture,
-		gfx::Color(155, 155, 155, stroke_alpha),
-		gfx::Color(80, 80, 80, stroke_alpha),
-		1.0f,
-		tint_color
+	render::image(element.element->rect.shrink(3), *image_data.texture, tint_color);
+
+	render::borders(
+		element.element->rect, gfx::Color(155, 155, 155, stroke_alpha), gfx::Color(80, 80, 80, stroke_alpha)
 	);
 }
 
@@ -36,44 +33,59 @@ std::optional<ui::AnimatedElement*> ui::add_image(
 	gfx::Color image_color
 ) {
 	std::shared_ptr<render::Texture> texture;
-	std::shared_ptr<render::Texture> last_texture;
 
-	// Check if we already have this element
+	// check if we already have this element
 	if (container.elements.contains(id)) {
-		Element& cached_element = *container.elements[id].element;
-		auto& image_data = std::get<ImageElementData>(cached_element.data);
-
-		if (image_data.image_id == image_id) {
-			// Reuse the existing texture if ID matches
+		auto& image_data = std::get<ImageElementData>(container.elements[id].element->data);
+		if (image_data.image_id == image_id)
 			texture = image_data.texture;
-		}
-		else {
-			// Keep the last texture as fallback
-			last_texture = image_data.texture;
-		}
 	}
 
-	// Load image if new
 	if (!texture) {
 		texture = texture_cache::get_or_load_texture(image_path, image_id);
 
 		if (!texture) {
 			u::log("{} failed to load image (id: {})", id, image_id);
-			if (last_texture) {
-				// Use last image as fallback
-				texture = last_texture;
-			}
-			else {
-				return {};
-			}
-		}
 
-		u::log("{} loaded image (id: {})", id, image_id);
+			// fall back to last texture if available
+			if (container.elements.contains(id)) {
+				auto& image_data = std::get<ImageElementData>(container.elements[id].element->data);
+				texture = image_data.texture;
+			}
+
+			if (!texture)
+				return {};
+		}
+		else {
+			u::log("{} loaded image (id: {})", id, image_id);
+		}
+	}
+
+	return add_image(id, container, texture, max_size, image_id, image_color);
+}
+
+std::optional<ui::AnimatedElement*> ui::add_image(
+	const std::string& id,
+	Container& container,
+	std::shared_ptr<render::Texture> texture,
+	const gfx::Size& max_size,
+	const std::string& image_id,
+	gfx::Color image_color
+) {
+	if (!texture || !texture->is_valid())
+		return {};
+
+	// check if we already have this element with the same id — reuse if so
+	if (container.elements.contains(id)) {
+		Element& cached_element = *container.elements[id].element;
+		auto& image_data = std::get<ImageElementData>(cached_element.data);
+
+		if (image_data.image_id == image_id)
+			texture = image_data.texture;
 	}
 
 	gfx::Rect image_rect(container.current_position, max_size);
 
-	// Calculate aspect ratio and adjust dimensions
 	float aspect_ratio = texture->width() / static_cast<float>(texture->height());
 
 	float target_width = image_rect.h * aspect_ratio;
@@ -101,7 +113,6 @@ std::optional<ui::AnimatedElement*> ui::add_image(
 		ElementType::IMAGE,
 		image_rect,
 		ImageElementData{
-			.image_path = image_path,
 			.texture = texture,
 			.image_id = image_id,
 			.image_color = image_color,

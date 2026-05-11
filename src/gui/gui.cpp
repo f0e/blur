@@ -72,6 +72,8 @@ int gui::run() {
 					break;
 			}
 
+			ui::handle_videos_event(event, to_render);
+
 			if (keys::process_event(event)) {
 				ui::on_update_input_start();
 

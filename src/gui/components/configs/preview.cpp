@@ -9,28 +9,54 @@
 #include "../../render/render.h"
 #include "../notifications.h"
 
+namespace {
+	BlurSettings previewed_settings;
+	bool first = true;
+	size_t preview_id = 0;
+	bool loading = false;
+	std::mutex preview_mutex;
+	std::shared_ptr<render::Texture> preview_texture;
+	std::vector<uint8_t> pending_jpeg;
+}
+
 namespace configs = gui::components::configs;
 
-void configs::config_preview(ui::Container& container) {
-	static BlurSettings previewed_settings;
-	static bool first = true;
+void configs::reset_config_preview() {
+	preview_texture.reset();
+	pending_jpeg.clear();
+	preview_id = 0;
+	loading = false;
+	first = true;
+	previewed_settings = {};
+}
 
+void configs::config_preview(ui::Container& container) {
 	static auto debounce_time = std::chrono::milliseconds(50);
 	auto now = std::chrono::steady_clock::now();
 	static auto last_render_time = now;
 
-	static size_t preview_id = 0;
-	static std::filesystem::path preview_path;
-	static bool loading = false;
-	static bool error = false;
-	static std::mutex preview_mutex;
-
 	auto sample_video_path = blur.settings_path / "sample_video.mp4";
 	bool sample_video_exists = std::filesystem::exists(sample_video_path);
 
+	// upload pending surface on render thread
+	{
+		std::lock_guard lock(preview_mutex);
+		if (!pending_jpeg.empty()) {
+			SDL_Surface* rgba = render::jpeg_bytes_to_surface(pending_jpeg.data(), pending_jpeg.size());
+			pending_jpeg.clear();
+
+			if (rgba) {
+				auto tex = std::make_shared<render::Texture>();
+				if (tex->load_from_surface(rgba))
+					preview_texture = tex;
+				SDL_DestroySurface(rgba);
+			}
+		}
+	}
+
 	auto render_preview = [&] {
 		if (!sample_video_exists) {
-			preview_path.clear();
+			preview_texture.reset();
 			return;
 		}
 
@@ -38,7 +64,7 @@ void configs::config_preview(ui::Container& container) {
 			first = false;
 		}
 		else {
-			if (settings == previewed_settings && !first && !just_added_sample_video)
+			if (settings == previewed_settings && !just_added_sample_video)
 				return;
 
 			if (now - last_render_time < debounce_time)
@@ -52,7 +78,7 @@ void configs::config_preview(ui::Container& container) {
 		last_render_time = now;
 
 		{
-			std::lock_guard<std::mutex> lock(preview_mutex);
+			std::lock_guard lock(preview_mutex);
 			loading = true;
 		}
 
@@ -62,12 +88,10 @@ void configs::config_preview(ui::Container& container) {
 			std::shared_ptr<PreviewRenderState> state = nullptr;
 
 			{
-				std::lock_guard<std::mutex> lock(render_mutex);
+				std::lock_guard lock(render_mutex);
 
-				// stop ongoing renders early, a new render's coming bro
-				for (auto& render : render_states) {
+				for (auto& render : render_states)
 					render->state->stop();
-				}
 
 				state = render_states.emplace_back(std::make_shared<PreviewRenderState>());
 			}
@@ -76,37 +100,20 @@ void configs::config_preview(ui::Container& container) {
 
 			if (state == render_states.back())
 			{ // todo: this should be correct right? any cases where this doesn't work?
+				std::lock_guard lock(preview_mutex);
+
 				loading = false;
 
 				if (res) {
-					std::lock_guard<std::mutex> lock(preview_mutex);
+					pending_jpeg = std::move(res->frame_jpeg);
 					preview_id++;
-
-					Blur::remove_temp_path(preview_path.parent_path());
-
-					preview_path = res->output_path;
 
 					u::log("config preview finished rendering");
 				}
 				else {
-					if (res.error() != "Input path does not exist") {
-						gui::components::notifications::add(
-							"Failed to generate config preview. Click to copy error message",
-							ui::NotificationType::NOTIF_ERROR,
-							[res](const std::string& id) {
-								SDL_SetClipboardText(res.error().c_str());
-
-								gui::components::notifications::close(id);
-
-								gui::components::notifications::add(
-									"Copied error message to clipboard",
-									ui::NotificationType::INFO,
-									{},
-									std::chrono::duration<float>(2.f)
-								);
-							}
-						);
-					}
+					components::notifications::show_failure_notification(
+						"Failed to generate config preview.", res.error(), std::chrono::duration<float>(10.f)
+					);
 				}
 			}
 
@@ -116,98 +123,86 @@ void configs::config_preview(ui::Container& container) {
 
 	render_preview();
 
-	// remove finished renders
 	{
-		std::lock_guard<std::mutex> lock(render_mutex);
+		std::lock_guard lock(render_mutex);
 		std::erase_if(render_states, [](const auto& state) {
 			return state->can_delete;
 		});
 	}
 
-	try {
-		if (!preview_path.empty() && std::filesystem::exists(preview_path) && !error) {
-			auto element = ui::add_image(
-				"config preview image",
-				container,
-				preview_path,
-				container.get_usable_rect().size(),
-				std::to_string(preview_id),
-				gfx::Color::white(loading ? 100 : 255)
-			);
-		}
-		else {
-			if (sample_video_exists) {
-				if (loading) {
-					ui::add_text(
-						"loading config preview text",
-						container,
-						"Loading config preview...",
-						gfx::Color::white(100),
-						fonts::dejavu,
-						FONT_CENTERED_X
-					);
-				}
-				else {
-					ui::add_text(
-						"failed to generate preview text",
-						container,
-						"Failed to generate preview.",
-						gfx::Color::white(100),
-						fonts::dejavu,
-						FONT_CENTERED_X
-					);
-				}
+	if (preview_texture && preview_texture->is_valid()) {
+		ui::add_image(
+			"config preview image",
+			container,
+			preview_texture,
+			container.get_usable_rect().size(),
+			std::to_string(preview_id),
+			gfx::Color::white(loading ? 100 : 255)
+		);
+	}
+	else {
+		if (sample_video_exists) {
+			if (loading) {
+				ui::add_text(
+					"loading config preview text",
+					container,
+					"Loading config preview...",
+					gfx::Color::white(100),
+					fonts::dejavu,
+					FONT_CENTERED_X
+				);
 			}
 			else {
 				ui::add_text(
-					"sample video does not exist text",
+					"failed to generate preview text",
 					container,
-					"No preview video found.",
+					"Failed to generate preview.",
 					gfx::Color::white(100),
 					fonts::dejavu,
 					FONT_CENTERED_X
 				);
-
-				ui::add_text(
-					"sample video does not exist text 2",
-					container,
-					"Drop a video here to add one.",
-					gfx::Color::white(100),
-					fonts::dejavu,
-					FONT_CENTERED_X
-				);
-
-				ui::add_button("open preview file button", container, "Or open file", fonts::dejavu, [] {
-					static auto file_callback = [](void* userdata, const char* const* files, int filter) {
-						if (files != nullptr && *files != nullptr) {
-							const char* file = *files;
-							tasks::add_sample_video(u::string_to_path(file));
-						}
-					};
-
-					const SDL_DialogFileFilter filters[] = {
-						{ "Video files",
-						  "webm;mkv;flv;vob;ogv;ogg;rrc;gifv;mng;mov;avi;qt;wmv;yuv;rm;rmvb;asf;amv;mp4;m4p;m4v;mpg;"
-						  "mp2;mpeg;mpe;"
-						  "mpv;svi;3gp;3g2;mxf;roq;nsv;f4v;f4p;f4a;f4b;mod;ts;m2ts;mts;divx;bik;wtv;drc" }
-					};
-
-					SDL_ShowOpenFileDialog(
-						file_callback, // callback
-						nullptr,       // userdata
-						nullptr,       // parent window
-						filters,       // file filters
-						0,             // number of filters
-						"",            // default path
-						false          // allow multiple files
-					);
-				});
 			}
 		}
-	}
-	catch (std::filesystem::filesystem_error& e) {
-		// i have no idea. std::filesystem::exists threw?
-		u::log_error("std::filesystem::exists threw");
+		else {
+			ui::add_text(
+				"sample video does not exist text",
+				container,
+				"No preview video found.",
+				gfx::Color::white(100),
+				fonts::dejavu,
+				FONT_CENTERED_X
+			);
+
+			ui::add_text(
+				"sample video does not exist text 2",
+				container,
+				"Drop a video here to add one.",
+				gfx::Color::white(100),
+				fonts::dejavu,
+				FONT_CENTERED_X
+			);
+
+			ui::add_button("open preview file button", container, "Or open file", fonts::dejavu, [] {
+				static auto file_callback = [](void* userdata, const char* const* files, int filter) {
+					if (files != nullptr && *files != nullptr) {
+						const char* file = *files;
+						tasks::add_sample_video(u::string_to_path(file));
+					}
+				};
+
+				const std::array filters = {
+					SDL_DialogFileFilter{
+						.name = "Video files",
+						.pattern =
+							"webm;mkv;flv;vob;ogv;ogg;rrc;gifv;mng;mov;avi;qt;wmv;yuv;rm;rmvb;asf;amv;mp4;m4p;m4v;mpg;"
+							"mp2;mpeg;mpe;mpv;svi;3gp;3g2;mxf;roq;nsv;f4v;f4p;f4a;f4b;mod;ts;m2ts;mts;divx;bik;wtv;"
+							"drc",
+					},
+				};
+
+				SDL_ShowOpenFileDialog(file_callback, nullptr, nullptr, filters.data(), 0, "", false);
+			});
+		}
 	}
 }
 

@@ -8,7 +8,8 @@ namespace keys {
 	inline std::unordered_set<std::uint8_t> handled_keys;
 
 	inline float scroll_delta = 0.f;
-	inline float scroll_delta_precise = 0.f;
+	inline float scroll_x_delta = 0.f;
+	inline bool scroll_is_horizontal = false;
 
 	bool process_event(const SDL_Event& event);
 
