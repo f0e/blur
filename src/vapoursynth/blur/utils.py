@@ -3,6 +3,7 @@ from vapoursynth import core
 
 import sys
 import json
+import math
 import traceback
 from pathlib import Path
 from fractions import Fraction
