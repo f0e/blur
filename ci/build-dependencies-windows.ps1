@@ -51,7 +51,12 @@ function Extract-Files {
         foreach ($pattern in $FilePatterns) {
             $filePath = Join-Path $tempDir $pattern
             if (Test-Path $filePath) {
-                Copy-Item -Path $filePath -Destination $DestinationPath
+                if (Test-Path $filePath -PathType Container) {
+                    Copy-Item -Path $filePath -Destination $DestinationPath -Recurse
+                }
+                else {
+                    Copy-Item -Path $filePath -Destination $DestinationPath
+                }
                 Write-Host "Copied $pattern to $DestinationPath"
             }
             else {
@@ -158,6 +163,11 @@ $plugins = @(
         Name         = "FmtConv";
         Url          = "https://ldesoras.fr/src/vs/fmtconv-r31.zip";
         FilePatterns = @("win64/fmtconv.dll");
+    },
+    @{
+        Name         = "vstrt";
+        Url          = "https://github.com/AmusementClub/vs-mlrt/releases/download/v15.16/VSTRT-Windows-x64.v15.16.7z";
+        FilePatterns = @("vstrt.dll");
     }
 )
 
@@ -203,3 +213,9 @@ $modelDownloads = @(
 foreach ($model in $modelDownloads) {
     Download-ModelFiles -BaseUrl $model.BaseUrl -ModelName $model.ModelName -FileList $model.FileList
 }
+
+# Download trt models
+$rifeModelArchiveUrl = "https://github.com/AmusementClub/vs-mlrt/releases/download/external-models/rife_v4.26.7z"
+$rifeModelArchivePath = Join-Path $modelsBaseDir "rife_v4.26.7z"
+Download-File -Url $rifeModelArchiveUrl -OutFile $rifeModelArchivePath
+Extract-Files -ArchivePath $rifeModelArchivePath -FilePatterns @("rife_v2") -DestinationPath $pluginsDir
