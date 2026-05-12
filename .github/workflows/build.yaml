@@ -258,7 +258,7 @@ jobs:
           echo "config=$config" >> $GITHUB_OUTPUT
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: Blur-${{ steps.prep.outputs.config }}
           path: bundle/
