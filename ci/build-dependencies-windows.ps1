@@ -193,11 +193,7 @@ Extract-Files -ArchivePath $ffmpegArchive -FilePatterns @(
 # Define model downloads
 $modelDownloads = @(
     @{
-        <<<<<<< HEAD
-        BaseUrl   = "https://raw.githubusercontent.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/a2579e656dac7909a66e7da84578a2f80ccba41c/models/rife-v4.26_ensembleFalse";
-        =======
-        BaseUrl = "https://raw.githubusercontent.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/c3ec6aabc07c8fa37a4f58d7fed9e2ad1fc1b13f/models/rife-v4.26_ensembleFalse";
-        >>>>>>> origin/master
+        BaseUrl   = "https://raw.githubusercontent.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/96fdcecdf982ef3237e16e2b105eea849fa022ab/models/rife-v4.26_ensembleFalse";
         ModelName = "rife-v4.26_ensembleFalse";
         FileList  = @("flownet.bin", "flownet.param");
     }
