@@ -153,6 +153,11 @@ $plugins = @(
             "svpflow-4.2.0.142/lib-windows/vapoursynth/x64/svpflow1_vs64.dll",
             "svpflow-4.2.0.142/lib-windows/vapoursynth/x64/svpflow2_vs64.dll"
         );
+    },
+    @{
+        Name         = "FmtConv";
+        Url          = "https://ldesoras.fr/src/vs/fmtconv-r31.zip";
+        FilePatterns = @("win64/fmtconv.dll");
     }
 )
 

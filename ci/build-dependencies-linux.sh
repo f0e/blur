@@ -129,6 +129,12 @@ download_library \
   "libmvtools.so" \
   "vapoursynth-plugins"
 
+# fmtconv
+download_library \
+  "https://github.com/f0e/blur-plugin-builds/releases/latest/download/libfmtconv.so" \
+  "libfmtconv.so" \
+  "vapoursynth-plugins"
+
 # adjust
 download_library \
   "https://github.com/f0e/Vapoursynth-adjust/releases/latest/download/libadjust.so" \
