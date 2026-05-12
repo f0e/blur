@@ -20,35 +20,35 @@ jobs:
         with:
           submodules: recursive
 
-      # ── ccache ────────────────────────────────────────────────────────────
-      - name: Install ccache (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get install -y ccache
+      # # ── ccache ────────────────────────────────────────────────────────────
+      # - name: Install ccache (Linux)
+      #   if: runner.os == 'Linux'
+      #   run: sudo apt-get install -y ccache
 
-      - name: Install ccache (macOS)
-        if: runner.os == 'macOS'
-        run: brew install ccache
+      # - name: Install ccache (macOS)
+      #   if: runner.os == 'macOS'
+      #   run: brew install ccache
 
-      - name: Install ccache (Windows)
-        if: runner.os == 'Windows'
-        run: choco install ccache --no-progress
+      # - name: Install ccache (Windows)
+      #   if: runner.os == 'Windows'
+      #   run: choco install ccache --no-progress
 
-      - name: Cache ccache
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.ccache
-            ~/AppData/Local/ccache
-          key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ github.sha }}
-          restore-keys: |
-            ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-
+      # - name: Cache ccache
+      #   uses: actions/cache@v5
+      #   with:
+      #     path: |
+      #       ~/.ccache
+      #       ~/AppData/Local/ccache
+      #     key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ github.sha }}
+      #     restore-keys: |
+      #       ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-
 
-      - name: Configure ccache
-        shell: bash
-        run: |
-          ccache --set-config=max_size=500M
-          ccache --set-config=compression=true
-          ccache -z  # zero stats so we can see hit rate in logs
+      # - name: Configure ccache
+      #   shell: bash
+      #   run: |
+      #     ccache --set-config=max_size=500M
+      #     ccache --set-config=compression=true
+      #     ccache -z  # zero stats so we can see hit rate in logs
 
       # ── Linux setup ───────────────────────────────────────────────────────
       - name: Cache apt packages
@@ -195,17 +195,17 @@ jobs:
         run: cmake --preset ${{ steps.select-preset.outputs.preset }}
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-          CMAKE_C_COMPILER_LAUNCHER: ccache
-          CMAKE_CXX_COMPILER_LAUNCHER: ccache
+          # CMAKE_C_COMPILER_LAUNCHER: ccache
+          # CMAKE_CXX_COMPILER_LAUNCHER: ccache
 
       - name: Build
         run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }}
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
-      - name: Print ccache stats
-        shell: bash
-        run: ccache -s
+      # - name: Print ccache stats
+      #   shell: bash
+      #   run: ccache -s
 
       # ── Package ───────────────────────────────────────────────────────────
       - name: Prepare Binaries
