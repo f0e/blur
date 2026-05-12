@@ -264,7 +264,7 @@ jobs:
           path: bundle/
 
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
         with:
           files: bundle/*
