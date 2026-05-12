@@ -201,7 +201,7 @@ begin
 
   // Extract rife model
   ExtractWith7Zip(ExpandConstant('{tmp}\rife_v4.26.7z'), TempDir + '\rife');
-  Exec(ExpandConstant('{cmd}'), '/c xcopy /E /I /Y "' + TempDir + '\rife\rife_v2" "' + PluginsDir + '\rife_v2"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{cmd}'), '/c xcopy /E /I /Y "' + TempDir + '\rife\rife_v2" "' + PluginsDir + '\models\rife_v2"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
