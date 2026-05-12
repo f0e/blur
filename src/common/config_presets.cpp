@@ -211,9 +211,9 @@ config_presets::QualityConfig config_presets::get_quality_config(const std::stri
 	// Detect codec type and set appropriate ranges
 	if (codec == "h264_nvenc" || codec == "hevc_nvenc" || codec == "av1_nvenc") {
 		// NVIDIA NVENC
-		config.min_quality = 0;
+		config.min_quality = 1;
 		config.max_quality = 51;
-		config.quality_label = "(0: lossless, 23: balanced, 51: worst)";
+		config.quality_label = "(1: best, 23: balanced, 51: worst)\n";
 	}
 	else if (codec == "h264_amf" || codec == "hevc_amf" || codec == "av1_amf") {
 		// AMD AMF

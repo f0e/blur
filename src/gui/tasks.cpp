@@ -180,6 +180,15 @@ void tasks::add_sample_video(const std::filesystem::path& path_str) {
 	if (path.empty() || !std::filesystem::exists(path))
 		return;
 
+	const auto video_info = u::get_video_info(path);
+	if (!video_info.has_video_stream) {
+		gui::components::notifications::add(
+			std::format("File is not a valid video or is unreadable: {}", path.filename()),
+			ui::NotificationType::NOTIF_ERROR
+		);
+		return;
+	}
+
 	auto sample_video_path = blur.settings_path / "sample_video.mp4";
 
 	// todo: reencode?

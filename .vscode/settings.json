@@ -1,8 +1,7 @@
 {
-  "cmake.buildEnvironment": {
-    "CLICOLOR_FORCE": "1"
-  },
   "clangd.arguments": [
     "-header-insertion=never"
-  ]
+  ],
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json"
 }

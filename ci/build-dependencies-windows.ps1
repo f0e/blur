@@ -138,9 +138,9 @@ $plugins = @(
     },
     @{
         Name        = "VapourSynth-RIFE-ncnn-Vulkan";
-        Url         = "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/releases/download/r9_mod_v32/librife_windows_x86-64.dll";
+        Url         = "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/releases/download/r9_mod_v33/librife_windows_x86-64.dll";
         IsDirectDll = $true;
-    }, ,
+    },
     @{
         Name        = "Adjust";
         Url         = "https://github.com/f0e/Vapoursynth-adjust/releases/download/v1/adjust.dll";
@@ -188,7 +188,11 @@ Extract-Files -ArchivePath $ffmpegArchive -FilePatterns @(
 # Define model downloads
 $modelDownloads = @(
     @{
+        <<<<<<< HEAD
         BaseUrl   = "https://raw.githubusercontent.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/a2579e656dac7909a66e7da84578a2f80ccba41c/models/rife-v4.26_ensembleFalse";
+        =======
+        BaseUrl = "https://raw.githubusercontent.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/c3ec6aabc07c8fa37a4f58d7fed9e2ad1fc1b13f/models/rife-v4.26_ensembleFalse";
+        >>>>>>> origin/master
         ModelName = "rife-v4.26_ensembleFalse";
         FileList  = @("flownet.bin", "flownet.param");
     }

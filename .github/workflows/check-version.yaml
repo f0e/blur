@@ -1,0 +1,19 @@
+name: "Verify BLUR_VERSION"
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check BLUR_VERSION matches tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          if ! grep -qF "const std::string BLUR_VERSION = \"$TAG\";" src/common/blur.h; then
+            echo "BLUR_VERSION doesn't match release tag $GITHUB_REF"
+            exit 1
+          fi

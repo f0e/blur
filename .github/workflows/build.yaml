@@ -20,6 +20,45 @@ jobs:
         with:
           submodules: recursive
 
+      # ── ccache ────────────────────────────────────────────────────────────
+      - name: Install ccache (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y ccache
+
+      - name: Install ccache (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ccache
+
+      - name: Install ccache (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ccache --no-progress
+
+      - name: Cache ccache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.ccache
+            ~/AppData/Local/ccache
+          key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-
+
+      - name: Configure ccache
+        shell: bash
+        run: |
+          ccache --set-config=max_size=500M
+          ccache --set-config=compression=true
+          ccache -z  # zero stats so we can see hit rate in logs
+
+      # ── Linux setup ───────────────────────────────────────────────────────
+      - name: Cache apt packages
+        if: runner.os == 'Linux'
+        uses: actions/cache@v5
+        with:
+          path: /var/cache/apt/archives
+          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml') }}
+          restore-keys: apt-${{ runner.os }}-
+
       - name: Add GCC repository
         if: runner.os == 'Linux'
         run: |
@@ -44,7 +83,9 @@ jobs:
             libfontconfig1-dev \
             autoconf automake libtool pkg-config libltdl-dev \
             libnotify-dev \
-            libmpv-dev
+            libmpv-dev \
+            ninja-build \
+            gperf
 
       - name: Install GCC
         if: runner.os == 'Linux'
@@ -52,22 +93,32 @@ jobs:
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 --slave /usr/bin/g++ g++ /usr/bin/g++-13 --slave /usr/bin/gcov gcov /usr/bin/gcov-13
           sudo update-alternatives --set gcc /usr/bin/gcc-13
 
-      - name: Install Ninja
-        uses: seanmiddleditch/gha-setup-ninja@master
+      # ── Project dependencies ──────────────────────────────────────────────
+      - name: Cache build dependencies (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/cache@v5
         with:
-          version: 1.12.1
+          path: ci/out
+          key: deps-macos-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-macos.sh') }}
 
-      # - name: Cache dependencies (macOS)
-      #   uses: actions/cache@v4
-      #   if: runner.os == 'macOS'
-      #   with:
-      #     path: dependencies
-      #     key: ${{ runner.os }}-dependencies
+      - name: Cache build dependencies (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/cache@v5
+        with:
+          path: ci/out
+          key: deps-linux-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-linux.sh') }}
+
+      - name: Cache build dependencies (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v5
+        with:
+          path: ci/out
+          key: deps-windows-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-windows.ps1') }}
 
       - name: Collect dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install ffmpeg libass zimg imagemagick autoconf automake libtool gcc ffmpeg llvm@20 meson xxhash vapoursynth fftw dylibbundler mpv
+          brew install ffmpeg libass zimg imagemagick autoconf automake libtool gcc ffmpeg llvm@20 meson xxhash vapoursynth fftw dylibbundler vulkan-loader molten-vk mpv
           cd ci
           bash build-dependencies-macos.sh
 
@@ -96,6 +147,7 @@ jobs:
           cd ci
           bash build-dependencies-linux.sh
 
+      # ── vcpkg ─────────────────────────────────────────────────────────────
       - name: Set up vcpkg
         shell: bash
         run: |
@@ -103,8 +155,13 @@ jobs:
           cd vcpkg
           ./bootstrap-vcpkg.sh
 
+      - name: Get vcpkg commit hash
+        id: vcpkg-commit
+        shell: bash
+        run: echo "hash=$(git -C vcpkg rev-parse HEAD)" >> $GITHUB_OUTPUT
+
       - name: Cache vcpkg packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             vcpkg_installed/
@@ -115,8 +172,10 @@ jobs:
             vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ steps.vcpkg-commit.outputs.hash }}-
             vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-
 
+      # ── Build ─────────────────────────────────────────────────────────────
       - name: Determine CMake Preset
         id: select-preset
+        shell: bash
         run: |
           if [ "${{ runner.os }}" == "Windows" ]; then
             prefix="win"
@@ -127,7 +186,6 @@ jobs:
           fi
           preset="${prefix}-$(echo "${{ matrix.build-type }}" | tr '[:upper:]' '[:lower:]')"
           echo "preset=$preset" >> $GITHUB_OUTPUT
-        shell: bash
 
       - name: Use Developer Command Prompt for Microsoft Visual C++
         if: runner.os == 'Windows'
@@ -137,12 +195,19 @@ jobs:
         run: cmake --preset ${{ steps.select-preset.outputs.preset }}
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+          CMAKE_C_COMPILER_LAUNCHER: ccache
+          CMAKE_CXX_COMPILER_LAUNCHER: ccache
 
       - name: Build
         run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }}
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
+      - name: Print ccache stats
+        shell: bash
+        run: ccache -s
+
+      # ── Package ───────────────────────────────────────────────────────────
       - name: Prepare Binaries
         id: prep
         shell: bash
@@ -211,7 +276,7 @@ jobs:
           echo "config=$config" >> $GITHUB_OUTPUT
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: Blur-${{ steps.prep.outputs.config }}
           path: bundle/

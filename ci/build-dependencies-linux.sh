@@ -137,13 +137,13 @@ download_library \
 
 # rife-ncnn-vulkan
 download_library \
-  "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/releases/download/r9_mod_v32/librife_linux_x86-64.so" \
+  "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/releases/download/r9_mod_v33/librife_linux_x86-64.so" \
   "librife_linux_x86-64.so" \
   "vapoursynth-plugins"
 
 # rife model
 download_model_files \
-  "https://raw.githubusercontent.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/a2579e656dac7909a66e7da84578a2f80ccba41c/models/rife-v4.26_ensembleFalse" \
+  "https://raw.githubusercontent.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/c3ec6aabc07c8fa37a4f58d7fed9e2ad1fc1b13f/models/rife-v4.26_ensembleFalse" \
   "rife-v4.26_ensembleFalse" \
   "flownet.bin" "flownet.param"
 
