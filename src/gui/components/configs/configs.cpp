@@ -47,7 +47,9 @@ void configs::screen(
 	modified_default_app.rife_device_index =
 		app_settings.rife_device_index; // the default config has uninitialised rife gpu, use index from current cfg to
 	                                    // prevent restore default from always showing up
+#ifdef TENSORRT
 	modified_default_app.tensorrt_device_index = app_settings.tensorrt_device_index; // same for tensorrt
+#endif
 
 	bool config_changed = settings != current_global_settings || app_settings != current_app_settings;
 	bool config_not_default = settings != config_blur::DEFAULT_CONFIG || app_settings != modified_default_app;

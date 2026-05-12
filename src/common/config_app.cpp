@@ -11,7 +11,10 @@ void config_app::create(const std::filesystem::path& filepath, const GlobalAppSe
 	output << "output prefix: " << settings.output_prefix << "\n";
 	output << "gpu type (nvidia/amd/intel): " << settings.gpu_type << "\n";
 	output << "rife gpu number: " << settings.rife_device_index << "\n";
+
+#ifdef TENSORRT
 	output << "rife (tensorrt) gpu number: " << settings.tensorrt_device_index << "\n";
+#endif
 
 	output << "\n";
 	output << "- gui" << "\n";
@@ -53,7 +56,10 @@ GlobalAppSettings config_app::parse(const std::filesystem::path& config_filepath
 	config_base::extract_config_value(config_map, "output prefix", settings.output_prefix);
 	config_base::extract_config_value(config_map, "gpu type (nvidia/amd/intel)", settings.gpu_type);
 	config_base::extract_config_value(config_map, "rife gpu number", settings.rife_device_index);
+
+#ifdef TENSORRT
 	config_base::extract_config_value(config_map, "rife (tensorrt) gpu number", settings.tensorrt_device_index);
+#endif
 
 	config_base::extract_config_value(config_map, "window width", settings.gui_width);
 	config_base::extract_config_value(config_map, "window height", settings.gui_height);

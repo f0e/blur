@@ -6,6 +6,10 @@
 const std::string APPLICATION_NAME = "blur";
 const std::string BLUR_VERSION = "2.45";
 
+#ifdef WIN32
+#	define TENSORRT
+#endif
+
 class Blur { // todo: switch all the classes which could be namespaces into namespaces
 public:
 	bool initialised = false;

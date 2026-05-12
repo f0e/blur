@@ -273,7 +273,9 @@ void configs::options(ui::Container& container) {
 			{
 				"svp",
 				"rife",
+#ifdef TENSORRT
 				"rife (tensorrt)",
+#endif
 				"mvtools",
 				"old",
 			},
@@ -429,6 +431,7 @@ void configs::options(ui::Container& container) {
 		}
 	);
 
+#ifdef TENSORRT
 	static std::string tensorrt_device;
 
 	if (app_settings.tensorrt_device_index == -1) {
@@ -463,6 +466,7 @@ void configs::options(ui::Container& container) {
 			}
 		}
 	);
+#endif
 
 	/*
 	    Timescale
@@ -690,9 +694,11 @@ void configs::options(ui::Container& container) {
 
 		ui::add_text_input("rife model", container, settings.advanced.rife_model, "rife model", fonts::dejavu);
 
+#ifdef TENSORRT
 		ui::add_text_input(
 			"rife (tensorrt) model", container, settings.advanced.rife_trt_model, "rife (tensorrt) model", fonts::dejavu
 		);
+#endif
 
 		/*
 		    Advanced Blur

@@ -810,6 +810,7 @@ std::optional<size_t> u::get_fastest_rife_device(BlurSettings& settings) {
 	);
 }
 
+#ifdef TENSORRT
 std::optional<size_t> u::get_fastest_tensorrt_device(BlurSettings& settings) {
 	auto app_config = config_app::get_app_config();
 	if (app_config.tensorrt_device_index != -1)
@@ -836,25 +837,34 @@ std::optional<size_t> u::get_fastest_tensorrt_device(BlurSettings& settings) {
 		{ std::format("rife_trt_model={}", rife_trt_model) }
 	);
 }
+#endif
 
 void u::set_fastest_devices(BlurSettings& settings) {
 	auto app_config = config_app::get_app_config();
 
 	auto rife_result = u::get_fastest_rife_device(settings);
+
+#ifdef TENSORRT
 	auto tensorrt_result = u::get_fastest_tensorrt_device(settings);
 
 	if (!rife_result && !tensorrt_result)
 		return;
+#else
+	if (!rife_result)
+		return;
+#endif
 
 	if (rife_result) {
 		app_config.rife_device_index = *rife_result;
 		u::log("set rife_device_index to the fastest device ({})", app_config.rife_device_index);
 	}
 
+#ifdef TENSORRT
 	if (tensorrt_result) {
 		app_config.tensorrt_device_index = *tensorrt_result;
 		u::log("set tensorrt_device_index to the fastest device ({})", app_config.tensorrt_device_index);
 	}
+#endif
 
 	// todo: this is dumb
 	auto app_config_path = config_app::get_app_config_path();

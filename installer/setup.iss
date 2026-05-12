@@ -37,17 +37,25 @@ ChangesEnvironment=true
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[Types]
+Name: "full"; Description: "Full installation (downloads TensorRT ~2GB)"
+Name: "compact"; Description: "Compact installation"
+Name: "custom"; Description: "Custom installation"; Flags: iscustom
+
+[Components]
+Name: "main"; Description: "blur (required)"; Types: full compact custom; Flags: fixed
+Name: "vstrt"; Description: "NVIDIA TensorRT RIFE interpolation (~2GB download)"; Types: full
+
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: envPath; Description: "Add to PATH"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "envPath"; Description: "Add to PATH"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
 [Files]
 Source: ".\resources\blur-gui.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: ".\resources\blur-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: ".\resources\libmpv-2.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: ".\dependencies\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: ".\dependencies\*"; DestDir: "{app}"; Components: main; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: ".\redist\VC_redist.x64.exe"; DestDir: {tmp}; Flags: deleteafterinstall
-
-; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\blur-gui.exe"
@@ -61,6 +69,7 @@ Filename: "{app}\blur-gui.exe"; Description: "{cm:LaunchProgram,{#StringChange(M
 var
   UpdateMode: Boolean;
   ExistingDir: String;
+  DownloadPage: TDownloadWizardPage;
 
 function IsUpdateMode: Boolean;
 begin
@@ -122,10 +131,89 @@ begin
   end;
 end;
 
+procedure InitializeWizard;
+begin
+  DownloadPage := CreateDownloadPage(SetupMessage(msgWizardPreparing), SetupMessage(msgPreparingDesc), nil);
+end;
+
+function ExtractWith7Zip(ArchivePath, DestDir: String): Boolean;
+var
+  ResultCode: Integer;
+  SevenZipPath: String;
+begin
+  SevenZipPath := ExpandConstant('{app}\vapoursynth\7z.exe');
+  Result := Exec(SevenZipPath, 'x "' + ArchivePath + '" -o"' + DestDir + '" -y', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := Result and (ResultCode = 0);
+end;
+
+procedure DownloadAndInstallVsTrt;
+var
+  TempDir: String;
+  PluginsDir: String;
+  ResultCode: Integer;
+begin
+  TempDir := ExpandConstant('{tmp}\vstrt');
+  PluginsDir := ExpandConstant('{app}\vapoursynth\vs-plugins');
+
+  ForceDirectories(TempDir);
+  ForceDirectories(PluginsDir);
+
+  DownloadPage.Clear;
+  DownloadPage.Add(
+    'https://github.com/AmusementClub/vs-mlrt/releases/download/v15.16/VSTRT-Windows-x64.v15.16.7z',
+    'vstrt.7z',
+    ''
+  );
+  DownloadPage.Add(
+    'https://github.com/AmusementClub/vs-mlrt/releases/download/v15.16/vsmlrt-windows-x64-tensorrt.v15.16.7z.001',
+    'vsmlrt-tensorrt.7z.001',
+    ''
+  );
+  DownloadPage.Add(
+    'https://github.com/AmusementClub/vs-mlrt/releases/download/v15.16/vsmlrt-windows-x64-tensorrt.v15.16.7z.002',
+    'vsmlrt-tensorrt.7z.002',
+    ''
+  );
+  DownloadPage.Add(
+    'https://github.com/AmusementClub/vs-mlrt/releases/download/external-models/rife_v4.26.7z',
+    'rife_v4.26.7z',
+    ''
+  );
+
+  DownloadPage.Show;
+  try
+    DownloadPage.Download;
+  finally
+    DownloadPage.Hide;
+  end;
+
+  // Extract vstrt.dll
+  ExtractWith7Zip(ExpandConstant('{tmp}\vstrt.7z'), TempDir + '\vstrt');
+  FileCopy(TempDir + '\vstrt\vstrt.dll', PluginsDir + '\vstrt.dll', False);
+
+  // Extract trtexec.exe
+  FileCopy(TempDir + '\vstrt\vsmlrt-cuda\trtexec.exe', ExpandConstant('{app}\ffmpeg\trtexec.exe'), False);
+
+  // Extract tensorrt split archive (point 7z at .001)
+  ExtractWith7Zip(ExpandConstant('{tmp}\vsmlrt-tensorrt.7z.001'), TempDir + '\tensorrt');
+  // Copy everything from tensorrt archive into vs-plugins
+  Exec(ExpandConstant('{cmd}'), '/c xcopy /E /I /Y "' + TempDir + '\tensorrt\*" "' + PluginsDir + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  // Extract rife model
+  ExtractWith7Zip(ExpandConstant('{tmp}\rife_v4.26.7z'), TempDir + '\rife');
+  Exec(ExpandConstant('{cmd}'), '/c xcopy /E /I /Y "' + TempDir + '\rife\rife_v2" "' + PluginsDir + '\rife_v2"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if (CurStep = ssPostInstall) and WizardIsTaskSelected('envPath') then
-    EnvAddPath(ExpandConstant('{app}'));
+  if CurStep = ssPostInstall then
+  begin
+    if WizardIsTaskSelected('envPath') then
+      EnvAddPath(ExpandConstant('{app}'));
+
+    if WizardIsComponentSelected('vstrt') then
+      DownloadAndInstallVsTrt;
+  end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

@@ -75,9 +75,15 @@ void configs::option_information(ui::Container& container) {
 		{
 			"interpolation method dropdown",
 			{
+#ifdef TENSORRT
 				// todo: update with mvtools
 				"Quality: rife = rife (tensorrt) > svp",
 				"Speed: svp >> rife (tensorrt) > rife",
+#else
+				// todo: update with mvtools
+				"Quality: rife > svp",
+				"Speed: svp >>> rife",
+#endif
 			},
 		},
 		// pre-interp settings

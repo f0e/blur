@@ -147,7 +147,6 @@ void Blur::update(
 
 void Blur::initialise_device_lists() {
 	rife_devices = u::get_devices("rife");
-	tensorrt_devices = u::get_devices("tensorrt");
 
 	std::ranges::copy(
 		std::ranges::transform_view(
@@ -159,6 +158,9 @@ void Blur::initialise_device_lists() {
 		std::back_inserter(rife_device_names)
 	);
 
+#ifdef TENSORRT
+	tensorrt_devices = u::get_devices("tensorrt");
+
 	std::ranges::copy(
 		std::ranges::transform_view(
 			tensorrt_devices,
@@ -168,6 +170,7 @@ void Blur::initialise_device_lists() {
 		),
 		std::back_inserter(tensorrt_device_names)
 	);
+#endif
 
 	initialised_devices = true;
 }

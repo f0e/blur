@@ -504,7 +504,9 @@ namespace u {
 	);
 
 	std::optional<size_t> get_fastest_rife_device(BlurSettings& settings);
+#ifdef TENSORRT
 	std::optional<size_t> get_fastest_tensorrt_device(BlurSettings& settings);
+#endif
 
 	void set_fastest_devices(BlurSettings& settings);
 	void verify_gpu_encoding(BlurSettings& settings);

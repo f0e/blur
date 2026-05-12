@@ -143,7 +143,9 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "interpolation block size: " << settings.advanced.interpolation_blocksize << "\n";
 			output << "interpolation mask area: " << settings.advanced.interpolation_mask_area << "\n";
 			output << "rife model: " << settings.advanced.rife_model << "\n";
+#ifdef TENSORRT
 			output << "rife (tensorrt) model: " << settings.advanced.rife_trt_model << "\n";
+#endif
 
 			if (!concise || settings.advanced.manual_svp) {
 				output << "\n";
@@ -311,7 +313,9 @@ BlurSettings config_blur::parse_from_map(
 			config_map, "interpolation mask area", settings.advanced.interpolation_mask_area
 		);
 		config_base::extract_config_value(config_map, "rife model", settings.advanced.rife_model);
+#ifdef TENSORRT
 		config_base::extract_config_value(config_map, "rife (tensorrt) model", settings.advanced.rife_trt_model);
+#endif
 		config_base::extract_config_value(config_map, "manual svp", settings.advanced.manual_svp);
 		config_base::extract_config_value(config_map, "super string", settings.advanced.super_string);
 		config_base::extract_config_value(config_map, "vectors string", settings.advanced.vectors_string);

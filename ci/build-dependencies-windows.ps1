@@ -163,11 +163,6 @@ $plugins = @(
         Name         = "FmtConv";
         Url          = "https://ldesoras.fr/src/vs/fmtconv-r31.zip";
         FilePatterns = @("win64/fmtconv.dll");
-    },
-    @{
-        Name         = "vstrt";
-        Url          = "https://github.com/AmusementClub/vs-mlrt/releases/download/v15.16/VSTRT-Windows-x64.v15.16.7z";
-        FilePatterns = @("vstrt.dll");
     }
 )
 
