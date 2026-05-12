@@ -19,7 +19,7 @@ struct AdvancedSettings {
 	std::string interpolation_blocksize = "8";
 	int interpolation_mask_area = 0;
 	std::string rife_model = "rife-v4.26_ensembleFalse";
-	std::string rife_trt_model = "4.26";
+	std::string rife_trt_model = "v4.26";
 
 	bool manual_svp = false;
 	std::string super_string;
