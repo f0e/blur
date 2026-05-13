@@ -151,6 +151,8 @@ var
   TempDir: String;
   PluginsDir: String;
   ResultCode: Integer;
+  NeedTensorrt: Boolean;
+  NeedRife: Boolean;
 begin
   TempDir := ExpandConstant('{tmp}\vstrt');
   PluginsDir := ExpandConstant('{app}\vapoursynth\vs-plugins');
@@ -158,27 +160,39 @@ begin
   ForceDirectories(TempDir);
   ForceDirectories(PluginsDir);
 
+  NeedTensorrt := not FileExists(PluginsDir + '\vstrt.dll');
+  NeedRife     := not DirExists(PluginsDir + '\models\rife_v2');
+
+  if not NeedTensorrt and not NeedRife then
+  begin
+    Log('TRT components already present, skipping download.');
+    Exit;
+  end;
+
   DownloadPage.Clear;
-  DownloadPage.Add(
-    'https://github.com/AmusementClub/vs-mlrt/releases/download/v15.16/VSTRT-Windows-x64.v15.16.7z',
-    'vstrt.7z',
-    ''
-  );
-  DownloadPage.Add(
-    'https://github.com/AmusementClub/vs-mlrt/releases/download/v15.16/vsmlrt-windows-x64-tensorrt.v15.16.7z.001',
-    'vsmlrt-tensorrt.7z.001',
-    ''
-  );
-  DownloadPage.Add(
-    'https://github.com/AmusementClub/vs-mlrt/releases/download/v15.16/vsmlrt-windows-x64-tensorrt.v15.16.7z.002',
-    'vsmlrt-tensorrt.7z.002',
-    ''
-  );
-  DownloadPage.Add(
-    'https://github.com/AmusementClub/vs-mlrt/releases/download/external-models/rife_v4.26.7z',
-    'rife_v4.26.7z',
-    ''
-  );
+
+  if NeedTensorrt then
+  begin
+    DownloadPage.Add(
+      'https://github.com/AmusementClub/vs-mlrt/releases/download/v15.16/vsmlrt-windows-x64-tensorrt.v15.16.7z.001',
+      'vsmlrt-tensorrt.7z.001',
+      ''
+    );
+    DownloadPage.Add(
+      'https://github.com/AmusementClub/vs-mlrt/releases/download/v15.16/vsmlrt-windows-x64-tensorrt.v15.16.7z.002',
+      'vsmlrt-tensorrt.7z.002',
+      ''
+    );
+  end;
+
+  if NeedRife then
+  begin
+    DownloadPage.Add(
+      'https://github.com/AmusementClub/vs-mlrt/releases/download/external-models/rife_v4.26.7z',
+      'rife_v4.26.7z',
+      ''
+    );
+  end;
 
   DownloadPage.Show;
   try
@@ -187,21 +201,17 @@ begin
     DownloadPage.Hide;
   end;
 
-  // Extract vstrt.dll
-  ExtractWith7Zip(ExpandConstant('{tmp}\vstrt.7z'), TempDir + '\vstrt');
-  FileCopy(TempDir + '\vstrt\vstrt.dll', PluginsDir + '\vstrt.dll', False);
+  if NeedTensorrt then
+  begin
+    ExtractWith7Zip(ExpandConstant('{tmp}\vsmlrt-tensorrt.7z.001'), TempDir + '\tensorrt');
+    Exec(ExpandConstant('{cmd}'), '/c xcopy /E /I /Y "' + TempDir + '\tensorrt\*" "' + PluginsDir + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end;
 
-  // Extract trtexec.exe
-  FileCopy(TempDir + '\vstrt\vsmlrt-cuda\trtexec.exe', ExpandConstant('{app}\ffmpeg\trtexec.exe'), False);
-
-  // Extract tensorrt split archive (point 7z at .001)
-  ExtractWith7Zip(ExpandConstant('{tmp}\vsmlrt-tensorrt.7z.001'), TempDir + '\tensorrt');
-  // Copy everything from tensorrt archive into vs-plugins
-  Exec(ExpandConstant('{cmd}'), '/c xcopy /E /I /Y "' + TempDir + '\tensorrt\*" "' + PluginsDir + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-
-  // Extract rife model
-  ExtractWith7Zip(ExpandConstant('{tmp}\rife_v4.26.7z'), TempDir + '\rife');
-  Exec(ExpandConstant('{cmd}'), '/c xcopy /E /I /Y "' + TempDir + '\rife\rife_v2" "' + PluginsDir + '\models\rife_v2"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if NeedRife then
+  begin
+    ExtractWith7Zip(ExpandConstant('{tmp}\rife_v4.26.7z'), TempDir + '\rife');
+    Exec(ExpandConstant('{cmd}'), '/c xcopy /E /I /Y "' + TempDir + '\rife\rife_v2" "' + PluginsDir + '\models\rife_v2"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
