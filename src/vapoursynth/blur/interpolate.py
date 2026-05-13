@@ -291,12 +291,13 @@ def prepare_rife_vsmlrt(
     process_func: Callable[[vs.VideoNode, Any], vs.VideoNode],
     backend_str: str,
     device_index: int,
+    settings_path: Path,
     override_format: str | None = None,
 ):
     pad_mult: int | None = None
     target_format = vs.RGBH
 
-    engine_folder = Path() / "vsmlrt-engines"
+    engine_folder = settings_path / "vsmlrt-engines"
 
     match backend_str:
         case "tensorrt":
@@ -368,6 +369,7 @@ def interpolate_rife_vsmlrt(
     new_fps: int,
     model: str,
     device_index: int,
+    settings_path: Path,
 ):
     return prepare_rife_vsmlrt(
         video=video,
@@ -377,4 +379,5 @@ def interpolate_rife_vsmlrt(
         ),
         backend_str="tensorrt",
         device_index=device_index,
+        settings_path=settings_path,
     )

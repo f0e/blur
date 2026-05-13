@@ -52,6 +52,8 @@ try:
     fps_den = vars().get("fps_den", -1)
     color_range = vars().get("color_range", "")
 
+    settings_path = Path(vars().get("settings_path", ""))
+
     # validate some settings
     svp_interpolation_algorithm = u.coalesce(
         u.safe_int(settings["svp_interpolation_algorithm"]),
@@ -161,6 +163,7 @@ try:
                     max_frames=deduplicate_range,
                     duplicate_mode=settings["duplicate_mode"],
                     max_future_checks=settings["max_future_checks"],
+                    settings_path=settings_path,
                     debug=settings["debug"],
                 )
 
@@ -256,6 +259,7 @@ try:
                             new_fps=pre_interpolated_fps,
                             model=settings["rife_trt_model"],
                             device_index=tensorrt_device_index,
+                            settings_path=settings_path,
                         )
 
                     case _:
@@ -319,6 +323,7 @@ try:
                         new_fps=interpolated_fps,
                         model=settings["rife_trt_model"],
                         device_index=tensorrt_device_index,
+                        settings_path=settings_path,
                     )
 
                 case "mvtools":

@@ -1,9 +1,10 @@
 import vapoursynth as vs
 from vapoursynth import core
-from typing import Literal
 
 import blur.interpolate
 import blur.utils as u
+
+from pathlib import Path
 
 DEBUG_ENABLED = False
 
@@ -487,6 +488,7 @@ def fill_drops_rife_vsmlrt(
     max_frames: int | None,
     duplicate_mode: str,
     max_future_checks: int,
+    settings_path: Path,
     debug=False,
 ):
     def process(video: vs.VideoNode, backend) -> vs.VideoNode:
@@ -512,6 +514,7 @@ def fill_drops_rife_vsmlrt(
         process_func=process,
         backend_str="tensorrt",
         device_index=device_index,
+        settings_path=settings_path,
         override_format=vs.RGBS,
     )
 

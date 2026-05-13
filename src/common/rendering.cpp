@@ -25,7 +25,15 @@ std::vector<std::string> rendering::detail::build_vspipe_args(
 	std::ranges::replace(path_str, '\\', '/');
 
 	std::vector<std::string> args = {
-		"-p", "-c", "y4m", "-a", "video_path=" + path_str, "-a", "settings=" + merged_settings.dump(),
+		"-p",
+		"-c",
+		"y4m",
+		"-a",
+		"video_path=" + path_str,
+		"-a",
+		"settings=" + merged_settings.dump(),
+		"-a",
+		"settings_path=" + u::path_to_string(blur.settings_path),
 	};
 
 #ifdef __APPLE__

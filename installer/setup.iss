@@ -3,7 +3,7 @@
 #include "environment.iss"
 
 #define MyAppName "blur"
-#define MyAppVersion "2.0"
+#define MyAppVersion "2.45"
 #define MyAppPublisher "tekno"
 #define MyAppURL "https://f0e.github.io/blur"
 
@@ -38,13 +38,13 @@ ChangesEnvironment=true
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Types]
-Name: "full"; Description: "Full installation (downloads TensorRT ~2GB)"
+Name: "full"; Description: "Full installation"
 Name: "compact"; Description: "Compact installation"
 Name: "custom"; Description: "Custom installation"; Flags: iscustom
 
 [Components]
 Name: "main"; Description: "blur (required)"; Types: full compact custom; Flags: fixed
-Name: "vstrt"; Description: "NVIDIA TensorRT RIFE interpolation (~2GB download)"; Types: full
+Name: "vstrt"; Description: "NVIDIA TensorRT RIFE interpolation (~2.5GB download)"; Types: full; ExtraDiskSpaceRequired: 3757471855
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
@@ -141,9 +141,8 @@ var
   ResultCode: Integer;
   SevenZipPath: String;
 begin
-  SevenZipPath := ExpandConstant('{app}\vapoursynth\7z.exe');
+  SevenZipPath := ExpandConstant('{app}\lib\vapoursynth\7z.exe');
   Result := Exec(SevenZipPath, 'x "' + ArchivePath + '" -o"' + DestDir + '" -y', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Result := Result and (ResultCode = 0);
 end;
 
 procedure DownloadAndInstallVsTrt;
@@ -155,7 +154,7 @@ var
   NeedRife: Boolean;
 begin
   TempDir := ExpandConstant('{tmp}\vstrt');
-  PluginsDir := ExpandConstant('{app}\vapoursynth\vs-plugins');
+  PluginsDir := ExpandConstant('{app}\lib\vapoursynth\vs-plugins');
 
   ForceDirectories(TempDir);
   ForceDirectories(PluginsDir);
