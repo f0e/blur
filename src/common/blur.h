@@ -1,7 +1,6 @@
 #pragma once
 
 #include "updates.h"
-#include "config_blur.h"
 
 const std::string APPLICATION_NAME = "blur";
 const std::string BLUR_VERSION = "2.45";
