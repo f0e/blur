@@ -273,6 +273,55 @@ boost::process::environment u::setup_vspipe_environment() {
 	return env;
 }
 
+int u::get_video_preroll_frames(const std::filesystem::path& path, double fps, double max_preroll_seconds) {
+	// some mp4 files use an edit list to trim content by offsetting the start time, leaving negative pts
+	// packets at the head of the file that normal players skip but some vapoursynth source plugins decode as real
+	// frames, causing audio/video desync
+
+	// this count those frames so we can trim the clip manually in vapoursynth if needed
+
+	namespace bp = boost::process;
+	bp::ipstream pipe_stream;
+
+	const int max_packets = static_cast<int>(std::ceil(fps * max_preroll_seconds));
+	const auto read_intervals = std::format("%+#{}", max_packets);
+
+	auto c = u::run_command(
+		blur.ffprobe_path,
+		{
+			"-v",
+			"error",
+			"-select_streams",
+			"v:0",
+			"-show_packets",
+			"-read_intervals",
+			read_intervals,
+			"-show_entries",
+			"packet=pts",
+			"-of",
+			"json",
+			u::path_to_string(path),
+		},
+		bp::std_out > pipe_stream,
+		bp::std_err.null()
+	);
+
+	std::string output(std::istreambuf_iterator<char>(pipe_stream), {});
+	c.wait();
+
+	const auto j = nlohmann::json::parse(output);
+
+	int skip = 0;
+	for (const auto& pkt : j.value("packets", nlohmann::json::array())) {
+		const auto pts = pkt.value("pts", 0LL);
+		if (pts >= 0)
+			break;
+		skip++;
+	}
+
+	return skip;
+}
+
 u::VideoInfo u::get_video_info(const std::filesystem::path& path) {
 	namespace bp = boost::process;
 
@@ -364,6 +413,8 @@ u::VideoInfo u::get_video_info(const std::filesystem::path& path) {
 				info.audio_start_times.push_back(std::stod(stream["start_time"].get<std::string>()));
 		}
 	}
+
+	info.preroll_frames = get_video_preroll_frames(path, (double)info.fps_num / info.fps_den);
 
 	return info;
 }

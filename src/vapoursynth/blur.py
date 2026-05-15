@@ -93,6 +93,12 @@ try:
             fpsnum=fps_num if fps_num != -1 else None,
             fpsden=fps_den if fps_den != -1 else None,
         )
+
+        # LWLibavSource doesn't respect mp4 edit lists, so negative pts preroll frames get decoded as real content instead of being skipped.
+        # fix this by trimming those frames manually
+        preroll_frames = int(vars().get("preroll_frames", 0))
+        if preroll_frames > 0:
+            video = video[preroll_frames:]
     else:
         video = core.bs.VideoSource(
             source=video_path,

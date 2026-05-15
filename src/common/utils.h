@@ -469,9 +469,12 @@ namespace u {
 		double video_start_time = 0.0;
 		std::vector<double> audio_start_times;
 
+		int preroll_frames = 0;
+
 		bool operator==(const VideoInfo& other) const = default;
 	};
 
+	int get_video_preroll_frames(const std::filesystem::path& path, double fps, double max_preroll_seconds = 5.0);
 	VideoInfo get_video_info(const std::filesystem::path& path);
 	int16_t get_audio_percentile_peak(const std::vector<int16_t>& samples, float percentile);
 

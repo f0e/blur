@@ -531,6 +531,8 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 			"-a",
 			"color_range=" + (video_info.color_range ? *video_info.color_range : "undefined"),
 			"-a",
+			std::format("preroll_frames={}", video_info.preroll_frames),
+			"-a",
 			std::format("start={}", start_frame),
 			"-a",
 			std::format("end={}", end_frame),
