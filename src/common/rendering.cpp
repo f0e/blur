@@ -619,18 +619,18 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 	// colour fixes
 	std::vector<std::string> params;
 
-	if (video_info.color_range) {
+	if (video_info.color_range && *video_info.color_range != "") {
 		std::string range = *video_info.color_range == "pc" ? "full" : "limited";
 		params.emplace_back("range=" + range);
 	}
 
-	if (video_info.color_space)
+	if (video_info.color_space && *video_info.color_space != "")
 		params.emplace_back("colorspace=" + *video_info.color_space);
 
-	if (video_info.color_transfer)
+	if (video_info.color_transfer && *video_info.color_transfer != "")
 		params.emplace_back("color_trc=" + *video_info.color_transfer);
 
-	if (video_info.color_primaries)
+	if (video_info.color_primaries && *video_info.color_primaries != "")
 		params.emplace_back("color_primaries=" + *video_info.color_primaries);
 
 	if (!params.empty()) {

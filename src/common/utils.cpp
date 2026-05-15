@@ -356,6 +356,18 @@ u::VideoInfo u::get_video_info(const std::filesystem::path& path) {
 
 	VideoInfo info;
 
+	auto opt_str = [](const nlohmann::json& stream, const std::string& key) -> std::optional<std::string> {
+		if (!stream.contains(key))
+			return std::nullopt;
+
+		auto s = stream[key].get<std::string>();
+
+		if (s.empty() || s == "unknown" || s == "reserved")
+			return std::nullopt;
+
+		return s;
+	};
+
 	// format
 	if (j.contains("format")) {
 		const auto& fmt = j["format"];
@@ -380,21 +392,11 @@ u::VideoInfo u::get_video_info(const std::filesystem::path& path) {
 
 			info.width = stream.value("width", 0);
 			info.height = stream.value("height", 0);
-			info.pix_fmt = stream.value("pix_fmt", "");
-			info.color_range = stream.value("color_range", "");
-			info.color_space = stream.value("color_space", "");
-
-			if (stream.contains("color_transfer") &&
-			    (stream["color_transfer"] != "unknown" && stream["color_transfer"] != "reserved"))
-			{
-				info.color_transfer = stream["color_transfer"];
-			}
-
-			if (stream.contains("color_primaries") &&
-			    (stream["color_primaries"] != "unknown" && stream["color_primaries"] != "reserved"))
-			{
-				info.color_primaries = stream["color_primaries"];
-			}
+			info.pix_fmt = opt_str(stream, "pix_fmt");
+			info.color_range = opt_str(stream, "color_range");
+			info.color_space = opt_str(stream, "color_space");
+			info.color_transfer = opt_str(stream, "color_transfer");
+			info.color_primaries = opt_str(stream, "color_primaries");
 
 			if (stream.contains("r_frame_rate")) {
 				const auto fps = u::split_string(stream["r_frame_rate"].get<std::string>(), "/");
