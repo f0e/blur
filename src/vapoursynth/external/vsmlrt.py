@@ -2072,12 +2072,24 @@ def trtexec(
             # do not consider alternative path when the engine_folder is given
             raise PermissionError(f"{engine_path} is not writable")
 
+    # trtexec writes here instead of engine_path directly, and we only rename it into
+    # place once the build succeeds. that way a killed/interrupted build (e.g. a
+    # cancelled render) can never leave a corrupt file at the trusted engine_path.
+    tmp_engine_path = f"{engine_path}.building"
+
+    # clean up a stray partial file left behind by a previous interrupted build
+    if os.path.exists(tmp_engine_path):
+        try:
+            os.remove(tmp_engine_path)
+        except OSError:
+            pass
+
     args = [
         trtexec_path,
         f"--onnx={network_path}",
         f"--timingCacheFile={engine_path}.cache",
         f"--device={device_id}",
-        f"--saveEngine={engine_path}"
+        f"--saveEngine={tmp_engine_path}"
     ]
 
     if workspace is not None:
@@ -2192,43 +2204,59 @@ def trtexec(
 
     args.extend(custom_args)
 
-    if log:
-        env_key = "TRTEXEC_LOG_FILE"
-        prev_env_value = os.environ.get(env_key)
+    # picked up by blur's GUI (which reads trtexec's stdout via vspipe's stderr) to
+    # show a "building engine" message instead of the generic "initialising render"
+    print("[blur] Building TensorRT engine (this may take a few minutes, only needed once per settings)...", file=sys.stderr)
 
-        if prev_env_value is not None and len(prev_env_value) > 0:
-            # env_key has been set, no extra action
-            env = {env_key: prev_env_value, "CUDA_MODULE_LOADING": "LAZY"}
+    try:
+        if log:
+            env_key = "TRTEXEC_LOG_FILE"
+            prev_env_value = os.environ.get(env_key)
+
+            if prev_env_value is not None and len(prev_env_value) > 0:
+                # env_key has been set, no extra action
+                env = {env_key: prev_env_value, "CUDA_MODULE_LOADING": "LAZY"}
+                env.update(**custom_env)
+                subprocess.run(args, env=env, check=True, stdout=sys.stderr)
+            else:
+                time_str = time.strftime('%y%m%d_%H%M%S', time.localtime())
+
+                log_filename = os.path.join(
+                    tempfile.gettempdir(),
+                    f"trtexec_{time_str}.log"
+                )
+
+                env = {env_key: log_filename, "CUDA_MODULE_LOADING": "LAZY"}
+                env.update(**custom_env)
+
+                completed_process = subprocess.run(args, env=env, check=False, stdout=sys.stderr)
+
+                if completed_process.returncode == 0:
+                    try:
+                        os.remove(log_filename)
+                    except FileNotFoundError:
+                        # maybe the official trtexec is used?
+                        pass
+                else:
+                    if os.path.exists(log_filename):
+                        raise RuntimeError(f"trtexec execution fails, log has been written to {log_filename}")
+                    else:
+                        raise RuntimeError(f"trtexec execution fails but no log is found")
+        else:
+            env = {"CUDA_MODULE_LOADING": "LAZY"}
             env.update(**custom_env)
             subprocess.run(args, env=env, check=True, stdout=sys.stderr)
-        else:
-            time_str = time.strftime('%y%m%d_%H%M%S', time.localtime())
 
-            log_filename = os.path.join(
-                tempfile.gettempdir(),
-                f"trtexec_{time_str}.log"
-            )
-
-            env = {env_key: log_filename, "CUDA_MODULE_LOADING": "LAZY"}
-            env.update(**custom_env)
-
-            completed_process = subprocess.run(args, env=env, check=False, stdout=sys.stderr)
-
-            if completed_process.returncode == 0:
-                try:
-                    os.remove(log_filename)
-                except FileNotFoundError:
-                    # maybe the official trtexec is used?
-                    pass
-            else:
-                if os.path.exists(log_filename):
-                    raise RuntimeError(f"trtexec execution fails, log has been written to {log_filename}")
-                else:
-                    raise RuntimeError(f"trtexec execution fails but no log is found")
-    else:
-        env = {"CUDA_MODULE_LOADING": "LAZY"}
-        env.update(**custom_env)
-        subprocess.run(args, env=env, check=True, stdout=sys.stderr)
+        # build succeeded - publish it atomically so it can be trusted as a complete engine
+        os.replace(tmp_engine_path, engine_path)
+    finally:
+        # if we got here without renaming (build failed or was killed), don't leave a
+        # partial/corrupt file around for a future run to mistake for a real engine
+        if os.path.exists(tmp_engine_path):
+            try:
+                os.remove(tmp_engine_path)
+            except OSError:
+                pass
 
     return engine_path
 
@@ -2482,12 +2510,22 @@ def tensorrt_rtx(
             # do not consider alternative path when the engine_folder is given
             raise PermissionError(f"{engine_path} is not writable")
 
+    # see trtexec() above: build to a temp path and only rename it into place once the
+    # build succeeds, so a killed/interrupted build never leaves a corrupt engine_path
+    tmp_engine_path = f"{engine_path}.building"
+
+    if os.path.exists(tmp_engine_path):
+        try:
+            os.remove(tmp_engine_path)
+        except OSError:
+            pass
+
     args = [
         tensorrt_rtx_path,
         f"--onnx={network_path}",
         f"--timingCacheFile={engine_path}.cache",
         f"--device={device_id}",
-        f"--saveEngine={engine_path}",
+        f"--saveEngine={tmp_engine_path}",
         "--useGpu",
     ]
 
@@ -2543,9 +2581,20 @@ def tensorrt_rtx(
 
     args.extend(custom_args)
 
-    env = {"CUDA_MODULE_LOADING": "LAZY"}
-    env.update(**custom_env)
-    subprocess.run(args, env=env, check=True, stdout=sys.stderr)
+    print("[blur] Building TensorRT engine (this may take a few minutes, only needed once per settings)...", file=sys.stderr)
+
+    try:
+        env = {"CUDA_MODULE_LOADING": "LAZY"}
+        env.update(**custom_env)
+        subprocess.run(args, env=env, check=True, stdout=sys.stderr)
+
+        os.replace(tmp_engine_path, engine_path)
+    finally:
+        if os.path.exists(tmp_engine_path):
+            try:
+                os.remove(tmp_engine_path)
+            except OSError:
+                pass
 
     return engine_path
 

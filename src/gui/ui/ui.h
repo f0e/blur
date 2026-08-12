@@ -34,7 +34,8 @@ namespace ui {
 		SEPARATOR,
 		WEIGHTING_GRAPH,
 		TABS,
-		HINT
+		HINT,
+		SPINNER
 	};
 
 	struct BarElementData {
@@ -310,6 +311,16 @@ namespace ui {
 		}
 	};
 
+	struct SpinnerElementData {
+		gfx::Color color;
+		float radius;
+		float thickness;
+
+		bool operator==(const SpinnerElementData& other) const {
+			return color == other.color && radius == other.radius && thickness == other.thickness;
+		}
+	};
+
 	using ElementData = std::variant<
 		BarElementData,
 		TextElementData,
@@ -324,7 +335,8 @@ namespace ui {
 		SeparatorElementData,
 		WeightingGraphElementData,
 		TabsElementData,
-		HintElementData>;
+		HintElementData,
+		SpinnerElementData>;
 
 	struct AnimationState {
 		float speed;
@@ -509,6 +521,8 @@ namespace ui {
 	bool update_tabs(const Container& container, AnimatedElement& element);
 
 	void render_hint(const Container& container, const AnimatedElement& element);
+
+	void render_spinner(const Container& container, const AnimatedElement& element);
 
 	void reset_container(
 		Container& container,
@@ -709,6 +723,14 @@ namespace ui {
 	);
 
 	AnimatedElement* add_separator(const std::string& id, Container& container, SeparatorStyle style);
+
+	AnimatedElement* add_spinner(
+		const std::string& id,
+		Container& container,
+		float radius = 8.f,
+		gfx::Color color = gfx::Color::white(),
+		float thickness = 2.f
+	);
 
 	void add_spacing(Container& container, int spacing);
 

@@ -18,6 +18,10 @@ namespace rendering {
 			float fps = 0.f;
 
 			std::string string;
+
+			// set once a one-time TensorRT engine build is detected happening in place
+			// of frame rendering (see RenderState::report_log_line)
+			bool building_engine = false;
 		};
 
 		// -- control (called from the UI thread) --
@@ -70,6 +74,10 @@ namespace rendering {
 
 		// fold a vspipe "Frame: n/m" update into progress + the status string
 		void report_frame_progress(int current_frame, int total_frames);
+
+		// scan a raw stderr line for the TensorRT engine-build sentinel, flipping
+		// building_engine on so the UI can show a more specific loading message
+		void report_log_line(const std::string& line);
 
 		// -- preview frames (jpeg piped out of ffmpeg) --
 

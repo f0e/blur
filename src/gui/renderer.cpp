@@ -193,6 +193,13 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 					case components::main::MainScreen::PROGRESS: {
 						auto current_render = rendering::video_render_queue.front();
 						if (current_render) {
+							auto progress = current_render->state->get_progress();
+							if (!progress.rendered_a_frame && !current_render->state->is_paused()) {
+								// keep redrawing so the loading spinner animates while initialising / building the
+								// tensorrt engine
+								want_to_render = true;
+							}
+
 							ui::add_button(
 								current_render->state->is_paused() ? "resume render button" : "pause render button",
 								nav_container,
