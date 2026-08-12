@@ -23,11 +23,22 @@ namespace {
 		}
 	}
 
-	// applies settings that are cached outside of the config (currently just the dpi scale override) and
-	// updates the window minimum size to match. returns true if the ui scale changed.
+	void resize_window_to_scale(SDL_Window* window, float logical_w, float logical_h, float content_scale) {
+		int new_w =
+			std::max(int(std::lround(logical_w * content_scale)), int(sdl::MINIMUM_WINDOW_SIZE.w * content_scale));
+		int new_h =
+			std::max(int(std::lround(logical_h * content_scale)), int(sdl::MINIMUM_WINDOW_SIZE.h * content_scale));
+
+		SDL_SetWindowSize(window, new_w, new_h);
+	}
+
 	bool apply_app_config(const GlobalAppSettings& config) {
 		float previous_scale = render::dpi_scale_override;
+		float previous_content_scale = sdl::window ? render::get_content_scale(sdl::window) : 1.f;
+
 		render::dpi_scale_override = config.dpi_scale_override;
+
+		bool scale_changed = previous_scale != render::dpi_scale_override;
 
 		if (sdl::window) {
 			// MINIMUM_WINDOW_SIZE is in scaled (logical) design units, but sdl wants window coordinates,
@@ -38,9 +49,20 @@ namespace {
 				int(sdl::MINIMUM_WINDOW_SIZE.w * content_scale),
 				int(sdl::MINIMUM_WINDOW_SIZE.h * content_scale)
 			);
+
+			if (scale_changed && previous_content_scale > 0.f && content_scale != previous_content_scale) {
+				int current_w = 0;
+				int current_h = 0;
+				SDL_GetWindowSize(sdl::window, &current_w, &current_h);
+
+				// divide out the old scale to get back to logical units before applying the new one
+				resize_window_to_scale(
+					sdl::window, current_w / previous_content_scale, current_h / previous_content_scale, content_scale
+				);
+			}
 		}
 
-		return previous_scale != render::dpi_scale_override;
+		return scale_changed;
 	}
 }
 
@@ -56,10 +78,6 @@ tl::expected<void, std::string> sdl::initialise() {
 
 	// Initialise notification system
 	auto config = config_app::get_app_config();
-
-	// apply the user's dpi scale override (0 = auto). window doesn't exist yet, so this only sets the
-	// render global; the window minimum size is handled after the window is created below.
-	render::dpi_scale_override = config.dpi_scale_override;
 
 	if (config.render_success_notifications || config.render_failure_notifications) {
 		desktop_notification::initialise(APPLICATION_NAME);
@@ -108,10 +126,14 @@ tl::expected<void, std::string> sdl::initialise() {
 	if (!window)
 		return tl::unexpected("Failed to create SDL window");
 
-	// now that the window exists, apply the dpi-dependent window minimum size, and start tracking the
-	// config file's modification time so external edits can be picked up live (see poll_config_reload)
 	apply_app_config(config);
 	remember_config_write_time();
+
+	// scale the default window size if needed
+	float initial_content_scale = render::get_content_scale(window);
+	if (initial_content_scale != 1.f) {
+		resize_window_to_scale(window, (float)config.gui_width, (float)config.gui_height, initial_content_scale);
+	}
 
 	SDL_AddEventWatch(event_watcher, window);
 
@@ -235,12 +257,9 @@ bool sdl::poll_config_reload() {
 	if (has_config_write_time && write_time == last_config_write)
 		return false; // unchanged since we last looked
 
-	// the file changed (or this is the first time we've seen it) - reload and re-apply.
-	// note: get_app_config() also rewrites/normalises the file, so re-stat afterwards to store the new
-	// modification time and avoid immediately triggering ourselves again.
 	auto config = config_app::get_app_config();
 	bool scale_changed = apply_app_config(config);
-	remember_config_write_time();
+	remember_config_write_time(); // note: store modified time after get_app_config since it itself edits the file
 
 	// only force a redraw if something visible actually changed
 	return scale_changed;
