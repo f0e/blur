@@ -61,6 +61,8 @@ namespace rendering {
 			std::string string;
 		};
 
+		// -- control (called from the UI thread) --
+
 		void pause() {
 			m_to_pause = true;
 		}
@@ -77,53 +79,70 @@ namespace rendering {
 			m_to_stop = true;
 		}
 
-		bool is_paused() {
+		[[nodiscard]] bool is_paused() const {
 			std::lock_guard lock(m_mutex);
 			return m_paused;
 		}
 
-		Progress get_progress() {
+		[[nodiscard]] Progress get_progress() const {
 			std::lock_guard lock(m_mutex);
 			return m_progress;
 		}
 
-		// friends can access non-thread-safe stuff
-		friend void detail::pause(int pid, const std::shared_ptr<RenderState>& state);
-		friend void detail::resume(int pid, const std::shared_ptr<RenderState>& state);
+		// -- pipeline-facing (called from the render threads) --
 
-		friend tl::expected<detail::PipelineResult, RenderError> detail::execute_pipeline(
-			const RenderCommands& commands,
-			const std::shared_ptr<RenderState>& state,
-			bool debug,
-			bool audio,
-			const std::function<void()>& progress_callback
-		);
+		[[nodiscard]] bool wants_stop() const {
+			return m_to_stop;
+		}
 
-		friend tl::expected<RenderResult, std::variant<std::string, RenderError>> detail::render_video(
-			const std::filesystem::path& input_path,
-			const u::VideoInfo& video_info,
-			const BlurSettings& settings,
-			const std::shared_ptr<RenderState>& state,
-			const GlobalAppSettings& app_settings,
-			const std::optional<std::filesystem::path>& output_path_override,
-			float start,
-			float end,
-			const std::function<void()>& progress_callback
-		);
+		[[nodiscard]] bool wants_pause() const {
+			return m_to_pause;
+		}
 
-	public:
-		// TODO: shitcode but getters are bloat
-		bool m_read_stdout_jpg = false;
-		std::mutex m_preview_mutex;
-		std::vector<uint8_t> m_preview_jpeg;
+		// reflect the OS-level suspend state; resets fps tracking when pausing
+		void mark_paused(bool paused) {
+			std::lock_guard lock(m_mutex);
+			m_paused = paused;
+			if (paused) {
+				m_progress.fps_initialised = false;
+				m_progress.fps = 0.f;
+			}
+		}
 
-		std::mutex m_mutex;
+		// fold a vspipe "Frame: n/m" update into progress + the status string
+		void report_frame_progress(int current_frame, int total_frames);
 
+		// -- preview frames (jpeg piped out of ffmpeg) --
+
+		void enable_preview_capture() {
+			m_read_stdout_jpg = true;
+		}
+
+		[[nodiscard]] bool preview_capture_enabled() const {
+			return m_read_stdout_jpg;
+		}
+
+		void set_preview_jpeg(std::vector<uint8_t> jpeg) {
+			std::lock_guard lock(m_preview_mutex);
+			m_preview_jpeg = std::move(jpeg);
+		}
+
+		[[nodiscard]] std::vector<uint8_t> take_preview_jpeg() {
+			std::lock_guard lock(m_preview_mutex);
+			return std::exchange(m_preview_jpeg, {});
+		}
+
+	private:
+		mutable std::mutex m_mutex;
 		Progress m_progress;
 		bool m_paused = false;
 
 		std::atomic<bool> m_to_pause = false;
 		std::atomic<bool> m_to_stop = false;
+
+		std::atomic<bool> m_read_stdout_jpg = false;
+		mutable std::mutex m_preview_mutex;
+		std::vector<uint8_t> m_preview_jpeg;
 	};
 
 	struct VideoRenderDetails {

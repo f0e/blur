@@ -88,13 +88,11 @@ void main::render_progress(
 
 	// create texture from current render preview (here cause its main thread)
 	auto get_preview_texture = [&] { // lambda just so i can return lol
-		std::lock_guard lock(render.state->m_preview_mutex);
-		if (render.state->m_preview_jpeg.empty())
+		auto jpeg = render.state->take_preview_jpeg();
+		if (jpeg.empty())
 			return;
 
-		SDL_Surface* rgba =
-			render::jpeg_bytes_to_surface(render.state->m_preview_jpeg.data(), render.state->m_preview_jpeg.size());
-		render.state->m_preview_jpeg.clear();
+		SDL_Surface* rgba = render::jpeg_bytes_to_surface(jpeg.data(), jpeg.size());
 
 		if (rgba) {
 			auto tex = std::make_shared<render::Texture>();
