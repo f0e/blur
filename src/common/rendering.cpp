@@ -99,8 +99,44 @@ tl::expected<std::filesystem::path, std::string> rendering::detail::build_output
 	return result;
 }
 
+void rendering::RenderState::report_frame_progress(int current_frame, int total_frames) {
+	std::lock_guard lock(m_mutex);
+
+	m_progress.current_frame = current_frame;
+	m_progress.total_frames = total_frames;
+	m_progress.rendered_a_frame = true;
+
+	float progress = m_progress.current_frame / (float)m_progress.total_frames;
+
+	if (!m_progress.fps_initialised) {
+		m_progress.fps_initialised = true;
+		m_progress.start_time = std::chrono::steady_clock::now();
+		m_progress.start_frame = m_progress.current_frame;
+		m_progress.fps = 0.f;
+
+		m_progress.string =
+			std::format("{:.1f}% complete ({}/{})", progress * 100, m_progress.current_frame, m_progress.total_frames);
+	}
+	else {
+		auto current_time = std::chrono::steady_clock::now();
+		m_progress.elapsed_time = current_time - m_progress.start_time;
+
+		m_progress.fps = (m_progress.current_frame - m_progress.start_frame) / m_progress.elapsed_time.count();
+
+		m_progress.string = std::format(
+			"{:.1f}% complete ({}/{}, {:.2f} fps)",
+			progress * 100,
+			m_progress.current_frame,
+			m_progress.total_frames,
+			m_progress.fps
+		);
+	}
+
+	u::log(m_progress.string);
+}
+
 void rendering::detail::pause(int pid, const std::shared_ptr<RenderState>& state) {
-	if (state->m_paused)
+	if (state->is_paused())
 		return;
 
 	if (pid > 0) {
@@ -110,19 +146,14 @@ void rendering::detail::pause(int pid, const std::shared_ptr<RenderState>& state
 		kill(pid, SIGSTOP);
 #endif
 	}
-	{
-		std::lock_guard lock(state->m_mutex);
-		state->m_paused = true;
-	}
 
-	state->m_progress.fps_initialised = false;
-	state->m_progress.fps = 0.f;
+	state->mark_paused(true);
 
 	u::log("Render paused");
 }
 
 void rendering::detail::resume(int pid, const std::shared_ptr<RenderState>& state) {
-	if (!state->m_paused)
+	if (!state->is_paused())
 		return;
 
 	if (pid > 0) {
@@ -133,10 +164,7 @@ void rendering::detail::resume(int pid, const std::shared_ptr<RenderState>& stat
 #endif
 	}
 
-	{
-		std::lock_guard lock(state->m_mutex);
-		state->m_paused = false;
-	}
+	state->mark_paused(false);
 
 	u::log("Render resumed");
 }
@@ -179,47 +207,7 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 
 					std::smatch match;
 					if (std::regex_match(line, match, frame_regex)) {
-						{
-							std::lock_guard lock(state->m_mutex);
-
-							state->m_progress.current_frame = std::stoi(match[1]);
-							state->m_progress.total_frames = std::stoi(match[2]);
-							state->m_progress.rendered_a_frame = true;
-
-							float progress = state->m_progress.current_frame / (float)state->m_progress.total_frames;
-
-							if (!state->m_progress.fps_initialised) {
-								state->m_progress.fps_initialised = true;
-								state->m_progress.start_time = std::chrono::steady_clock::now();
-								state->m_progress.start_frame = state->m_progress.current_frame;
-								state->m_progress.fps = 0.f;
-
-								state->m_progress.string = std::format(
-									"{:.1f}% complete ({}/{})",
-									progress * 100,
-									state->m_progress.current_frame,
-									state->m_progress.total_frames
-								);
-							}
-							else {
-								auto current_time = std::chrono::steady_clock::now();
-								state->m_progress.elapsed_time = current_time - state->m_progress.start_time;
-
-								state->m_progress.fps =
-									(state->m_progress.current_frame - state->m_progress.start_frame) /
-									state->m_progress.elapsed_time.count();
-
-								state->m_progress.string = std::format(
-									"{:.1f}% complete ({}/{}, {:.2f} fps)",
-									progress * 100,
-									state->m_progress.current_frame,
-									state->m_progress.total_frames,
-									state->m_progress.fps
-								);
-							}
-
-							u::log(state->m_progress.string);
-						}
+						state->report_frame_progress(std::stoi(match[1]), std::stoi(match[2]));
 
 						if (progress_callback)
 							progress_callback();
@@ -258,7 +246,7 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 		});
 
 		std::thread ffmpeg_stdout_thread([&]() {
-			if (!state->m_read_stdout_jpg)
+			if (!state->preview_capture_enabled())
 				return;
 
 			std::vector<uint8_t> buf;
@@ -284,10 +272,7 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 					buf.push_back(byte);
 
 					if (buf.size() >= 2 && buf[buf.size() - 2] == 0xFF && buf[buf.size() - 1] == 0xD9) {
-						{
-							std::lock_guard lock(state->m_preview_mutex);
-							state->m_preview_jpeg = buf;
-						}
+						state->set_preview_jpeg(buf);
 
 						buf.clear();
 						in_jpeg = false;
@@ -307,7 +292,7 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 		);
 
 		auto ffmpeg_process =
-			state->m_read_stdout_jpg
+			state->preview_capture_enabled()
 				? u::run_command(
 					  blur.ffmpeg_path,
 					  commands.ffmpeg,
@@ -322,15 +307,15 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 
 		bool killed = false;
 		while (ffmpeg_process.running()) {
-			if (state->m_to_stop) {
+			if (state->wants_stop()) {
 				vspipe_process.terminate();
 				ffmpeg_process.terminate();
 				killed = true;
 				break;
 			}
 
-			if (state->m_to_pause != state->m_paused) {
-				auto fn = state->m_to_pause ? pause : resume;
+			if (state->wants_pause() != state->is_paused()) {
+				auto fn = state->wants_pause() ? pause : resume;
 				fn(vspipe_process.id(), state);
 			}
 
@@ -442,10 +427,7 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
         },
     };
 
-	{
-		std::lock_guard lock(state->m_mutex);
-		state->m_read_stdout_jpg = true;
-	}
+	state->enable_preview_capture();
 
 	auto pipeline_result = detail::execute_pipeline(commands, state, settings.advanced.debug, false, nullptr);
 
@@ -453,7 +435,7 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 		return tl::unexpected(pipeline_result.error());
 
 	return FrameRenderResult{
-		.frame_jpeg = std::move(state->m_preview_jpeg),
+		.frame_jpeg = state->take_preview_jpeg(),
 		.stopped = pipeline_result->stopped,
 	};
 }
@@ -701,8 +683,7 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 			}
 		);
 
-		std::lock_guard lock(state->m_mutex);
-		state->m_read_stdout_jpg = true;
+		state->enable_preview_capture();
 	}
 
 	RenderCommands commands = {
