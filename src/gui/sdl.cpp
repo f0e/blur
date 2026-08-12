@@ -32,37 +32,48 @@ namespace {
 		SDL_SetWindowSize(window, new_w, new_h);
 	}
 
-	bool apply_app_config(const GlobalAppSettings& config) {
-		float previous_scale = render::dpi_scale_override;
-		float previous_content_scale = sdl::window ? render::get_content_scale(sdl::window) : 1.f;
+	float last_known_content_scale = 0.f;
 
-		render::dpi_scale_override = config.dpi_scale_override;
+	bool apply_content_scale(SDL_Window* window) {
+		float content_scale = render::get_content_scale(window);
 
-		bool scale_changed = previous_scale != render::dpi_scale_override;
+		// MINIMUM_WINDOW_SIZE is in scaled (logical) design units, but sdl wants window coordinates,
+		// so scale it up by the os content scale to keep the same usable minimum on high-dpi displays
+		SDL_SetWindowMinimumSize(
+			window, int(sdl::MINIMUM_WINDOW_SIZE.w * content_scale), int(sdl::MINIMUM_WINDOW_SIZE.h * content_scale)
+		);
 
-		if (sdl::window) {
-			// MINIMUM_WINDOW_SIZE is in scaled (logical) design units, but sdl wants window coordinates,
-			// so scale it up by the os content scale to keep the same usable minimum on high-dpi displays
-			float content_scale = render::get_content_scale(sdl::window);
-			SDL_SetWindowMinimumSize(
-				sdl::window,
-				int(sdl::MINIMUM_WINDOW_SIZE.w * content_scale),
-				int(sdl::MINIMUM_WINDOW_SIZE.h * content_scale)
-			);
-
-			if (scale_changed && previous_content_scale > 0.f && content_scale != previous_content_scale) {
-				int current_w = 0;
-				int current_h = 0;
-				SDL_GetWindowSize(sdl::window, &current_w, &current_h);
-
-				// divide out the old scale to get back to logical units before applying the new one
-				resize_window_to_scale(
-					sdl::window, current_w / previous_content_scale, current_h / previous_content_scale, content_scale
-				);
-			}
+		if (last_known_content_scale <= 0.f) {
+			last_known_content_scale = content_scale;
+			// initial call, not resizing
+			return false;
 		}
 
-		return scale_changed;
+		// resize handling
+		if (content_scale == last_known_content_scale)
+			return false;
+
+		int current_w = 0;
+		int current_h = 0;
+		SDL_GetWindowSize(window, &current_w, &current_h);
+
+		// divide out the old scale to get back to logical units before applying the new one
+		resize_window_to_scale(
+			window, current_w / last_known_content_scale, current_h / last_known_content_scale, content_scale
+		);
+
+		last_known_content_scale = content_scale;
+		return true;
+	}
+
+	bool apply_app_config(const GlobalAppSettings& config) {
+		render::dpi_scale_override = config.dpi_scale_override;
+
+		if (!sdl::window) {
+			return false;
+		}
+
+		return apply_content_scale(sdl::window);
 	}
 }
 
@@ -196,6 +207,15 @@ bool sdl::event_watcher(void* data, SDL_Event* event) {
 
 				render::imgui.begin(sdl::window);
 				render::imgui.end(sdl::window);
+			}
+			break;
+		}
+		case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED: {
+			SDL_Window* win = SDL_GetWindowFromID(event->window.windowID);
+			if (win == static_cast<SDL_Window*>(data)) {
+				if (render::dpi_scale_override <= 0.f) { // (auto)
+					apply_content_scale(win);
+				}
 			}
 			break;
 		}
