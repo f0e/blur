@@ -76,9 +76,9 @@ tl::expected<void, std::string> sdl::initialise() {
 	if (!SDL_Init(SDL_INIT_VIDEO))
 		return tl::unexpected("SDL initialization failed");
 
-	// Initialise notification system
 	auto config = config_app::get_app_config();
 
+	// Initialise notification system
 	if (config.render_success_notifications || config.render_failure_notifications) {
 		desktop_notification::initialise(APPLICATION_NAME);
 	}
