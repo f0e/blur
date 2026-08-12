@@ -1,5 +1,49 @@
 #include "render_queue.h"
+#include "render.h"
 #include "common/config_blur.h"
+
+bool rendering::VideoRenderQueue::process_next() {
+	if (m_queue.empty() || !m_active)
+		return false;
+
+	auto cur = m_queue.front();
+
+	auto res = detail::render_video(
+		cur.input_path,
+		cur.video_info,
+		cur.settings,
+		cur.state,
+		cur.app_settings,
+		cur.output_path_override,
+		cur.start,
+		cur.end,
+		cur.progress_callback
+	);
+
+	if (cur.finish_callback)
+		cur.finish_callback(cur, res);
+
+	std::unique_lock lock(m_mutex);
+	m_queue.erase(m_queue.begin());
+
+	return true;
+}
+
+void rendering::VideoRenderQueue::stop_and_wait() {
+	stop();
+
+	std::lock_guard lock(m_mutex);
+	if (m_queue.empty())
+		return;
+
+	// still rendering the video at the front, so tell it to stop
+	auto cur = m_queue.front();
+	cur.state->stop();
+
+	while (!is_empty()) {
+		std::this_thread::sleep_for(std::chrono::milliseconds(50));
+	}
+}
 
 rendering::QueueAddRes rendering::VideoRenderQueue::add(
 	const std::filesystem::path& input_path,
