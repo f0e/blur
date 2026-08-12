@@ -1,9 +1,9 @@
 #pragma once
 
-#include "render.h"
 #include "render_state.h"
 #include "render_types.h"
 #include "common/config_app.h"
+#include "common/config_blur.h"
 
 namespace rendering {
 	struct VideoRenderDetails {
@@ -49,53 +49,17 @@ namespace rendering {
 			)>& finish_callback = {}
 		);
 
-		bool process_next() {
-			if (m_queue.empty() || !m_active)
-				return false;
-
-			auto cur = m_queue.front();
-
-			auto res = detail::render_video(
-				cur.input_path,
-				cur.video_info,
-				cur.settings,
-				cur.state,
-				cur.app_settings,
-				cur.output_path_override,
-				cur.start,
-				cur.end,
-				cur.progress_callback
-			);
-
-			if (cur.finish_callback)
-				cur.finish_callback(cur, res);
-
-			std::unique_lock lock(m_mutex);
-			m_queue.erase(m_queue.begin());
-
-			return true;
-		}
+		// pulls the front render off the queue, runs it to completion and fires its
+		// finish callback. defined in the .cpp as it drives detail::render_video.
+		bool process_next();
 
 		void stop() {
 			m_active = false;
 			// now no more renders will start. see process_next.
 		}
 
-		void stop_and_wait() {
-			stop();
-
-			std::lock_guard lock(m_mutex);
-			if (m_queue.empty())
-				return;
-
-			// still rendering the video at the front, so tell it to stop
-			auto cur = m_queue.front();
-			cur.state->stop();
-
-			while (!is_empty()) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(50));
-			}
-		}
+		// stop the queue and block until the in-flight render (if any) has finished
+		void stop_and_wait();
 
 		bool is_empty() const {
 			std::lock_guard lock(m_mutex);
