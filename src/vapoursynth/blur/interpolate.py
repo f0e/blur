@@ -5,13 +5,17 @@ from vapoursynth import core
 
 import json
 import math
+import sys
 from fractions import Fraction
 from typing import Any, Callable
 from pathlib import Path
 
 import blur.utils as u
 
-from external.vsmlrt import RIFE as VSMLRT_RIFE, BackendV2, RIFEModel
+if sys.platform in ("win32", "linux"):
+    from external.vsmlrt import RIFE as VSMLRT_RIFE, BackendV2, RIFEModel
+else:
+    VSMLRT_RIFE = BackendV2 = RIFEModel = None
 
 LEGACY_PRESETS = ["weak", "film", "smooth", "animation"]
 NEW_PRESETS = ["default", "test"]
@@ -294,6 +298,11 @@ def prepare_rife_vsmlrt(
     settings_path: Path,
     override_format: str | None = None,
 ):
+    if VSMLRT_RIFE is None:
+        raise u.BlurException(
+            "RIFE (TensorRT) is not supported on this platform."
+        )
+
     pad_mult: int | None = None
     target_format = vs.RGBH
 
