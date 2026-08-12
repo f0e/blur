@@ -42,6 +42,8 @@ namespace fonts {
 namespace render {
 	inline float frametime;
 	inline gfx::Size window_size;
+	inline float ui_scale = 1.f;
+	inline float dpi_scale_override = 0.f;
 	inline std::vector<std::function<void()>> late_draw_calls;
 
 	// Texture wrapper class for OpenGL textures
@@ -90,6 +92,8 @@ namespace render {
 		void begin(SDL_Window* window);
 		void end(SDL_Window* window);
 	} inline imgui;
+
+	float get_content_scale(SDL_Window* window);
 
 	void update_window_size(SDL_Window* window);
 	bool init(SDL_Window* window, const SDL_GLContext& context);
