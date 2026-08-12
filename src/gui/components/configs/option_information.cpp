@@ -160,15 +160,20 @@ void configs::option_information(ui::Container& container) {
 		{
 			"deduplicate frames to interpolate input",
 			{
+				"If 'previous to duplicate', duplicate frames after the first will be interpolated to the next unique "
+				"frame. Since we don't know if duplicate frames are early or late, this may result in output not being "
+				"as smooth as it can be. This is the default behaviour.",
+
 				"If 'surrounding frames', the duplicate frame will be ignored, and the frames surrounding it will "
-				"be interpolated. This will result in more interpolation artifacts, but the smoothest output.",
+				"be interpolated. This will result in more interpolation artifacts, but smoother output.",
+
 				"'surrounding frames + future check' is the same as above, but if the next frame (not of this "
 				"duplicate set) is also a duplicate, it'll continue searching until it finds a truly non-duplicate "
-				"frame. This is the new default behaviour.",
-				"If 'previous to duplicate', duplicate frames after the first will be interpolated to the next unique "
-				"frame. This is the old default behaviour.",
+				"frame. This will provide the smoothest output, but will produce a lot of artifacts if footage has a "
+				"lot of duplicate frames.",
+
 				"If 'duplicate to next', duplicate frames up to the last will be interpolated with the previous unique "
-				"frame.",
+				"frame. This is similar to 'previous to duplicate', and the same drawbacks apply.",
 			},
 		},
 		{
