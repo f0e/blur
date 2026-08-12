@@ -203,6 +203,10 @@ begin
   if NeedTensorrt then
   begin
     ExtractWith7Zip(ExpandConstant('{tmp}\vsmlrt-tensorrt.7z.001'), TempDir + '\tensorrt');
+
+    // remove bundled models
+    Exec(ExpandConstant('{cmd}'), '/c rmdir /S /Q "' + TempDir + '\tensorrt\models"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
     Exec(ExpandConstant('{cmd}'), '/c xcopy /E /I /Y "' + TempDir + '\tensorrt\*" "' + PluginsDir + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   end;
 
