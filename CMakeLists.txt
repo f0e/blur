@@ -148,6 +148,7 @@ target_compile_definitions(blur PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
 target_include_directories(blur PRIVATE ${PROJECT_SOURCE_DIR}/dependencies/stb)
 
 # mpv
+find_package(PkgConfig)
 find_package(MPV REQUIRED)
 
 target_include_directories(blur PRIVATE ${MPV_INCLUDE_DIRS})
