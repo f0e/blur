@@ -6,8 +6,6 @@
 #include <misc/freetype/imgui_freetype.h>
 #include <imgui_internal.h>
 
-#include <algorithm>
-
 #include "../fonts/dejavu_sans.h"
 #include "../fonts/nv_garamond.h"
 #include "../fonts/icons.h"
@@ -105,14 +103,58 @@ void render::destroy() {
 	ImGui::DestroyContext();
 }
 
+float render::get_content_scale(SDL_Window* window) {
+	if (dpi_scale_override > 0.f)
+		return dpi_scale_override;
+
+	// SDL_GetWindowDisplayScale combines the retina pixel density with the os content scale.
+	// we only want the content scale part (imgui/sdl handle pixel density on their own), so divide it out.
+	float display_scale = SDL_GetWindowDisplayScale(window);
+	float pixel_density = SDL_GetWindowPixelDensity(window);
+
+	if (display_scale <= 0.f)
+		return 1.f;
+
+	float content_scale = pixel_density > 0.f ? display_scale / pixel_density : display_scale;
+
+	// never shrink the ui below the design size
+	return std::max(content_scale, 1.f);
+}
+
 void render::update_window_size(SDL_Window* window) {
-	SDL_GetWindowSize(window, &window_size.w, &window_size.h);
+	ui_scale = get_content_scale(window);
+
+	int window_w = 0;
+	int window_h = 0;
+	SDL_GetWindowSize(window, &window_w, &window_h);
+
+	// lay out in scaled (logical) units so everything grows with the os content scale
+	window_size.w = (int)std::lround((float)window_w / ui_scale);
+	window_size.h = (int)std::lround((float)window_h / ui_scale);
 }
 
 void render::ImGuiWrap::begin(SDL_Window* window) {
 	// Start the Dear ImGui frame
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplSDL3_NewFrame();
+
+	// apply our extra content/dpi scaling on top of what the sdl backend set up.
+	// window_size (set in update_window_size) is our scaled-down logical layout size, so tell imgui to
+	// project it onto the full framebuffer. this makes everything ui_scale times bigger and, because
+	// imgui rasterises dynamic fonts at DisplaySize * DisplayFramebufferScale, keeps text crisp.
+	// must happen before ImGui::NewFrame(), which consumes io.DisplaySize.
+	{
+		int pixel_w = 0;
+		int pixel_h = 0;
+		SDL_GetWindowSizeInPixels(window, &pixel_w, &pixel_h);
+
+		io->DisplaySize = ImVec2((float)window_size.w, (float)window_size.h);
+		io->DisplayFramebufferScale = ImVec2(
+			window_size.w > 0 ? (float)pixel_w / (float)window_size.w : 1.f,
+			window_size.h > 0 ? (float)pixel_h / (float)window_size.h : 1.f
+		);
+	}
+
 	ImGui::NewFrame();
 
 	drawlist = ImGui::GetForegroundDrawList();

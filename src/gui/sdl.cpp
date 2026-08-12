@@ -7,6 +7,41 @@ namespace {
 	std::unordered_map<SDL_SystemCursor, SDL_Cursor*> cursor_cache;
 	SDL_SystemCursor current_cursor = SDL_SYSTEM_CURSOR_DEFAULT;
 	bool set_cursor_this_frame = false;
+
+	// app config file watching (for live-reloading settings like dpi scale)
+	const Uint64 CONFIG_POLL_INTERVAL_MS = 1000;
+	std::filesystem::file_time_type last_config_write;
+	bool has_config_write_time = false;
+	Uint64 last_config_check_ms = 0;
+
+	void remember_config_write_time() {
+		std::error_code ec;
+		auto write_time = std::filesystem::last_write_time(config_app::get_app_config_path(), ec);
+		if (!ec) {
+			last_config_write = write_time;
+			has_config_write_time = true;
+		}
+	}
+
+	// applies settings that are cached outside of the config (currently just the dpi scale override) and
+	// updates the window minimum size to match. returns true if the ui scale changed.
+	bool apply_app_config(const GlobalAppSettings& config) {
+		float previous_scale = render::dpi_scale_override;
+		render::dpi_scale_override = config.dpi_scale_override;
+
+		if (sdl::window) {
+			// MINIMUM_WINDOW_SIZE is in scaled (logical) design units, but sdl wants window coordinates,
+			// so scale it up by the os content scale to keep the same usable minimum on high-dpi displays
+			float content_scale = render::get_content_scale(sdl::window);
+			SDL_SetWindowMinimumSize(
+				sdl::window,
+				int(sdl::MINIMUM_WINDOW_SIZE.w * content_scale),
+				int(sdl::MINIMUM_WINDOW_SIZE.h * content_scale)
+			);
+		}
+
+		return previous_scale != render::dpi_scale_override;
+	}
 }
 
 tl::expected<void, std::string> sdl::initialise() {
@@ -21,6 +56,11 @@ tl::expected<void, std::string> sdl::initialise() {
 
 	// Initialise notification system
 	auto config = config_app::get_app_config();
+
+	// apply the user's dpi scale override (0 = auto). window doesn't exist yet, so this only sets the
+	// render global; the window minimum size is handled after the window is created below.
+	render::dpi_scale_override = config.dpi_scale_override;
+
 	if (config.render_success_notifications || config.render_failure_notifications) {
 		desktop_notification::initialise(APPLICATION_NAME);
 	}
@@ -68,7 +108,10 @@ tl::expected<void, std::string> sdl::initialise() {
 	if (!window)
 		return tl::unexpected("Failed to create SDL window");
 
-	SDL_SetWindowMinimumSize(window, MINIMUM_WINDOW_SIZE.w, MINIMUM_WINDOW_SIZE.h);
+	// now that the window exists, apply the dpi-dependent window minimum size, and start tracking the
+	// config file's modification time so external edits can be picked up live (see poll_config_reload)
+	apply_app_config(config);
+	remember_config_write_time();
 
 	SDL_AddEventWatch(event_watcher, window);
 
@@ -127,6 +170,8 @@ bool sdl::event_watcher(void* data, SDL_Event* event) {
 			if (win == static_cast<SDL_Window*>(data)) {
 				// gui::renderer::redraw_window(true); // TODO: squishy jelly
 
+				render::update_window_size(sdl::window); // keep dpi scaling in sync while resizing
+
 				render::imgui.begin(sdl::window);
 				render::imgui.end(sdl::window);
 			}
@@ -173,4 +218,30 @@ void sdl::update_vsync() {
 			u::log("switched screen, updated vsync_frame_time. refresh rate: {:.2f} hz", rate);
 		}
 	}
+}
+
+bool sdl::poll_config_reload() {
+	// throttle: statting the file every frame would be wasteful
+	Uint64 now = SDL_GetTicks();
+	if (now - last_config_check_ms < CONFIG_POLL_INTERVAL_MS)
+		return false;
+	last_config_check_ms = now;
+
+	std::error_code ec;
+	auto write_time = std::filesystem::last_write_time(config_app::get_app_config_path(), ec);
+	if (ec)
+		return false; // file missing/unreadable, nothing to do
+
+	if (has_config_write_time && write_time == last_config_write)
+		return false; // unchanged since we last looked
+
+	// the file changed (or this is the first time we've seen it) - reload and re-apply.
+	// note: get_app_config() also rewrites/normalises the file, so re-stat afterwards to store the new
+	// modification time and avoid immediately triggering ourselves again.
+	auto config = config_app::get_app_config();
+	bool scale_changed = apply_app_config(config);
+	remember_config_write_time();
+
+	// only force a redraw if something visible actually changed
+	return scale_changed;
 }

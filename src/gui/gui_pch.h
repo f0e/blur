@@ -3,6 +3,9 @@
 // NOLINTEND(misc-include-cleaner)
 #include <common/common_pch.h> // still need to include here cause cmake cant inherit common projects pch + have project-specific pch
 
+#include <algorithm>
+#include <cmath>
+
 #include "render/primitives/color.h"
 #include "render/primitives/point.h"
 #include "render/primitives/rect.h"

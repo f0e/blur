@@ -1,5 +1,6 @@
 #include "keys.h"
 #include "gui/ui/ui.h"
+#include "gui/render/render.h"
 
 bool keys::process_event(const SDL_Event& event) {
 	if (ui::get_active_element() &&
@@ -30,7 +31,10 @@ bool keys::process_event(const SDL_Event& event) {
 		}
 
 		case SDL_EVENT_MOUSE_MOTION: {
-			mouse_pos = { static_cast<int>(event.motion.x), static_cast<int>(event.motion.y) };
+			mouse_pos = {
+				static_cast<int>(event.motion.x / render::ui_scale),
+				static_cast<int>(event.motion.y / render::ui_scale),
+			};
 			return true;
 		}
 

@@ -24,4 +24,6 @@ namespace sdl {
 	void on_frame_start();
 	void set_cursor(SDL_SystemCursor cursor);
 	void update_vsync();
+
+	bool poll_config_reload();
 }
