@@ -58,10 +58,14 @@ namespace {
 
 					if (progress_callback)
 						progress_callback();
-
-					line.clear();
+				}
+				else {
+					// not a frame update - e.g. a \r-terminated status line from a
+					// TensorRT engine build.
+					state->report_log_line(line);
 				}
 
+				line.clear();
 				continue;
 			}
 
@@ -69,6 +73,8 @@ namespace {
 				vspipe_errors << line << '\n';
 
 				DEBUG_LOG("[vspipe error] {}", line);
+
+				state->report_log_line(line);
 
 				line.clear();
 				continue;
@@ -80,6 +86,7 @@ namespace {
 		if (!line.empty()) {
 			vspipe_errors << line << '\n';
 			DEBUG_LOG("[vspipe error] {}", line);
+			state->report_log_line(line);
 		}
 	}
 
@@ -199,14 +206,18 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 		std::thread ffmpeg_stderr_thread(pump_ffmpeg_stderr, std::ref(ffmpeg_stderr), std::ref(ffmpeg_errors));
 		std::thread ffmpeg_stdout_thread(extract_jpeg_stream, std::ref(ffmpeg_stdout), state);
 
+		// tensorrt spawns trtexec as a grandchild, so group to terminate it as well
+		bp::group vspipe_group;
+
 		auto vspipe_process = u::run_command(
 			blur.vspipe_path,
 			commands.vspipe_video,
 			env,
 			bp::std_out > vspipe_stdout,
 			bp::std_err > vspipe_stderr,
-			bp::std_in < bp::null // stdin is an invalid handle otherwise, which breaks
-		                          // subprocess.run(stdout=sys.stderr) in rife-trt (FUN!)
+			bp::std_in < bp::null, // stdin is an invalid handle otherwise, which breaks
+		                           // subprocess.run(stdout=sys.stderr) in rife-trt (FUN!)
+			vspipe_group
 		);
 
 		auto ffmpeg_process =
@@ -226,8 +237,8 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 		bool killed = false;
 		while (ffmpeg_process.running()) {
 			if (state->wants_stop()) {
-				vspipe_process.terminate();
-				ffmpeg_process.terminate();
+				u::safe_terminate(vspipe_group);
+				u::safe_terminate(ffmpeg_process);
 				killed = true;
 				break;
 			}
@@ -240,8 +251,8 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 			std::this_thread::sleep_for(std::chrono::milliseconds(50));
 		}
 
-		// stop stuff if they're stuck
-		vspipe_process.terminate();
+		// stop stuff if they're stuck (no-op if already terminated above)
+		u::safe_terminate(vspipe_group);
 
 		// wait for threads to finish
 		if (ffmpeg_stdout_thread.joinable())

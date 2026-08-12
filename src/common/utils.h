@@ -421,6 +421,15 @@ namespace u {
 #endif
 	}
 
+	// kill a boost process child or group without throwing.
+	// boost's no-argument terminate() throws if the kill fails.
+	// passing it an error_code picks the noexcept overload, which reports the failure through that instead.
+	template<typename T>
+	inline void safe_terminate(T& process) {
+		std::error_code ec;
+		process.terminate(ec);
+	}
+
 	std::string trim(std::string_view str);
 	std::string random_string(int len);
 	std::vector<std::string> split_string(std::string str, const std::string& delimiter);

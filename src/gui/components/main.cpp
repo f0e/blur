@@ -212,10 +212,13 @@ void main::render_progress(
 			);
 		}
 		else {
+			ui::add_spinner("initialising render spinner", container, 8.f, gfx::Color::white());
+
 			ui::add_text(
 				"initialising render text",
 				container,
-				"Initialising render...",
+				progress.building_engine ? "Building TensorRT engine. This may take a few minutes..."
+										 : "Initialising render...",
 				gfx::Color::white(),
 				fonts::dejavu,
 				FONT_CENTERED_X

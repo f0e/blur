@@ -1,5 +1,18 @@
 #include "render_state.h"
 
+namespace {
+	// printed by vsmlrt.py right before it shells out to trtexec/tensorrt_rtx
+	constexpr std::string_view ENGINE_BUILD_SENTINEL = "[blur] Building TensorRT engine";
+}
+
+void rendering::RenderState::report_log_line(const std::string& line) {
+	if (line.find(ENGINE_BUILD_SENTINEL) == std::string::npos)
+		return;
+
+	std::lock_guard lock(m_mutex);
+	m_progress.building_engine = true;
+}
+
 void rendering::RenderState::report_frame_progress(int current_frame, int total_frames) {
 	std::lock_guard lock(m_mutex);
 

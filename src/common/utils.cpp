@@ -813,7 +813,7 @@ int u::get_fastest_device_index(
 					.count();
 
 			if (elapsed_seconds > fastest_time) {
-				c.terminate();
+				u::safe_terminate(c);
 				killed_early = true;
 			}
 
