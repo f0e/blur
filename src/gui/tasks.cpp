@@ -15,6 +15,44 @@ namespace {
 	size_t pending_index = 0;
 	std::vector<std::shared_ptr<tasks::PendingVideo>> pending_videos;
 	std::mutex pending_videos_mutex;
+
+	void queue_render(const std::shared_ptr<tasks::PendingVideo>& pending_video) {
+		auto app_config = config_app::get_app_config();
+
+		auto queue_config_res = rendering::video_render_queue.add(
+			pending_video->video_path,
+			*pending_video->video_info,
+			{},
+			app_config,
+			{},
+			pending_video->start,
+			pending_video->end,
+			{},
+			[](const rendering::VideoRenderDetails& render,
+		       const tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>>& result) {
+				gui::renderer::on_render_finished(render, result);
+			}
+		);
+
+		// Show notification if config override is used
+		if (app_config.notify_about_config_override) {
+			if (!queue_config_res.is_global_config)
+				gui::components::notifications::add(
+					"Using override config from video folder", ui::NotificationType::INFO
+				);
+		}
+
+		if (queue_config_res.error) {
+			gui::components::notifications::add(
+				std::format(
+					"Failed to queue '{}' for render: {}", pending_video->video_path.stem(), *queue_config_res.error
+				),
+				ui::NotificationType::NOTIF_ERROR,
+				{},
+				std::chrono::duration<float>(6.f)
+			);
+		}
+	}
 }
 
 void tasks::run(const std::vector<std::string>& arguments) {
@@ -171,6 +209,13 @@ void tasks::process_pending_files() {
 		}
 		else {
 			pending_videos[index]->video_info = video_info;
+
+			if (config_app::get_app_config().skip_queue) {
+				auto pending_video = pending_videos[index];
+				pending_videos.erase(pending_videos.begin() + index);
+
+				queue_render(pending_video);
+			}
 		}
 	}
 }
@@ -221,41 +266,7 @@ void tasks::start_pending_videos() {
 		if (!pending_video->video_info)
 			continue;
 
-		auto app_config = config_app::get_app_config();
-
-		auto queue_config_res = rendering::video_render_queue.add(
-			pending_video->video_path,
-			*pending_video->video_info,
-			{},
-			app_config,
-			{},
-			pending_video->start,
-			pending_video->end,
-			{},
-			[](const rendering::VideoRenderDetails& render,
-		       const tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>>& result) {
-				gui::renderer::on_render_finished(render, result);
-			}
-		);
-
-		// Show notification if config override is used
-		if (app_config.notify_about_config_override) {
-			if (!queue_config_res.is_global_config)
-				gui::components::notifications::add(
-					"Using override config from video folder", ui::NotificationType::INFO
-				);
-		}
-
-		if (queue_config_res.error) {
-			gui::components::notifications::add(
-				std::format(
-					"Failed to queue '{}' for render: {}", pending_video->video_path.stem(), *queue_config_res.error
-				),
-				ui::NotificationType::NOTIF_ERROR,
-				{},
-				std::chrono::duration<float>(6.f)
-			);
-		}
+		queue_render(pending_video);
 	}
 }
 

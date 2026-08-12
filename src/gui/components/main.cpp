@@ -325,11 +325,15 @@ void main::render_home(ui::Container& container) {
 main::MainScreen main::screen(ui::Container& container, float delta_time) {
 	static float bar_percent = 0.f;
 
+	auto app_config = config_app::get_app_config();
+
 	const auto& pending = tasks::get_pending_copy();
 
 	if (pending.size() > 0) {
-		render_pending(container, pending);
-		return MainScreen::PENDING;
+		if (!app_config.skip_queue) {
+			render_pending(container, pending);
+			return MainScreen::PENDING;
+		}
 	}
 	else {
 		pending_index = 0;

@@ -21,6 +21,8 @@ struct GlobalAppSettings {
 
 	bool notify_about_config_override = true;
 
+	bool skip_queue = false;
+
 #ifdef __linux__
 	std::string vapoursynth_lib_path;
 #endif
