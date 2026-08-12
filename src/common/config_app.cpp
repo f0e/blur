@@ -17,6 +17,7 @@ void config_app::create(const std::filesystem::path& filepath, const GlobalAppSe
 	output << "- gui" << "\n";
 	output << "window width: " << settings.gui_width << "\n";
 	output << "window height: " << settings.gui_height << "\n";
+	output << "dpi scale (0 = auto): " << settings.dpi_scale_override << "\n";
 	output << "blur amount tied to fps: " << (settings.blur_amount_tied_to_fps ? "true" : "false") << "\n";
 
 	output << "\n";
@@ -57,6 +58,7 @@ GlobalAppSettings config_app::parse(const std::filesystem::path& config_filepath
 
 	config_base::extract_config_value(config_map, "window width", settings.gui_width);
 	config_base::extract_config_value(config_map, "window height", settings.gui_height);
+	config_base::extract_config_value(config_map, "dpi scale (0 = auto)", settings.dpi_scale_override);
 	config_base::extract_config_value(config_map, "blur amount tied to fps", settings.blur_amount_tied_to_fps);
 
 	config_base::extract_config_value(config_map, "preview volume", settings.preview_volume);

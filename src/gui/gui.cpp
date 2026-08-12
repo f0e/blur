@@ -29,6 +29,9 @@ int gui::run() {
 
 		sdl::update_vsync();
 
+		// check if app config was edited & we have to re-render
+		to_render |= sdl::poll_config_reload();
+
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {
 				case SDL_EVENT_QUIT:

@@ -10,6 +10,7 @@ struct GlobalAppSettings {
 	int gui_width = 591;
 	int gui_height = 381;
 	bool blur_amount_tied_to_fps = true;
+	float dpi_scale_override = 0.f; // 0 = auto (use the os content/dpi scale)
 
 	int preview_volume = 70;
 
