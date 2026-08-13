@@ -240,6 +240,16 @@ namespace render {
 
 	void loader(const gfx::Rect& rect, const gfx::Color& color, const std::string& loader_text = "loading...");
 
+	void spinner(
+		const gfx::Point& pos,
+		float radius,
+		const gfx::Color& background_color,
+		const gfx::Color& highlight_color,
+		float thickness = 2.f,
+		float alpha = 1.f,
+		float trail_degrees = 180.f
+	);
+
 	void waveform(
 		const gfx::Rect& rect,
 		const gfx::Rect& active_rect,
