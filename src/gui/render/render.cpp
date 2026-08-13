@@ -682,6 +682,48 @@ void render::loader(const gfx::Rect& rect, const gfx::Color& color, const std::s
 	text(rect.center(), color, loader_text, fonts::dejavu, FONT_CENTERED_X | FONT_CENTERED_Y);
 }
 
+void render::spinner(
+	const gfx::Point& pos,
+	float radius,
+	const gfx::Color& background_color,
+	const gfx::Color& highlight_color,
+	float thickness,
+	float alpha,
+	float trail_degrees
+) {
+	constexpr float SPIN_DEGREES_PER_SECOND = 320.f;
+	constexpr int SPIN_SEGMENTS = 32;
+
+	ImVec2 center = pos;
+
+	// background ring
+	circle_stroke(pos, radius, background_color.adjust_alpha(alpha), thickness, SPIN_SEGMENTS);
+
+	// head ring
+	float head_degree = std::fmod((float)ImGui::GetTime() * SPIN_DEGREES_PER_SECOND, 360.f);
+	float tail_degree = head_degree - trail_degrees;
+
+	for (int i = 0; i < SPIN_SEGMENTS; i++) {
+		float segment_start_fraction = (float)i / SPIN_SEGMENTS;
+		float segment_end_fraction = (float)(i + 1) / SPIN_SEGMENTS;
+
+		float segment_start_angle = u::deg_to_rad(tail_degree + trail_degrees * segment_start_fraction);
+		float segment_end_angle = u::deg_to_rad(tail_degree + trail_degrees * segment_end_fraction);
+
+		ImVec2 segment_start_pos(
+			center.x + std::cos(segment_start_angle) * radius, center.y + std::sin(segment_start_angle) * radius
+		);
+		ImVec2 segment_end_pos(
+			center.x + std::cos(segment_end_angle) * radius, center.y + std::sin(segment_end_angle) * radius
+		);
+
+		gfx::Color segment_color = highlight_color.adjust_alpha(segment_end_fraction * alpha);
+
+		// note: directly calling AddLine for float precision
+		imgui.drawlist->AddLine(segment_start_pos, segment_end_pos, segment_color.to_imgui(), thickness);
+	}
+}
+
 static gfx::Point catmull_rom(
 	const gfx::Point& p0, const gfx::Point& p1, const gfx::Point& p2, const gfx::Point& p3, float t
 ) {

@@ -212,7 +212,7 @@ void main::render_progress(
 			);
 		}
 		else {
-			ui::add_spinner("initialising render spinner", container, 8.f, gfx::Color::white());
+			ui::add_spinner("initialising render spinner", container, 8.f, gfx::Color::white(50));
 
 			ui::add_text(
 				"initialising render text",

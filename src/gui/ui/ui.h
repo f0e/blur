@@ -312,12 +312,15 @@ namespace ui {
 	};
 
 	struct SpinnerElementData {
-		gfx::Color color;
+		gfx::Color background_color;
+		gfx::Color highlight_color;
 		float radius;
 		float thickness;
+		float trail_degrees;
 
 		bool operator==(const SpinnerElementData& other) const {
-			return color == other.color && radius == other.radius && thickness == other.thickness;
+			return background_color == other.background_color && highlight_color == other.highlight_color &&
+			       radius == other.radius && thickness == other.thickness && trail_degrees == other.trail_degrees;
 		}
 	};
 
@@ -728,8 +731,10 @@ namespace ui {
 		const std::string& id,
 		Container& container,
 		float radius = 8.f,
-		gfx::Color color = gfx::Color::white(),
-		float thickness = 2.f
+		gfx::Color background_color = gfx::Color::white(50),
+		gfx::Color highlight_color = gfx::Color::white(),
+		float thickness = 2.f,
+		float trail_degrees = 180.f
 	);
 
 	void add_spacing(Container& container, int spacing);
