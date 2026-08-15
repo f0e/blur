@@ -65,6 +65,11 @@ void configs::about(ui::Container& container) {
 		fonts::dejavu
 	);
 
+	gui::components::update_notice::render(container, ui::UpdateNoticeAlign::CENTER, false);
+
+	if (gui::components::update_notice::is_available())
+		return;
+
 	bool checking = gui::components::update_notice::is_checking();
 
 	std::optional<std::function<void()>> on_press;
@@ -81,6 +86,4 @@ void configs::about(ui::Container& container) {
 		fonts::dejavu,
 		on_press
 	);
-
-	gui::components::update_notice::render(container, ui::UpdateNoticeAlign::CENTER);
 }
