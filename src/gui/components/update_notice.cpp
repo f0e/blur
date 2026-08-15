@@ -15,11 +15,14 @@ namespace {
 	const std::string CANCEL_TEXT = "cancel";
 	const std::string GITHUB_TEXT = "view on github";
 
+	const std::string CHECK_NOTIFICATION_ID = "update check";
+
 	struct {
 		std::optional<updates::UpdateCheckRes> update;
 		bool dismissed = false;
 		bool updating = false;
 		bool cancelling = false;
+		bool checking = false;
 		std::string status_text;
 		float progress = 0.f;
 	} state;
@@ -150,7 +153,54 @@ bool update_notice::is_updating() {
 	return state.updating;
 }
 
-void update_notice::render(ui::Container& container) {
+void update_notice::check_now() {
+	{
+		std::lock_guard<std::mutex> lock(state_mutex);
+		if (state.checking || state.updating)
+			return;
+
+		state.checking = true;
+	}
+
+	std::thread([] {
+		auto res = updates::is_latest_version(config_app::get_app_config().check_beta);
+
+		{
+			std::lock_guard<std::mutex> lock(state_mutex);
+			state.checking = false;
+		}
+
+		if (!res) {
+			gui::components::notifications::add(
+				CHECK_NOTIFICATION_ID,
+				std::format("Failed to check for updates: {}", res.error()),
+				ui::NotificationType::NOTIF_ERROR
+			);
+			return;
+		}
+
+		if (res->is_latest) {
+			gui::components::notifications::add(
+				CHECK_NOTIFICATION_ID,
+				std::format("You're on the latest version (v{})", BLUR_VERSION),
+				ui::NotificationType::SUCCESS
+			);
+			return;
+		}
+
+		// they asked for the check, so show the notice even if this update was dismissed before
+		std::lock_guard<std::mutex> lock(state_mutex);
+		state.update = *res;
+		state.dismissed = false;
+	}).detach();
+}
+
+bool update_notice::is_checking() {
+	std::lock_guard<std::mutex> lock(state_mutex);
+	return state.checking;
+}
+
+void update_notice::render(ui::Container& container, ui::UpdateNoticeAlign align) {
 	updates::UpdateCheckRes update;
 	bool updating = false;
 	std::string status_text;
@@ -176,7 +226,8 @@ void update_notice::render(ui::Container& container) {
 			"",
 			{ { { .text = CANCEL_TEXT, .on_press = cancel_update } } },
 			progress,
-			fonts::dejavu
+			fonts::dejavu,
+			align
 		);
 		return;
 	}
@@ -216,6 +267,7 @@ void update_notice::render(ui::Container& container) {
 		std::format("v{} -> {}", BLUR_VERSION, update.latest_tag),
 		{ top_line, bottom_line },
 		{},
-		fonts::dejavu
+		fonts::dejavu,
+		align
 	);
 }

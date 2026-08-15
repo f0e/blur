@@ -94,10 +94,14 @@ bool render::init(SDL_Window* window, const SDL_GLContext& context) {
 	if (!fonts::icons.init(ICONS_COMPRESSED_DATA, 14.f, &font_cfg))
 		return false;
 
+	initialised = true;
+
 	return true;
 }
 
 void render::destroy() {
+	initialised = false;
+
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplSDL3_Shutdown();
 	ImGui::DestroyContext();
@@ -1010,17 +1014,27 @@ std::vector<std::string> render::wrap_text(
 	return lines;
 }
 
+namespace {
+	SDL_Surface* bytes_to_surface(const void* data, size_t size, const char* type) {
+		SDL_IOStream* io = SDL_IOFromConstMem(data, size);
+		if (!io)
+			return nullptr;
+
+		SDL_Surface* surface = IMG_LoadTyped_IO(io, /*closeio=*/true, type);
+		if (!surface)
+			return nullptr;
+
+		SDL_Surface* rgba = SDL_ConvertSurface(surface, SDL_PIXELFORMAT_RGBA32);
+		SDL_DestroySurface(surface);
+
+		return rgba;
+	}
+}
+
 SDL_Surface* render::jpeg_bytes_to_surface(const void* data, size_t size) {
-	SDL_IOStream* io = SDL_IOFromConstMem(data, size);
-	if (!io)
-		return nullptr;
+	return bytes_to_surface(data, size, "JPG");
+}
 
-	SDL_Surface* surface = IMG_LoadTyped_IO(io, /*closeio=*/true, "JPG");
-	if (!surface)
-		return nullptr;
-
-	SDL_Surface* rgba = SDL_ConvertSurface(surface, SDL_PIXELFORMAT_RGBA32);
-	SDL_DestroySurface(surface);
-
-	return rgba;
+SDL_Surface* render::png_bytes_to_surface(const void* data, size_t size) {
+	return bytes_to_surface(data, size, "PNG");
 }

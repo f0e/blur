@@ -14,7 +14,24 @@ namespace {
 		return ui::hasher(std::format("link {} {} hover", row, index));
 	}
 
-	// each row is packed against the right edge, rows stacked bottom to top
+	// two halves, for gradients that mirror around the middle
+	std::pair<gfx::Rect, gfx::Rect> split_at_center(const gfx::Rect& rect) {
+		gfx::Rect left(rect.x, rect.y, rect.w / 2, rect.h);
+		gfx::Rect right(left.x2(), rect.y, rect.w - left.w, rect.h);
+		return { left, right };
+	}
+
+	int line_width(const std::vector<ui::UpdateNoticeLink>& line, const render::Font& font) {
+		int width = 0;
+		for (const auto& link : line) {
+			if (width > 0)
+				width += LINK_GAP;
+			width += font.calc_size(link.text).w;
+		}
+		return width;
+	}
+
+	// rows stacked bottom to top, each packed against the right edge or centered
 	std::vector<std::vector<gfx::Rect>> get_link_rects(const gfx::Rect& rect, const ui::UpdateNoticeElementData& data) {
 		std::vector<std::vector<gfx::Rect>> rects(data.lines.size());
 
@@ -25,11 +42,13 @@ namespace {
 			const auto& line = data.lines[row];
 			rects[row].resize(line.size());
 
-			int right = rect.x2();
-			for (size_t i = line.size(); i-- > 0;) {
-				int width = data.font->calc_size(line[i].text).w;
-				rects[row][i] = gfx::Rect(right - width, y, width, height);
-				right -= width + LINK_GAP;
+			int width = line_width(line, *data.font);
+			int x = data.align == ui::UpdateNoticeAlign::CENTER ? rect.center().x - (width / 2) : rect.x2() - width;
+
+			for (const auto [i, link] : u::enumerate(line)) {
+				int link_width = data.font->calc_size(link.text).w;
+				rects[row][i] = gfx::Rect(x, y, link_width, height);
+				x += link_width + LINK_GAP;
 			}
 
 			y -= LINE_GAP + height;
@@ -44,7 +63,7 @@ namespace {
 		gfx::Color color = link.primary ? gfx::Color::white(static_cast<uint8_t>(anim * (150.f + (105.f * hover))))
 		                                : gfx::Color::white(static_cast<uint8_t>(anim * (85.f + (95.f * hover))));
 
-		render::text(link_rect.top_right(), color, link.text, font, FONT_RIGHT_ALIGN);
+		render::text(link_rect.top_left(), color, link.text, font);
 
 		// underline fades in on hover so it reads as clickable
 		if (hover > 0.f) {
@@ -85,35 +104,66 @@ void ui::render_update_notice(const Container& container, const AnimatedElement&
 
 	const auto& rect = element.element->rect;
 
-	// top separator
-	gfx::Rect rule_rect(rect.x, rect.y, rect.w, RULE_HEIGHT);
-	render::rect_filled_gradient(
-		rule_rect,
-		render::GradientDirection::GRADIENT_LEFT,
-		{ gfx::Color::white(static_cast<uint8_t>(anim * 40.f)), gfx::Color::white(0) }
-	);
+	bool centered = notice_data.align == UpdateNoticeAlign::CENTER;
 
-	// top separator download progress bar
-	if (notice_data.progress) {
-		gfx::Rect progress_rect = rule_rect;
-		progress_rect.w = static_cast<int>(std::round(rule_rect.w * std::clamp(*notice_data.progress, 0.f, 1.f)));
-		progress_rect.x = rule_rect.x2() - progress_rect.w;
+	gfx::Color rule_color = gfx::Color::white(static_cast<uint8_t>(anim * 40.f));
+
+	// top separator, brightest where the content is anchored and fading away from it
+	gfx::Rect rule_rect(rect.x, rect.y, rect.w, RULE_HEIGHT);
+	if (centered) {
+		auto [left, right] = split_at_center(rule_rect);
 
 		render::rect_filled_gradient(
-			progress_rect,
-			render::GradientDirection::GRADIENT_LEFT,
-			{ gfx::Color::white(static_cast<uint8_t>(anim * 160.f)),
-		      gfx::Color::white(static_cast<uint8_t>(anim * 40.f)) }
+			left, render::GradientDirection::GRADIENT_LEFT, { rule_color, gfx::Color::white(0) }
+		);
+		render::rect_filled_gradient(
+			right, render::GradientDirection::GRADIENT_RIGHT, { rule_color, gfx::Color::white(0) }
+		);
+	}
+	else {
+		render::rect_filled_gradient(
+			rule_rect, render::GradientDirection::GRADIENT_LEFT, { rule_color, gfx::Color::white(0) }
 		);
 	}
 
-	gfx::Point text_pos(rect.x2(), rule_rect.y2() + RULE_GAP);
+	// top separator download progress bar
+	if (notice_data.progress) {
+		gfx::Color progress_color = gfx::Color::white(static_cast<uint8_t>(anim * 160.f));
+
+		gfx::Rect progress_rect = rule_rect;
+		progress_rect.w = static_cast<int>(std::round(rule_rect.w * std::clamp(*notice_data.progress, 0.f, 1.f)));
+
+		if (centered) {
+			// grows out from the middle, matching the fade
+			progress_rect.x = rule_rect.center().x - (progress_rect.w / 2);
+
+			auto [left, right] = split_at_center(progress_rect);
+
+			render::rect_filled_gradient(
+				left, render::GradientDirection::GRADIENT_LEFT, { progress_color, rule_color }
+			);
+			render::rect_filled_gradient(
+				right, render::GradientDirection::GRADIENT_RIGHT, { progress_color, rule_color }
+			);
+		}
+		else {
+			progress_rect.x = rule_rect.x2() - progress_rect.w;
+
+			render::rect_filled_gradient(
+				progress_rect, render::GradientDirection::GRADIENT_LEFT, { progress_color, rule_color }
+			);
+		}
+	}
+
+	unsigned int text_flags = centered ? FONT_CENTERED_X : FONT_RIGHT_ALIGN;
+
+	gfx::Point text_pos(centered ? rect.center().x : rect.x2(), rule_rect.y2() + RULE_GAP);
 	render::text(
 		text_pos,
 		gfx::Color::white(static_cast<uint8_t>(anim * 210.f)),
 		notice_data.status,
 		*notice_data.font,
-		FONT_RIGHT_ALIGN
+		text_flags
 	);
 
 	if (!notice_data.subtext.empty()) {
@@ -124,7 +174,7 @@ void ui::render_update_notice(const Container& container, const AnimatedElement&
 			gfx::Color::white(static_cast<uint8_t>(anim * 105.f)),
 			notice_data.subtext,
 			*notice_data.font,
-			FONT_RIGHT_ALIGN
+			text_flags
 		);
 	}
 
@@ -165,17 +215,12 @@ ui::AnimatedElement* ui::add_update_notice(
 	const std::string& subtext,
 	const std::vector<std::vector<UpdateNoticeLink>>& lines,
 	std::optional<float> progress,
-	const render::Font& font
+	const render::Font& font,
+	UpdateNoticeAlign align
 ) {
 	int max_line_width = 0;
 	for (const auto& line : lines) {
-		int line_width = 0;
-		for (const auto& link : line) {
-			if (line_width > 0)
-				line_width += LINK_GAP;
-			line_width += font.calc_size(link.text).w;
-		}
-		max_line_width = std::max(max_line_width, line_width);
+		max_line_width = std::max(max_line_width, line_width(line, font));
 	}
 
 	gfx::Size size(
@@ -189,7 +234,11 @@ ui::AnimatedElement* ui::add_update_notice(
 			size.h += LINE_GAP + font.height();
 	}
 
-	gfx::Point position(container.get_usable_rect().x2() - size.w, container.current_position.y);
+	// centered notices get placed by the container, right aligned ones pin themselves to its right edge
+	gfx::Point position(
+		align == UpdateNoticeAlign::CENTER ? container.current_position.x : container.get_usable_rect().x2() - size.w,
+		container.current_position.y
+	);
 
 	Element element(
 		id,
@@ -200,6 +249,7 @@ ui::AnimatedElement* ui::add_update_notice(
 			.subtext = subtext,
 			.lines = lines,
 			.progress = progress,
+			.align = align,
 			.font = &font,
 		},
 		render_update_notice,

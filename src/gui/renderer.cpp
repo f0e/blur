@@ -110,8 +110,13 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	);
 
 	gfx::Rect config_preview_content_container_rect = config_preview_container_rect;
-	config_preview_content_container_rect.y = config_preview_header_container_rect.y2();
-	config_preview_content_container_rect.h -= config_preview_header_container_rect.h;
+
+	if (components::configs::selected_config_tab == "blur")
+	{ // only tab where we actually render the header, so offset for it
+	  // (still need to reset it above otherwise to clear it, but rect creation is pointless tbf)
+		config_preview_content_container_rect.y = config_preview_header_container_rect.y2();
+		config_preview_content_container_rect.h -= config_preview_header_container_rect.h;
+	}
 
 	ui::reset_container(
 		config_preview_content_container,
@@ -145,6 +150,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	ui::reset_container(
 		update_container, sdl::window, update_container_rect, 6, ui::Padding{ 0, 0, nav_container_rect.h, 0 }
 	);
+
+	bool render_corner_update_notice = components::update_notice::is_updating();
 
 	switch (screen) {
 		case Screens::TEST: {
@@ -240,12 +247,9 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 				});
 			}
 
-			if (main_screen == components::main::MainScreen::HOME || components::update_notice::is_updating()) {
-				components::update_notice::render(update_container);
-				ui::anchor_elements_to_bottom(update_container);
-			}
-
 			ui::center_elements_in_container(main_container);
+
+			render_corner_update_notice |= main_screen == components::main::MainScreen::HOME;
 
 			break;
 		}
@@ -270,8 +274,17 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 			ui::center_elements_in_container(config_preview_content_container);
 			ui::center_elements_in_container(option_information_container, true, false);
 
+			// the app tab draws its own update notice
+			if (components::configs::selected_config_tab == "app")
+				render_corner_update_notice = false;
+
 			break;
 		}
+	}
+
+	if (render_corner_update_notice) {
+		components::update_notice::render(update_container);
+		ui::anchor_elements_to_bottom(update_container);
 	}
 
 	// config preview cleanup TODO: hate this code pattern? how else do i do this nicely tho?

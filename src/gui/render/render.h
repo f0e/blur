@@ -40,6 +40,7 @@ namespace fonts {
 }
 
 namespace render {
+	inline bool initialised = false;
 	inline float frametime;
 	inline gfx::Size window_size;
 	inline float ui_scale = 1.f;
@@ -279,4 +280,5 @@ namespace render {
 	);
 
 	SDL_Surface* jpeg_bytes_to_surface(const void* data, size_t size);
+	SDL_Surface* png_bytes_to_surface(const void* data, size_t size);
 }

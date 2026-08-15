@@ -5,6 +5,9 @@
 #include "../../ui/ui.h"
 
 namespace gui::components::configs { // naming it configs to avoid conflict with common lol
+	inline const std::vector<std::string> CONFIG_TABS = { "blur", "app" };
+	inline std::string selected_config_tab = CONFIG_TABS[0];
+
 	inline const std::vector<std::string> TABS = { "output video", "weightings" };
 	inline std::string selected_tab = TABS[0];
 	inline std::string old_tab;
@@ -40,7 +43,18 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	void set_interpolated_fps();
 	void set_pre_interpolated_fps();
 
+	void section(
+		ui::Container& container,
+		bool& first_section,
+		const std::string& label,
+		bool* setting = nullptr,
+		bool forced_on = false
+	);
+
 	void options(ui::Container& container);
+	void app_options(ui::Container& container);
+
+	void about(ui::Container& container);
 
 	void config_preview(ui::Container& container);
 	void reset_config_preview();

@@ -289,6 +289,52 @@ void configs::option_information(ui::Container& container) {
 				"Copies over the modified date from the input",
 			},
 		},
+
+		// App settings
+		{
+			"queue preview volume slider",
+			{
+				"Volume of videos previewed in the queue",
+			},
+		},
+		{
+			"skip queue checkbox",
+			{
+				"Starts rendering videos as soon as they're added instead of queueing them up",
+			},
+		},
+		{
+			"render success notifications checkbox",
+			{
+				"Sends a desktop notification when a render finishes",
+			},
+		},
+		{
+			"render failure notifications checkbox",
+			{
+				"Sends a desktop notification when a render fails",
+			},
+		},
+		{
+			"config override notification checkbox",
+			{
+				"Notifies you when a video is rendered using a config file next to it rather than the global config",
+			},
+		},
+		{
+			"clear dismissed update button",
+			{
+				"You dismissed this update, so you won't be notified about it again. Press this to be notified again",
+			},
+		},
+#ifdef __linux__
+		{
+			"vapoursynth lib path input",
+			{
+				"Path to your VapourSynth libraries, used if they aren't in the default location",
+			},
+		},
+#endif
 	};
 
 	std::string hovered = ui::get_hovered_id();
