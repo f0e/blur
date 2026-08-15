@@ -176,20 +176,23 @@ target_link_libraries(
 if(APPLE)
   # Disable precompiled headers for the .mm file and .cpp file
   set_source_files_properties(src/gui/os/desktop_notification_mac.mm
+                              src/gui/os/window_mac.mm
                               PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 
   # Set Objective-C++ compilation for both files
   set_source_files_properties(src/gui/os/desktop_notification_mac.mm
+                              src/gui/os/window_mac.mm
                               PROPERTIES COMPILE_FLAGS "-x objective-c++")
 
-  # Add the .mm file for macOS notifications
-  target_sources(blur PRIVATE src/gui/os/desktop_notification_mac.mm)
+  # Add the .mm files for macOS notifications and window tweaks
+  target_sources(blur PRIVATE src/gui/os/desktop_notification_mac.mm
+                              src/gui/os/window_mac.mm)
 
   target_link_libraries(
     blur
     PRIVATE "-framework CoreVideo" "-framework CoreGraphics"
             "-framework Foundation" "-framework AppKit"
-            "-framework UserNotifications")
+            "-framework UserNotifications" "-framework QuartzCore")
 
   set(MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/src/Info.plist")
 
