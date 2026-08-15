@@ -2,338 +2,661 @@
 #include "../keys.h"
 #include "../../render/render.h"
 
-constexpr int SCROLL_CURSOR_RIGHT_GAP = 15;
+// scroll in chunks rather than by a pixel at a time, so the text doesn't jitter as you type at the edge
+constexpr float SCROLL_CHUNK_FRACTION = 0.25f;
+
+constexpr float CURSOR_BLINK_PERIOD = 1.2f; // seconds for a full blink cycle
+constexpr float CURSOR_BLINK_ON = 0.8f;     // how much of that cycle the caret is visible for
+constexpr float CURSOR_BLINK_SOLID = -0.3f; // grace period after an action where the caret stays solid
+constexpr float CURSOR_WIDTH = 1.f;
 
 namespace {
-	void textedit_layoutrow(StbTexteditRow* r, STB_TEXTEDIT_STRING* str, int n) {
-		if (!str || !str->font || !str->text) { // Safety checks
-			r->num_chars = 0;
-			r->x0 = r->x1 = 0;
-			r->baseline_y_delta = 1.0f; // Avoid division by zero later maybe
-			r->ymin = 0;
-			r->ymax = 1.0f;
-			return;
-		}
-		const render::Font& font = *str->font;
-		const std::string& text = *str->text;
-		int text_len = text.length();
+	// --- UTF-8 -------------------------------------------------------------------------------------------
+	// decoded by hand rather than via imgui's ImTextCharFromUtf8: that lives in imgui_internal.h, which
+	// defines its own IMSTB_TEXTEDIT_* configuration and would fight ours if included here.
 
-		// Basic single-line implementation: find next newline or end of string
-		int start_char = n;
-		start_char = std::max(start_char, 0);
-		start_char = std::min(start_char, text_len);
-
-		int end_char = text_len; // Assume rest of string initially
-		for (int i = start_char; i < text_len; ++i) {
-			if (text[i] == '\n') {
-				end_char = i + 1; // Include the newline in this row's count
-				break;
-			}
-		}
-		r->num_chars = end_char - start_char;
-		r->num_chars = std::max(r->num_chars, 0);
-
-		// Calculate width
-		std::string sub;
-		if (r->num_chars > 0) {
-			// Make sure substr args are valid
-			int count = r->num_chars;
-			if (start_char + count > text_len) {
-				count = text_len - start_char;
-			}
-			if (count > 0) {
-				sub = text.substr(start_char, count);
-				// Trim trailing newline for width calculation if it exists
-				if (!sub.empty() && sub.back() == '\n') {
-					sub.pop_back();
-				}
-			}
-		}
-		gfx::Size text_size = font.calc_size(sub);
-
-		r->x0 = 0; // Relative to the text starting position
-		r->x1 = static_cast<float>(text_size.w);
-		r->baseline_y_delta = static_cast<float>(font.height());
-		r->ymin = 0;
-		r->ymax = static_cast<float>(font.height());
-	}
-
-	float textedit_getwidth(STB_TEXTEDIT_STRING* str, int n, int i) {
-		if (!str || !str->font || !str->text)
-			return 0;
-
-		// bounds check
-		if (n + i < 0 || n + i >= str->text->length())
-			return 0;
-
-		std::array<char, 2> c_str = { (*(str->text))[n + i], 0 };
-		return static_cast<float>(str->font->calc_size(c_str.data()).w);
-	}
-
-	void textedit_deletechars(STB_TEXTEDIT_STRING* str, int i, int n) {
-		if (!str || !str->text)
-			return; // Safety check
-
-		int current_len = str->text->length();
-		i = std::max(i, 0);
-
-		if (i >= current_len) {
-			return;
-		} // Cannot delete past end
-
-		if (i + n > current_len) {
-			n = current_len - i; // Adjust count if it goes past end
-		}
-
-		if (n <= 0) {
-			return;
-		}
-
-		str->text->erase(i, n);
-		if (str->on_change) {
-			(*str->on_change)(*str->text);
-		}
-	}
-
-	int textedit_insertchars(STB_TEXTEDIT_STRING* str, int i, const STB_TEXTEDIT_CHARTYPE* c, int n) {
-		if (!str || !str->text)
-			return 0;
-
-		int current_len = str->text->length();
-		i = std::clamp(i, 0, current_len);
-		if (n <= 0) {
+	int utf8_seq_len(unsigned char lead) {
+		if (lead < 0x80)
 			return 1;
-		}
-
-		// Insert `n` characters starting from `c`
-		str->text->insert(i, std::string(c, n));
-
-		if (str->on_change) {
-			(*str->on_change)(*str->text);
-		}
-		return 1;
+		if ((lead & 0xE0) == 0xC0)
+			return 2;
+		if ((lead & 0xF0) == 0xE0)
+			return 3;
+		if ((lead & 0xF8) == 0xF0)
+			return 4;
+		return 1; // invalid lead byte, treat as one byte so we always make progress
 	}
 
-	int textedit_keytotext(int key) {
-		// This function remains largely unused as we handle input via SDL events
-		return -1;
+	bool utf8_is_continuation(unsigned char c) {
+		return (c & 0xC0) == 0x80;
 	}
 
-	bool is_word_boundary(char c) {
-		return (std::isspace(c) != 0) || (std::ispunct(c) != 0);
-	}
-
-	int move_word_left(STB_TEXTEDIT_STRING* str, int c) {
-		if (c <= 0)
+	unsigned int utf8_decode(const char* p, const char* end) {
+		if (p >= end)
 			return 0;
 
-		// Skip spaces backwards
-		while (c > 0 && is_word_boundary((*str->text)[c - 1]))
-			c--;
+		auto lead = static_cast<unsigned char>(*p);
+		int len = utf8_seq_len(lead);
+		if (len == 1 || p + len > end)
+			return lead;
 
-		// Skip non-spaces backwards
-		while (c > 0 && !is_word_boundary((*str->text)[c - 1]))
-			c--;
+		static constexpr std::array<unsigned int, 5> lead_mask = { 0, 0x7F, 0x1F, 0x0F, 0x07 };
+		unsigned int c = lead & lead_mask[len];
+		for (int i = 1; i < len; ++i)
+			c = (c << 6) | (static_cast<unsigned char>(p[i]) & 0x3F);
 
 		return c;
 	}
 
-	int move_word_right(STB_TEXTEDIT_STRING* str, int c) {
-		int len = STB_TEXTEDIT_STRINGLEN(str);
-		if (c >= len)
-			return len;
+	int string_len(IMSTB_TEXTEDIT_STRING* str) {
+		return str && str->text ? static_cast<int>(str->text->length()) : 0;
+	}
 
-		// Skip spaces forward
-		while (c < len && is_word_boundary((*str->text)[c]))
-			c++;
+	int textedit_getnextcharindex(IMSTB_TEXTEDIT_STRING* str, int idx) {
+		int len = string_len(str);
+		if (idx >= len)
+			return len + 1; // matches imgui: signals "past the end" rather than clamping
 
-		// Skip non-spaces forward
-		while (c < len && !is_word_boundary((*str->text)[c]))
-			c++;
+		int next = idx + utf8_seq_len(static_cast<unsigned char>((*str->text)[idx]));
+		return std::min(next, len);
+	}
 
-		return c;
+	int textedit_getprevcharindex(IMSTB_TEXTEDIT_STRING* str, int idx) {
+		if (idx <= 0)
+			return -1;
+
+		int i = idx - 1;
+		// walk back over continuation bytes. a codepoint is at most 4 bytes, so cap the walk to keep a
+		// malformed sequence from running to the start of the string
+		for (int steps = 0; i > 0 && steps < 3 && utf8_is_continuation(static_cast<unsigned char>((*str->text)[i]));
+		     ++steps)
+			i--;
+
+		return i;
 	}
 }
 
-#define STB_TEXTEDIT_MOVEWORDRIGHT move_word_right
-#define STB_TEXTEDIT_MOVEWORDLEFT  move_word_left
+#define IMSTB_TEXTEDIT_GETNEXTCHARINDEX textedit_getnextcharindex
+#define IMSTB_TEXTEDIT_GETPREVCHARINDEX textedit_getprevcharindex
+#define IMSTB_TEXTEDIT_GETWIDTH_NEWLINE (-1.0f)
 
-#define STB_TEXTEDIT_IMPLEMENTATION
-#include <stb_textedit.h>
+namespace {
+	// --- measurement -------------------------------------------------------------------------------------
+	// render::Font::calc_size truncates to int, which is fine for layout but not here: stb sums per-character
+	// widths and compares them against whole-run widths, so the two have to agree at float precision or the
+	// caret drifts away from the glyphs on longer strings.
+
+	float measure(const render::Font& font, const char* begin, const char* end) {
+		if (!font || begin >= end)
+			return 0.f;
+
+		return font.im_font()->CalcTextSizeA(font.size(), FLT_MAX, 0.f, begin, end).x;
+	}
+
+	float measure(const render::Font& font, const std::string& text, int offset, int count) {
+		const char* data = text.data();
+		return measure(font, data + offset, data + offset + count);
+	}
+
+	// --- stb_textedit callbacks --------------------------------------------------------------------------
+
+	void textedit_layoutrow(StbTexteditRow* r, IMSTB_TEXTEDIT_STRING* str, int n) {
+		if (!str || !str->font || !str->text) {
+			r->num_chars = 0;
+			r->x0 = r->x1 = 0;
+			r->baseline_y_delta = 1.f;
+			r->ymin = 0;
+			r->ymax = 1.f;
+			return;
+		}
+
+		const render::Font& font = *str->font;
+		const std::string& text = *str->text;
+		int len = static_cast<int>(text.length());
+
+		int start_char = std::clamp(n, 0, len);
+
+		// single line: run to the next newline, or the end of the string
+		int end_char = len;
+		for (int i = start_char; i < len; ++i) {
+			if (text[i] == '\n') {
+				end_char = i + 1; // the newline belongs to this row
+				break;
+			}
+		}
+
+		r->num_chars = std::max(end_char - start_char, 0);
+
+		// measure without the trailing newline
+		int measure_count = r->num_chars;
+		if (measure_count > 0 && text[start_char + measure_count - 1] == '\n')
+			measure_count--;
+
+		r->x0 = 0.f; // relative to the text origin
+		r->x1 = measure(font, text, start_char, measure_count);
+		r->baseline_y_delta = static_cast<float>(font.height());
+		r->ymin = 0.f;
+		r->ymax = static_cast<float>(font.height());
+	}
+
+	float textedit_getwidth(IMSTB_TEXTEDIT_STRING* str, int n, int i) {
+		if (!str || !str->font || !str->text)
+			return 0.f;
+
+		int len = string_len(str);
+		int idx = n + i;
+		if (idx < 0 || idx >= len)
+			return 0.f;
+
+		if ((*str->text)[idx] == '\n')
+			return IMSTB_TEXTEDIT_GETWIDTH_NEWLINE;
+
+		// measure the whole codepoint, not the single byte the old implementation used
+		int seq = std::min(utf8_seq_len(static_cast<unsigned char>((*str->text)[idx])), len - idx);
+		return measure(*str->font, *str->text, idx, seq);
+	}
+
+	void textedit_deletechars(IMSTB_TEXTEDIT_STRING* str, int i, int n) {
+		if (!str || !str->text || str->read_only)
+			return;
+
+		int len = string_len(str);
+		i = std::max(i, 0);
+		if (i >= len)
+			return;
+
+		n = std::min(n, len - i);
+		if (n <= 0)
+			return;
+
+		str->text->erase(i, n);
+
+		if (str->on_change)
+			(*str->on_change)(*str->text);
+	}
+
+	// returns the number of characters actually inserted (imgui's fork changed this from a 0/1 bool so that
+	// partial insertion works)
+	int textedit_insertchars(IMSTB_TEXTEDIT_STRING* str, int i, const IMSTB_TEXTEDIT_CHARTYPE* c, int n) {
+		if (!str || !str->text || str->read_only || n <= 0)
+			return 0;
+
+		i = std::clamp(i, 0, string_len(str));
+		str->text->insert(i, std::string(c, n));
+
+		if (str->on_change)
+			(*str->on_change)(*str->text);
+
+		return n;
+	}
+
+	// --- word movement -----------------------------------------------------------------------------------
+	// ported from imgui's InputTextEx so double-click and ctrl+arrow agree with what the OS does
+
+	bool is_blank(unsigned int c) {
+		return c == ' ' || c == '\t' || c == 0x3000; // includes the ideographic space
+	}
+
+	bool is_separator(unsigned int c) {
+		static constexpr std::array<unsigned int, 29> separators = {
+			',', 0x3001, '.', 0x3002, ';', 0xFF1B, '(',  0xFF08, ')', 0xFF09, '{',    0xFF5B, '}',  0xFF5D, '[', 0x300C,
+			']', 0x300D, '|', 0xFF5C, '!', 0xFF01, '\\', 0xFFE5, '/', 0x30FB, 0xFF0F, '\n',   '\r',
+		};
+
+		return std::ranges::find(separators, c) != separators.end();
+	}
+
+	unsigned int char_at(IMSTB_TEXTEDIT_STRING* str, int idx) {
+		const char* data = str->text->data();
+		return utf8_decode(data + idx, data + string_len(str));
+	}
+
+	bool is_word_boundary_from_right(IMSTB_TEXTEDIT_STRING* str, int idx) {
+		if (idx <= 0)
+			return false;
+
+		unsigned int curr_c = char_at(str, idx);
+		unsigned int prev_c = char_at(str, std::max(textedit_getprevcharindex(str, idx), 0));
+
+		bool prev_white = is_blank(prev_c);
+		bool prev_separ = is_separator(prev_c);
+		bool curr_white = is_blank(curr_c);
+		bool curr_separ = is_separator(curr_c);
+
+		return ((prev_white || prev_separ) && !(curr_separ || curr_white)) || (curr_separ && !prev_separ);
+	}
+
+	bool is_word_boundary_from_left(IMSTB_TEXTEDIT_STRING* str, int idx) {
+		if (idx <= 0)
+			return false;
+
+		unsigned int prev_c = char_at(str, idx);
+		unsigned int curr_c = char_at(str, std::max(textedit_getprevcharindex(str, idx), 0));
+
+		bool prev_white = is_blank(prev_c);
+		bool prev_separ = is_separator(prev_c);
+		bool curr_white = is_blank(curr_c);
+		bool curr_separ = is_separator(curr_c);
+
+		return (prev_white && !(curr_separ || curr_white)) || (curr_separ && !prev_separ);
+	}
+
+	int move_word_left(IMSTB_TEXTEDIT_STRING* str, int idx) {
+		idx = textedit_getprevcharindex(str, idx);
+		while (idx >= 0 && !is_word_boundary_from_right(str, idx))
+			idx = textedit_getprevcharindex(str, idx);
+
+		return idx < 0 ? 0 : idx;
+	}
+
+	// mac stops at the end of a word, windows at the start of the next one
+	int move_word_right_mac(IMSTB_TEXTEDIT_STRING* str, int idx) {
+		int len = string_len(str);
+		idx = textedit_getnextcharindex(str, idx);
+		while (idx < len && !is_word_boundary_from_left(str, idx))
+			idx = textedit_getnextcharindex(str, idx);
+
+		return std::min(idx, len);
+	}
+
+	int move_word_right_win(IMSTB_TEXTEDIT_STRING* str, int idx) {
+		int len = string_len(str);
+		idx = textedit_getnextcharindex(str, idx);
+		while (idx < len && !is_word_boundary_from_right(str, idx))
+			idx = textedit_getnextcharindex(str, idx);
+
+		return std::min(idx, len);
+	}
+
+	int move_word_right(IMSTB_TEXTEDIT_STRING* str, int idx) {
+#ifdef __APPLE__
+		return move_word_right_mac(str, idx);
+#else
+		return move_word_right_win(str, idx);
+#endif
+	}
+}
+
+#define STB_TEXTEDIT_STRINGLEN(obj)  string_len(obj)
+#define STB_TEXTEDIT_LAYOUTROW       textedit_layoutrow
+#define STB_TEXTEDIT_GETWIDTH        textedit_getwidth
+#define STB_TEXTEDIT_GETCHAR(obj, i) ((*(obj)->text)[(i)])
+#define STB_TEXTEDIT_NEWLINE         '\n'
+#define STB_TEXTEDIT_DELETECHARS     textedit_deletechars
+#define STB_TEXTEDIT_INSERTCHARS     textedit_insertchars
+#define STB_TEXTEDIT_IS_SPACE(ch)    is_blank(static_cast<unsigned char>(ch))
+#define STB_TEXTEDIT_MOVEWORDLEFT    move_word_left
+#define STB_TEXTEDIT_MOVEWORDRIGHT   move_word_right
+
+// note: STB_TEXTEDIT_KEYTOTEXT is deliberately left undefined. the fork routes character input through
+// stb_textedit_text() instead, which is what makes multi-byte input work.
+
+// sentinel key values, deliberately not overlapping SDL scancodes. the old mapping reused scancodes and or'd
+// in a ctrl bit that the event handler never actually set, which silently broke undo/redo.
+#define STB_TEXTEDIT_K_LEFT      0x200000
+#define STB_TEXTEDIT_K_RIGHT     0x200001
+#define STB_TEXTEDIT_K_UP        0x200002
+#define STB_TEXTEDIT_K_DOWN      0x200003
+#define STB_TEXTEDIT_K_LINESTART 0x200004
+#define STB_TEXTEDIT_K_LINEEND   0x200005
+#define STB_TEXTEDIT_K_TEXTSTART 0x200006
+#define STB_TEXTEDIT_K_TEXTEND   0x200007
+#define STB_TEXTEDIT_K_DELETE    0x200008
+#define STB_TEXTEDIT_K_BACKSPACE 0x200009
+#define STB_TEXTEDIT_K_UNDO      0x20000A
+#define STB_TEXTEDIT_K_REDO      0x20000B
+#define STB_TEXTEDIT_K_WORDLEFT  0x20000C
+#define STB_TEXTEDIT_K_WORDRIGHT 0x20000D
+#define STB_TEXTEDIT_K_PGUP      0x20000E
+#define STB_TEXTEDIT_K_PGDOWN    0x20000F
+#define STB_TEXTEDIT_K_SHIFT     0x400000
+
+#define IMSTB_TEXTEDIT_IMPLEMENTATION
+#include <imstb_textedit.h>
+
+namespace {
+	// translates an SDL key event into an stb key, or 0 if the key isn't a text-editing key.
+	// shortcuts (cut/copy/paste/select all/undo/redo) are handled separately in handle_text_input_event.
+	int translate_key(SDL_Scancode scan, bool ctrl, bool shift, bool alt, bool super) {
+#ifdef __APPLE__
+		// mac: alt moves by word, cmd jumps to line/document bounds
+		bool word_move = alt;
+		bool doc_move = super;
+#else
+		bool word_move = ctrl;
+		bool doc_move = ctrl;
+		(void)alt;
+		(void)super;
+#endif
+
+		int key = 0;
+
+		switch (scan) {
+			case SDL_SCANCODE_LEFT:
+				key = word_move ? STB_TEXTEDIT_K_WORDLEFT : (doc_move ? STB_TEXTEDIT_K_LINESTART : STB_TEXTEDIT_K_LEFT);
+				break;
+			case SDL_SCANCODE_RIGHT:
+				key = word_move ? STB_TEXTEDIT_K_WORDRIGHT : (doc_move ? STB_TEXTEDIT_K_LINEEND : STB_TEXTEDIT_K_RIGHT);
+				break;
+			case SDL_SCANCODE_UP:
+				key = doc_move ? STB_TEXTEDIT_K_TEXTSTART : STB_TEXTEDIT_K_UP;
+				break;
+			case SDL_SCANCODE_DOWN:
+				key = doc_move ? STB_TEXTEDIT_K_TEXTEND : STB_TEXTEDIT_K_DOWN;
+				break;
+			case SDL_SCANCODE_HOME:
+				key = ctrl ? STB_TEXTEDIT_K_TEXTSTART : STB_TEXTEDIT_K_LINESTART;
+				break;
+			case SDL_SCANCODE_END:
+				key = ctrl ? STB_TEXTEDIT_K_TEXTEND : STB_TEXTEDIT_K_LINEEND;
+				break;
+			case SDL_SCANCODE_PAGEUP:
+				key = STB_TEXTEDIT_K_PGUP;
+				break;
+			case SDL_SCANCODE_PAGEDOWN:
+				key = STB_TEXTEDIT_K_PGDOWN;
+				break;
+			case SDL_SCANCODE_DELETE:
+				key = STB_TEXTEDIT_K_DELETE;
+				break;
+			case SDL_SCANCODE_BACKSPACE:
+				key = STB_TEXTEDIT_K_BACKSPACE;
+				break;
+			default:
+				return 0;
+		}
+
+		if (shift)
+			key |= STB_TEXTEDIT_K_SHIFT;
+
+		return key;
+	}
+
+	bool key_edits_text(int key) {
+		int base = key & ~STB_TEXTEDIT_K_SHIFT;
+		return base == STB_TEXTEDIT_K_DELETE || base == STB_TEXTEDIT_K_BACKSPACE || base == STB_TEXTEDIT_K_UNDO ||
+		       base == STB_TEXTEDIT_K_REDO;
+	}
+
+	void copy_selection_to_clipboard(
+		const ui::helpers::text_input::TextInputData& input_data, const STB_TexteditState& edit_state
+	) {
+		int start = edit_state.select_start;
+		int end = edit_state.select_end;
+		if (start > end)
+			std::swap(start, end);
+
+		SDL_SetClipboardText(input_data.text->substr(start, end - start).c_str());
+	}
+}
 
 float ui::helpers::text_input::get_cursor_x(
 	const ui::helpers::text_input::TextInputData& input_data, int cursor_pos, const gfx::Point& text_start_pos
 ) {
 	if (!input_data.text || !input_data.font)
-		return text_start_pos.x;
+		return static_cast<float>(text_start_pos.x);
 
 	cursor_pos = std::clamp(cursor_pos, 0, static_cast<int>(input_data.text->length()));
-	auto text_before_cursor = input_data.text->substr(0, cursor_pos);
 
-	return text_start_pos.x + input_data.font->calc_size(text_before_cursor).w;
+	return static_cast<float>(text_start_pos.x) + measure(*input_data.font, *input_data.text, 0, cursor_pos);
 }
 
 bool ui::helpers::text_input::has_selection(const STB_TexteditState& state) {
 	return STB_TEXT_HAS_SELECTION(&state);
 }
 
-void ui::helpers::text_input::click(STB_TEXTEDIT_STRING* str, STB_TexteditState* state, float x, float y) {
+void ui::helpers::text_input::click(IMSTB_TEXTEDIT_STRING* str, STB_TexteditState* state, float x, float y) {
 	stb_textedit_click(str, state, x, y);
 }
 
-void ui::helpers::text_input::drag(STB_TEXTEDIT_STRING* str, STB_TexteditState* state, float x, float y) {
+void ui::helpers::text_input::drag(IMSTB_TEXTEDIT_STRING* str, STB_TexteditState* state, float x, float y) {
 	stb_textedit_drag(str, state, x, y);
 }
 
-void ui::helpers::text_input::clamp(STB_TEXTEDIT_STRING* str, STB_TexteditState* state) {
+void ui::helpers::text_input::clamp(IMSTB_TEXTEDIT_STRING* str, STB_TexteditState* state) {
 	stb_textedit_clamp(str, state);
 }
 
-void ui::helpers::text_input::select_all(STB_TEXTEDIT_STRING* str, STB_TexteditState* state) {
-	int text_length = str->text->length();
+void ui::helpers::text_input::select_all(IMSTB_TEXTEDIT_STRING* str, STB_TexteditState* state) {
 	state->select_start = 0;
-	state->select_end = text_length;
-	state->cursor = state->select_start;
+	state->select_end = string_len(str);
+	state->cursor = state->select_end;
+	state->has_preferred_x = 0;
+}
+
+void ui::helpers::text_input::cursor_anim_reset(TextInputStateInternal& state) {
+	// negative means the caret draws solid for a moment before it starts blinking again
+	state.cursor_anim = CURSOR_BLINK_SOLID;
+}
+
+void ui::helpers::text_input::handle_mouse(
+	TextInputData& input_data,
+	TextInputStateInternal& state,
+	const gfx::Point& text_relative_pos,
+	bool hovered,
+	bool pressed,
+	int click_count,
+	bool shift
+) {
+	// the fork dereferences str->Stb, and element data can be rebuilt between frames, so keep it fresh here
+	// rather than relying on it having been set once at creation
+	input_data.Stb = &state.edit_state;
+
+	auto x = static_cast<float>(text_relative_pos.x);
+	auto y = static_cast<float>(text_relative_pos.y);
+
+	// the click count stays set until the next press, so gate on a fresh press or we'd re-select the word on
+	// every frame the mouse merely hovers after a double click
+	if (pressed && hovered && click_count >= 2 && !shift) {
+		stb_textedit_click(&input_data, &state.edit_state, x, y);
+
+		// alternate word / line selection as the click count keeps going up, matching imgui
+		if ((click_count - 2) % 2 == 0) {
+			// double click: select the word under the cursor. always uses the mac-style word advance, since
+			// selecting up to the end of the word is what every platform does on double click
+			bool at_line_start =
+				state.edit_state.cursor == 0 || (*input_data.text)[state.edit_state.cursor - 1] == '\n';
+
+			if (has_selection(state.edit_state) || !at_line_start)
+				stb_textedit_key(&input_data, &state.edit_state, STB_TEXTEDIT_K_WORDLEFT);
+
+			if (!has_selection(state.edit_state))
+				stb_textedit_prep_selection_at_cursor(&state.edit_state);
+
+			state.edit_state.cursor = move_word_right_mac(&input_data, state.edit_state.cursor);
+			state.edit_state.select_end = state.edit_state.cursor;
+			stb_textedit_clamp(&input_data, &state.edit_state);
+		}
+		else {
+			// triple click: select the whole line
+			stb_textedit_key(&input_data, &state.edit_state, STB_TEXTEDIT_K_LINESTART);
+			stb_textedit_key(&input_data, &state.edit_state, STB_TEXTEDIT_K_LINEEND | STB_TEXTEDIT_K_SHIFT);
+		}
+
+		state.selected_all_mouse_lock = true;
+		cursor_anim_reset(state);
+		return;
+	}
+
+	if (pressed) {
+		if (hovered && !state.selected_all_mouse_lock) {
+			// shift-click extends the existing selection instead of starting a new one
+			if (shift)
+				stb_textedit_drag(&input_data, &state.edit_state, x, y);
+			else
+				stb_textedit_click(&input_data, &state.edit_state, x, y);
+
+			cursor_anim_reset(state);
+		}
+	}
+	else if (keys::is_mouse_dragging() && !state.selected_all_mouse_lock) {
+		stb_textedit_drag(&input_data, &state.edit_state, x, y);
+		cursor_anim_reset(state);
+		state.cursor_follow = true;
+	}
+
+	// is_mouse_dragging rather than is_mouse_down: claiming the press moves the button from "pressed" to
+	// "held", so is_mouse_down goes false while the button is still physically down
+	if (!keys::is_mouse_dragging())
+		state.selected_all_mouse_lock = false;
 }
 
 void ui::helpers::text_input::handle_text_input_event(
 	TextInputData& input_data, TextInputStateInternal& state, const SDL_Event& event
 ) {
+	input_data.Stb = &state.edit_state; // see handle_mouse
+
 	switch (event.type) {
 		case SDL_EVENT_TEXT_INPUT: {
-			// Character input - pass directly to stb_textedit_key
-			// STB expects int, char is fine but cast for clarity/safety if needed
-			// Handle multi-byte UTF-8 chars in the string correctly
-			const char* text_input = event.text.text;
-			stb_textedit_paste(
-				&input_data, &state.edit_state, text_input, strlen(text_input)
-			); // Use paste for multi-char input potentially
-			   // OR loop through bytes if stb_textedit_key expects single chars
-			   // for (int i = 0; text_input[i] != '\0'; ++i) {
-			   //    stb_textedit_key(&input_data, &state.edit_state, (STB_TEXTEDIT_KEYTYPE)text_input[i]);
-			   // }
+			if (input_data.read_only)
+				break;
+
+			// stb_textedit_text() rather than _paste(): it's the fork's UTF-8 aware entry point for character
+			// input, and unlike paste it respects single-line mode and insert mode
+			const char* text = event.text.text;
+			stb_textedit_text(&input_data, &state.edit_state, text, static_cast<int>(strlen(text)));
+
+			state.composition.clear();
+			state.cursor_follow = true;
+			cursor_anim_reset(state);
 			break;
 		}
 
 		case SDL_EVENT_KEY_DOWN: {
 			SDL_Scancode scan = event.key.scancode;
-			SDL_Keymod mod = SDL_GetModState();
+
+			// the modifiers recorded on the event, not SDL_GetModState(). events sit in text_event_queue until
+			// the ui updates, so by the time we get here the user may already have let go of ctrl - which made
+			// shortcuts (ctrl+a, ctrl+z, ...) silently no-op depending on frame timing
+			SDL_Keymod mod = event.key.mod;
+
+			bool ctrl = (mod & SDL_KMOD_CTRL) != 0u;
+			bool shift = (mod & SDL_KMOD_SHIFT) != 0u;
+			bool alt = (mod & SDL_KMOD_ALT) != 0u;
+			bool super = (mod & SDL_KMOD_GUI) != 0u;
 
 #ifdef __APPLE__
-			bool is_cmd = (mod & SDL_KMOD_GUI) != 0u;
-			bool is_shortcut = (mod & SDL_KMOD_GUI) != 0u; // Use Cmd for shortcuts
+			bool is_shortcut = super; // cmd
+			bool word_move = alt;
 #else
-			bool is_cmd = (mod & SDL_KMOD_CTRL) != 0u;
-			bool is_shortcut = (mod & SDL_KMOD_CTRL) != 0u; // Use Ctrl for shortcuts
+			bool is_shortcut = ctrl;
+			bool word_move = ctrl;
 #endif
-			bool is_ctrl = (mod & SDL_KMOD_CTRL) != 0u; // true Ctrl key
-			bool is_shift = (mod & SDL_KMOD_SHIFT) != 0u;
-			bool is_alt = (mod & SDL_KMOD_ALT) != 0u;
 
-			int stb_key = 0;
+			// movement and deletion first: on windows/linux these share the ctrl modifier with the clipboard
+			// shortcuts below, and checking shortcuts first swallowed every ctrl+arrow / ctrl+home
+			if (int key = translate_key(scan, ctrl, shift, alt, super)) {
+				if (!input_data.read_only || !key_edits_text(key)) {
+					int base = key & ~STB_TEXTEDIT_K_SHIFT;
+					bool deleting = base == STB_TEXTEDIT_K_BACKSPACE || base == STB_TEXTEDIT_K_DELETE;
 
-			// Handle special movement (word, line jump)
+					// stb has no "delete word" key, so select the word first and let the delete take the
+					// selection out - this is how imgui does ctrl+backspace too
+					if (deleting && !has_selection(state.edit_state)) {
+						if (word_move) {
+							stb_textedit_key(
+								&input_data,
+								&state.edit_state,
+								(base == STB_TEXTEDIT_K_BACKSPACE ? STB_TEXTEDIT_K_WORDLEFT
+							                                      : STB_TEXTEDIT_K_WORDRIGHT) |
+									STB_TEXTEDIT_K_SHIFT
+							);
+						}
 #ifdef __APPLE__
-			if (scan == SDL_SCANCODE_LEFT) {
-				if (is_alt)
-					stb_key = STB_TEXTEDIT_K_WORDLEFT;
-				else if (is_cmd)
-					stb_key = STB_TEXTEDIT_K_LINESTART;
-			}
-			else if (scan == SDL_SCANCODE_RIGHT) {
-				if (is_alt)
-					stb_key = STB_TEXTEDIT_K_WORDRIGHT;
-				else if (is_cmd)
-					stb_key = STB_TEXTEDIT_K_LINEEND;
-			}
-			else if (scan == SDL_SCANCODE_UP) {
-				if (is_cmd)
-					stb_key = STB_TEXTEDIT_K_TEXTSTART;
-			}
-			else if (scan == SDL_SCANCODE_DOWN) {
-				if (is_cmd)
-					stb_key = STB_TEXTEDIT_K_TEXTEND;
-			}
-#else
-			if (scan == SDL_SCANCODE_LEFT && is_ctrl)
-				stb_key = STB_TEXTEDIT_K_WORDLEFT;
-			else if (scan == SDL_SCANCODE_RIGHT && is_ctrl)
-				stb_key = STB_TEXTEDIT_K_WORDRIGHT;
-			else if (scan == SDL_SCANCODE_UP && is_ctrl)
-				stb_key = STB_TEXTEDIT_K_TEXTSTART;
-			else if (scan == SDL_SCANCODE_DOWN && is_ctrl)
-				stb_key = STB_TEXTEDIT_K_TEXTEND;
+						else if (ctrl && !alt && !super) {
+							// mac: ctrl+backspace deletes to the start of the line
+							if (base == STB_TEXTEDIT_K_BACKSPACE)
+								stb_textedit_key(
+									&input_data, &state.edit_state, STB_TEXTEDIT_K_LINESTART | STB_TEXTEDIT_K_SHIFT
+								);
+						}
 #endif
+					}
 
-			if (stb_key == 0) {
-				// No special movement: normal keys
-				stb_key = scan;
-			}
+					stb_textedit_key(&input_data, &state.edit_state, key);
+				}
 
-			// If Shift is held, apply shift modifier now
-			if (is_shift) {
-				stb_key |= STB_TEXTEDIT_K_SHIFT;
+				state.cursor_follow = true;
+				cursor_anim_reset(state);
+				keys::on_key_press_handled(scan);
+				break;
 			}
 
 			if (is_shortcut) {
 				switch (scan) {
-					case SDL_SCANCODE_X:   // cut
-					case SDL_SCANCODE_C: { // copy
-						if (STB_TEXT_HAS_SELECTION(&state.edit_state)) {
-							int start = state.edit_state.select_start;
-							int end = state.edit_state.select_end;
-							if (start > end)
-								std::swap(start, end);
+					case SDL_SCANCODE_X:
+					case SDL_SCANCODE_C: {
+						if (has_selection(state.edit_state)) {
+							copy_selection_to_clipboard(input_data, state.edit_state);
 
-							std::string selection = input_data.text->substr(start, end - start);
-							SDL_SetClipboardText(selection.c_str());
-
-							if (scan == SDL_SCANCODE_X) {
+							if (scan == SDL_SCANCODE_X && !input_data.read_only) {
 								stb_textedit_cut(&input_data, &state.edit_state);
+								state.cursor_follow = true;
 							}
 						}
 						break;
 					}
-					case SDL_SCANCODE_V: { // paste
-						if (SDL_HasClipboardText()) {
-							if (char* clipboard_text = SDL_GetClipboardText()) {
-								stb_textedit_paste(
-									&input_data, &state.edit_state, clipboard_text, strlen(clipboard_text)
-								);
-								SDL_free(clipboard_text);
-							}
+
+					case SDL_SCANCODE_V: {
+						if (input_data.read_only)
+							break;
+
+						if (char* clipboard_text = SDL_GetClipboardText()) {
+							stb_textedit_paste(
+								&input_data, &state.edit_state, clipboard_text, static_cast<int>(strlen(clipboard_text))
+							);
+							SDL_free(clipboard_text);
+							state.cursor_follow = true;
 						}
 						break;
 					}
-					case SDL_SCANCODE_A: { // select all (Ctrl + A / Cmd + A)
-						if (is_ctrl || is_cmd) {
-							select_all(&input_data, &state.edit_state);
-						}
+
+					case SDL_SCANCODE_A: {
+						select_all(&input_data, &state.edit_state);
+						state.selected_all_mouse_lock = true;
 						break;
 					}
+
+					case SDL_SCANCODE_Z: {
+						if (input_data.read_only)
+							break;
+
+						// ctrl/cmd + shift + z is redo on every platform that supports it
+						stb_textedit_key(
+							&input_data, &state.edit_state, shift ? STB_TEXTEDIT_K_REDO : STB_TEXTEDIT_K_UNDO
+						);
+						state.cursor_follow = true;
+						break;
+					}
+
+					case SDL_SCANCODE_Y: {
+						if (input_data.read_only)
+							break;
+
+						stb_textedit_key(&input_data, &state.edit_state, STB_TEXTEDIT_K_REDO);
+						state.cursor_follow = true;
+						break;
+					}
+
 					default:
-						// should never reach
-						stb_textedit_key(&input_data, &state.edit_state, stb_key);
-						break;
+						// not a text-editing shortcut, leave it for the rest of the ui
+						return;
 				}
 
-				keys::on_key_press_handled(scan);
-			}
-			else {
-				stb_textedit_key(&input_data, &state.edit_state, stb_key);
+				cursor_anim_reset(state);
 				keys::on_key_press_handled(scan);
 			}
 			break;
 		}
 
 		case SDL_EVENT_TEXT_EDITING: {
+			if (input_data.read_only)
+				break;
+
 			state.composition = event.edit.text;
-			state.ime_cursor = event.edit.start; // Use the state's ime_cursor
-			state.ime_selection_len =
-				event.edit.length; // Use the state's ime_selection_len
-			                       // You might want to adjust the main cursor (state.edit_state.cursor) here
-			                       // E.g., place it at the beginning or end of the composition temporarily.
-			                       // For now, we leave it where text input placed it.
+			state.ime_cursor = event.edit.start;
+			state.ime_selection_len = event.edit.length;
+			cursor_anim_reset(state);
 			break;
 		}
 
@@ -347,14 +670,19 @@ void ui::helpers::text_input::handle_text_input_event(
 ui::helpers::text_input::TextInputStateInternal& ui::helpers::text_input::add_text_edit(
 	const std::string& id, TextInputData& input_data
 ) {
-	if (!text_input_map.contains(id)) {
+	auto it = text_input_map.find(id);
+	if (it == text_input_map.end()) {
 		TextInputStateInternal new_state;
 		stb_textedit_initialize_state(&new_state.edit_state, 1);
 		new_state.edit_state.single_line = 1;
-		return text_input_map.emplace(id, std::move(new_state)).first->second;
+		it = text_input_map.emplace(id, std::move(new_state)).first;
 	}
 
-	return text_input_map.at(id);
+	// the fork dereferences str->Stb, and TextInputData is rebuilt each frame by the element, so this has to be
+	// re-pointed every time rather than only on creation
+	input_data.Stb = &it->second.edit_state;
+
+	return it->second;
 }
 
 bool ui::helpers::text_input::has_text_edit(const std::string& id) {
@@ -366,15 +694,31 @@ void ui::helpers::text_input::remove_text_edit(const std::string& id) {
 }
 
 bool ui::helpers::text_input::has_active_text_edit(const std::string& id) {
-	if (!text_input_map.contains(id))
-		return false;
+	auto it = text_input_map.find(id);
+	return it != text_input_map.end() && it->second.active;
+}
 
-	return text_input_map.at(id).active;
+void ui::helpers::text_input::update_ime_area(
+	SDL_Window* window, const TextInputStateInternal& state, const render::Font& font
+) {
+	if (!state.active)
+		return;
+
+	// a thin rect at the caret, so the candidate window opens next to what's being typed rather than at the
+	// start of the field
+	SDL_Rect rect = {
+		state.last_cursor_screen_pos.x,
+		state.last_cursor_screen_pos.y,
+		1,
+		font.height(),
+	};
+
+	SDL_SetTextInputArea(window, &rect, 0);
 }
 
 void ui::helpers::text_input::render_text(
 	const TextInputData& input_data,
-	const TextInputStateInternal& state,
+	TextInputStateInternal& state,
 	gfx::Point text_pos,
 	const gfx::Color& text_color,
 	const gfx::Rect& clip_rect,
@@ -386,21 +730,33 @@ void ui::helpers::text_input::render_text(
 ) {
 	render::push_clip_rect(clip_rect, true);
 
-	// --- Render Text / Placeholder ---
-	const std::string& display_text = *input_data.text; // Assumes text ptr is valid
+	const std::string& display_text = *input_data.text;
 
-	// Calculate the total width of the text to determine overflow
-	float text_width = input_data.font->calc_size(display_text).w;
+	// --- Scrolling ---
+	// sticky: only moves when the caret would leave the visible range, and then by a chunk at a time. the old
+	// version recomputed the offset from the caret every frame, so the text jumped around while typing
+	float cursor_offset = get_cursor_x(input_data, state.edit_state.cursor, gfx::Point(0, 0));
+	auto visible_width = static_cast<float>(clip_rect.w);
+	float text_width = measure(*input_data.font, display_text, 0, static_cast<int>(display_text.size()));
 
-	// Horizontal Scrolling Logic: Shift text position if it's too wide
-	if (text_width > clip_rect.w) {
-		int cursor_x = helpers::text_input::get_cursor_x(input_data, state.edit_state.cursor, gfx::Point(0, 0));
-		int scroll_offset = std::max(0, cursor_x - (clip_rect.w - SCROLL_CURSOR_RIGHT_GAP));
-		text_pos.x = text_pos.x - scroll_offset;
+	// leave room for the caret itself so it isn't clipped when sitting at the very end of the text
+	float max_scroll = std::max(0.f, (text_width + CURSOR_WIDTH) - visible_width);
+
+	if (state.active && state.cursor_follow) {
+		float scroll_chunk = visible_width * SCROLL_CHUNK_FRACTION;
+
+		if (cursor_offset < state.scroll_x)
+			state.scroll_x = std::max(0.f, cursor_offset - scroll_chunk);
+		else if (cursor_offset - visible_width >= state.scroll_x)
+			state.scroll_x = cursor_offset - visible_width + scroll_chunk;
+
+		state.cursor_follow = false;
 	}
 
-	// Handle vertical scrolling if needed (optional, depending on requirements)
-	// If text overflows vertically (height of text exceeds clip_rect height), we could add vertical scrolling logic
+	// deleting text (or the field growing) can leave us scrolled past the end, which would show a blank gap
+	state.scroll_x = std::clamp(state.scroll_x, 0.f, max_scroll);
+
+	text_pos.x -= static_cast<int>(state.scroll_x);
 
 	if (display_text.empty() && !state.active && !placeholder.empty()) {
 		render::text(text_pos, placeholder_color, placeholder, *input_data.font);
@@ -409,32 +765,29 @@ void ui::helpers::text_input::render_text(
 	}
 
 	// --- Render Selection ---
-	if (helpers::text_input::has_selection(state.edit_state)) {
+	if (has_selection(state.edit_state)) {
 		int sel_start = state.edit_state.select_start;
 		int sel_end = state.edit_state.select_end;
 		if (sel_start > sel_end)
 			std::swap(sel_start, sel_end);
 
-		// Use helper from anonymous namespace
-		float x1 = helpers::text_input::get_cursor_x(input_data, sel_start, text_pos);
-		float x2 = helpers::text_input::get_cursor_x(input_data, sel_end, text_pos);
+		float x1 = get_cursor_x(input_data, sel_start, text_pos);
+		float x2 = get_cursor_x(input_data, sel_end, text_pos);
 
 		gfx::Rect selection_rect(
 			static_cast<int>(x1), text_pos.y, static_cast<int>(x2 - x1), input_data.font->height()
 		);
 
-		if (selection_rect.w > 0 && selection_rect.h > 0) {
+		if (selection_rect.w > 0 && selection_rect.h > 0)
 			render::rect_filled(selection_rect, selection_colour);
-		}
 	}
 
-	// Render actual text
-	render::text(text_pos, text_color, *input_data.text, *input_data.font);
+	render::text(text_pos, text_color, display_text, *input_data.font);
 
-	// --- Render IME Composition --- TODO: NEED TO TEST
+	// --- Render IME Composition ---
 	if (state.active && !state.composition.empty()) {
-		float base_comp_x = helpers::text_input::get_cursor_x(input_data, state.edit_state.cursor, text_pos);
-		gfx::Point comp_pos = { (int)base_comp_x, text_pos.y };
+		float base_comp_x = get_cursor_x(input_data, state.edit_state.cursor, text_pos);
+		gfx::Point comp_pos = { static_cast<int>(base_comp_x), text_pos.y };
 		gfx::Size comp_size = input_data.font->calc_size(state.composition);
 		gfx::Rect comp_bg_rect(comp_pos.x, comp_pos.y, comp_size.w, comp_size.h);
 
@@ -447,8 +800,9 @@ void ui::helpers::text_input::render_text(
 		);
 
 		if (state.ime_cursor >= 0) {
-			std::string before_ime_cursor = state.composition.substr(0, state.ime_cursor);
-			float ime_cursor_x_offset = input_data.font->calc_size(before_ime_cursor).w;
+			float ime_cursor_x_offset = measure(
+				*input_data.font, state.composition, 0, std::min(state.ime_cursor, (int)state.composition.size())
+			);
 			render::line(
 				{ comp_pos.x + (int)ime_cursor_x_offset, comp_pos.y },
 				{ comp_pos.x + (int)ime_cursor_x_offset, comp_pos.y + input_data.font->height() },
@@ -461,13 +815,22 @@ void ui::helpers::text_input::render_text(
 
 	// --- Render Cursor ---
 	if (state.active) {
-		float cursor_x = helpers::text_input::get_cursor_x(input_data, state.edit_state.cursor, text_pos);
-		gfx::Point p1(static_cast<int>(cursor_x), text_pos.y);
-		gfx::Point p2(static_cast<int>(cursor_x), text_pos.y + input_data.font->height());
-		// Ensure cursor is drawn within clip rect
-		auto clip_rect = render::get_clip_rect();
-		if (p1.x >= clip_rect.x && p1.x <= clip_rect.x + clip_rect.w) {
-			render::line(p1, p2, text_color, false, 1.f);
+		auto cursor_x = static_cast<int>(get_cursor_x(input_data, state.edit_state.cursor, text_pos));
+		state.last_cursor_screen_pos = { cursor_x, text_pos.y };
+
+		state.cursor_anim += render::frametime;
+
+		// solid right after an action (cursor_anim starts negative), then blinks
+		bool cursor_visible =
+			state.cursor_anim <= 0.f || std::fmod(state.cursor_anim, CURSOR_BLINK_PERIOD) <= CURSOR_BLINK_ON;
+
+		if (cursor_visible) {
+			gfx::Point p1(cursor_x, text_pos.y);
+			gfx::Point p2(cursor_x, text_pos.y + input_data.font->height());
+
+			auto current_clip = render::get_clip_rect();
+			if (p1.x >= current_clip.x && p1.x <= current_clip.x + current_clip.w)
+				render::line(p1, p2, text_color, false, 1.f);
 		}
 	}
 
