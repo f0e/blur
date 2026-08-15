@@ -23,10 +23,22 @@ bool keys::process_event(const SDL_Event& event) {
 
 	switch (event.type) {
 		case SDL_EVENT_WINDOW_MOUSE_LEAVE: {
+			if (mouse_captured)
+				// mid-drag, we're still tracking the mouse outside the window. don't drop the drag
+				return true;
+
 			mouse_pos = { -1, -1 };
 			pressed_mouse_keys
 				.clear(); // fix mouseup not being registered when left the window todo: handle this properly
 			held_mouse_keys.clear();
+			return true;
+		}
+
+		case SDL_EVENT_WINDOW_FOCUS_LOST: {
+			// we won't hear about the mouse being released, so don't leave anything mid-press (or mid-drag)
+			pressed_mouse_keys.clear();
+			held_mouse_keys.clear();
+			pressing_keys.clear();
 			return true;
 		}
 
@@ -83,6 +95,16 @@ bool keys::process_event(const SDL_Event& event) {
 	}
 
 	return false;
+}
+
+void keys::set_mouse_capture(bool capture) {
+	if (capture == mouse_captured)
+		return;
+
+	mouse_captured = capture;
+
+	if (!SDL_CaptureMouse(capture))
+		u::log_error("failed to {} mouse capture: {}", capture ? "enable" : "disable", SDL_GetError());
 }
 
 void keys::on_frame_start() {

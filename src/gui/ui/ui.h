@@ -520,6 +520,8 @@ namespace ui {
 		float scroll_speed_y = 0.f;
 		bool scroll_to_top = false;
 
+		AnimationState scrollbar_anim = AnimationState(60.f);
+
 		[[nodiscard]] gfx::Rect get_usable_rect() const {
 			gfx::Rect usable = rect;
 			if (padding) {

@@ -11,6 +11,8 @@ namespace keys {
 	inline float scroll_x_delta = 0.f;
 	inline bool scroll_is_horizontal = false;
 
+	inline bool mouse_captured = false; // something's being dragged, keep tracking the mouse outside the window
+
 	// consecutive click count for the last mouse press (2 = double click, 3 = triple, ...), straight from SDL so
 	// it uses the OS double-click interval. only meaningful while the button is down.
 	inline std::unordered_map<std::uint8_t, int> mouse_click_counts;
@@ -18,6 +20,8 @@ namespace keys {
 	bool process_event(const SDL_Event& event);
 
 	int get_click_count(std::uint8_t button = SDL_BUTTON_LEFT);
+
+	void set_mouse_capture(bool capture);
 
 	void on_frame_start();
 
