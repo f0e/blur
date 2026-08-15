@@ -2,6 +2,9 @@
 #include "common/config_app.h"
 #include "render/render.h"
 #include "os/desktop_notification.h"
+#include "os/window.h"
+#include "renderer.h"
+#include "gui.h"
 
 namespace {
 	std::unordered_map<SDL_SystemCursor, SDL_Cursor*> cursor_cache;
@@ -154,6 +157,11 @@ tl::expected<void, std::string> sdl::initialise() {
 	SDL_GL_SetSwapInterval(1); // enable vsync
 	SDL_ShowWindow(window);
 
+	if (!os::window::disable_live_resize_scaling(window)) {
+		// not fatal, resizing just looks worse
+		u::log_error("failed to stop the compositor scaling the window while it's being resized");
+	}
+
 	if (!render::init(window, gl_context))
 		return tl::unexpected("Failed to initialise rendering");
 
@@ -187,15 +195,23 @@ void sdl::cleanup() {
 
 bool sdl::event_watcher(void* data, SDL_Event* event) {
 	switch (event->type) {
-		case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: {
+		case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+		case SDL_EVENT_WINDOW_EXPOSED: {
 			SDL_Window* win = SDL_GetWindowFromID(event->window.windowID);
 			if (win == static_cast<SDL_Window*>(data)) {
-				// gui::renderer::redraw_window(true); // TODO: squishy jelly
+				// while the window's being resized (or moved) the os runs its own modal loop, so our main loop is
+				// stuck inside SDL_PollEvent and this watcher is the only chance we get to draw. draw a whole frame
+				// rather than an empty one, otherwise the window is black until the user lets go
+				static bool redrawing = false; // just in case rendering ends up pumping events
 
-				render::update_window_size(sdl::window); // keep dpi scaling in sync while resizing
+				if (render::initialised && !redrawing) {
+					redrawing = true;
+					gui::renderer::redraw_window(true, true); // note: also keeps dpi scaling in sync while resizing
+					redrawing = false;
+				}
 
-				render::imgui.begin(sdl::window);
-				render::imgui.end(sdl::window);
+				// and draw again once the main loop's unblocked, in case anything changed while we were stuck
+				gui::to_render = true;
 			}
 			break;
 		}
