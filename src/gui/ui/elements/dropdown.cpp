@@ -100,10 +100,16 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 
 	gfx::Color adjusted_color(background_shade, background_shade, background_shade, anim * 255);
 	gfx::Color text_color(255, 255, 255, anim * 255);
+	gfx::Color muted_text_color(255, 255, 255, anim * 100);
 	gfx::Color selected_text_color(255, 100, 100, anim * 255);
+	gfx::Color muted_selected_text_color(255, 100, 100, anim * 120);
 	gfx::Color hover_text_color(255, 150, 150, anim * 255);
 	gfx::Color border_color(border_shade, border_shade, border_shade, anim * 255);
 	gfx::Color arrow_colour(100, 100, 100, anim * 255);
+
+	auto is_muted = [&](const std::string& option) {
+		return u::contains(dropdown_data.muted_options, option);
+	};
 
 	render::text(pos.label_pos, text_color, dropdown_data.label, *dropdown_data.font);
 
@@ -112,7 +118,13 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 	render::rounded_rect_stroke(pos.dropdown_rect, border_color, DROPDOWN_ROUNDING);
 
 	// Get currently selected option text
-	render::text(pos.selected_text_pos, text_color, *dropdown_data.selected, *dropdown_data.font, FONT_CENTERED_Y);
+	render::text(
+		pos.selected_text_pos,
+		is_muted(*dropdown_data.selected) ? muted_text_color : text_color,
+		*dropdown_data.selected,
+		*dropdown_data.font,
+		FONT_CENTERED_Y
+	);
 
 	// Render dropdown arrow
 	gfx::Point arrow_pos(
@@ -168,8 +180,12 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 			bool selected = option == *dropdown_data.selected;
 			float option_hover_anim = get_hover_animation_value(element, i);
 
+			gfx::Color option_base_colour = is_muted(option) ? muted_text_color : text_color;
+			gfx::Color option_selected_colour = is_muted(option) ? muted_selected_text_color : selected_text_color;
+
 			gfx::Color option_text_colour =
-				selected ? selected_text_color : gfx::Color::lerp(text_color, hover_text_color, option_hover_anim);
+				selected ? option_selected_colour
+						 : gfx::Color::lerp(option_base_colour, hover_text_color, option_hover_anim);
 
 			render::late_draw_calls.emplace_back(
 				[option_text_pos, option_text_colour, option, font = *dropdown_data.font] {
@@ -313,7 +329,8 @@ ui::AnimatedElement* ui::add_dropdown(
 	const std::vector<std::string>& options,
 	std::string& selected,
 	const render::Font& font,
-	std::optional<std::function<void(std::string*)>> on_change
+	std::optional<std::function<void(std::string*)>> on_change,
+	const std::vector<std::string>& muted_options
 ) {
 	// gfx::Size max_text_size(0, font.getSize());
 
@@ -323,7 +340,9 @@ ui::AnimatedElement* ui::add_dropdown(
 	// 	max_text_size.w = std::max(max_text_size.w, text_size.w);
 	// }
 
-	gfx::Size total_size(200, font.height() + LABEL_GAP + font.height() + (DROPDOWN_PADDING.h * 2));
+	gfx::Size total_size(
+		container.get_usable_rect().w, font.height() + LABEL_GAP + font.height() + (DROPDOWN_PADDING.h * 2)
+	);
 
 	Element element(
 		id,
@@ -335,6 +354,7 @@ ui::AnimatedElement* ui::add_dropdown(
 			.selected = &selected,
 			.font = &font,
 			.on_change = std::move(on_change),
+			.muted_options = muted_options,
 			.hovered_option = "",
 		},
 		render_dropdown,

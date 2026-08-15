@@ -26,6 +26,7 @@ namespace ui {
 		IMAGE,
 		VIDEO,
 		BUTTON,
+		ICON_BUTTON,
 		NOTIFICATION,
 		SLIDER,
 		TEXT_INPUT,
@@ -192,6 +193,18 @@ namespace ui {
 		}
 	};
 
+	struct IconButtonElementData {
+		std::string icon;
+		const render::Font* font;
+		gfx::Color color;
+		gfx::Color hover_color;
+		std::optional<std::function<void()>> on_press;
+
+		bool operator==(const IconButtonElementData& other) const {
+			return icon == other.icon && font == other.font && color == other.color && hover_color == other.hover_color;
+		}
+	};
+
 	enum class NotificationType : uint8_t {
 		INFO,
 		SUCCESS,
@@ -263,11 +276,13 @@ namespace ui {
 		std::string* selected;
 		const render::Font* font;
 		std::optional<std::function<void(std::string*)>> on_change;
+		std::vector<std::string> muted_options;
 
 		std::string hovered_option;
 
 		bool operator==(const DropdownElementData& other) const {
-			return label == other.label && options == other.options && selected == other.selected && font == other.font;
+			return label == other.label && options == other.options && selected == other.selected &&
+			       font == other.font && muted_options == other.muted_options;
 		}
 	};
 
@@ -384,6 +399,7 @@ namespace ui {
 		ImageElementData,
 		VideoElementData,
 		ButtonElementData,
+		IconButtonElementData,
 		NotificationElementData,
 		SliderElementData,
 		TextInputElementData,
@@ -496,6 +512,10 @@ namespace ui {
 		bool updated = false;
 		int last_margin_bottom = 0;
 
+		bool next_same_line = false; // set by set_next_same_line, consumed by the next added element
+		int same_line_bottom = 0;    // where the line the next element joins ends, so shorter elements don't pull the
+		                             // following ones up into it
+
 		float scroll_y = 0.f;
 		float scroll_speed_y = 0.f;
 		bool scroll_to_top = false;
@@ -554,6 +574,9 @@ namespace ui {
 
 	void render_button(const Container& container, const AnimatedElement& element);
 	bool update_button(const Container& container, AnimatedElement& element);
+
+	void render_icon_button(const Container& container, const AnimatedElement& element);
+	bool update_icon_button(const Container& container, AnimatedElement& element);
 
 	inline const int NOTIFICATION_DEFAULT_W = 270;
 
@@ -700,6 +723,17 @@ namespace ui {
 		std::optional<std::function<void()>> on_press = {}
 	);
 
+	AnimatedElement* add_icon_button(
+		const std::string& id,
+		Container& container,
+		const std::string& icon,
+		const render::Font& font,
+		const gfx::Size& size,
+		gfx::Color color,
+		gfx::Color hover_color,
+		std::optional<std::function<void()>> on_press = {}
+	);
+
 	AnimatedElement* add_notification(
 		const std::string& id,
 		Container& container,
@@ -769,7 +803,8 @@ namespace ui {
 		const std::vector<std::string>& options,
 		std::string& selected,
 		const render::Font& font,
-		std::optional<std::function<void(std::string*)>> on_change = {}
+		std::optional<std::function<void(std::string*)>> on_change = {},
+		const std::vector<std::string>& muted_options = {}
 	);
 
 	AnimatedElement* add_weighting_graph(

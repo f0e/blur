@@ -758,6 +758,20 @@ void configs::save_config() {
 
 	config_app::create(config_app::get_app_config_path(), app_settings);
 	current_app_settings = app_settings;
+
+	// the preset file is parsed back trimmed, so trim now to keep what's shown the same as what's saved
+	for (auto& gpu_presets : preset_settings.all_gpu_presets) {
+		for (auto& preset : gpu_presets.presets) {
+			if (preset.is_default)
+				continue;
+
+			preset.name = u::trim(preset.name);
+			preset.args = u::trim(preset.args);
+		}
+	}
+
+	config_presets::save(preset_settings);
+	current_preset_settings = preset_settings;
 };
 
 void configs::on_load() {
@@ -765,4 +779,6 @@ void configs::on_load() {
 	parse_interp();
 
 	current_app_settings = app_settings;
+
+	current_preset_settings = preset_settings;
 };

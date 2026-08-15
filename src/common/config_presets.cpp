@@ -2,6 +2,12 @@
 #include "config_base.h"
 
 namespace {
+	constexpr auto CACHE_RELOAD_INTERVAL = std::chrono::seconds(5);
+
+	std::mutex cache_mutex;
+	PresetSettings cached_config;
+	std::optional<std::chrono::steady_clock::time_point> cache_time;
+
 	std::vector<std::string> get_ffmpeg_args(std::string params_str, int quality) {
 		// replace quality placeholder
 		params_str = u::replace_all(params_str, "{quality}", std::to_string(quality));
@@ -75,7 +81,7 @@ PresetSettings config_presets::parse(const std::filesystem::path& config_filepat
 			// don't allow presets with same name as defaults (e.g. h265)
 			bool is_default_name = false;
 			for (const auto& preset : *current_presets) {
-				if (preset.name == preset_name && preset.is_default) {
+				if (preset.is_default && u::to_lower(preset.name) == u::to_lower(preset_name)) {
 					is_default_name = true;
 					break;
 				}
@@ -90,7 +96,7 @@ PresetSettings config_presets::parse(const std::filesystem::path& config_filepat
 
 			bool found = false;
 			for (auto& preset : *current_presets) {
-				if (preset.name == preset_name) {
+				if (u::to_lower(preset.name) == u::to_lower(preset_name)) {
 					preset.args = preset_params; // already exists - update
 					found = true;
 					break;
@@ -120,18 +126,23 @@ std::filesystem::path config_presets::get_preset_config_path() {
 }
 
 PresetSettings config_presets::get_preset_config() {
-	using namespace std::chrono;
-	static constexpr auto reload_interval = seconds(5);
-	static PresetSettings cached;
-	static auto last_reload_time = steady_clock::now() - reload_interval;
+	std::lock_guard lock(cache_mutex);
 
-	auto now = steady_clock::now();
-	if (now - last_reload_time >= reload_interval) {
-		cached = config_base::load_config<PresetSettings>(get_preset_config_path(), create, parse);
-		last_reload_time = now;
+	auto now = std::chrono::steady_clock::now();
+	if (!cache_time || now - *cache_time >= CACHE_RELOAD_INTERVAL) {
+		cached_config = config_base::load_config<PresetSettings>(get_preset_config_path(), create, parse);
+		cache_time = now;
 	}
 
-	return cached;
+	return cached_config;
+}
+
+void config_presets::save(const PresetSettings& settings) {
+	create(get_preset_config_path(), settings);
+
+	std::lock_guard lock(cache_mutex);
+	cached_config = settings;
+	cache_time = std::chrono::steady_clock::now();
 }
 
 std::vector<config_presets::PresetDetails> config_presets::get_available_presets(

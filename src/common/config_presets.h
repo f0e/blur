@@ -5,11 +5,15 @@ struct PresetSettings {
 		std::string name;
 		std::string args;
 		bool is_default = false;
+
+		bool operator==(const Preset& other) const = default;
 	};
 
 	struct GpuPresets {
 		std::string gpu_type;
 		std::vector<Preset> presets;
+
+		bool operator==(const GpuPresets& other) const = default;
 	};
 
 	std::vector<GpuPresets> all_gpu_presets = {
@@ -69,24 +73,35 @@ struct PresetSettings {
 		},
 	};
 
+	bool operator==(const PresetSettings& other) const = default;
+
 	[[nodiscard]] const std::string* find_preset_params(
 		const std::string& gpu_type, const std::string& preset_name
 	) const {
-		for (const auto& gpu_presets : all_gpu_presets) {
-			if (gpu_presets.gpu_type == gpu_type) {
-				for (const auto& preset : gpu_presets.presets) {
-					if (preset.name == preset_name) {
-						return &preset.args;
-					}
-				}
-				return nullptr;
+		const auto* presets = find_preset_group(gpu_type);
+		if (!presets)
+			return nullptr;
+
+		for (const auto& preset : *presets) {
+			if (u::to_lower(preset.name) == u::to_lower(preset_name)) {
+				return &preset.args;
 			}
 		}
+
 		return nullptr;
 	}
 
 	[[nodiscard]] const std::vector<Preset>* find_preset_group(const std::string& gpu_type) const {
 		for (const auto& gpu_presets : all_gpu_presets) {
+			if (gpu_presets.gpu_type == gpu_type) {
+				return &gpu_presets.presets;
+			}
+		}
+		return nullptr;
+	}
+
+	[[nodiscard]] std::vector<Preset>* find_preset_group(const std::string& gpu_type) {
+		for (auto& gpu_presets : all_gpu_presets) {
 			if (gpu_presets.gpu_type == gpu_type) {
 				return &gpu_presets.presets;
 			}
@@ -107,6 +122,10 @@ namespace config_presets {
 	std::filesystem::path get_preset_config_path();
 
 	PresetSettings get_preset_config();
+
+	// writes the presets to disk and refreshes the cache get_preset_config reads from, so renders started right
+	// after saving use the new presets
+	void save(const PresetSettings& settings);
 
 	struct PresetDetails {
 		std::string name;
