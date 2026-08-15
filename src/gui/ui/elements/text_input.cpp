@@ -10,6 +10,7 @@ constexpr gfx::Color BORDER_COLOR(70, 70, 70, 255);
 constexpr gfx::Color ACTIVE_BORDER_COLOR(90, 90, 90, 255);
 constexpr gfx::Color BG_COLOR(20, 20, 20, 200);
 constexpr gfx::Color TEXT_COLOR(255, 255, 255, 255);
+constexpr gfx::Color READ_ONLY_TEXT_COLOR(255, 255, 255, 155);
 constexpr gfx::Color PLACEHOLDER_COLOR(150, 150, 150, 180);
 
 constexpr gfx::Color SELECTION_COLOR(100, 100, 200, 100);
@@ -70,7 +71,7 @@ void ui::render_text_input(const Container& container, const AnimatedElement& el
 		input_data.text_input,
 		state,
 		pos.text_pos,
-		TEXT_COLOR.adjust_alpha(anim),
+		(input_data.text_input.read_only ? READ_ONLY_TEXT_COLOR : TEXT_COLOR).adjust_alpha(anim),
 		clip_rect,
 		input_data.placeholder,
 		PLACEHOLDER_COLOR.adjust_alpha(anim),
@@ -95,27 +96,27 @@ bool ui::update_text_input(const Container& container, AnimatedElement& element)
 		set_cursor(SDL_SYSTEM_CURSOR_TEXT);
 	}
 
+	// grab this before the focus handling below claims the press, which clears it
+	bool pressed = keys::is_mouse_pressed();
+
 	// Handle focus/unfocus with mouse click
-	if (keys::is_mouse_pressed()) {
+	if (pressed) {
 		if (hovered) {
 			if (!state.active) {
-				keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
 				set_active_element(element);
 				state.active = true;
 				focus_anim.set_goal(1.f);
 
-				SDL_Rect input_rect = { pos.input_rect.x, pos.input_rect.y, pos.input_rect.w, pos.input_rect.h };
-				SDL_StartTextInput(container.window);
-				SDL_SetTextInputArea(container.window, &input_rect, 0);
+				// read only inputs are only there to be selected & copied, no need for ime
+				if (!input_data.text_input.read_only) {
+					SDL_StartTextInput(container.window);
+				}
 			}
 
-			// Use stb_textedit_click to set cursor position (relative to text start)
-			helpers::text_input::click(
-				&input_data.text_input,
-				&state.edit_state,
-				keys::mouse_pos.x - pos.text_pos.x,
-				keys::mouse_pos.y - pos.text_pos.y
-			);
+			// claim the click every time, not just on the frame we take focus. leaving it unclaimed kept the
+			// button in the "pressed" set, so is_mouse_pressed() stayed true and we re-clicked (resetting the
+			// selection anchor) every frame instead of dragging
+			keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
 		}
 		else if (get_active_element() == &element) {
 			reset_active_element();
@@ -144,18 +145,24 @@ bool ui::update_text_input(const Container& container, AnimatedElement& element)
 			text_event_queue.erase(text_event_queue.begin());
 		}
 
-		// --- Handle Mouse Drag ---
-		// TODO: fix after already focused
-		if (state.active && keys::is_mouse_dragging(SDL_BUTTON_LEFT)) {
-			// Check if drag started on this element (requires keys::drag_start_element_id or similar)
-			// if (keys::drag_start_element_id == element.element->id) {
-			helpers::text_input::drag(
-				&input_data.text_input,
-				&state.edit_state,
-				keys::mouse_pos.x - pos.text_pos.x,
-				keys::mouse_pos.y - pos.text_pos.y
-			);
-		}
+		// mouse position in text space: undo the field origin, then re-apply the scroll offset that render_text
+		// subtracts, so hit testing lines up with what's actually on screen
+		gfx::Point text_relative_pos(
+			keys::mouse_pos.x - pos.text_pos.x + static_cast<int>(state.scroll_x), keys::mouse_pos.y - pos.text_pos.y
+		);
+
+		helpers::text_input::handle_mouse(
+			input_data.text_input,
+			state,
+			text_relative_pos,
+			hovered,
+			pressed,
+			keys::get_click_count(),
+			(SDL_GetModState() & SDL_KMOD_SHIFT) != 0u
+		);
+
+		if (!input_data.text_input.read_only)
+			helpers::text_input::update_ime_area(container.window, state, *input_data.text_input.font);
 	}
 
 	// Clamp cursor/selection just in case
@@ -164,22 +171,29 @@ bool ui::update_text_input(const Container& container, AnimatedElement& element)
 	return active;
 }
 
+int ui::text_input_height(const render::Font& font) {
+	return font.height() + (TEXT_INPUT_PADDING.h * 2);
+}
+
 ui::AnimatedElement* ui::add_text_input(
 	const std::string& id,
 	Container& container,
 	std::string& text, // Reference to the external string
 	const std::string& placeholder,
 	const render::Font& font,
-	std::optional<std::function<void(const std::string&)>> on_change
+	std::optional<std::function<void(const std::string&)>> on_change,
+	bool read_only,
+	std::optional<int> width
 ) {
 	helpers::text_input::TextInputData state;
 	state.text = &text;
 	state.font = &font;
 	state.on_change = std::move(on_change);
+	state.read_only = read_only;
 
 	helpers::text_input::add_text_edit(id, state);
 
-	const gfx::Size input_size(200, font.height() + (TEXT_INPUT_PADDING.h * 2));
+	const gfx::Size input_size(width.value_or(container.get_usable_rect().w), text_input_height(font));
 
 	Element element(
 		id,

@@ -739,13 +739,18 @@ namespace ui {
 		const std::string& tooltip = ""
 	);
 
+	// height of a text input using this font, for lining other elements up with one
+	int text_input_height(const render::Font& font);
+
 	AnimatedElement* add_text_input(
 		const std::string& id,
 		Container& container,
 		std::string& text,
 		const std::string& placeholder,
 		const render::Font& font,
-		std::optional<std::function<void(const std::string&)>> on_change = {}
+		std::optional<std::function<void(const std::string&)>> on_change = {},
+		bool read_only = false,
+		std::optional<int> width = {} // defaults to filling the container
 	);
 
 	AnimatedElement* add_checkbox(

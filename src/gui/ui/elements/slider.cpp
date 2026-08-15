@@ -318,8 +318,11 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 			}
 		};
 
+		// grab this before we claim the press below, which clears it
+		bool pressed = keys::is_mouse_down();
+
 		// text input: handle clicks
-		if (keys::is_mouse_down()) {
+		if (pressed) {
 			if (label_hovered) {
 				keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
 
@@ -336,24 +339,12 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 					auto& state = ui::helpers::text_input::add_text_edit(element.element->id, slider_data.text_input);
 					state.active = true;
 
-					SDL_Rect input_rect = {
-						positions.label_rect.x, positions.label_rect.y, positions.label_rect.w, positions.label_rect.h
-					};
 					SDL_StartTextInput(container.window);
-					SDL_SetTextInputArea(container.window, &input_rect, 0);
 
 					helpers::text_input::select_all(&slider_data.text_input, &state.edit_state);
-				}
-				else {
-					auto& state = helpers::text_input::text_input_map.at(element.element->id);
 
-					// Use stb_textedit_click to set cursor position (relative to text start)
-					helpers::text_input::click(
-						&slider_data.text_input,
-						&state.edit_state,
-						keys::mouse_pos.x - positions.label_rect.x,
-						keys::mouse_pos.y - positions.label_rect.y
-					);
+					// don't let the drag that follows this same press wipe the select-all
+					state.selected_all_mouse_lock = true;
 				}
 			}
 			else {
@@ -386,15 +377,22 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 					text_event_queue.erase(text_event_queue.begin());
 				}
 
-				// --- Handle Mouse Drag ---
-				if (state.active && keys::is_mouse_dragging(SDL_BUTTON_LEFT)) {
-					helpers::text_input::drag(
-						&slider_data.text_input,
-						&state.edit_state,
-						keys::mouse_pos.x - positions.label_rect.x,
-						keys::mouse_pos.y - positions.label_rect.y
-					);
-				}
+				gfx::Point text_relative_pos(
+					keys::mouse_pos.x - positions.label_rect.x + static_cast<int>(state.scroll_x),
+					keys::mouse_pos.y - positions.label_rect.y
+				);
+
+				helpers::text_input::handle_mouse(
+					slider_data.text_input,
+					state,
+					text_relative_pos,
+					label_hovered,
+					pressed,
+					keys::get_click_count(),
+					(SDL_GetModState() & SDL_KMOD_SHIFT) != 0u
+				);
+
+				helpers::text_input::update_ime_area(container.window, state, *slider_data.font);
 
 				bool value_changed = false;
 
