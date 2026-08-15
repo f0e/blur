@@ -7,6 +7,7 @@ const gfx::Size NOTIFICATION_TEXT_PADDING = { 10, 7 };
 static const float NOTIFICATION_ROUNDING = 7.f;
 static const int CLOSE_BUTTON_SIZE = 16;
 static const int CLOSE_BUTTON_PADDING = 5;
+static const std::string CLOSE_ICON = "c"; // x
 
 namespace {
 	gfx::Rect get_close_button_rect(const gfx::Rect& notification_rect) {
@@ -70,16 +71,8 @@ void ui::render_notification(const Container& container, const AnimatedElement& 
 		close_button_color = close_button_color.adjust_alpha(0.7f + (close_hover_anim * 0.3f));
 
 		// close x
-		float x_padding = 4;
-		render::line(
-			gfx::Point(close_button_rect.x + x_padding, close_button_rect.y + x_padding),
-			gfx::Point(close_button_rect.x2() - x_padding, close_button_rect.y2() - x_padding),
-			close_button_color
-		);
-		render::line(
-			gfx::Point(close_button_rect.x + x_padding, close_button_rect.y2() - x_padding),
-			gfx::Point(close_button_rect.x2() - x_padding, close_button_rect.y + x_padding),
-			close_button_color
+		render::text(
+			close_button_rect.center(), close_button_color, CLOSE_ICON, fonts::icons, FONT_CENTERED_X | FONT_CENTERED_Y
 		);
 	}
 
