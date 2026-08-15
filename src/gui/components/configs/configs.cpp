@@ -1,10 +1,39 @@
 #include "configs.h"
+#include "../../renderer.h"
 
 #include "../../ui/ui.h"
 #include "../../render/render.h"
 #include "../notifications.h"
 
 namespace configs = gui::components::configs;
+
+void configs::section(
+	ui::Container& container, bool& first_section, const std::string& label, bool* setting, bool forced_on
+) {
+	if (!first_section) {
+		ui::add_separator(std::format("section {} separator", label), container, ui::SeparatorStyle::FADE_RIGHT);
+	}
+	else
+		first_section = false;
+
+	if (!setting)
+		return;
+
+	if (!forced_on) {
+		ui::add_checkbox(std::format("section {} checkbox", label), container, label, *setting, fonts::dejavu);
+	}
+	else {
+		ui::add_text(std::format("section {}", label), container, label, gfx::Color::white(), fonts::dejavu);
+
+		ui::add_text(
+			std::format("section {} forced", label),
+			container,
+			"forced on as settings in this section have been modified",
+			gfx::Color::white(renderer::MUTED_SHADE),
+			fonts::dejavu
+		);
+	}
+}
 
 void configs::screen(
 	ui::Container& config_container,
@@ -79,7 +108,25 @@ void configs::screen(
 		});
 	}
 
-	options(config_container);
-	preview(preview_header_container, preview_content_container);
+	auto on_tab_select = [&config_container] {
+		config_container.scroll_to_top = true;
+	};
+
+	auto* config_tabs =
+		ui::add_tabs("config tabs", config_container, CONFIG_TABS, selected_config_tab, fonts::dejavu, on_tab_select);
+
+	ui::center_element(config_container, config_tabs);
+
+	ui::add_spacing(config_container, 3);
+
+	if (selected_config_tab == "blur") {
+		options(config_container);
+		preview(preview_header_container, preview_content_container);
+	}
+	else {
+		app_options(config_container);
+		about(preview_content_container);
+	}
+
 	option_information(option_information_container);
 }

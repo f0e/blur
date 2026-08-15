@@ -91,7 +91,7 @@ bool ui::update_tabs(const Container& container, AnimatedElement& element) {
 					if (tabs_data.on_select)
 						(*tabs_data.on_select)();
 
-					// keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
+					keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
 					return true;
 				}
 			}
@@ -103,6 +103,10 @@ bool ui::update_tabs(const Container& container, AnimatedElement& element) {
 	return false;
 }
 
+int ui::tabs_height(const render::Font& font) {
+	return font.height() + (TAB_PADDING.h * 2);
+}
+
 ui::AnimatedElement* ui::add_tabs(
 	const std::string& id,
 	Container& container,
@@ -111,7 +115,7 @@ ui::AnimatedElement* ui::add_tabs(
 	const render::Font& font,
 	std::optional<std::function<void()>> on_select
 ) {
-	gfx::Rect rect(container.current_position, gfx::Size(0, font.height() + (TAB_PADDING.h * 2)));
+	gfx::Rect rect(container.current_position, gfx::Size(0, tabs_height(font)));
 	std::vector<gfx::Rect> option_offset_rects;
 
 	gfx::Rect selected_offset_rect;

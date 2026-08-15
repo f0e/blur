@@ -35,7 +35,9 @@ namespace ui {
 		WEIGHTING_GRAPH,
 		TABS,
 		HINT,
-		SPINNER
+		SPINNER,
+		UPDATE_NOTICE,
+		ABOUT
 	};
 
 	struct BarElementData {
@@ -324,6 +326,58 @@ namespace ui {
 		}
 	};
 
+	struct UpdateNoticeLink {
+		std::string text;
+		bool primary = false;
+		std::optional<std::function<void()>> on_press;
+
+		bool operator==(const UpdateNoticeLink& other) const {
+			return text == other.text && primary == other.primary;
+		}
+	};
+
+	enum class UpdateNoticeAlign : std::uint8_t {
+		RIGHT,
+		CENTER,
+	};
+
+	struct UpdateNoticeElementData {
+		std::string status;
+		std::string subtext;
+		std::vector<std::vector<UpdateNoticeLink>> lines;
+		std::optional<float> progress;
+		UpdateNoticeAlign align;
+		const render::Font* font;
+
+		bool operator==(const UpdateNoticeElementData& other) const {
+			return status == other.status && subtext == other.subtext && lines == other.lines &&
+			       progress == other.progress && align == other.align && font == other.font;
+		}
+	};
+
+	struct AboutLink {
+		std::string text;
+		std::optional<std::function<void()>> on_press;
+
+		bool operator==(const AboutLink& other) const {
+			return text == other.text;
+		}
+	};
+
+	struct AboutElementData {
+		std::shared_ptr<render::Texture> logo;
+		std::string title;
+		std::string subtitle;
+		std::vector<AboutLink> links;
+		const render::Font* title_font;
+		const render::Font* font;
+
+		bool operator==(const AboutElementData& other) const {
+			return logo == other.logo && title == other.title && subtitle == other.subtitle && links == other.links &&
+			       title_font == other.title_font && font == other.font;
+		}
+	};
+
 	using ElementData = std::variant<
 		BarElementData,
 		TextElementData,
@@ -339,7 +393,9 @@ namespace ui {
 		WeightingGraphElementData,
 		TabsElementData,
 		HintElementData,
-		SpinnerElementData>;
+		SpinnerElementData,
+		UpdateNoticeElementData,
+		AboutElementData>;
 
 	struct AnimationState {
 		float speed;
@@ -442,6 +498,7 @@ namespace ui {
 
 		float scroll_y = 0.f;
 		float scroll_speed_y = 0.f;
+		bool scroll_to_top = false;
 
 		[[nodiscard]] gfx::Rect get_usable_rect() const {
 			gfx::Rect usable = rect;
@@ -526,6 +583,12 @@ namespace ui {
 	void render_hint(const Container& container, const AnimatedElement& element);
 
 	void render_spinner(const Container& container, const AnimatedElement& element);
+
+	void render_update_notice(const Container& container, const AnimatedElement& element);
+	bool update_update_notice(const Container& container, AnimatedElement& element);
+
+	void render_about(const Container& container, const AnimatedElement& element);
+	bool update_about(const Container& container, AnimatedElement& element);
 
 	void reset_container(
 		Container& container,
@@ -708,6 +771,8 @@ namespace ui {
 		const std::string& id, Container& container, const std::vector<double>& weights, bool accurate_fps
 	);
 
+	int tabs_height(const render::Font& font);
+
 	AnimatedElement* add_tabs(
 		const std::string& id,
 		Container& container,
@@ -737,11 +802,39 @@ namespace ui {
 		float trail_degrees = 180.f
 	);
 
+	AnimatedElement* add_update_notice(
+		const std::string& id,
+		Container& container,
+		const std::string& status,
+		const std::string& subtext,
+		const std::vector<std::vector<UpdateNoticeLink>>& lines,
+		std::optional<float> progress,
+		const render::Font& font,
+		UpdateNoticeAlign align = UpdateNoticeAlign::RIGHT
+	);
+
+	AnimatedElement* add_about(
+		const std::string& id,
+		Container& container,
+		std::shared_ptr<render::Texture> logo,
+		const std::string& title,
+		const std::string& subtitle,
+		const std::vector<AboutLink>& links,
+		const render::Font& title_font,
+		const render::Font& font
+	);
+
 	void add_spacing(Container& container, int spacing);
 
 	void set_next_same_line(Container& container);
 
 	void center_elements_in_container(Container& container, bool horizontal = true, bool vertical = true);
+
+	void center_element(Container& container, AnimatedElement* animated_element);
+
+	void right_align_element(Container& container, AnimatedElement* animated_element);
+
+	void anchor_elements_to_bottom(Container& container);
 
 	std::vector<decltype(Container::elements)::iterator> get_sorted_container_elements(Container& container);
 

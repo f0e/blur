@@ -246,6 +246,44 @@ void ui::center_elements_in_container(Container& container, bool horizontal, boo
 	}
 }
 
+void ui::center_element(Container& container, AnimatedElement* animated_element) {
+	if (!animated_element)
+		return;
+
+	auto& element = animated_element->element;
+
+	element->rect.x = container.get_usable_rect().center().x - (element->rect.w / 2);
+	element->orig_rect.x = element->rect.x;
+}
+
+void ui::right_align_element(Container& container, AnimatedElement* animated_element) {
+	if (!animated_element)
+		return;
+
+	auto& element = animated_element->element;
+
+	element->rect.x = container.get_usable_rect().x2() - element->rect.w;
+	element->orig_rect.x = element->rect.x;
+}
+
+void ui::anchor_elements_to_bottom(Container& container) {
+	auto usable_rect = container.get_usable_rect();
+
+	int shift_y = usable_rect.y2() - (usable_rect.y + get_content_height(container));
+	if (shift_y <= 0)
+		return;
+
+	for (const auto& id : container.current_element_ids) {
+		auto& element = container.elements[id].element;
+
+		if (element->fixed)
+			continue;
+
+		element->rect.y += shift_y;
+		element->orig_rect = element->rect;
+	}
+}
+
 void ui::set_cursor(SDL_SystemCursor cursor) {
 	desired_cursor = cursor;
 }
@@ -306,6 +344,7 @@ bool ui::update_container_input(Container& container) {
 	if (keys::scroll_delta != 0.f) { // || keys::scroll_delta_precise != 0.f) {
 		if (container.rect.contains(keys::mouse_pos)) {
 			if (can_scroll(container)) {
+				container.scroll_to_top = false; // user took over
 				container.scroll_speed_y += keys::scroll_delta * 1500.f;
 				keys::scroll_delta = 0.f;
 
@@ -364,8 +403,14 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 		const float scroll_speed_overscroll_reset_speed = 25.f;
 		const float scroll_overscroll_reset_speed = 10.f;
 		const float scroll_reset_speed = 10.f;
+		const float scroll_to_top_speed = 15.f;
 
-		if (can_scroll(container)) {
+		if (container.scroll_to_top) {
+			container.scroll_speed_y = 0.f;
+			container.scroll_y = u::lerp(container.scroll_y, 0.f, scroll_to_top_speed * delta_time, 0.1f);
+			container.scroll_to_top = container.scroll_y != 0.f;
+		}
+		else if (can_scroll(container)) {
 			// clamp scroll
 			int max_scroll = get_max_scroll(container);
 

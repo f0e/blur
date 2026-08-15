@@ -1,5 +1,4 @@
 #include "configs.h"
-#include "../../renderer.h"
 
 #include "../../ui/ui.h"
 #include "../../render/render.h"
@@ -38,33 +37,9 @@ void configs::options(ui::Container& container) {
 	// initialised by the time you switch to the config screen. this catches that case.
 	u::set_fastest_devices(settings);
 
-	static const gfx::Color section_color = gfx::Color::white(renderer::MUTED_SHADE);
-
 	bool first_section = true;
-	auto section_component = [&](std::string label, bool* setting = nullptr, bool forced_on = false) {
-		if (!first_section) {
-			ui::add_separator(std::format("section {} separator", label), container, ui::SeparatorStyle::FADE_RIGHT);
-		}
-		else
-			first_section = false;
-
-		if (!setting)
-			return;
-
-		if (!forced_on) {
-			ui::add_checkbox(std::format("section {} checkbox", label), container, label, *setting, fonts::dejavu);
-		}
-		else {
-			ui::add_text(std::format("section {}", label), container, label, gfx::Color::white(), fonts::dejavu);
-
-			ui::add_text(
-				std::format("section {} forced", label),
-				container,
-				"forced on as settings in this section have been modified",
-				gfx::Color::white(renderer::MUTED_SHADE),
-				fonts::dejavu
-			);
-		}
+	auto section_component = [&](const std::string& label, bool* setting = nullptr, bool forced_on = false) {
+		section(container, first_section, label, setting, forced_on);
 	};
 
 	/*

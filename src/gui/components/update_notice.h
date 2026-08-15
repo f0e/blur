@@ -9,5 +9,9 @@ namespace gui::components::update_notice {
 
 	bool is_updating();
 
-	void render(ui::Container& container);
+	// checks right now, whatever the check for updates setting says, and reports the result
+	void check_now();
+	bool is_checking();
+
+	void render(ui::Container& container, ui::UpdateNoticeAlign align = ui::UpdateNoticeAlign::RIGHT);
 }
