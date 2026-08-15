@@ -120,7 +120,7 @@ tl::expected<updates::UpdateCheckRes, std::string> updates::is_latest_version(bo
 		return updates::UpdateCheckRes{
 			.is_latest = is_latest,
 			.latest_tag = latest_tag,
-			.latest_tag_url = "https://github.com/f0e/blur/releases/" + latest_tag,
+			.latest_tag_url = "https://github.com/f0e/blur/releases/tag/" + latest_tag,
 		};
 	}
 	catch (const std::exception& e) {
@@ -131,7 +131,8 @@ tl::expected<updates::UpdateCheckRes, std::string> updates::is_latest_version(bo
 
 bool updates::update_to_tag(
 	const std::string& tag,
-	const std::optional<std::function<void(const std::string& text, bool done)>>& progress_callback
+	const std::optional<ProgressCallback>& progress_callback,
+	const std::optional<CancelCallback>& cancel_callback
 ) {
 	try {
 		u::log("Beginning update to tag: {}", tag);
@@ -177,26 +178,42 @@ bool updates::update_to_tag(
 		}
 
 		// Setup download session
+		bool cancelled = false;
+
 		cpr::Session session;
 		session.SetUrl(cpr::Url{ download_url });
-		if (progress_callback) {
-			session.SetWriteCallback(cpr::WriteCallback([&](const std::string_view& data, intptr_t userdata) -> bool {
-				downloaded_bytes += data.size();
-				installer_file.write(data.data(), data.size());
+		session.SetWriteCallback(cpr::WriteCallback([&](const std::string_view& data, intptr_t userdata) -> bool {
+			if (cancel_callback && (*cancel_callback)()) {
+				cancelled = true;
+				return false; // returning false aborts the transfer
+			}
 
+			downloaded_bytes += data.size();
+			installer_file.write(data.data(), data.size());
+
+			if (progress_callback) {
 				float progress = static_cast<float>(downloaded_bytes) / static_cast<float>(total_bytes);
 				if (progress - last_reported_progress >= 0.01f) {
-					(*progress_callback)(std::format("Downloading update: {:.1f}%", progress * 100.f), false);
+					(*progress_callback)(std::format("Downloading update: {:.1f}%", progress * 100.f), progress, false);
 					last_reported_progress = progress;
 				}
+			}
 
-				return true;
-			}));
-		}
+			return true;
+		}));
 
 		// Execute download
 		auto response = session.Get();
 		installer_file.close();
+
+		if (cancelled) {
+			u::log("Update download cancelled");
+
+			std::error_code ec;
+			std::filesystem::remove(installer_path, ec); // don't leave the half-downloaded installer lying around
+
+			return false;
+		}
 
 		if (response.status_code != 200) {
 			u::log("Download failed with status code: {}", response.status_code);
@@ -205,7 +222,7 @@ bool updates::update_to_tag(
 
 		// Complete progress
 		if (progress_callback)
-			(*progress_callback)("Update download complete", true);
+			(*progress_callback)("Update download complete", 1.f, true);
 
 		u::log("Download complete, launching installer");
 
@@ -224,12 +241,14 @@ bool updates::update_to_tag(
 }
 
 bool updates::update_to_latest(
-	bool include_beta, const std::optional<std::function<void(const std::string& text, bool done)>>& progress_callback
+	bool include_beta,
+	const std::optional<ProgressCallback>& progress_callback,
+	const std::optional<CancelCallback>& cancel_callback
 ) {
 	auto check_result = is_latest_version(include_beta);
 	if (!check_result || check_result->is_latest) {
 		return false;
 	}
 
-	return update_to_tag(check_result->latest_tag, progress_callback);
+	return update_to_tag(check_result->latest_tag, progress_callback, cancel_callback);
 }

@@ -13,6 +13,7 @@
 
 #include "components/main.h"
 #include "components/notifications.h"
+#include "components/update_notice.h"
 #include "components/test.h"
 #include "components/configs/configs.h"
 
@@ -137,6 +138,14 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 	ui::reset_container(notification_container, sdl::window, notification_container_rect, 6, {});
 
+	gfx::Rect update_container_rect = rect;
+	update_container_rect.w = ui::NOTIFICATION_DEFAULT_W;
+	update_container_rect.x = rect.x2() - update_container_rect.w - PAD_X;
+
+	ui::reset_container(
+		update_container, sdl::window, update_container_rect, 6, ui::Padding{ 0, 0, nav_container_rect.h, 0 }
+	);
+
 	switch (screen) {
 		case Screens::TEST: {
 			components::test::screen(main_container, delta_time);
@@ -231,6 +240,11 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 				});
 			}
 
+			if (main_screen == components::main::MainScreen::HOME || components::update_notice::is_updating()) {
+				components::update_notice::render(update_container);
+				ui::anchor_elements_to_bottom(update_container);
+			}
+
 			ui::center_elements_in_container(main_container);
 
 			break;
@@ -273,6 +287,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	ui::center_elements_in_container(nav_container);
 
 	want_to_render |= ui::update_container_frame(notification_container, delta_time);
+	want_to_render |= ui::update_container_frame(update_container, delta_time);
 	want_to_render |= ui::update_container_frame(nav_container, delta_time);
 
 	want_to_render |= ui::update_container_frame(main_container, delta_time);
@@ -331,6 +346,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		ui::render_container(config_preview_header_container);
 		ui::render_container(option_information_container);
 		ui::render_container(nav_container);
+		ui::render_container(update_container);
 		ui::render_container(notification_container);
 
 		// file drop overlay

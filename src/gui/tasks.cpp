@@ -9,6 +9,7 @@
 
 #include "components/main.h"
 #include "components/notifications.h"
+#include "components/update_notice.h"
 #include "components/configs/configs.h"
 
 namespace {
@@ -59,56 +60,8 @@ void tasks::run(const std::vector<std::string>& arguments) {
 	gui::initialisation_res = blur.initialise(false, true);
 
 	auto update_res = Blur::check_updates();
-	if (update_res && !update_res->is_latest) {
-		static const auto update_notification_duration = std::chrono::duration<float>(15.f);
-
-#if defined(WIN32) || defined(__APPLE__)
-		gui::components::notifications::add(
-			std::format("There's a newer version ({}) available! Click to run the installer.", update_res->latest_tag),
-			ui::NotificationType::INFO,
-			[&](const std::string& id) {
-				gui::components::notifications::close(id);
-
-				const static std::string update_notification_id = "update progress notification";
-
-				gui::components::notifications::add(
-					update_notification_id,
-					"Downloading update...",
-					ui::NotificationType::INFO,
-					{},
-					std::chrono::duration<float>(gui::components::notifications::NOTIFICATION_LENGTH),
-					false
-				);
-
-				std::thread([update_res] {
-					Blur::update(update_res->latest_tag, [](const std::string& text, bool done) {
-						gui::components::notifications::add(
-							update_notification_id,
-							text,
-							ui::NotificationType::INFO,
-							{},
-							std::chrono::duration<float>(gui::components::notifications::NOTIFICATION_LENGTH),
-							done
-						);
-					});
-
-					blur.exiting = true;
-				}).detach();
-			},
-			update_notification_duration
-		);
-#else
-		gui::components::notifications::add(
-			std::format(
-				"There's a newer version ({}) available! Click to go to the download page.", update_res->latest_tag
-			),
-			ui::NotificationType::INFO,
-			[&](const std::string& id) {
-				SDL_OpenURL(update_res->latest_tag_url.c_str());
-			},
-			update_notification_duration
-		);
-#endif
+	if (update_res) {
+		gui::components::update_notice::set_available(*update_res);
 	}
 
 	std::vector<std::filesystem::path> paths;

@@ -34,9 +34,10 @@ public:
 	void cleanup();
 
 	static tl::expected<updates::UpdateCheckRes, std::string> check_updates();
-	static void update(
+	static bool update(
 		const std::string& tag,
-		const std::optional<std::function<void(const std::string& text, bool done)>>& progress_callback = {}
+		const std::optional<updates::ProgressCallback>& progress_callback = {},
+		const std::optional<updates::CancelCallback>& cancel_callback = {}
 	);
 
 	// TODO: this stuff probably shouldn't be here

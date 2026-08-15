@@ -19,6 +19,7 @@ struct GlobalAppSettings {
 
 	bool check_updates = true;
 	bool check_beta = false;
+	std::string dismissed_update_version;
 
 	bool notify_about_config_override = true;
 
