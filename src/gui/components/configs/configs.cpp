@@ -52,6 +52,7 @@ void configs::screen(
 				ui::reset_tied_sliders();
 				settings = config_blur::parse_global_config();
 				app_settings = config_app::get_app_config();
+				preset_settings = config_presets::get_preset_config();
 				on_load();
 				loading_config = false;
 				loaded_config = true;
@@ -80,20 +81,35 @@ void configs::screen(
 	modified_default_app.tensorrt_device_index = app_settings.tensorrt_device_index; // same for tensorrt
 #endif
 
-	bool config_changed = settings != current_global_settings || app_settings != current_app_settings;
-	bool config_not_default = settings != config_blur::DEFAULT_CONFIG || app_settings != modified_default_app;
+	bool config_changed = settings != current_global_settings || app_settings != current_app_settings ||
+	                      preset_settings != current_preset_settings;
+	bool config_not_default = settings != config_blur::DEFAULT_CONFIG || app_settings != modified_default_app ||
+	                          preset_settings != config_presets::DEFAULT_CONFIG;
 
 	if (config_changed) {
 		ui::set_next_same_line(nav_container);
-		ui::add_button("save button", nav_container, "Save", fonts::dejavu, [&] {
+		ui::add_button("save button", nav_container, "Save", fonts::dejavu, [] {
+			// saving would silently drop the broken presets, send the user to fix them instead
+			if (auto error_device = find_preset_error_device()) {
+				selected_config_tab = "presets";
+				selected_preset_gpu_type = *error_device;
+
+				gui::components::notifications::add(
+					"preset errors", "Fix the errors in your presets before saving", ui::NotificationType::NOTIF_ERROR
+				);
+
+				return;
+			}
+
 			save_config();
 		});
 
 		ui::set_next_same_line(nav_container);
-		ui::add_button("reset changes button", nav_container, "Reset changes", fonts::dejavu, [&] {
+		ui::add_button("reset changes button", nav_container, "Reset changes", fonts::dejavu, [] {
 			ui::reset_tied_sliders();
 			settings = current_global_settings;
 			app_settings = current_app_settings;
+			preset_settings = current_preset_settings;
 			on_load();
 		});
 	}
@@ -104,6 +120,7 @@ void configs::screen(
 			ui::reset_tied_sliders();
 			settings = config_blur::DEFAULT_CONFIG;
 			app_settings = config_app::DEFAULT_CONFIG;
+			preset_settings = config_presets::DEFAULT_CONFIG;
 			parse_interp();
 		});
 	}
@@ -123,9 +140,12 @@ void configs::screen(
 		options(config_container);
 		preview(preview_header_container, preview_content_container);
 	}
-	else {
+	else if (selected_config_tab == "app") {
 		app_options(config_container);
 		about(preview_content_container);
+	}
+	else {
+		preset_options(config_container);
 	}
 
 	option_information(option_information_container);

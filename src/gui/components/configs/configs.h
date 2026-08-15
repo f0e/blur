@@ -1,11 +1,12 @@
 #pragma once
 
 #include "common/config_app.h"
+#include "common/config_presets.h"
 #include "common/rendering.h"
 #include "../../ui/ui.h"
 
 namespace gui::components::configs { // naming it configs to avoid conflict with common lol
-	inline const std::vector<std::string> CONFIG_TABS = { "blur", "app" };
+	inline const std::vector<std::string> CONFIG_TABS = { "blur", "app", "presets" };
 	inline std::string selected_config_tab = CONFIG_TABS[0];
 
 	inline const std::vector<std::string> TABS = { "output video", "weightings" };
@@ -18,6 +19,10 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	inline GlobalAppSettings app_settings;
 	inline GlobalAppSettings current_app_settings;
+
+	inline PresetSettings preset_settings;
+	inline PresetSettings current_preset_settings;
+	inline std::string selected_preset_gpu_type; // which device's presets the presets tab is showing
 
 	inline bool loaded_config = false;
 	inline bool should_load_config = true;
@@ -53,6 +58,13 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	void options(ui::Container& container);
 	void app_options(ui::Container& container);
+	void preset_options(ui::Container& container);
+
+	// why the preset at this index can't be saved, if it can't
+	std::optional<std::string> get_preset_error(const std::vector<PresetSettings::Preset>& presets, size_t index);
+
+	// the device holding the first preset that can't be saved, if there is one
+	std::optional<std::string> find_preset_error_device();
 
 	void about(ui::Container& container);
 

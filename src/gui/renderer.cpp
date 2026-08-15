@@ -84,14 +84,30 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 	const int config_page_container_gap = PAD_X / 2;
 
+	const int config_container_element_gap = 9;
+
 	gfx::Rect config_container_rect = rect;
 
 	if (components::configs::loaded_config) {
-		config_container_rect.w = 200 + PAD_X * 2;
+		const int base_width = 200 + PAD_X * 2;
+
+		// presets need the room, ffmpeg commands are long
+		int goal_width = components::configs::selected_config_tab == "presets" ? rect.w : base_width;
+
+		static float config_width = goal_width;
+		float last_config_width = config_width;
+		config_width = u::lerp(config_width, (float)goal_width, 25.f * delta_time, 0.5f);
+		want_to_render |= config_width != last_config_width;
+
+		config_container_rect.w = std::lround(config_width);
 	}
 
 	ui::reset_container(
-		config_container, sdl::window, config_container_rect, 9, ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X }
+		config_container,
+		sdl::window,
+		config_container_rect,
+		config_container_element_gap,
+		ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X }
 	);
 
 	gfx::Rect config_preview_container_rect = rect;
@@ -126,12 +142,21 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		ui::Padding{ 0, PAD_X, bottom_pad, PAD_X }
 	);
 
+	gfx::Rect option_information_container_rect = config_preview_container_rect;
+	ui::Padding option_information_padding{ PAD_Y, PAD_X, bottom_pad, PAD_X };
+
+	if (components::configs::selected_config_tab == "presets") {
+		// presets tab takes up the whole space so show option info in the same area
+		option_information_container_rect = config_container_rect;
+		option_information_padding.top += ui::tabs_height(fonts::dejavu) + config_container_element_gap;
+	}
+
 	ui::reset_container(
 		option_information_container,
 		sdl::window,
-		config_preview_container_rect,
-		9,
-		ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X }
+		option_information_container_rect,
+		config_container_element_gap,
+		option_information_padding
 	);
 
 	gfx::Rect notification_container_rect = rect;

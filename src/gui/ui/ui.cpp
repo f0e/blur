@@ -85,6 +85,8 @@ void ui::reset_container(
 	container.current_element_ids = {};
 	container.updated = false;
 	container.last_margin_bottom = 0;
+	container.next_same_line = false;
+	container.same_line_bottom = 0;
 }
 
 ui::AnimatedElement* ui::add_element(
@@ -93,8 +95,11 @@ ui::AnimatedElement* ui::add_element(
 	int margin_bottom,
 	const std::unordered_map<size_t, AnimationState>& animations
 ) {
-	// pad when switching element type
-	if (container.current_element_ids.size() > 0) {
+	bool same_line = container.next_same_line;
+	container.next_same_line = false;
+
+	// pad when switching element type (not when sharing a line, that would knock the element out of line)
+	if (!same_line && container.current_element_ids.size() > 0) {
 		auto& last_element_id = container.current_element_ids.back();
 		auto& last_element = container.elements[last_element_id];
 
@@ -114,6 +119,11 @@ ui::AnimatedElement* ui::add_element(
 	container.current_position.x = container.get_usable_rect().x;
 
 	container.current_position.y += animated_element->element->rect.h + margin_bottom;
+
+	// don't let a short element on a shared line pull the next one up over its taller neighbour
+	if (same_line)
+		container.current_position.y = std::max(container.current_position.y, container.same_line_bottom);
+
 	container.last_margin_bottom = margin_bottom;
 
 	return animated_element;
@@ -163,6 +173,9 @@ void ui::set_next_same_line(Container& container) {
 
 	container.current_position.x = last_element->rect.x2() + container.last_margin_bottom;
 	container.current_position.y = last_element->rect.y;
+
+	container.next_same_line = true;
+	container.same_line_bottom = last_element->rect.y2() + container.last_margin_bottom;
 }
 
 // todo: refactor
