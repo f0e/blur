@@ -171,7 +171,8 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 	float max_val = std::visit(to_float, slider_data.max_value);
 
 	// Normalize progress
-	float progress = std::clamp((current_val - min_val) / (max_val - min_val), 0.f, 1.f);
+	float range = max_val - min_val;
+	float progress = range != 0.f ? std::clamp((current_val - min_val) / range, 0.f, 1.f) : 0.f;
 
 	int track_shade = 40 + (20 * hover_anim);
 	gfx::Color track_color(track_shade, track_shade, track_shade, anim * 255);
