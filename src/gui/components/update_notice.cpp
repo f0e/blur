@@ -153,6 +153,11 @@ bool update_notice::is_updating() {
 	return state.updating;
 }
 
+bool update_notice::is_available() {
+	std::lock_guard<std::mutex> lock(state_mutex);
+	return state.update && !state.dismissed;
+}
+
 void update_notice::check_now() {
 	{
 		std::lock_guard<std::mutex> lock(state_mutex);
@@ -200,7 +205,7 @@ bool update_notice::is_checking() {
 	return state.checking;
 }
 
-void update_notice::render(ui::Container& container, ui::UpdateNoticeAlign align) {
+void update_notice::render(ui::Container& container, ui::UpdateNoticeAlign align, bool show_dismiss) {
 	updates::UpdateCheckRes update;
 	bool updating = false;
 	std::string status_text;
@@ -232,40 +237,55 @@ void update_notice::render(ui::Container& container, ui::UpdateNoticeAlign align
 		return;
 	}
 
-	std::vector<ui::UpdateNoticeLink> top_line{
-		{ .text = DISMISS_TEXT, .on_press = dismiss },
+	ui::UpdateNoticeLink action_link{
+		.text = ACTION_TEXT,
+		.primary = true,
+		.on_press =
+			[tag = update.latest_tag, url = update.latest_tag_url] {
+				start_update(tag, url);
+			},
 	};
+
+	std::optional<ui::UpdateNoticeLink> github_link;
 
 	// on platforms without an installer the action link already goes to the release page
 	if (updates::can_self_update()) {
-		top_line.push_back(
-			{
-				.text = GITHUB_TEXT,
-				.on_press =
-					[url = update.latest_tag_url] {
-						SDL_OpenURL(url.c_str());
-					},
-			}
-		);
+		github_link = ui::UpdateNoticeLink{
+			.text = GITHUB_TEXT,
+			.on_press =
+				[url = update.latest_tag_url] {
+					SDL_OpenURL(url.c_str());
+				},
+		};
 	}
 
-	std::vector<ui::UpdateNoticeLink> bottom_line{
-		{
-			.text = ACTION_TEXT,
-			.primary = true,
-			.on_press =
-				[tag = update.latest_tag, url = update.latest_tag_url] {
-					start_update(tag, url);
-				},
-		},
-	};
+	std::vector<std::vector<ui::UpdateNoticeLink>> lines;
+
+	if (show_dismiss) {
+		// dismiss + github on top, action on its own line below
+		std::vector<ui::UpdateNoticeLink> top_line{ { .text = DISMISS_TEXT, .on_press = dismiss } };
+		if (github_link)
+			top_line.push_back(*github_link);
+
+		lines.push_back(top_line);
+		lines.push_back({ action_link });
+	}
+	else {
+		// no dismiss, so it all fits on one line
+		std::vector<ui::UpdateNoticeLink> line;
+		if (github_link)
+			line.push_back(*github_link);
+		line.push_back(action_link);
+
+		lines.push_back(line);
+	}
 
 	ui::add_update_notice(
 		ELEMENT_ID,
 		container,
 		"update available",
 		std::format("v{} -> {}", BLUR_VERSION, update.latest_tag),
-		{ top_line, bottom_line },
+		lines,
 		{},
 		fonts::dejavu,
 		align
