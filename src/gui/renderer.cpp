@@ -127,9 +127,12 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 	gfx::Rect config_preview_content_container_rect = config_preview_container_rect;
 
-	if (components::configs::selected_config_tab == "blur")
-	{ // only tab where we actually render the header, so offset for it
-	  // (still need to reset it above otherwise to clear it, but rect creation is pointless tbf)
+	bool draw_config_preview_header =
+		components::configs::selected_config_tab ==
+		"blur"; // only tab where we actually render the header, so offset for it (still need to reset it above
+	            // otherwise to clear it, but rect creation is pointless tbf)
+
+	if (draw_config_preview_header) {
 		config_preview_content_container_rect.y = config_preview_header_container_rect.y2();
 		config_preview_content_container_rect.h -= config_preview_header_container_rect.h;
 	}
@@ -139,7 +142,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		sdl::window,
 		config_preview_content_container_rect,
 		fonts::dejavu.height(),
-		ui::Padding{ 0, PAD_X, bottom_pad, PAD_X }
+		ui::Padding{ draw_config_preview_header ? 0 : PAD_Y, PAD_X, bottom_pad, PAD_X }
 	);
 
 	gfx::Rect option_information_container_rect = config_preview_container_rect;
