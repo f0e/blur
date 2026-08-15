@@ -113,6 +113,7 @@ int gui::run() {
 				ui::on_update_input_start();
 
 				to_render |= ui::update_container_input(renderer::notification_container);
+				to_render |= ui::update_container_input(renderer::update_container);
 				to_render |= ui::update_container_input(renderer::nav_container);
 
 				to_render |= ui::update_container_input(renderer::main_container);

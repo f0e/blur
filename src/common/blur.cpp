@@ -138,11 +138,12 @@ tl::expected<updates::UpdateCheckRes, std::string> Blur::check_updates() {
 	return updates::is_latest_version(config.check_beta);
 }
 
-void Blur::update(
+bool Blur::update(
 	const std::string& tag,
-	const std::optional<std::function<void(const std::string& text, bool done)>>& progress_callback
+	const std::optional<updates::ProgressCallback>& progress_callback,
+	const std::optional<updates::CancelCallback>& cancel_callback
 ) {
-	updates::update_to_tag(tag, progress_callback);
+	return updates::update_to_tag(tag, progress_callback, cancel_callback);
 }
 
 void Blur::initialise_device_lists() {

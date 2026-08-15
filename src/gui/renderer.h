@@ -25,6 +25,7 @@ namespace gui::renderer {
 	inline ui::Container config_preview_content_container;
 	inline ui::Container option_information_container;
 	inline ui::Container notification_container;
+	inline ui::Container update_container;
 	inline ui::Container nav_container;
 
 	bool redraw_window(bool rendered_last, bool want_to_render);

@@ -37,6 +37,7 @@ void config_app::create(const std::filesystem::path& filepath, const GlobalAppSe
 	output << "- updates" << "\n";
 	output << "check for updates: " << (settings.check_updates ? "true" : "false") << "\n";
 	output << "include beta updates: " << (settings.check_beta ? "true" : "false") << "\n";
+	output << "dismissed update version: " << settings.dismissed_update_version << "\n";
 
 	output << "\n";
 	output << "- misc" << "\n";
@@ -80,6 +81,7 @@ GlobalAppSettings config_app::parse(const std::filesystem::path& config_filepath
 
 	config_base::extract_config_value(config_map, "check for updates", settings.check_updates);
 	config_base::extract_config_value(config_map, "include beta updates", settings.check_beta);
+	config_base::extract_config_value(config_map, "dismissed update version", settings.dismissed_update_version);
 
 	config_base::extract_config_value(
 		config_map, "notify about config overrides", settings.notify_about_config_override
