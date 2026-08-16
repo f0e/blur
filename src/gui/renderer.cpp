@@ -298,7 +298,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 				delta_time
 			);
 
-			ui::center_elements_in_container(config_preview_header_container);
+			ui::center_elements_in_container(config_preview_header_container, true, false);
 			ui::center_elements_in_container(config_preview_content_container);
 			ui::center_elements_in_container(option_information_container, true, false);
 
