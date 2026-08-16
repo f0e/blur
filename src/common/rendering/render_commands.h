@@ -2,6 +2,7 @@
 
 #include "common/config_app.h"
 #include "common/config_blur.h"
+#include "common/config_presets.h"
 
 // Pure functions that turn settings + video info into the vspipe / ffmpeg
 // argument vectors. No process spawning, no shared state - just string building.
@@ -24,21 +25,29 @@ namespace rendering::detail {
 		size_t end_frame
 	);
 
+	bool copies_audio(const BlurSettings& settings, const GlobalAppSettings& app_settings);
+	bool copies_audio(
+		const BlurSettings& settings, const GlobalAppSettings& app_settings, const PresetSettings& presets
+	);
+
 	tl::expected<std::filesystem::path, std::string> build_output_filename(
 		const std::filesystem::path& input_path, const BlurSettings& settings, const GlobalAppSettings& app_settings
 	);
 
+	std::optional<std::string> get_audio_copy_conflict(const BlurSettings& settings, bool trimming);
+
 	// the full ffmpeg command for a video render (audio filters, colour fixes and
 	// encoding args included) up to and including the output path. The preview
 	// pipe, which also toggles render state, is appended by the caller.
-	std::vector<std::string> build_ffmpeg_video_args(
+	tl::expected<std::vector<std::string>, std::string> build_ffmpeg_video_args(
 		const std::filesystem::path& input_path,
 		const u::VideoInfo& video_info,
 		const BlurSettings& settings,
 		const GlobalAppSettings& app_settings,
 		const std::filesystem::path& output_path,
 		size_t start_frame,
-		size_t end_frame
+		size_t end_frame,
+		bool trimming
 	);
 
 	void copy_file_timestamp(const std::filesystem::path& from, const std::filesystem::path& to);

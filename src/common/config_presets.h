@@ -135,6 +135,9 @@ namespace config_presets {
 	std::vector<PresetDetails> get_available_presets(bool gpu_encoding, const std::string& gpu_type);
 
 	std::vector<std::string> get_preset_params(const std::string& gpu_type, const std::string& preset, int quality);
+	std::vector<std::string> get_preset_params(
+		const PresetSettings& config, const std::string& gpu_type, const std::string& preset, int quality
+	);
 
 	tl::expected<std::string, std::string> extract_codec_from_args(const std::vector<std::string>& ffmpeg_args);
 

@@ -180,11 +180,16 @@ std::vector<config_presets::PresetDetails> config_presets::get_available_presets
 	return available_presets;
 }
 
-// NOLINTBEGIN(misc-no-recursion) trust me bro
 std::vector<std::string> config_presets::get_preset_params(
 	const std::string& gpu_type, const std::string& preset, int quality
 ) {
-	PresetSettings config = get_preset_config();
+	return get_preset_params(get_preset_config(), gpu_type, preset, quality);
+}
+
+// NOLINTBEGIN(misc-no-recursion) trust me bro
+std::vector<std::string> config_presets::get_preset_params(
+	const PresetSettings& config, const std::string& gpu_type, const std::string& preset, int quality
+) {
 	const std::string* params_ptr = config.find_preset_params(gpu_type, preset);
 
 	if (params_ptr) {
@@ -192,10 +197,10 @@ std::vector<std::string> config_presets::get_preset_params(
 	}
 
 	if (gpu_type != "cpu") {
-		return get_preset_params("cpu", preset, quality);
+		return get_preset_params(config, "cpu", preset, quality);
 	}
 
-	return get_preset_params("cpu", "h264", quality);
+	return get_preset_params(config, "cpu", "h264", quality);
 }
 
 // NOLINTEND(misc-no-recursion)

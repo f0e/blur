@@ -109,28 +109,42 @@ namespace {
 		}
 	}
 
-	// encoder settings: a raw ffmpeg override string if given, else the preset's params
-	void append_encoding_args(
-		std::vector<std::string>& args, const BlurSettings& settings, const GlobalAppSettings& app_settings
+	std::vector<std::string> build_encoding_args(
+		const BlurSettings& settings, const GlobalAppSettings& app_settings, const PresetSettings* presets
 	) {
-		if (!settings.advanced.ffmpeg_override.empty()) {
-			auto override_args = u::ffmpeg_string_to_args(settings.advanced.ffmpeg_override);
-			for (const auto& arg : override_args) {
-				args.push_back(arg);
-			}
-		}
-		else {
-			auto preset_args = config_presets::get_preset_params(
-				settings.gpu_encoding ? app_settings.gpu_type : "cpu",
-				u::to_lower(settings.encode_preset.empty() ? "h264" : settings.encode_preset),
-				settings.quality
-			);
+		if (!settings.advanced.ffmpeg_override.empty())
+			return u::ffmpeg_string_to_args(settings.advanced.ffmpeg_override);
 
-			for (const auto& arg : preset_args) {
-				args.push_back(arg);
-			}
-		}
+		std::string gpu_type = settings.gpu_encoding ? app_settings.gpu_type : "cpu";
+		std::string preset = u::to_lower(settings.encode_preset.empty() ? "h264" : settings.encode_preset);
+
+		if (presets)
+			return config_presets::get_preset_params(*presets, gpu_type, preset, settings.quality);
+
+		return config_presets::get_preset_params(gpu_type, preset, settings.quality);
 	}
+
+	bool wants_audio_copy(const std::vector<std::string>& encoding_args) {
+		for (size_t i = 0; i + 1 < encoding_args.size(); i++) {
+			const auto& flag = encoding_args[i];
+			bool is_audio_codec = flag == "-acodec" || flag.starts_with("-c:a") || flag.starts_with("-codec:a");
+
+			if (is_audio_codec && encoding_args[i + 1] == "copy")
+				return true;
+		}
+
+		return false;
+	}
+}
+
+bool rendering::detail::copies_audio(const BlurSettings& settings, const GlobalAppSettings& app_settings) {
+	return wants_audio_copy(build_encoding_args(settings, app_settings, nullptr));
+}
+
+bool rendering::detail::copies_audio(
+	const BlurSettings& settings, const GlobalAppSettings& app_settings, const PresetSettings& presets
+) {
+	return wants_audio_copy(build_encoding_args(settings, app_settings, &presets));
 }
 
 tl::expected<nlohmann::json, std::string> rendering::detail::merge_settings(
@@ -257,15 +271,38 @@ tl::expected<std::filesystem::path, std::string> rendering::detail::build_output
 	return result;
 }
 
-std::vector<std::string> rendering::detail::build_ffmpeg_video_args(
+std::optional<std::string> rendering::detail::get_audio_copy_conflict(const BlurSettings& settings, bool trimming) {
+	std::optional<std::string> unsupported;
+	if (trimming)
+		unsupported = "trimming";
+	else if (settings.timescale && settings.output_timescale != settings.input_timescale)
+		unsupported = "timescale";
+
+	if (!unsupported)
+		return {};
+
+	return std::format("{} needs to re-encode the audio, which '-c:a copy' doesn't allow", *unsupported);
+}
+
+tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffmpeg_video_args(
 	const std::filesystem::path& input_path,
 	const u::VideoInfo& video_info,
 	const BlurSettings& settings,
 	const GlobalAppSettings& app_settings,
 	const std::filesystem::path& output_path,
 	size_t start_frame,
-	size_t end_frame
+	size_t end_frame,
+	bool trimming
 ) {
+	auto encoding_args = build_encoding_args(settings, app_settings, nullptr);
+
+	bool copy_audio = !video_info.audio_sample_rates.empty() && wants_audio_copy(encoding_args);
+
+	if (copy_audio) {
+		if (auto conflict = get_audio_copy_conflict(settings, trimming))
+			return tl::unexpected(*conflict);
+	}
+
 	std::vector<std::string> args = {
 		"-loglevel",
 		"error",
@@ -282,9 +319,19 @@ std::vector<std::string> rendering::detail::build_ffmpeg_video_args(
 		"0:v",
 	};
 
-	append_audio_filter_args(args, video_info, settings, start_frame, end_frame);
+	if (copy_audio) {
+		for (size_t i = 0; i < video_info.audio_sample_rates.size(); i++) {
+			args.insert(args.end(), { "-map", std::format("1:a:{}", i) });
+		}
+	}
+	else {
+		append_audio_filter_args(args, video_info, settings, start_frame, end_frame);
+	}
+
 	append_colour_param_args(args, video_info);
-	append_encoding_args(args, settings, app_settings);
+
+	// append encoding args at end
+	args.insert(args.end(), encoding_args.begin(), encoding_args.end());
 
 	args.push_back(u::path_to_string(output_path));
 	return args;

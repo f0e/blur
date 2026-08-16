@@ -170,6 +170,7 @@ namespace ui {
 		size_t* index;
 		float* start;
 		float* end;
+		bool trim_disabled = false;
 		std::optional<float> saved_percent;
 		TrimHandleInfo handle_info;
 		std::function<void(size_t video_id)> on_remove;
@@ -714,6 +715,7 @@ namespace ui {
 		float& start,
 		float& end,
 		float& volume,
+		bool trim_disabled,
 		const std::function<void(size_t video_id)>& on_remove
 	);
 
