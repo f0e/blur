@@ -6,6 +6,17 @@
 #include "../../ui/ui.h"
 
 namespace gui::components::configs { // naming it configs to avoid conflict with common lol
+	inline const gfx::Color ERROR_COLOR(255, 0, 0, 255);
+	inline const gfx::Color WARNING_COLOR(252, 186, 3, 150);
+
+	void add_with_message(
+		ui::Container& container,
+		const std::string& message_id,
+		const std::optional<std::string>& message,
+		const gfx::Color& color,
+		const std::function<void()>& add_element
+	);
+
 	inline const std::vector<std::string> CONFIG_TABS = { "blur", "app", "presets" };
 	inline std::string selected_config_tab = CONFIG_TABS[0];
 
@@ -65,6 +76,8 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	// the device holding the first preset that can't be saved, if there is one
 	std::optional<std::string> find_preset_error_device();
+
+	std::optional<std::string> get_settings_error();
 
 	void about(ui::Container& container);
 

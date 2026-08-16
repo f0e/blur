@@ -7,9 +7,6 @@
 namespace configs = gui::components::configs;
 
 namespace {
-	const gfx::Color ERROR_COLOR(255, 0, 0, 255);
-	const gfx::Color WARNING_COLOR(252, 186, 3, 150);
-
 	const gfx::Color DELETE_ICON_COLOR = gfx::Color::white(120);
 	const gfx::Color DELETE_ICON_HOVER_COLOR(255, 80, 80, 255);
 	const std::string DELETE_ICON = "c"; // x
@@ -314,28 +311,21 @@ void configs::preset_options(ui::Container& container) {
 		auto error = get_preset_error(*presets, i);
 		auto warning = error ? std::nullopt : get_preset_warning(preset);
 
-		if (error || warning)
-			container.push_element_gap(2);
-
-		ui::add_text_input(
-			std::format("{} args input", id),
+		add_with_message(
 			container,
-			bind_input(std::format("{} args", id), preset.args),
-			"ffmpeg arguments",
-			fonts::dejavu
+			std::format("{} message", id),
+			error ? error : warning,
+			error ? ERROR_COLOR : WARNING_COLOR,
+			[&] {
+				ui::add_text_input(
+					std::format("{} args input", id),
+					container,
+					bind_input(std::format("{} args", id), preset.args),
+					"ffmpeg arguments",
+					fonts::dejavu
+				);
+			}
 		);
-
-		if (error || warning) {
-			container.pop_element_gap();
-
-			ui::add_text(
-				std::format("{} message", id),
-				container,
-				error ? *error : *warning,
-				error ? ERROR_COLOR : WARNING_COLOR,
-				fonts::dejavu
-			);
-		}
 
 		ui::add_spacing(container, 8);
 	}

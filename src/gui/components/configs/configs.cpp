@@ -7,6 +7,25 @@
 
 namespace configs = gui::components::configs;
 
+void configs::add_with_message(
+	ui::Container& container,
+	const std::string& message_id,
+	const std::optional<std::string>& message,
+	const gfx::Color& color,
+	const std::function<void()>& add_element
+) {
+	if (message)
+		container.push_element_gap(2);
+
+	add_element();
+
+	if (message) {
+		container.pop_element_gap();
+
+		ui::add_text(message_id, container, *message, color, fonts::dejavu);
+	}
+}
+
 void configs::section(
 	ui::Container& container, bool& first_section, const std::string& label, bool* setting, bool forced_on
 ) {
@@ -97,6 +116,16 @@ void configs::screen(
 				gui::components::notifications::add(
 					"preset errors", "Fix the errors in your presets before saving", ui::NotificationType::NOTIF_ERROR
 				);
+
+				return;
+			}
+
+			// check for errors
+			if (auto error = get_settings_error()) {
+				selected_config_tab = "blur";
+				selected_tab = TABS[0];
+
+				gui::components::notifications::add("settings error", *error, ui::NotificationType::NOTIF_ERROR);
 
 				return;
 			}

@@ -14,6 +14,35 @@ namespace main = gui::components::main;
 
 namespace {
 	size_t pending_index = 0;
+
+	std::unordered_map<size_t, bool> trim_disabled_cache;
+
+	bool is_trim_disabled(const tasks::PendingVideo& pending_video) {
+		if (!pending_video.video_info)
+			return false;
+
+		auto it = trim_disabled_cache.find(pending_video.video_id);
+		if (it != trim_disabled_cache.end())
+			return it->second;
+
+		bool disabled = false;
+
+		if (!pending_video.video_info->audio_sample_rates.empty()) {
+			auto app_settings = config_app::get_app_config();
+
+			auto config_res =
+				config_blur::get_config(config_blur::get_config_filename(pending_video.video_path.parent_path()), true);
+
+			disabled = rendering::detail::copies_audio(config_res.config, app_settings);
+		}
+
+		trim_disabled_cache.emplace(pending_video.video_id, disabled);
+		return disabled;
+	}
+}
+
+void main::invalidate_trim_support() {
+	trim_disabled_cache.clear();
 }
 
 void main::open_files_button(ui::Container& container, const std::string& label) {
@@ -269,6 +298,8 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 
 	float volume = app_config.preview_volume; // todo: make a gui element for controlling it? idk
 
+	bool trim_disabled = is_trim_disabled(*pending_video);
+
 	ui::add_videos(
 		"test video",
 		container,
@@ -277,10 +308,22 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 		pending_video->start,
 		pending_video->end,
 		volume,
+		trim_disabled,
 		[&](size_t removed_video_id) {
 			tasks::cancel_pending(removed_video_id);
 		}
 	);
+
+	if (trim_disabled) {
+		ui::add_text(
+			"trim disabled notice",
+			container,
+			"Trimming unavailable, as the current preset copies the audio ('-c:a copy')",
+			gfx::Color::white(renderer::MUTED_SHADE),
+			fonts::dejavu,
+			FONT_CENTERED_X
+		);
+	}
 }
 
 void main::render_home(ui::Container& container) {

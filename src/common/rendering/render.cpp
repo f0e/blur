@@ -109,12 +109,16 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 		((abs_end_time - video_info.video_start_time) * video_info.fps_num / video_info.fps_den) + 0.5
 	);
 
+	auto ffmpeg_args = detail::build_ffmpeg_video_args(
+		input_path, video_info, settings, app_settings, output_path, start_frame, end_frame, start != 0.f || end != 1.f
+	);
+	if (!ffmpeg_args)
+		return tl::unexpected(ffmpeg_args.error());
+
 	RenderCommands commands = {
 		.vspipe_video =
 			detail::build_vspipe_video_args(input_path, *merged_settings, video_info, start_frame, end_frame),
-		.ffmpeg = detail::build_ffmpeg_video_args(
-			input_path, video_info, settings, app_settings, output_path, start_frame, end_frame
-		),
+		.ffmpeg = *ffmpeg_args,
 	};
 
 	// add preview pipe if needed

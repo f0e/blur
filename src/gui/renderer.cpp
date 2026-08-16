@@ -320,6 +320,10 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	if (last_screen != screen) {
 		if (last_screen == Screens::CONFIG)
 			components::configs::reset_config_preview();
+
+		// the preset may have just been changed in the config tab, and whether trimming is possible depends on it
+		components::main::invalidate_trim_support();
+
 		last_screen = screen;
 	}
 

@@ -31,6 +31,7 @@ constexpr int GRABS_THICKNESS = 1;
 constexpr int GRABS_LENGTH = 5;
 constexpr gfx::Color GRABS_COLOR(175, 175, 175);
 constexpr gfx::Color GRABS_ACTIVE_COLOR(100, 100, 100);
+constexpr float DISABLED_GRABS_ALPHA = 0.35f;
 constexpr gfx::Size GRAB_CLICK_EXPANSION(15, 5);
 
 constexpr float TRACK_ZOOM_SPEED = 1.4f;
@@ -440,16 +441,19 @@ void render_track(const ui::Container& container, const ui::AnimatedElement& ele
 
 	render::push_clip_rect(rect.expand(1));
 
+	// dimmed when the preset rules out trimming, to match the handles being inert
+	float grabs_alpha = anim * (video_data.trim_disabled ? DISABLED_GRABS_ALPHA : 1.f);
+
 	render::rect_side(
 		grab_rects.left,
-		gfx::Color::lerp(GRABS_COLOR, GRABS_ACTIVE_COLOR, left_grab).adjust_alpha(anim),
+		gfx::Color::lerp(GRABS_COLOR, GRABS_ACTIVE_COLOR, left_grab).adjust_alpha(grabs_alpha),
 		render::RectSide::LEFT,
 		GRABS_THICKNESS
 	);
 
 	render::rect_side(
 		grab_rects.right,
-		gfx::Color::lerp(GRABS_COLOR, GRABS_ACTIVE_COLOR, right_grab).adjust_alpha(anim),
+		gfx::Color::lerp(GRABS_COLOR, GRABS_ACTIVE_COLOR, right_grab).adjust_alpha(grabs_alpha),
 		render::RectSide::RIGHT,
 		GRABS_THICKNESS
 	);
@@ -591,6 +595,11 @@ bool update_track(const ui::Container& container, ui::AnimatedElement& element) 
 
 	// Handle grab interactions
 	for (auto [i, grab] : u::enumerate(grabs)) {
+		if (video_data.trim_disabled) {
+			grab.anim.set_goal(0.f);
+			continue;
+		}
+
 		std::string action = "grab_" + std::to_string(i);
 
 		grab.hovered = grab.rect.contains(keys::mouse_pos) && set_hovered_element(element);
@@ -953,6 +962,7 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 	float& start,
 	float& end,
 	float& volume,
+	bool trim_disabled,
 	const std::function<void(size_t video_id)>& on_remove
 ) {
 	if (ui_videos.empty())
@@ -960,6 +970,13 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 
 	if (!video_player)
 		video_player = std::make_shared<VideoPlayer>(volume);
+
+	if (trim_disabled && (start != 0.f || end != 1.f)) {
+		start = 0.f;
+		end = 1.f;
+		video_player->set_start(start);
+		video_player->set_end(end);
+	}
 
 	std::vector<VideoElementData::Video> videos;
 
@@ -1010,6 +1027,7 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 			.index = &index,
 			.start = &start,
 			.end = &end,
+			.trim_disabled = trim_disabled,
 			.on_remove = on_remove,
 		},
 		render_videos,

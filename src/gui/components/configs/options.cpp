@@ -8,6 +8,45 @@
 
 namespace configs = gui::components::configs;
 
+namespace {
+	const std::string TIMESCALE_OVERRIDE_AUDIO_COPY_ERROR = "cannot use -c:a copy while using timescale";
+	const std::string TIMESCALE_PRESET_AUDIO_COPY_ERROR =
+		"this preset uses -c:a copy, which can't be used while using timescale";
+	const std::string DEDUPLICATE_THRESHOLD_ERROR = "deduplicate threshold must be a decimal number";
+
+	bool timescale_conflicts_with_audio_copy() {
+		using namespace gui::components::configs;
+
+		if (!settings.timescale || settings.output_timescale == settings.input_timescale)
+			return false;
+
+		return rendering::detail::copies_audio(settings, app_settings, preset_settings);
+	}
+
+	bool deduplicate_threshold_valid() {
+		using namespace gui::components::configs;
+
+		std::istringstream iss(settings.advanced.deduplicate_threshold);
+		float f = NAN;
+		iss >> std::noskipws >> f;
+
+		return iss.eof() && !iss.fail();
+	}
+}
+
+std::optional<std::string> configs::get_settings_error() {
+	if (timescale_conflicts_with_audio_copy()) {
+		return settings.advanced.ffmpeg_override.empty() ? TIMESCALE_PRESET_AUDIO_COPY_ERROR
+		                                                 : TIMESCALE_OVERRIDE_AUDIO_COPY_ERROR;
+	}
+
+	// only while the advanced section is showing - refusing to save over a field that's hidden would be confusing
+	if (settings.override_advanced && !deduplicate_threshold_valid())
+		return DEDUPLICATE_THRESHOLD_ERROR;
+
+	return {};
+}
+
 void configs::set_interpolated_fps() {
 	if (interpolate_scale) {
 		settings.interpolated_fps = std::format("{}x", interpolated_fps_mult);
@@ -275,19 +314,26 @@ void configs::options(ui::Container& container) {
 			"no presets text",
 			container,
 			"no presets available. try toggling 'gpu encoding'",
-			gfx::Color(252, 186, 3, 150),
+			WARNING_COLOR,
 			fonts::dejavu
 		);
 	}
 	else {
-		ui::add_dropdown(
-			"codec dropdown",
-			container,
-			std::format("encode preset ({})", settings.gpu_encoding ? "gpu: " + app_settings.gpu_type : "cpu"),
-			presets,
-			settings.encode_preset,
-			fonts::dejavu
-		);
+		// blamed on the preset only when there's no override - otherwise the override is what's copying the audio
+		std::optional<std::string> preset_error;
+		if (settings.advanced.ffmpeg_override.empty() && timescale_conflicts_with_audio_copy())
+			preset_error = TIMESCALE_PRESET_AUDIO_COPY_ERROR;
+
+		add_with_message(container, "timescale preset audio copy warning", preset_error, ERROR_COLOR, [&] {
+			ui::add_dropdown(
+				"codec dropdown",
+				container,
+				std::format("encode preset ({})", settings.gpu_encoding ? "gpu: " + app_settings.gpu_type : "cpu"),
+				presets,
+				settings.encode_preset,
+				fonts::dejavu
+			);
+		});
 	}
 
 	if (settings.advanced.ffmpeg_override.empty()) {
@@ -321,7 +367,7 @@ void configs::options(ui::Container& container) {
 			"ffmpeg override quality warning",
 			container,
 			"quality overridden by custom ffmpeg filters",
-			gfx::Color(252, 186, 3, 150),
+			WARNING_COLOR,
 			fonts::dejavu
 		);
 	}
@@ -371,7 +417,7 @@ void configs::options(ui::Container& container) {
 			"ffmpeg override gpu encoding warning",
 			container,
 			"gpu encoding overridden by custom ffmpeg filters",
-			gfx::Color(252, 186, 3, 150),
+			WARNING_COLOR,
 			fonts::dejavu
 		);
 	}
@@ -524,33 +570,19 @@ void configs::options(ui::Container& container) {
 			);
 		}
 
-		std::istringstream iss(settings.advanced.deduplicate_threshold);
-		float f = NAN;
-		iss >> std::noskipws >> f; // try to read as float
-		bool is_float = iss.eof() && !iss.fail();
+		std::optional<std::string> threshold_error;
+		if (!deduplicate_threshold_valid())
+			threshold_error = DEDUPLICATE_THRESHOLD_ERROR;
 
-		if (!is_float)
-			container.push_element_gap(2);
-
-		ui::add_text_input(
-			"deduplicate threshold input",
-			container,
-			settings.advanced.deduplicate_threshold,
-			"deduplicate threshold",
-			fonts::dejavu
-		);
-
-		if (!is_float) {
-			container.pop_element_gap();
-
-			ui::add_text(
-				"deduplicate threshold not a float warning",
+		add_with_message(container, "deduplicate threshold not a float warning", threshold_error, ERROR_COLOR, [&] {
+			ui::add_text_input(
+				"deduplicate threshold input",
 				container,
-				"deduplicate threshold must be a decimal number",
-				gfx::Color(255, 0, 0, 255),
+				settings.advanced.deduplicate_threshold,
+				"deduplicate threshold",
 				fonts::dejavu
 			);
-		}
+		});
 
 		ui::add_dropdown(
 			"deduplicate frames to interpolate input",
@@ -587,30 +619,20 @@ void configs::options(ui::Container& container) {
 			"video container text input", container, settings.advanced.video_container, "video container", fonts::dejavu
 		);
 
-		bool bad_audio = settings.timescale && (u::contains(settings.advanced.ffmpeg_override, "-c:a copy") ||
-		                                        u::contains(settings.advanced.ffmpeg_override, "-codec:a copy"));
-		if (bad_audio)
-			container.push_element_gap(2);
+		// blamed on the override only when there is one - otherwise it's the preset's doing and the message goes there
+		std::optional<std::string> override_error;
+		if (!settings.advanced.ffmpeg_override.empty() && timescale_conflicts_with_audio_copy())
+			override_error = "cannot use -c:a copy while using timescale";
 
-		ui::add_text_input(
-			"custom ffmpeg filters text input",
-			container,
-			settings.advanced.ffmpeg_override,
-			"custom ffmpeg filters",
-			fonts::dejavu
-		);
-
-		if (bad_audio) {
-			container.pop_element_gap();
-
-			ui::add_text(
-				"timescale audio copy warning",
+		add_with_message(container, "timescale audio copy warning", override_error, ERROR_COLOR, [&] {
+			ui::add_text_input(
+				"custom ffmpeg filters text input",
 				container,
-				"cannot use -c:a copy while using timescale",
-				gfx::Color(255, 0, 0, 255),
+				settings.advanced.ffmpeg_override,
+				"custom ffmpeg filters",
 				fonts::dejavu
 			);
-		}
+		});
 
 		ui::add_checkbox("debug checkbox", container, "debug", settings.advanced.debug, fonts::dejavu);
 
