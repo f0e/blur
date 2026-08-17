@@ -4,6 +4,7 @@
 #include "../../render/render.h"
 
 #include "common/config_app.h"
+#include "gui/sdl.h"
 
 namespace configs = gui::components::configs;
 
@@ -17,6 +18,26 @@ void configs::app_options(ui::Container& container) {
 	    Interface
 	*/
 	section_component("interface");
+
+	ui::add_slider(
+		"window width slider",
+		container,
+		sdl::MINIMUM_WINDOW_SIZE.w,
+		sdl::MINIMUM_WINDOW_SIZE.w * 3,
+		&app_settings.gui_width,
+		"default window width: {}",
+		fonts::dejavu
+	);
+
+	ui::add_slider(
+		"window height slider",
+		container,
+		sdl::MINIMUM_WINDOW_SIZE.h,
+		sdl::MINIMUM_WINDOW_SIZE.h * 3,
+		&app_settings.gui_height,
+		"default window height: {}",
+		fonts::dejavu
+	);
 
 	ui::add_slider(
 		"dpi scale slider",
