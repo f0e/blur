@@ -54,7 +54,6 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	bool has_sample_video();
 	void set_sample_video(const std::filesystem::path& path);
 	void clear_sample_video();
-	void seek_bar(ui::Container& container, std::optional<int> width = {});
 	void save_preview_app_settings();
 
 	void set_interpolated_fps();
