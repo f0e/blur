@@ -114,6 +114,12 @@ void main::render_progress(
 	int bar_width = 300;
 
 	static std::shared_ptr<render::Texture> preview_texture;
+	static std::weak_ptr<rendering::RenderState> preview_texture_state;
+
+	if (preview_texture_state.lock() != render.state) {
+		preview_texture.reset();
+		preview_texture_state = render.state;
+	}
 
 	// create texture from current render preview (here cause its main thread)
 	auto get_preview_texture = [&] { // lambda just so i can return lol
