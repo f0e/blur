@@ -39,7 +39,8 @@ namespace ui {
 		HINT,
 		SPINNER,
 		UPDATE_NOTICE,
-		ABOUT
+		LOGO_AND_VERSION,
+		LINK
 	};
 
 	struct BarElementData {
@@ -374,37 +375,38 @@ namespace ui {
 	struct UpdateNoticeElementData {
 		std::string status;
 		std::string subtext;
-		std::vector<std::vector<UpdateNoticeLink>> lines;
 		std::optional<float> progress;
 		UpdateNoticeAlign align;
 		const render::Font* font;
 
 		bool operator==(const UpdateNoticeElementData& other) const {
-			return status == other.status && subtext == other.subtext && lines == other.lines &&
-			       progress == other.progress && align == other.align && font == other.font;
+			return status == other.status && subtext == other.subtext && progress == other.progress &&
+			       align == other.align && font == other.font;
 		}
 	};
 
-	struct AboutLink {
-		std::string text;
-		std::optional<std::function<void()>> on_press;
-
-		bool operator==(const AboutLink& other) const {
-			return text == other.text;
-		}
-	};
-
-	struct AboutElementData {
+	struct LogoAndVersionElementData {
 		std::shared_ptr<render::Texture> logo;
 		std::string title;
 		std::string subtitle;
-		std::vector<AboutLink> links;
 		const render::Font* title_font;
 		const render::Font* font;
 
-		bool operator==(const AboutElementData& other) const {
-			return logo == other.logo && title == other.title && subtitle == other.subtitle && links == other.links &&
+		bool operator==(const LogoAndVersionElementData& other) const {
+			return logo == other.logo && title == other.title && subtitle == other.subtitle &&
 			       title_font == other.title_font && font == other.font;
+		}
+	};
+
+	struct LinkElementData {
+		std::string text;
+		std::optional<std::function<void()>> on_press;
+		gfx::Color color;
+		gfx::Color hover_color;
+		const render::Font* font;
+
+		bool operator==(const LinkElementData& other) const {
+			return text == other.text && color == other.color && hover_color == other.hover_color && font == other.font;
 		}
 	};
 
@@ -427,7 +429,8 @@ namespace ui {
 		HintElementData,
 		SpinnerElementData,
 		UpdateNoticeElementData,
-		AboutElementData>;
+		LogoAndVersionElementData,
+		LinkElementData>;
 
 	struct AnimationState {
 		float speed;
@@ -635,10 +638,11 @@ namespace ui {
 	void render_spinner(const Container& container, const AnimatedElement& element);
 
 	void render_update_notice(const Container& container, const AnimatedElement& element);
-	bool update_update_notice(const Container& container, AnimatedElement& element);
 
-	void render_about(const Container& container, const AnimatedElement& element);
-	bool update_about(const Container& container, AnimatedElement& element);
+	void render_logo_and_version(const Container& container, const AnimatedElement& element);
+
+	void render_link(const Container& container, const AnimatedElement& element);
+	bool update_link(const Container& container, AnimatedElement& element);
 
 	void reset_container(
 		Container& container,
@@ -894,15 +898,24 @@ namespace ui {
 		UpdateNoticeAlign align = UpdateNoticeAlign::RIGHT
 	);
 
-	AnimatedElement* add_about(
+	AnimatedElement* add_logo_and_version(
 		const std::string& id,
 		Container& container,
 		std::shared_ptr<render::Texture> logo,
 		const std::string& title,
 		const std::string& subtitle,
-		const std::vector<AboutLink>& links,
 		const render::Font& title_font,
 		const render::Font& font
+	);
+
+	AnimatedElement* add_link(
+		const std::string& id,
+		Container& container,
+		const std::string& text,
+		const render::Font& font,
+		std::optional<std::function<void()>> on_press = {},
+		gfx::Color color = gfx::Color::white(105),
+		gfx::Color hover_color = gfx::Color::white()
 	);
 
 	void add_spacing(Container& container, int spacing);

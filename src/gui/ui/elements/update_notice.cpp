@@ -1,18 +1,17 @@
 #include "../ui.h"
 #include "../../render/render.h"
-#include "../keys.h"
 
 static const int RULE_HEIGHT = 1;
 static const int RULE_GAP = 9;
 static const int SUBTEXT_GAP = 3;
 static const int LINE_GAP = 5;
 static const int LINK_GAP = 14;
-static const int LINK_HIT_PAD = 4;
 
 namespace {
-	size_t link_animation_key(size_t row, size_t index) {
-		return ui::hasher(std::format("link {} {} hover", row, index));
-	}
+	const gfx::Color PRIMARY_LINK_COLOR = gfx::Color::white(150);
+	const gfx::Color PRIMARY_LINK_HOVER_COLOR = gfx::Color::white();
+	const gfx::Color SECONDARY_LINK_COLOR = gfx::Color::white(85);
+	const gfx::Color SECONDARY_LINK_HOVER_COLOR = gfx::Color::white(180);
 
 	// two halves, for gradients that mirror around the middle
 	std::pair<gfx::Rect, gfx::Rect> split_at_center(const gfx::Rect& rect) {
@@ -32,21 +31,26 @@ namespace {
 	}
 
 	// rows stacked bottom to top, each packed against the right edge or centered
-	std::vector<std::vector<gfx::Rect>> get_link_rects(const gfx::Rect& rect, const ui::UpdateNoticeElementData& data) {
-		std::vector<std::vector<gfx::Rect>> rects(data.lines.size());
+	std::vector<std::vector<gfx::Rect>> get_link_rects(
+		const gfx::Rect& rect,
+		const std::vector<std::vector<ui::UpdateNoticeLink>>& lines,
+		ui::UpdateNoticeAlign align,
+		const render::Font& font
+	) {
+		std::vector<std::vector<gfx::Rect>> rects(lines.size());
 
-		int height = data.font->height();
+		int height = font.height();
 		int y = rect.y2() - height;
 
-		for (size_t row = data.lines.size(); row-- > 0;) {
-			const auto& line = data.lines[row];
+		for (size_t row = lines.size(); row-- > 0;) {
+			const auto& line = lines[row];
 			rects[row].resize(line.size());
 
-			int width = line_width(line, *data.font);
-			int x = data.align == ui::UpdateNoticeAlign::CENTER ? rect.center().x - (width / 2) : rect.x2() - width;
+			int width = line_width(line, font);
+			int x = align == ui::UpdateNoticeAlign::CENTER ? rect.center().x - (width / 2) : rect.x2() - width;
 
 			for (const auto [i, link] : u::enumerate(line)) {
-				int link_width = data.font->calc_size(link.text).w;
+				int link_width = font.calc_size(link.text).w;
 				rects[row][i] = gfx::Rect(x, y, link_width, height);
 				x += link_width + LINK_GAP;
 			}
@@ -55,46 +59,6 @@ namespace {
 		}
 
 		return rects;
-	}
-
-	void render_link(
-		const gfx::Rect& link_rect, const ui::UpdateNoticeLink& link, const render::Font& font, float anim, float hover
-	) {
-		gfx::Color color = link.primary ? gfx::Color::white(static_cast<uint8_t>(anim * (150.f + (105.f * hover))))
-		                                : gfx::Color::white(static_cast<uint8_t>(anim * (85.f + (95.f * hover))));
-
-		render::text(link_rect.top_left(), color, link.text, font);
-
-		// underline fades in on hover so it reads as clickable
-		if (hover > 0.f) {
-			gfx::Rect underline(link_rect.x, link_rect.y2() + 1, link_rect.w, 1);
-			render::rect_filled(underline, color.adjust_alpha(hover * 0.6f));
-		}
-	}
-
-	bool update_link(
-		ui::AnimatedElement& element,
-		const gfx::Rect& link_rect,
-		const std::optional<std::function<void()>>& on_press,
-		size_t animation_key
-	) {
-		auto& anim = element.animations.at(animation_key);
-
-		bool hovered = link_rect.expand(LINK_HIT_PAD).contains(keys::mouse_pos) && ui::set_hovered_element(element);
-		anim.set_goal(hovered ? 1.f : 0.f);
-
-		if (!hovered || !on_press)
-			return false;
-
-		ui::set_cursor(SDL_SYSTEM_CURSOR_POINTER);
-
-		if (!keys::is_mouse_down())
-			return false;
-
-		(*on_press)();
-		keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
-
-		return true;
 	}
 }
 
@@ -177,35 +141,6 @@ void ui::render_update_notice(const Container& container, const AnimatedElement&
 			text_flags
 		);
 	}
-
-	auto line_rects = get_link_rects(rect, notice_data);
-
-	for (const auto [row, line] : u::enumerate(notice_data.lines)) {
-		for (const auto [i, link] : u::enumerate(line)) {
-			render_link(
-				line_rects[row][i],
-				link,
-				*notice_data.font,
-				anim,
-				element.animations.at(link_animation_key(row, i)).current
-			);
-		}
-	}
-}
-
-bool ui::update_update_notice(const Container& container, AnimatedElement& element) {
-	const auto& notice_data = std::get<UpdateNoticeElementData>(element.element->data);
-
-	auto line_rects = get_link_rects(element.element->rect, notice_data);
-
-	bool updated = false;
-	for (const auto [row, line] : u::enumerate(notice_data.lines)) {
-		for (const auto [i, link] : u::enumerate(line)) {
-			updated |= update_link(element, line_rects[row][i], link.on_press, link_animation_key(row, i));
-		}
-	}
-
-	return updated;
 }
 
 ui::AnimatedElement* ui::add_update_notice(
@@ -247,23 +182,48 @@ ui::AnimatedElement* ui::add_update_notice(
 		UpdateNoticeElementData{
 			.status = status,
 			.subtext = subtext,
-			.lines = lines,
 			.progress = progress,
 			.align = align,
 			.font = &font,
 		},
-		render_update_notice,
-		update_update_notice
+		render_update_notice
 	);
 
-	std::unordered_map<size_t, AnimationState> animations{
-		{ hasher("main"), AnimationState(15.f) },
-	};
+	auto* animated_element =
+		add_element(container, std::move(element), container.element_gap, { { hasher("main"), AnimationState(15.f) } });
+
+	auto line_rects = get_link_rects(animated_element->element->rect, lines, align, font);
+
 	for (const auto [row, line] : u::enumerate(lines)) {
-		for (size_t i = 0; i < line.size(); i++) {
-			animations.emplace(link_animation_key(row, i), AnimationState(80.f));
+		for (const auto [i, link] : u::enumerate(line)) {
+			gfx::Color color = link.primary ? PRIMARY_LINK_COLOR : SECONDARY_LINK_COLOR;
+			gfx::Color hover_color = link.primary ? PRIMARY_LINK_HOVER_COLOR : SECONDARY_LINK_HOVER_COLOR;
+
+			Element link_element(
+				std::format("{} link {} {}", id, row, i),
+				ElementType::LINK,
+				line_rects[row][i],
+				LinkElementData{
+					.text = link.text,
+					.on_press = link.on_press,
+					.color = color,
+					.hover_color = hover_color,
+					.font = &font,
+				},
+				render_link,
+				update_link
+			);
+
+			add_element(
+				container,
+				std::move(link_element),
+				{
+					{ hasher("main"), AnimationState(15.f) },
+					{ hasher("hover"), AnimationState(80.f) },
+				}
+			);
 		}
 	}
 
-	return add_element(container, std::move(element), container.element_gap, animations);
+	return animated_element;
 }
