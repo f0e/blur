@@ -13,7 +13,7 @@ namespace {
 	BlurSettings previewed_settings;
 	bool first = true;
 	size_t preview_id = 0;
-	bool loading = false;
+	std::atomic<bool> loading = false;
 	std::mutex preview_mutex;
 	std::shared_ptr<render::Texture> preview_texture;
 	std::vector<uint8_t> pending_jpeg;
@@ -65,8 +65,10 @@ void configs::config_preview(ui::Container& container) {
 	{
 		std::lock_guard lock(preview_mutex);
 
-		if (auto texture = render::texture_from_jpeg(pending_jpeg))
+		if (auto texture = render::texture_from_jpeg(pending_jpeg)) {
 			preview_texture = std::move(texture);
+			preview_id++;
+		}
 
 		pending_jpeg.clear();
 	}
@@ -94,10 +96,7 @@ void configs::config_preview(ui::Container& container) {
 		just_added_sample_video = false;
 		last_render_time = now;
 
-		{
-			std::lock_guard lock(preview_mutex);
-			loading = true;
-		}
+		loading = true;
 
 		auto local_settings = settings;
 		auto local_app_settings = app_settings;
@@ -110,13 +109,12 @@ void configs::config_preview(ui::Container& container) {
 			if (!is_current_preview_render(state))
 				return;
 
-			std::lock_guard lock(preview_mutex);
-
 			loading = false;
+
+			std::lock_guard lock(preview_mutex);
 
 			if (res) {
 				pending_jpeg = std::move(res->frame_jpeg);
-				preview_id++;
 
 				u::log("config preview finished rendering");
 			}
