@@ -14,6 +14,9 @@ struct GlobalAppSettings {
 
 	int preview_volume = 70;
 
+	std::string sample_video_path;
+	float config_preview_seek = 0.5f;
+
 	bool render_success_notifications = false;
 	bool render_failure_notifications = false;
 

@@ -17,7 +17,8 @@ namespace rendering {
 		const std::filesystem::path& input_path,
 		const BlurSettings& settings,
 		const GlobalAppSettings& app_settings = config_app::get_app_config(),
-		const std::shared_ptr<RenderState>& state = std::make_shared<RenderState>()
+		const std::shared_ptr<RenderState>& state = std::make_shared<RenderState>(),
+		float seek = 0.f
 	);
 
 	namespace detail {

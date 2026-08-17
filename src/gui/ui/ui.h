@@ -32,6 +32,7 @@ namespace ui {
 		TEXT_INPUT,
 		CHECKBOX,
 		DROPDOWN,
+		SEEK_BAR,
 		SEPARATOR,
 		WEIGHTING_GRAPH,
 		TABS,
@@ -261,6 +262,16 @@ namespace ui {
 		}
 	};
 
+	struct SeekBarElementData {
+		float* value;
+		float duration;
+		const render::Font* font;
+
+		bool operator==(const SeekBarElementData& other) const {
+			return value == other.value && duration == other.duration && font == other.font;
+		}
+	};
+
 	struct CheckboxElementData {
 		std::string label;
 		bool* checked;
@@ -404,6 +415,7 @@ namespace ui {
 		IconButtonElementData,
 		NotificationElementData,
 		SliderElementData,
+		SeekBarElementData,
 		TextInputElementData,
 		CheckboxElementData,
 		DropdownElementData,
@@ -591,6 +603,9 @@ namespace ui {
 	bool update_slider(const Container& container, AnimatedElement& element);
 	void remove_slider(AnimatedElement& element);
 
+	void render_seek_bar(const Container& container, const AnimatedElement& element);
+	bool update_seek_bar(const Container& container, AnimatedElement& element);
+
 	void render_text_input(const Container& container, const AnimatedElement& element);
 	bool update_text_input(const Container& container, AnimatedElement& element);
 
@@ -776,6 +791,17 @@ namespace ui {
 		std::optional<std::function<void(const std::variant<int*, float*>&)>> on_change = {},
 		float precision = 0.f,
 		const std::string& tooltip = ""
+	);
+
+	int seek_bar_height(const render::Font& font);
+
+	AnimatedElement* add_seek_bar(
+		const std::string& id,
+		Container& container,
+		float& value,
+		const render::Font& font,
+		float duration = 0.f,
+		std::optional<int> width = {} // defaults to filling the container
 	);
 
 	// height of a text input's field using this font (excluding any label), for lining other elements up with one

@@ -15,23 +15,65 @@ if vars().get("macos_bundled") == "true":
 elif vars().get("linux_bundled") == "true":
     u.load_plugins(".so")
 
+BENCHMARK_WIDTH = 1920
+BENCHMARK_HEIGHT = 1080
+BENCHMARK_FPS = 24
+BENCHMARK_LENGTH = 12
+
+
+def generate_benchmark_video() -> vs.VideoNode:
+    # chroma is subsampled, odd sizes/offsets aren't allowed
+    def make_even(value: int) -> int:
+        return value - (value % 2)
+
+    box_width = make_even(BENCHMARK_WIDTH // 8)
+    box_height = make_even(BENCHMARK_HEIGHT // 8)
+
+    frames = []
+    for i in range(BENCHMARK_LENGTH):
+        progress = i / max(BENCHMARK_LENGTH - 1, 1)
+
+        x = make_even(int((BENCHMARK_WIDTH - box_width) * progress))
+        y = make_even(int((BENCHMARK_HEIGHT - box_height) * progress))
+
+        box = core.std.BlankClip(
+            width=box_width,
+            height=box_height,
+            format=vs.YUV420P8,
+            length=1,
+            fpsnum=BENCHMARK_FPS,
+            fpsden=1,
+            color=[235, 128, 128],
+        )
+
+        frames.append(
+            core.std.AddBorders(
+                box,
+                left=x,
+                right=BENCHMARK_WIDTH - box_width - x,
+                top=y,
+                bottom=BENCHMARK_HEIGHT - box_height - y,
+                color=[16, 128, 128],
+            )
+        )
+
+    return core.std.Splice(frames)
+
+
 benchmark_type = vars().get("type", "")
 
 device_index = vars().get("device_index")
-if not device_index:
+if device_index is None:
     raise u.BlurException("Device index not provided")
 
-benchmark_video_path = vars().get("benchmark_video_path")
-if benchmark_video_path is None or not Path(benchmark_video_path).exists():
-    raise u.BlurException("Benchmark video not found")
+device_index = int(device_index)  # vspipe args come through as strings
 
-if vars().get("enable_lsmash") == "true":
-    video = core.lsmas.LWLibavSource(source=benchmark_video_path, cache=0)
-else:
-    video = core.bs.VideoSource(source=benchmark_video_path, cachemode=0)
+settings_path = Path(vars().get("settings_path", ""))
+
+video = generate_benchmark_video()
 
 video_info = u.VideoInfo(
-    is_full_color_range=False,  # doesn't matter
+    is_full_color_range=False,
     orig_width=video.width,
     orig_height=video.height,
     resize_chromaloc=None,  # doesn't matter
@@ -55,12 +97,13 @@ match benchmark_type:
         if not model:
             raise u.BlurException("RIFE model not provided")
 
-        video = blur.interpolate.interpolate_rife_trt(
+        video = blur.interpolate.interpolate_rife_vsmlrt(
             video,
             video_info,
             new_fps=video.fps * 3,
             model=model,
             device_index=device_index,
+            settings_path=settings_path,
         )
 
     case _:

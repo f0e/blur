@@ -88,14 +88,12 @@ int gui::run() {
 						break;
 					}
 
-					if (gui::renderer::screen == gui::renderer::Screens::CONFIG) {
-						auto sample_video_path = blur.settings_path / "sample_video.mp4";
-						bool sample_video_exists = std::filesystem::exists(sample_video_path);
-						if (!sample_video_exists) {
-							tasks::add_sample_video(path);
+					if (gui::renderer::screen == gui::renderer::Screens::CONFIG &&
+					    gui::components::configs::loaded_config && !gui::components::configs::has_sample_video())
+					{
+						tasks::add_sample_video(path);
 
-							break;
-						}
+						break;
 					}
 
 					tasks::add_files({ path });

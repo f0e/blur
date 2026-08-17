@@ -187,14 +187,9 @@ void tasks::add_sample_video(const std::filesystem::path& path_str) {
 		return;
 	}
 
-	auto sample_video_path = blur.settings_path / "sample_video.mp4";
-
-	// todo: reencode?
-	std::filesystem::copy(path, sample_video_path);
+	gui::components::configs::set_sample_video(path);
 
 	gui::components::notifications::add("Added sample video", ui::NotificationType::SUCCESS);
-
-	gui::components::configs::just_added_sample_video = true;
 }
 
 void tasks::cancel_all_pending() {

@@ -2,11 +2,28 @@
 #include "render_commands.h"
 #include "render_pipeline.h"
 
+namespace {
+	size_t get_seek_start_frame(const std::filesystem::path& input_path, float seek) {
+		auto video_info = u::get_video_info(input_path);
+		if (!video_info.has_video_stream || video_info.fps_num <= 0 || video_info.fps_den <= 0 ||
+		    video_info.duration <= 0.f)
+			return 0;
+
+		double fps = static_cast<double>(video_info.fps_num) / video_info.fps_den;
+		auto total_frames = static_cast<size_t>(video_info.duration * fps);
+
+		return std::min(
+			static_cast<size_t>(std::clamp(seek, 0.f, 1.f) * total_frames), total_frames - 1
+		); // cap at total_frames - 1 cause otherwise start will be end and vspipe will error (needs at least 1 frame)
+	}
+}
+
 tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::RenderError>> rendering::render_frame(
 	const std::filesystem::path& input_path,
 	const BlurSettings& settings,
 	const GlobalAppSettings& app_settings,
-	const std::shared_ptr<RenderState>& state
+	const std::shared_ptr<RenderState>& state,
+	float seek
 ) {
 	if (!blur.initialised)
 		return tl::unexpected("Blur not initialised");
@@ -18,13 +35,21 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 	if (!merged_settings)
 		return tl::unexpected(merged_settings.error());
 
+	auto vspipe_args = detail::build_vspipe_base_args(input_path, *merged_settings);
+
+	if (seek > 0.f) {
+		size_t start_frame = get_seek_start_frame(input_path, seek);
+		if (start_frame > 0) {
+			vspipe_args.insert(vspipe_args.end() - 2, { "-a", std::format("start={}", start_frame) });
+		}
+	}
+
 	RenderCommands commands = {
-        .vspipe_video = detail::build_vspipe_base_args(input_path, *merged_settings),
+        .vspipe_video = std::move(vspipe_args),
         .ffmpeg = {
             "-loglevel", "error",
             "-hide_banner",
             "-stats",
-            "-ss", "00:00:00.200",
             "-i", "-",
             "-map", "0:v",
             "-vframes", "1",

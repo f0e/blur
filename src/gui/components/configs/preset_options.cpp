@@ -7,11 +7,6 @@
 namespace configs = gui::components::configs;
 
 namespace {
-	const gfx::Color DELETE_ICON_COLOR = gfx::Color::white(120);
-	const gfx::Color DELETE_ICON_HOVER_COLOR(255, 80, 80, 255);
-	const std::string DELETE_ICON = "c"; // x
-	const int DELETE_ICON_GAP = 6;
-
 	// text inputs keep a pointer to the string they're editing, and elements stick around for a bit after they stop
 	// being added (they fade out), so the strings can't live in the preset vector - removing a preset would leave the
 	// fading out inputs pointing at freed memory. they live here instead, keyed by element id, and never get erased
