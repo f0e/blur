@@ -346,9 +346,12 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 		}
 	}
 
-	ui::add_tabs("preview tab", header_container, TABS, selected_tab, fonts::dejavu, [] {
+	auto on_tab_select = [&content_container] {
+		content_container.scroll_to_top = true;
 		old_tab.clear();
-	});
+	};
+
+	ui::add_tabs("preview tab", header_container, TABS, selected_tab, fonts::dejavu, on_tab_select);
 
 	if (selected_tab == "output video") {
 		config_preview(content_container);
