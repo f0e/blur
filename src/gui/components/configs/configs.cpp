@@ -7,6 +7,44 @@
 
 namespace configs = gui::components::configs;
 
+namespace {
+	const gfx::Size ACTION_ICON_SIZE(20, 20);
+	const gfx::Color ACTION_ICON_COLOR = gfx::Color::white(120);
+	const gfx::Color ACTION_ICON_HOVER_COLOR = gfx::Color::white();
+
+	void copy_to_clipboard(const std::string& text, const std::string& label) {
+		SDL_SetClipboardText(text.c_str());
+
+		gui::components::notifications::add(
+			std::format("Exported {} to clipboard", label),
+			ui::NotificationType::INFO,
+			{},
+			std::chrono::duration<float>(2.f)
+		);
+	}
+
+	std::optional<std::string> get_clipboard_text() {
+		size_t len = 0;
+		void* clipboard_data = SDL_GetClipboardData("text/plain", &len);
+
+		if (!clipboard_data || len == 0) {
+			gui::components::notifications::add(
+				"Clipboard is empty or unreadable",
+				ui::NotificationType::NOTIF_ERROR,
+				{},
+				std::chrono::duration<float>(2.f)
+			);
+
+			return {};
+		}
+
+		std::string text(static_cast<char*>(clipboard_data), len);
+		SDL_free(clipboard_data);
+
+		return text;
+	}
+}
+
 void configs::add_with_message(
 	ui::Container& container,
 	const std::string& message_id,
@@ -54,6 +92,149 @@ void configs::section(
 	}
 }
 
+void configs::config_actions(ui::Container& container) {
+	const std::string& tab = selected_config_tab;
+
+	std::string label;
+	std::function<std::string()> do_export;
+	std::function<void(const std::string&)> do_import;
+	std::optional<std::function<void()>> do_restore_defaults;
+
+	if (tab == "blur") {
+		label = "blur config";
+
+		do_export = [] {
+			return config_blur::export_concise(settings);
+		};
+
+		do_import = [](const std::string& text) {
+			auto imported = config_blur::parse(text);
+
+			ui::reset_tied_sliders();
+			settings = imported;
+			parse_interp();
+		};
+
+		if (settings != config_blur::DEFAULT_CONFIG) {
+			do_restore_defaults = [] {
+				ui::reset_tied_sliders();
+				settings = config_blur::DEFAULT_CONFIG;
+				parse_interp();
+			};
+		}
+	}
+	else if (tab == "app") {
+		label = "app config";
+
+		do_export = [] {
+			return config_app::export_shareable(app_settings);
+		};
+
+		do_import = [](const std::string& text) {
+			auto imported = config_app::parse(text);
+			config_app::copy_machine_settings(imported, app_settings);
+			app_settings = imported;
+		};
+
+		auto modified_defaults = config_app::DEFAULT_CONFIG;
+		config_app::copy_machine_settings(modified_defaults, app_settings);
+
+		if (app_settings != modified_defaults) {
+			do_restore_defaults = [modified_defaults] {
+				app_settings = modified_defaults;
+			};
+		}
+	}
+	else {
+		label = "presets";
+
+		do_export = [] {
+			return config_presets::generate_config_string(preset_settings);
+		};
+
+		do_import = [](const std::string& text) {
+			preset_settings = config_presets::parse(text);
+		};
+
+		if (preset_settings != config_presets::DEFAULT_CONFIG) {
+			do_restore_defaults = [] {
+				preset_settings = config_presets::DEFAULT_CONFIG;
+			};
+		}
+	}
+
+	std::vector<ui::AnimatedElement*> buttons;
+
+	auto add_action_button = [&](const std::string& id,
+	                             const std::string& icon,
+	                             const std::string& tooltip,
+	                             std::function<void()> on_press) {
+		if (!buttons.empty())
+			ui::set_next_same_line(container);
+
+		buttons.push_back(
+			ui::add_icon_button(
+				std::format("{} {}", tab, id),
+				container,
+				icon,
+				fonts::icons,
+				ACTION_ICON_SIZE,
+				ACTION_ICON_COLOR,
+				ACTION_ICON_HOVER_COLOR,
+				std::move(on_press),
+				tooltip
+			)
+		);
+	};
+
+	add_action_button(
+		"export config button", EXPORT_ICON, std::format("Export {} to clipboard", label), [do_export, label] {
+			copy_to_clipboard(do_export(), label);
+		}
+	);
+
+	add_action_button(
+		"import config button", IMPORT_ICON, std::format("Import {} from clipboard", label), [do_import, label] {
+			auto text = get_clipboard_text();
+			if (!text)
+				return;
+
+			try {
+				do_import(*text);
+
+				gui::components::notifications::add(
+					std::format("Imported {} from clipboard", label),
+					ui::NotificationType::INFO,
+					{},
+					std::chrono::duration<float>(2.f)
+				);
+			}
+			catch (const std::exception& e) {
+				gui::components::notifications::add(
+					std::format("Failed to load {}: {}", label, e.what()),
+					ui::NotificationType::NOTIF_ERROR,
+					{},
+					std::chrono::duration<float>(3.f)
+				);
+			}
+		}
+	);
+
+	if (do_restore_defaults) {
+		add_action_button(
+			"restore defaults button",
+			RESTORE_DEFAULTS_ICON,
+			std::format("Restore default {}", label),
+			[do_restore_defaults] {
+				if (do_restore_defaults)
+					(*do_restore_defaults)();
+			}
+		);
+	}
+
+	ui::center_elements(container, buttons);
+}
+
 void configs::screen(
 	ui::Container& config_container,
 	ui::Container& nav_container,
@@ -91,19 +272,8 @@ void configs::screen(
 		return;
 	}
 
-	auto modified_default_app = config_app::DEFAULT_CONFIG;
-	modified_default_app.gpu_type = app_settings.gpu_type;
-	modified_default_app.rife_device_index =
-		app_settings.rife_device_index; // the default config has uninitialised rife gpu, use index from current cfg to
-	                                    // prevent restore default from always showing up
-#ifdef TENSORRT
-	modified_default_app.tensorrt_device_index = app_settings.tensorrt_device_index; // same for tensorrt
-#endif
-
 	bool config_changed = settings != current_global_settings || app_settings != current_app_settings ||
 	                      preset_settings != current_preset_settings;
-	bool config_not_default = settings != config_blur::DEFAULT_CONFIG || app_settings != modified_default_app ||
-	                          preset_settings != config_presets::DEFAULT_CONFIG;
 
 	if (config_changed) {
 		ui::set_next_same_line(nav_container);
@@ -145,27 +315,21 @@ void configs::screen(
 		});
 	}
 
-	if (config_not_default) {
-		ui::set_next_same_line(nav_container);
-		ui::add_button("restore defaults button", nav_container, "Restore defaults", fonts::dejavu, [] {
-			ui::reset_tied_sliders();
-			settings = config_blur::DEFAULT_CONFIG;
-			app_settings = config_app::DEFAULT_CONFIG;
-			preset_settings = config_presets::DEFAULT_CONFIG;
-			parse_interp();
-		});
-	}
-
 	auto on_tab_select = [&config_container] {
 		config_container.scroll_to_top = true;
 	};
 
-	auto* config_tabs =
-		ui::add_tabs("config tabs", config_container, CONFIG_TABS, selected_config_tab, fonts::dejavu, on_tab_select);
+	config_container.push_element_gap(2);
+	{
+		auto* config_tabs = ui::add_tabs(
+			"config tabs", config_container, CONFIG_TABS, selected_config_tab, fonts::dejavu, on_tab_select
+		);
 
-	ui::center_element(config_container, config_tabs);
+		ui::center_element(config_container, config_tabs);
 
-	ui::add_spacing(config_container, 3);
+		config_actions(config_container);
+	}
+	config_container.pop_element_gap();
 
 	if (selected_config_tab == "blur") {
 		options(config_container);

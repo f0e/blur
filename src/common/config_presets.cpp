@@ -86,13 +86,13 @@ std::optional<config_presets::PresetError> config_presets::validate(const Preset
 	return {};
 }
 
-void config_presets::create(const std::filesystem::path& filepath, const PresetSettings& current_settings) {
-	std::ofstream output(filepath);
+std::string config_presets::generate_config_string(const PresetSettings& settings) {
+	std::ostringstream output;
 
 	output << "[blur v" << BLUR_VERSION << "]" << "\n";
 	output << "* = default preset, cannot be modified" << "\n";
 
-	for (const auto& gpu_presets : current_settings.all_gpu_presets) {
+	for (const auto& gpu_presets : settings.all_gpu_presets) {
 		output << "\n";
 		output << "- " << gpu_presets.gpu_type << "\n";
 
@@ -103,17 +103,34 @@ void config_presets::create(const std::filesystem::path& filepath, const PresetS
 			output << preset.name << ": " << preset.args << "\n";
 		}
 	}
+
+	return output.str();
+}
+
+void config_presets::create(const std::filesystem::path& filepath, const PresetSettings& current_settings) {
+	std::ofstream output(filepath);
+	output << generate_config_string(current_settings);
 }
 
 PresetSettings config_presets::parse(const std::filesystem::path& config_filepath) {
-	PresetSettings settings = DEFAULT_CONFIG;
-
 	std::ifstream file(config_filepath);
 	if (!file)
-		return settings; // defaults if file couldn't be opened
+		return DEFAULT_CONFIG; // defaults if file couldn't be opened
 
 	std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-	std::istringstream stream(content);
+
+	auto settings = parse(content);
+
+	// recreate the config file using the parsed values (keeps nice formatting)
+	create(config_filepath, settings);
+
+	return settings;
+}
+
+PresetSettings config_presets::parse(const std::string& config_content) {
+	PresetSettings settings = DEFAULT_CONFIG;
+
+	std::istringstream stream(config_content);
 	std::string line;
 
 	std::string current_gpu_type;
@@ -184,9 +201,6 @@ PresetSettings config_presets::parse(const std::filesystem::path& config_filepat
 			}
 		}
 	}
-
-	// recreate the config file
-	create(config_filepath, settings);
 
 	return settings;
 }

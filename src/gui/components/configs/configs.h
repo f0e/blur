@@ -22,6 +22,10 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 		const std::function<void()>& add_element
 	);
 
+	inline const std::string EXPORT_ICON = "d";
+	inline const std::string IMPORT_ICON = "e";
+	inline const std::string RESTORE_DEFAULTS_ICON = "f";
+
 	inline const std::vector<std::string> CONFIG_TABS = { "blur", "app", "presets" };
 	inline std::string selected_config_tab = CONFIG_TABS[0];
 
@@ -66,6 +70,8 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 		bool* setting = nullptr,
 		bool forced_on = false
 	);
+
+	void config_actions(ui::Container& container);
 
 	void options(ui::Container& container);
 	void app_options(ui::Container& container);
