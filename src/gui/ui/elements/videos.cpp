@@ -11,8 +11,6 @@ constexpr float VIDEO_OFFSET_ANIMATION_SPEED = 25.f;
 constexpr float EACH_VIDEO_OFFSET_ANIMATION_SPEED = 25.f;
 
 // videos
-constexpr gfx::Size LOADER_SIZE(20, 20);
-constexpr gfx::Size LOADER_PAD(5, 5);
 constexpr float START_FADE = 0.5f;
 constexpr int VIDEO_GAP = 30;
 constexpr int REMOVE_BUTTON_GAP = 22;
@@ -43,15 +41,13 @@ namespace {
 	                                           // showing at a time so i don't care
 
 	gfx::Size fit_size(const ui::Container& container, const ui::UIVideo& video) {
-		gfx::Size size = LOADER_SIZE;
-
-		if (!video.video_info)
-			return size;
-
-		float aspect_ratio = static_cast<float>(video.video_info->width) / static_cast<float>(video.video_info->height);
+		float aspect_ratio = 1.f;
+		if (video.video_info)
+			aspect_ratio = static_cast<float>(video.video_info->width) / static_cast<float>(video.video_info->height);
 
 		gfx::Size max_size(container.get_usable_rect().w, container.get_usable_rect().h / 1.5f);
-		size = max_size;
+
+		gfx::Size size = max_size;
 
 		// maintain aspect ratio while fitting within max_size
 		float target_width = size.h * aspect_ratio;
@@ -344,37 +340,37 @@ void render_videos_actual(const ui::Container& container, const ui::AnimatedElem
 		auto inner_rect = video_rect.shrink(1);
 		float player_alpha = alpha * (1.f - fade);
 
-		gfx::Rect loader_rect = inner_rect.shrink(LOADER_PAD, true);
 		auto loader_colour = gfx::Color::white(155 * anim);
 
-		if (video_player && video_player->is_video_ready() && video_player->get_current_file_path() &&
-		    *video_player->get_current_file_path() == video.data.path &&
-		    video_player->render(inner_rect.w, inner_rect.h))
-		{
-			// TODO: render::image
-			render::imgui.drawlist->AddImage(
-				video_player->get_frame_texture_for_render(),
-				inner_rect.origin(),
-				inner_rect.max(),
-				ImVec2(0, 0),
-				ImVec2(1, 1),
-				IM_COL32(255, 255, 255, player_alpha) // apply alpha for fade animations
-			);
-		}
-		else if (video.thumbnail && video.thumbnail->texture) {
-			render::image(video_rect, *video.thumbnail->texture, gfx::Color::white(player_alpha * 0.7f));
-		}
-		else if (video.thumbnail) {
-			render::text(
-				loader_rect.center(),
-				loader_colour,
-				video.thumbnail->error.empty() ? "failed to generate thumbnail" : video.thumbnail->error,
-				fonts::dejavu,
-				FONT_CENTERED_X | FONT_CENTERED_Y
-			);
+		if (video.data.video_info) {
+			if (video_player && video_player->is_video_ready() && video_player->get_current_file_path() &&
+			    *video_player->get_current_file_path() == video.data.path &&
+			    video_player->render(inner_rect.w, inner_rect.h))
+			{
+				render::imgui.drawlist->AddImage(
+					video_player->get_frame_texture_for_render(),
+					inner_rect.origin(),
+					inner_rect.max(),
+					ImVec2(0, 0),
+					ImVec2(1, 1),
+					IM_COL32(255, 255, 255, player_alpha)
+				);
+			}
+			else if (video.thumbnail && video.thumbnail->texture) {
+				render::image(video_rect, *video.thumbnail->texture, gfx::Color::white(player_alpha * 0.7f));
+			}
+			else if (video.thumbnail) {
+				render::text(
+					video_rect.center(),
+					loader_colour,
+					video.thumbnail->error.empty() ? "failed to generate thumbnail" : video.thumbnail->error,
+					fonts::dejavu,
+					FONT_CENTERED_X | FONT_CENTERED_Y
+				);
+			}
 		}
 		else {
-			render::loader(loader_rect, loader_colour);
+			render::spinner(video_rect.center(), 8.f, gfx::Color::white(50), gfx::Color::white(), 2.f, 1.f, 180.f);
 		}
 
 		render::borders(video_rect, gfx::Color(50, 50, 50, alpha), gfx::Color(15, 15, 15, alpha));
@@ -985,6 +981,8 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 
 	std::vector<VideoElementData::Video> videos;
 
+	bool no_loaded_videos = true;
+
 	for (auto [i, ui_video] : u::enumerate(ui_videos)) {
 		auto size = fit_size(container, ui_video);
 
@@ -1000,6 +998,8 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 			if (waveform_res) {
 				video.waveform = *waveform_res;
 			}
+
+			no_loaded_videos = false;
 		}
 
 		videos.emplace_back(std::move(video));
@@ -1039,7 +1039,9 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 		update_videos,
 		remove_videos,
 		pause_stale_videos,
-		false
+		false,
+		no_loaded_videos // if true then we'll render spinners, which always need to render (@todo: technically could
+	                     // check if no spinners are on screen and not render in that case)
 	);
 
 	auto offset = get_video_offset(element);

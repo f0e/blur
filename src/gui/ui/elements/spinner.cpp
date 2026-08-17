@@ -38,7 +38,12 @@ ui::AnimatedElement* ui::add_spinner(
 			.thickness = thickness,
 			.trail_degrees = trail_degrees,
 		},
-		render_spinner
+		render_spinner,
+		{},
+		{},
+		{},
+		false,
+		true
 	);
 
 	return add_element(container, std::move(element), container.element_gap);
