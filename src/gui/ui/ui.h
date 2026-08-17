@@ -468,6 +468,7 @@ namespace ui {
 		std::function<void(const Container&, const AnimatedElement&)> render_fn;
 		std::optional<std::function<bool(const Container&, AnimatedElement&)>> update_fn;
 		std::optional<std::function<void(AnimatedElement&)>> remove_fn;
+		std::optional<std::function<void(AnimatedElement&)>> stale_fn;
 		bool fixed = false;
 		gfx::Rect orig_rect;
 
@@ -479,10 +480,12 @@ namespace ui {
 			std::function<void(const Container&, const AnimatedElement&)> render_fn,
 			std::optional<std::function<bool(const Container&, AnimatedElement&)>> update_fn = std::nullopt,
 			std::optional<std::function<void(AnimatedElement&)>> remove_fn = std::nullopt,
+			std::optional<std::function<void(AnimatedElement&)>> stale_fn = std::nullopt,
 			bool fixed = false
 		)
 			: id(std::move(id)), type(type), rect(rect), data(std::move(data)), render_fn(std::move(render_fn)),
-			  update_fn(std::move(update_fn)), remove_fn(std::move(remove_fn)), fixed(fixed), orig_rect(rect) {}
+			  update_fn(std::move(update_fn)), remove_fn(std::move(remove_fn)), stale_fn(std::move(stale_fn)),
+			  fixed(fixed), orig_rect(rect) {}
 
 		bool update(const Element& other) {
 			this->id = other.id;
@@ -491,6 +494,7 @@ namespace ui {
 			this->render_fn = other.render_fn;
 			this->update_fn = other.update_fn;
 			this->remove_fn = other.remove_fn;
+			this->stale_fn = other.stale_fn;
 			this->fixed = other.fixed;
 			this->orig_rect = other.orig_rect;
 
@@ -506,6 +510,7 @@ namespace ui {
 		std::unique_ptr<Element> element;
 		std::unordered_map<size_t, AnimationState> animations;
 		int z_index = 0;
+		bool went_stale = false;
 	};
 
 	const inline AnimationState DEFAULT_ANIMATION(25.f);
@@ -585,6 +590,7 @@ namespace ui {
 	void render_videos(const Container& container, const AnimatedElement& element);
 	bool update_videos(const Container& container, AnimatedElement& element);
 	void remove_videos(AnimatedElement& element);
+	void pause_stale_videos(AnimatedElement& element);
 
 	void handle_videos_event(const SDL_Event& event, bool& to_render);
 

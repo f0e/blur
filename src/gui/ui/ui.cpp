@@ -601,6 +601,18 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 		bool stale = std::ranges::find(container.current_element_ids, id) == container.current_element_ids.end();
 		main_animation.set_goal(!stale ? 1.f : 0.f);
 
+		if (stale) {
+			if (!element.went_stale) {
+				element.went_stale = true;
+
+				if (element.element->stale_fn)
+					(*element.element->stale_fn)(element);
+			}
+		}
+		else {
+			element.went_stale = false;
+		}
+
 		for (auto& [animation_id, animation] : element.animations) {
 			need_to_render_animation_update |= animation.update(delta_time);
 		}

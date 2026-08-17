@@ -942,6 +942,11 @@ bool ui::update_videos(const Container& container, AnimatedElement& element) {
 	return res;
 }
 
+void ui::pause_stale_videos(AnimatedElement& element) {
+	if (video_player)
+		video_player->set_paused(true);
+}
+
 void ui::remove_videos(AnimatedElement& element) {
 	const auto& video_data = std::get<VideoElementData>(element.element->data);
 
@@ -1032,7 +1037,9 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 		},
 		render_videos,
 		update_videos,
-		remove_videos
+		remove_videos,
+		pause_stale_videos,
+		false
 	);
 
 	auto offset = get_video_offset(element);
