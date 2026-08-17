@@ -275,13 +275,13 @@ void configs::config_preview(ui::Container& container) {
 
 		container.push_element_gap(DELETE_ICON_GAP);
 		{
-			int seek_bar_height = ui::seek_bar_height(fonts::dejavu);
+			int seek_bar_height = ui::seek_bar_height(fonts::dejavu_small);
 
 			auto* seek_bar = ui::add_seek_bar(
 				"config preview seek bar",
 				container,
 				app_settings.config_preview_seek,
-				fonts::dejavu,
+				fonts::dejavu_small,
 				sample_video_duration,
 				container.get_usable_rect().w - seek_bar_height - DELETE_ICON_GAP
 			);

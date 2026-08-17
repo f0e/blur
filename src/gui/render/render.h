@@ -36,6 +36,7 @@ enum ERoundingFlags : unsigned int { // c+p from imgui
 
 namespace fonts {
 	inline render::Font dejavu;
+	inline render::Font dejavu_small;
 	inline render::Font header_font;
 	inline render::Font smaller_header_font;
 	inline render::Font icons;

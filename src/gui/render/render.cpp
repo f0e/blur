@@ -85,6 +85,9 @@ bool render::init(SDL_Window* window, const SDL_GLContext& context) {
 	if (!fonts::dejavu.init(DEJAVU_SANS_COMPRESSED_DATA, 13.f, &font_cfg))
 		return false;
 
+	if (!fonts::dejavu_small.init(DEJAVU_SANS_COMPRESSED_DATA, 11.f, &font_cfg))
+		return false;
+
 	if (!fonts::header_font.init(NV_GARAMOND_COMPRESSED_DATA, 32.f, &font_cfg))
 		return false;
 
