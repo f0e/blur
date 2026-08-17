@@ -27,6 +27,8 @@ void config_app::create(const std::filesystem::path& filepath, const GlobalAppSe
 	output << "\n";
 	output << "- preview" << "\n";
 	output << "preview volume: " << settings.preview_volume << "\n";
+	output << "sample video path: " << settings.sample_video_path << "\n";
+	output << "config preview seek: " << settings.config_preview_seek << "\n";
 
 	output << "\n";
 	output << "- desktop notifications" << "\n";
@@ -71,6 +73,10 @@ GlobalAppSettings config_app::parse(const std::filesystem::path& config_filepath
 	config_base::extract_config_value(config_map, "skip queue", settings.skip_queue);
 
 	config_base::extract_config_value(config_map, "preview volume", settings.preview_volume);
+	config_base::extract_config_value(config_map, "sample video path", settings.sample_video_path);
+	config_base::extract_config_value(config_map, "config preview seek", settings.config_preview_seek);
+
+	settings.config_preview_seek = std::clamp(settings.config_preview_seek, 0.f, 1.f);
 
 	config_base::extract_config_value(
 		config_map, "render success notifications", settings.render_success_notifications

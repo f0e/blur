@@ -9,6 +9,11 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	inline const gfx::Color ERROR_COLOR(255, 0, 0, 255);
 	inline const gfx::Color WARNING_COLOR(252, 186, 3, 150);
 
+	const gfx::Color DELETE_ICON_COLOR = gfx::Color::white(120);
+	const gfx::Color DELETE_ICON_HOVER_COLOR(255, 80, 80, 255);
+	const std::string DELETE_ICON = "c"; // x
+	const int DELETE_ICON_GAP = 6;
+
 	void add_with_message(
 		ui::Container& container,
 		const std::string& message_id,
@@ -46,7 +51,11 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	inline float pre_interpolated_fps_mult = 2.f;
 	inline int pre_interpolated_fps = 360;
 
-	inline bool just_added_sample_video = false;
+	bool has_sample_video();
+	void set_sample_video(const std::filesystem::path& path);
+	void clear_sample_video();
+	void seek_bar(ui::Container& container, std::optional<int> width = {});
+	void save_preview_app_settings();
 
 	void set_interpolated_fps();
 	void set_pre_interpolated_fps();

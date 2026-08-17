@@ -510,7 +510,6 @@ namespace u {
 
 	int get_fastest_device_index(
 		const std::map<int, std::string>& device_map,
-		const std::filesystem::path& benchmark_video_path,
 		const std::string& benchmark_type,
 		const std::vector<std::string>& extra_args
 	);

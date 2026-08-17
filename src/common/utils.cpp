@@ -741,7 +741,6 @@ std::map<int, std::string> u::get_devices(const std::string& type) {
 
 int u::get_fastest_device_index(
 	const std::map<int, std::string>& device_map,
-	const std::filesystem::path& benchmark_video_path,
 	const std::string& benchmark_type,
 	const std::vector<std::string>& extra_args
 ) {
@@ -768,7 +767,7 @@ int u::get_fastest_device_index(
 			"-a",
 			std::format("device_index={}", device_index),
 			"-a",
-			std::format("benchmark_video_path={}", benchmark_video_path),
+			std::format("settings_path={}", u::path_to_string(blur.settings_path)),
 #if defined(__APPLE__)
 			"-a",
 			std::format("macos_bundled={}", blur.used_installer ? "true" : "false"),
@@ -776,10 +775,6 @@ int u::get_fastest_device_index(
 #if defined(__linux__)
 			"-a",
 			std::format("linux_bundled={}", vapoursynth_plugins_bundled ? "true" : "false"),
-#endif
-#if defined(_WIN32)
-			"-a",
-			"enable_lsmash=true",
 #endif
 			"-e",
 			"2",
@@ -850,16 +845,12 @@ std::optional<size_t> u::get_fastest_rife_device(BlurSettings& settings) {
 	if (blur.rife_devices.size() == 1)
 		return 0;
 
-	auto sample_video_path = blur.settings_path / "sample_video.mp4";
-	if (!std::filesystem::exists(sample_video_path))
-		return std::nullopt;
-
 	auto rife_model_path = settings.get_rife_model_path();
 	if (!rife_model_path)
 		return std::nullopt;
 
 	return u::get_fastest_device_index(
-		blur.rife_devices, sample_video_path, "rife", { std::format("rife_model_path={}", *rife_model_path) }
+		blur.rife_devices, "rife", { std::format("rife_model_path={}", *rife_model_path) }
 	);
 }
 
@@ -875,19 +866,12 @@ std::optional<size_t> u::get_fastest_tensorrt_device(BlurSettings& settings) {
 	if (blur.tensorrt_devices.size() == 1)
 		return 0;
 
-	auto sample_video_path = blur.settings_path / "sample_video.mp4";
-	if (!std::filesystem::exists(sample_video_path))
-		return std::nullopt;
-
 	auto rife_trt_model = settings.advanced.rife_trt_model;
 	if (rife_trt_model.empty())
 		return std::nullopt;
 
 	return u::get_fastest_device_index(
-		blur.tensorrt_devices,
-		sample_video_path,
-		"rife (tensorrt)",
-		{ std::format("rife_trt_model={}", rife_trt_model) }
+		blur.tensorrt_devices, "rife (tensorrt)", { std::format("rife_trt_model={}", rife_trt_model) }
 	);
 }
 #endif
