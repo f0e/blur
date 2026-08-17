@@ -1038,3 +1038,19 @@ SDL_Surface* render::jpeg_bytes_to_surface(const void* data, size_t size) {
 SDL_Surface* render::png_bytes_to_surface(const void* data, size_t size) {
 	return bytes_to_surface(data, size, "PNG");
 }
+
+std::shared_ptr<render::Texture> render::texture_from_jpeg(std::span<const uint8_t> jpeg) {
+	if (jpeg.empty())
+		return nullptr;
+
+	SDL_Surface* rgba = jpeg_bytes_to_surface(jpeg.data(), jpeg.size());
+	if (!rgba)
+		return nullptr;
+
+	auto texture = std::make_shared<Texture>();
+	bool loaded = texture->load_from_surface(rgba);
+
+	SDL_DestroySurface(rgba);
+
+	return loaded ? texture : nullptr;
+}
