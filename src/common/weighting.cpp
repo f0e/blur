@@ -139,17 +139,22 @@ std::optional<std::pair<double, double>> weighting::parse_gaussian_bound(const s
 	return std::make_pair(json[0].get<double>(), json[1].get<double>());
 }
 
-weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings, int video_fps) {
+weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings, std::optional<int> video_fps) {
 	if (!settings.blur)
 		return { .weights = {} };
 
 	if (settings.blur_amount <= 0.f)
 		return { .weights = {} };
 
-	int frame_gap = video_fps / settings.blur_output_fps;
-	int blended_frames = frame_gap * settings.blur_amount;
-	if (blended_frames <= 0)
-		return { .weights = {} };
+	int blended_frames =
+		30; // always get weights assuming 30 blended frames when no video fps is available for consistency
+
+	if (video_fps) {
+		int frame_gap = *video_fps / settings.blur_output_fps;
+		blended_frames = frame_gap * settings.blur_amount;
+		if (blended_frames <= 0)
+			return { .weights = {} };
+	}
 
 	auto gaussian_bound = parse_gaussian_bound(settings.advanced.blur_weighting_gaussian_bound);
 	if (!gaussian_bound)

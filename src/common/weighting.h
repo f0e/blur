@@ -30,5 +30,5 @@ namespace weighting {
 		std::string error;
 	};
 
-	GetWeightsResult get_weights(const BlurSettings& settings, int video_fps);
+	GetWeightsResult get_weights(const BlurSettings& settings, std::optional<int> video_fps);
 }
