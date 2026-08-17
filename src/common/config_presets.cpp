@@ -14,6 +14,76 @@ namespace {
 
 		return u::ffmpeg_string_to_args(params_str);
 	}
+
+	std::optional<std::string> get_preset_error(const std::vector<PresetSettings::Preset>& presets, size_t index) {
+		const auto& preset = presets[index];
+
+		std::string name = u::trim(preset.name);
+
+		if (name.empty())
+			return "enter a name";
+
+		if (u::contains(name, ":"))
+			return "names can't contain ':'";
+
+		if (name.starts_with('-') || name.starts_with('*'))
+			return "names can't start with '-' or '*'";
+
+		for (size_t i = 0; i < presets.size(); i++) {
+			if (i == index)
+				continue;
+
+			if (!presets[i].is_default && i > index)
+				continue;
+
+			if (u::to_lower(u::trim(presets[i].name)) == u::to_lower(name)) {
+				return presets[i].is_default ? std::format("'{}' is a built-in preset", name) : "name already used";
+			}
+		}
+
+		if (u::trim(preset.args).empty())
+			return "enter ffmpeg arguments";
+
+		return {};
+	}
+
+	std::optional<std::string> get_preset_warning(const PresetSettings::Preset& preset) {
+		auto args = u::ffmpeg_string_to_args(preset.args);
+
+		if (args.size() < 2 || !config_presets::extract_codec_from_args(args))
+			return "no video codec (-c:v), this won't show up as an encode preset";
+
+		if (!u::contains(preset.args, "{quality}"))
+			return "no {quality}, the quality setting won't do anything";
+
+		return {};
+	}
+}
+
+std::optional<config_presets::ValidationMessage> config_presets::validate(
+	const std::vector<PresetSettings::Preset>& presets, size_t index
+) {
+	if (auto error = get_preset_error(presets, index))
+		return ValidationMessage{ .message = *error, .is_error = true };
+
+	if (auto warning = get_preset_warning(presets[index]))
+		return ValidationMessage{ .message = *warning };
+
+	return {};
+}
+
+std::optional<config_presets::PresetError> config_presets::validate(const PresetSettings& settings) {
+	for (const auto& gpu_presets : settings.all_gpu_presets) {
+		for (size_t i = 0; i < gpu_presets.presets.size(); i++) {
+			if (gpu_presets.presets[i].is_default)
+				continue;
+
+			if (auto error = get_preset_error(gpu_presets.presets, i))
+				return PresetError{ .gpu_type = gpu_presets.gpu_type, .message = *error };
+		}
+	}
+
+	return {};
 }
 
 void config_presets::create(const std::filesystem::path& filepath, const PresetSettings& current_settings) {

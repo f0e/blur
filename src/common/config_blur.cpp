@@ -1,5 +1,16 @@
 #include "config_blur.h"
 #include "config_base.h"
+#include "rendering/render_commands.h"
+
+namespace {
+	bool deduplicate_threshold_valid(const std::string& threshold) {
+		std::istringstream iss(threshold);
+		float f = NAN;
+		iss >> std::noskipws >> f; // try to read as float
+
+		return iss.eof() && !iss.fail();
+	}
+}
 
 std::string config_blur::generate_config_string(const BlurSettings& settings, bool concise) {
 	std::ostringstream output;
@@ -178,12 +189,58 @@ std::string config_blur::export_concise(const BlurSettings& settings) {
 	return generate_config_string(settings, true);
 }
 
-tl::expected<void, std::string> config_blur::validate(BlurSettings& config, bool fix) {
-	std::set<std::string> errors;
+std::string config_blur::ValidationResult::message(bool fixable_only) const {
+	std::vector<std::string> messages;
+
+	for (const auto& error : errors) {
+		if (fixable_only && !error.fixable)
+			continue;
+
+		messages.push_back(error.message);
+	}
+
+	return u::join(messages, " ");
+}
+
+config_blur::ValidationResult config_blur::validate(
+	BlurSettings& config, const GlobalAppSettings& app_settings, const PresetSettings& presets, bool fix
+) {
+	ValidationResult result;
+
+	auto add_error = [&](ValidationField field, std::string message, bool fixable = false) {
+		result.errors.emplace_back(field, std::move(message), fixable);
+	};
+
+	bool timescaling = config.timescale && config.output_timescale != config.input_timescale;
+	if (timescaling && rendering::detail::copies_audio(config, app_settings, presets)) {
+		if (!config.advanced.ffmpeg_override.empty()) {
+			add_error(ValidationField::FFMPEG_OVERRIDE, "cannot use -c:a copy while using timescale");
+		}
+		else {
+			add_error(
+				ValidationField::ENCODE_PRESET, "this preset uses -c:a copy, which can't be used while using timescale"
+			);
+		}
+	}
+
+	if (config.override_advanced) {
+		// only check advanced settings when advanced settings are being used - they're ignored otherwise, and
+		// refusing to save over a field that's hidden would be confusing
+		if (!deduplicate_threshold_valid(config.advanced.deduplicate_threshold)) {
+			add_error(ValidationField::DEDUPLICATE_THRESHOLD, "deduplicate threshold must be a decimal number", true);
+
+			if (fix)
+				config.advanced.deduplicate_threshold = DEFAULT_CONFIG.advanced.deduplicate_threshold;
+		}
+	}
 
 	if (!u::contains(SVP_INTERPOLATION_PRESETS, config.advanced.svp_interpolation_preset)) {
-		errors.insert(
-			std::format("SVP interpolation preset ({}) is not a valid option", config.advanced.svp_interpolation_preset)
+		add_error(
+			ValidationField::SVP_INTERPOLATION_PRESET,
+			std::format(
+				"SVP interpolation preset ({}) is not a valid option", config.advanced.svp_interpolation_preset
+			),
+			true
 		);
 
 		if (fix)
@@ -191,10 +248,12 @@ tl::expected<void, std::string> config_blur::validate(BlurSettings& config, bool
 	}
 
 	if (!u::contains(SVP_INTERPOLATION_ALGORITHMS, config.advanced.svp_interpolation_algorithm)) {
-		errors.insert(
+		add_error(
+			ValidationField::SVP_INTERPOLATION_ALGORITHM,
 			std::format(
 				"SVP interpolation algorithm ({}) is not a valid option", config.advanced.svp_interpolation_algorithm
-			)
+			),
+			true
 		);
 
 		if (fix)
@@ -202,18 +261,17 @@ tl::expected<void, std::string> config_blur::validate(BlurSettings& config, bool
 	}
 
 	if (!u::contains(INTERPOLATION_BLOCK_SIZES, config.advanced.interpolation_blocksize)) {
-		errors.insert(
-			std::format("Interpolation block size ({}) is not a valid option", config.advanced.interpolation_blocksize)
+		add_error(
+			ValidationField::INTERPOLATION_BLOCKSIZE,
+			std::format("Interpolation block size ({}) is not a valid option", config.advanced.interpolation_blocksize),
+			true
 		);
 
 		if (fix)
 			config.advanced.interpolation_blocksize = DEFAULT_CONFIG.advanced.interpolation_blocksize;
 	}
 
-	if (!errors.empty())
-		return tl::unexpected(u::join(errors, " "));
-
-	return {};
+	return result;
 }
 
 BlurSettings config_blur::parse(const std::string& config_content) {

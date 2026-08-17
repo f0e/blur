@@ -109,9 +109,9 @@ void configs::screen(
 		ui::set_next_same_line(nav_container);
 		ui::add_button("save button", nav_container, "Save", fonts::dejavu, [] {
 			// saving would silently drop the broken presets, send the user to fix them instead
-			if (auto error_device = find_preset_error_device()) {
+			if (auto preset_error = config_presets::validate(preset_settings)) {
 				selected_config_tab = "presets";
-				selected_preset_gpu_type = *error_device;
+				selected_preset_gpu_type = preset_error->gpu_type;
 
 				gui::components::notifications::add(
 					"preset errors", "Fix the errors in your presets before saving", ui::NotificationType::NOTIF_ERROR
@@ -120,12 +120,14 @@ void configs::screen(
 				return;
 			}
 
-			// check for errors
-			if (auto error = get_settings_error()) {
+			auto validation = config_blur::validate(settings, app_settings, preset_settings, false);
+			if (!validation.ok()) {
 				selected_config_tab = "blur";
 				selected_tab = TABS[0];
 
-				gui::components::notifications::add("settings error", *error, ui::NotificationType::NOTIF_ERROR);
+				gui::components::notifications::add(
+					"settings error", validation.message(), ui::NotificationType::NOTIF_ERROR
+				);
 
 				return;
 			}

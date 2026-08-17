@@ -63,20 +63,6 @@ namespace {
 		}
 	}
 
-	// things that are worth pointing out but won't stop the preset being saved
-	std::optional<std::string> get_preset_warning(const PresetSettings::Preset& preset) {
-		auto args = u::ffmpeg_string_to_args(preset.args);
-
-		// presets are only listed as encode presets if blur can work out what codec they use
-		if (args.size() < 2 || !config_presets::extract_codec_from_args(args))
-			return "no video codec (-c:v), this won't show up as an encode preset";
-
-		if (!u::contains(preset.args, "{quality}"))
-			return "no {quality}, the quality setting won't do anything";
-
-		return {};
-	}
-
 	void add_preset(const std::string& gpu_type, const std::string& name, const std::string& args) {
 		auto* presets = configs::preset_settings.find_preset_group(gpu_type);
 		if (!presets)
@@ -89,54 +75,6 @@ namespace {
 			}
 		);
 	}
-}
-
-std::optional<std::string> configs::get_preset_error(const std::vector<PresetSettings::Preset>& presets, size_t index) {
-	const auto& preset = presets[index];
-
-	std::string name = u::trim(preset.name);
-
-	if (name.empty())
-		return "enter a name";
-
-	// the preset file is a list of 'name: arguments' lines, with '-' starting a device section
-	if (u::contains(name, ":"))
-		return "names can't contain ':'";
-
-	if (name.starts_with('-') || name.starts_with('*'))
-		return "names can't start with '-' or '*'";
-
-	for (size_t i = 0; i < presets.size(); i++) {
-		if (i == index)
-			continue;
-
-		// only the first of two presets sharing a name survives being saved, so blame the later one
-		if (!presets[i].is_default && i > index)
-			continue;
-
-		if (u::to_lower(u::trim(presets[i].name)) == u::to_lower(name)) {
-			return presets[i].is_default ? std::format("'{}' is a built-in preset", name) : "name already used";
-		}
-	}
-
-	if (u::trim(preset.args).empty())
-		return "enter ffmpeg arguments";
-
-	return {};
-}
-
-std::optional<std::string> configs::find_preset_error_device() {
-	for (const auto& gpu_presets : preset_settings.all_gpu_presets) {
-		for (size_t i = 0; i < gpu_presets.presets.size(); i++) {
-			if (gpu_presets.presets[i].is_default)
-				continue;
-
-			if (get_preset_error(gpu_presets.presets, i))
-				return gpu_presets.gpu_type;
-		}
-	}
-
-	return {};
 }
 
 void configs::preset_options(ui::Container& container) {
@@ -306,24 +244,24 @@ void configs::preset_options(ui::Container& container) {
 
 		container.pop_element_gap();
 
-		auto error = get_preset_error(*presets, i);
-		auto warning = error ? std::nullopt : get_preset_warning(preset);
+		std::optional<std::string> message;
+		gfx::Color message_color = WARNING_COLOR;
+		if (auto validation = config_presets::validate(*presets, i)) {
+			message = validation->message;
 
-		add_with_message(
-			container,
-			std::format("{} message", id),
-			error ? error : warning,
-			error ? ERROR_COLOR : WARNING_COLOR,
-			[&] {
-				ui::add_text_input(
-					std::format("{} args input", id),
-					container,
-					bind_input(std::format("{} args", id), preset.args),
-					"ffmpeg arguments",
-					fonts::dejavu
-				);
-			}
-		);
+			if (validation->is_error)
+				message_color = ERROR_COLOR;
+		}
+
+		add_with_message(container, std::format("{} message", id), message, message_color, [&] {
+			ui::add_text_input(
+				std::format("{} args input", id),
+				container,
+				bind_input(std::format("{} args", id), preset.args),
+				"ffmpeg arguments",
+				fonts::dejavu
+			);
+		});
 
 		ui::add_spacing(container, 8);
 	}

@@ -8,45 +8,6 @@
 
 namespace configs = gui::components::configs;
 
-namespace {
-	const std::string TIMESCALE_OVERRIDE_AUDIO_COPY_ERROR = "cannot use -c:a copy while using timescale";
-	const std::string TIMESCALE_PRESET_AUDIO_COPY_ERROR =
-		"this preset uses -c:a copy, which can't be used while using timescale";
-	const std::string DEDUPLICATE_THRESHOLD_ERROR = "deduplicate threshold must be a decimal number";
-
-	bool timescale_conflicts_with_audio_copy() {
-		using namespace gui::components::configs;
-
-		if (!settings.timescale || settings.output_timescale == settings.input_timescale)
-			return false;
-
-		return rendering::detail::copies_audio(settings, app_settings, preset_settings);
-	}
-
-	bool deduplicate_threshold_valid() {
-		using namespace gui::components::configs;
-
-		std::istringstream iss(settings.advanced.deduplicate_threshold);
-		float f = NAN;
-		iss >> std::noskipws >> f;
-
-		return iss.eof() && !iss.fail();
-	}
-}
-
-std::optional<std::string> configs::get_settings_error() {
-	if (timescale_conflicts_with_audio_copy()) {
-		return settings.advanced.ffmpeg_override.empty() ? TIMESCALE_PRESET_AUDIO_COPY_ERROR
-		                                                 : TIMESCALE_OVERRIDE_AUDIO_COPY_ERROR;
-	}
-
-	// only while the advanced section is showing - refusing to save over a field that's hidden would be confusing
-	if (settings.override_advanced && !deduplicate_threshold_valid())
-		return DEDUPLICATE_THRESHOLD_ERROR;
-
-	return {};
-}
-
 void configs::set_interpolated_fps() {
 	if (interpolate_scale) {
 		settings.interpolated_fps = std::format("{}x", interpolated_fps_mult);
@@ -75,6 +36,16 @@ void configs::options(ui::Container& container) {
 	// try set fastest devices if it hasnt been set yet. this will run on config load, but devices may not have been
 	// initialised by the time you switch to the config screen. this catches that case.
 	u::set_fastest_devices(settings);
+
+	auto validation = config_blur::validate(settings, app_settings, preset_settings, false);
+
+	auto validated_element = [&](config_blur::ValidationField field,
+	                             const std::string& error_id,
+	                             const std::function<void()>& add_element) {
+		auto it = std::ranges::find(validation.errors, field, &config_blur::ValidationError::field);
+		std::optional<std::string> message = it != validation.errors.end() ? std::optional(it->message) : std::nullopt;
+		add_with_message(container, error_id, message, ERROR_COLOR, add_element);
+	};
 
 	bool first_section = true;
 	auto section_component = [&](const std::string& label, bool* setting = nullptr, bool forced_on = false) {
@@ -319,12 +290,7 @@ void configs::options(ui::Container& container) {
 		);
 	}
 	else {
-		// blamed on the preset only when there's no override - otherwise the override is what's copying the audio
-		std::optional<std::string> preset_error;
-		if (settings.advanced.ffmpeg_override.empty() && timescale_conflicts_with_audio_copy())
-			preset_error = TIMESCALE_PRESET_AUDIO_COPY_ERROR;
-
-		add_with_message(container, "timescale preset audio copy warning", preset_error, ERROR_COLOR, [&] {
+		validated_element(config_blur::ValidationField::ENCODE_PRESET, "encode preset error", [&] {
 			ui::add_dropdown(
 				"codec dropdown",
 				container,
@@ -570,11 +536,7 @@ void configs::options(ui::Container& container) {
 			);
 		}
 
-		std::optional<std::string> threshold_error;
-		if (!deduplicate_threshold_valid())
-			threshold_error = DEDUPLICATE_THRESHOLD_ERROR;
-
-		add_with_message(container, "deduplicate threshold not a float warning", threshold_error, ERROR_COLOR, [&] {
+		validated_element(config_blur::ValidationField::DEDUPLICATE_THRESHOLD, "deduplicate threshold error", [&] {
 			ui::add_text_input(
 				"deduplicate threshold input",
 				container,
@@ -619,12 +581,7 @@ void configs::options(ui::Container& container) {
 			"video container text input", container, settings.advanced.video_container, "video container", fonts::dejavu
 		);
 
-		// blamed on the override only when there is one - otherwise it's the preset's doing and the message goes there
-		std::optional<std::string> override_error;
-		if (!settings.advanced.ffmpeg_override.empty() && timescale_conflicts_with_audio_copy())
-			override_error = "cannot use -c:a copy while using timescale";
-
-		add_with_message(container, "timescale audio copy warning", override_error, ERROR_COLOR, [&] {
+		validated_element(config_blur::ValidationField::FFMPEG_OVERRIDE, "custom ffmpeg filters error", [&] {
 			ui::add_text_input(
 				"custom ffmpeg filters text input",
 				container,
@@ -651,33 +608,43 @@ void configs::options(ui::Container& container) {
 		section_component("advanced interpolation");
 
 		if (settings.interpolation_method == "svp") {
-			ui::add_dropdown(
-				"SVP interpolation preset dropdown",
-				container,
-				"SVP interpolation preset",
-				config_blur::SVP_INTERPOLATION_PRESETS,
-				settings.advanced.svp_interpolation_preset,
-				fonts::dejavu
+			validated_element(
+				config_blur::ValidationField::SVP_INTERPOLATION_PRESET, "SVP interpolation preset error", [&] {
+					ui::add_dropdown(
+						"SVP interpolation preset dropdown",
+						container,
+						"SVP interpolation preset",
+						config_blur::SVP_INTERPOLATION_PRESETS,
+						settings.advanced.svp_interpolation_preset,
+						fonts::dejavu
+					);
+				}
 			);
 
-			ui::add_dropdown(
-				"SVP interpolation algorithm dropdown",
-				container,
-				"SVP interpolation algorithm",
-				config_blur::SVP_INTERPOLATION_ALGORITHMS,
-				settings.advanced.svp_interpolation_algorithm,
-				fonts::dejavu
+			validated_element(
+				config_blur::ValidationField::SVP_INTERPOLATION_ALGORITHM, "SVP interpolation algorithm error", [&] {
+					ui::add_dropdown(
+						"SVP interpolation algorithm dropdown",
+						container,
+						"SVP interpolation algorithm",
+						config_blur::SVP_INTERPOLATION_ALGORITHMS,
+						settings.advanced.svp_interpolation_algorithm,
+						fonts::dejavu
+					);
+				}
 			);
 		}
 
-		ui::add_dropdown(
-			"interpolation block size dropdown",
-			container,
-			"interpolation block size",
-			config_blur::INTERPOLATION_BLOCK_SIZES,
-			settings.advanced.interpolation_blocksize,
-			fonts::dejavu
-		);
+		validated_element(config_blur::ValidationField::INTERPOLATION_BLOCKSIZE, "interpolation block size error", [&] {
+			ui::add_dropdown(
+				"interpolation block size dropdown",
+				container,
+				"interpolation block size",
+				config_blur::INTERPOLATION_BLOCK_SIZES,
+				settings.advanced.interpolation_blocksize,
+				fonts::dejavu
+			);
+		});
 
 		ui::add_slider(
 			"interpolation mask area slider",

@@ -377,20 +377,21 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 
 	ui::add_separator("config preview separator", content_container, ui::SeparatorStyle::FADE_BOTH);
 
-	auto validation_res = config_blur::validate(settings, false);
-	if (!validation_res) {
+	auto validation_res = config_blur::validate(settings, app_settings, preset_settings, false);
+	std::string fixable_errors = validation_res.message(true);
+	if (!fixable_errors.empty()) {
 		ui::add_text(
 			"config validation error/s",
 			content_container,
-			validation_res.error(),
+			fixable_errors,
 			gfx::Color(255, 50, 50, 255),
 			fonts::dejavu,
 			FONT_CENTERED_X | FONT_OUTLINE
 		);
 
 		ui::add_button(
-			"fix config button", content_container, "Reset invalid config options to defaults", fonts::dejavu, [&] {
-				config_blur::validate(settings, true);
+			"fix config button", content_container, "Reset invalid config options to defaults", fonts::dejavu, [] {
+				config_blur::validate(settings, app_settings, preset_settings, true);
 			}
 		);
 	}

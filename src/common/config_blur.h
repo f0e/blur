@@ -1,5 +1,8 @@
 #pragma once
 
+struct GlobalAppSettings;
+struct PresetSettings;
+
 struct AdvancedSettings {
 	std::string video_container = "mp4";
 	int deduplicate_range = 5;
@@ -118,7 +121,34 @@ namespace config_blur {
 
 	std::string export_concise(const BlurSettings& settings);
 
-	tl::expected<void, std::string> validate(BlurSettings& config, bool fix);
+	enum class ValidationField : std::uint8_t {
+		ENCODE_PRESET,
+		DEDUPLICATE_THRESHOLD,
+		FFMPEG_OVERRIDE,
+		SVP_INTERPOLATION_PRESET,
+		SVP_INTERPOLATION_ALGORITHM,
+		INTERPOLATION_BLOCKSIZE,
+	};
+
+	struct ValidationError {
+		ValidationField field;
+		std::string message;
+		bool fixable = false;
+	};
+
+	struct ValidationResult {
+		std::vector<ValidationError> errors;
+
+		[[nodiscard]] bool ok() const {
+			return errors.empty();
+		}
+
+		[[nodiscard]] std::string message(bool fixable_only = false) const;
+	};
+
+	ValidationResult validate(
+		BlurSettings& config, const GlobalAppSettings& app_settings, const PresetSettings& presets, bool fix
+	);
 
 	BlurSettings parse(const std::string& config_content);
 	BlurSettings parse(const std::filesystem::path& config_filepath);
