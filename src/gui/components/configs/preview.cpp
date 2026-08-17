@@ -17,6 +17,29 @@ namespace {
 	std::mutex preview_mutex;
 	std::shared_ptr<render::Texture> preview_texture;
 	std::vector<uint8_t> pending_jpeg;
+
+	// the render backing the newest preview request. anything older has been stopped and isn't allowed
+	// to publish its result anymore
+	std::mutex current_render_mutex;
+	std::shared_ptr<rendering::RenderState> current_render_state;
+
+	std::shared_ptr<rendering::RenderState> begin_preview_render() {
+		auto state = std::make_shared<rendering::RenderState>();
+
+		std::lock_guard lock(current_render_mutex);
+
+		if (current_render_state)
+			current_render_state->stop();
+
+		current_render_state = state;
+
+		return state;
+	}
+
+	bool is_current_preview_render(const std::shared_ptr<rendering::RenderState>& state) {
+		std::lock_guard lock(current_render_mutex);
+		return current_render_state == state;
+	}
 }
 
 namespace configs = gui::components::configs;
@@ -79,50 +102,33 @@ void configs::config_preview(ui::Container& container) {
 		auto local_settings = settings;
 		auto local_app_settings = app_settings;
 		std::thread([sample_video_path, local_settings, local_app_settings] {
-			std::shared_ptr<PreviewRenderState> state = nullptr;
+			auto state = begin_preview_render();
 
-			{
-				std::lock_guard lock(render_mutex);
+			auto res = rendering::render_frame(sample_video_path, local_settings, local_app_settings, state);
 
-				for (auto& render : render_states)
-					render->state->stop();
+			// the result is for stale settings, throw it away
+			if (!is_current_preview_render(state))
+				return;
 
-				state = render_states.emplace_back(std::make_shared<PreviewRenderState>());
+			std::lock_guard lock(preview_mutex);
+
+			loading = false;
+
+			if (res) {
+				pending_jpeg = std::move(res->frame_jpeg);
+				preview_id++;
+
+				u::log("config preview finished rendering");
 			}
-
-			auto res = rendering::render_frame(sample_video_path, local_settings, local_app_settings, state->state);
-
-			if (state == render_states.back())
-			{ // todo: this should be correct right? any cases where this doesn't work?
-				std::lock_guard lock(preview_mutex);
-
-				loading = false;
-
-				if (res) {
-					pending_jpeg = std::move(res->frame_jpeg);
-					preview_id++;
-
-					u::log("config preview finished rendering");
-				}
-				else {
-					components::notifications::show_failure_notification(
-						"Failed to generate config preview.", res.error(), std::chrono::duration<float>(10.f)
-					);
-				}
+			else {
+				components::notifications::show_failure_notification(
+					"Failed to generate config preview.", res.error(), std::chrono::duration<float>(10.f)
+				);
 			}
-
-			state->can_delete = true;
 		}).detach();
 	};
 
 	render_preview();
-
-	{
-		std::lock_guard lock(render_mutex);
-		std::erase_if(render_states, [](const auto& state) {
-			return state->can_delete;
-		});
-	}
 
 	if (preview_texture && preview_texture->is_valid()) {
 		ui::add_image(
