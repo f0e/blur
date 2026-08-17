@@ -115,10 +115,12 @@ void main::render_progress(
 
 	static std::shared_ptr<render::Texture> preview_texture;
 	static std::weak_ptr<rendering::RenderState> preview_texture_state;
+	static size_t preview_generation = 0;
 
 	if (preview_texture_state.lock() != render.state) {
 		preview_texture.reset();
 		preview_texture_state = render.state;
+		preview_generation++;
 	}
 
 	// create texture from current render preview (here cause its main thread)
@@ -133,7 +135,8 @@ void main::render_progress(
 			container,
 			preview_texture,
 			gfx::Size(container.get_usable_rect().w, container.get_usable_rect().h / 2),
-			std::to_string(progress.current_frame)
+			// add_image caches by image id, and frame numbers restart every render
+			std::format("{}:{}", preview_generation, progress.current_frame)
 		);
 		if (element) {
 			bar_width = (*element)->element->rect.w;
