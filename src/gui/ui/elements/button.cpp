@@ -3,27 +3,36 @@
 
 #include "../keys.h"
 
-const gfx::Size BUTTON_PADDING = { 14, 9 };
+const gfx::Size BUTTON_PADDING = { 11, 8 };
 constexpr float BUTTON_ROUNDING = 7.f;
+
+constexpr int BUTTON_STROKE_SHADE = 80;
+constexpr int BUTTON_SHADE = 17;
+constexpr int BUTTON_HOVER_SHADE = 42;
+constexpr int BUTTON_TEXT_SHADE = 255;
+constexpr int BUTTON_TEXT_HOVER_SHADE = 255;
 
 void ui::render_button(const Container& container, const AnimatedElement& element) {
 	const auto& button_data = std::get<ButtonElementData>(element.element->data);
 	float anim = element.animations.at(hasher("main")).current;
 	float hover_anim = element.animations.at(hasher("hover")).current;
 
-	int shade = 17 + (20 * hover_anim);
-	gfx::Color adjusted_color = gfx::Color(shade, shade, shade, anim * 255);
-	gfx::Color adjusted_text_color = gfx::Color(255, 255, 255, anim * 255);
+	int shade = u::lerp((float)BUTTON_SHADE, (float)BUTTON_HOVER_SHADE, hover_anim);
+	int text_shade = u::lerp((float)BUTTON_TEXT_SHADE, (float)BUTTON_TEXT_HOVER_SHADE, hover_anim);
 
 	// fill
-	render::rounded_rect_filled(element.element->rect, adjusted_color, BUTTON_ROUNDING);
+	render::rounded_rect_filled(element.element->rect, gfx::Color(shade, shade, shade, anim * 255), BUTTON_ROUNDING);
 
 	// border
-	render::rounded_rect_stroke(element.element->rect, gfx::Color(100, 100, 100, anim * 255), BUTTON_ROUNDING);
+	render::rounded_rect_stroke(
+		element.element->rect,
+		gfx::Color(BUTTON_STROKE_SHADE, BUTTON_STROKE_SHADE, BUTTON_STROKE_SHADE, anim * 255),
+		BUTTON_ROUNDING
+	);
 
 	render::text(
 		element.element->rect.center(),
-		adjusted_text_color,
+		gfx::Color(text_shade, text_shade, text_shade, anim * 255),
 		button_data.text,
 		*button_data.font,
 		FONT_CENTERED_X | FONT_CENTERED_Y
