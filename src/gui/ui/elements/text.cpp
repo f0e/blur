@@ -134,6 +134,7 @@ ui::AnimatedElement* ui::add_text_fixed(
 		render_text,
 		{},
 		{},
+		{},
 		true
 	);
 
