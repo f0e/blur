@@ -41,17 +41,11 @@ void configs::config_preview(ui::Container& container) {
 	// upload pending surface on render thread
 	{
 		std::lock_guard lock(preview_mutex);
-		if (!pending_jpeg.empty()) {
-			SDL_Surface* rgba = render::jpeg_bytes_to_surface(pending_jpeg.data(), pending_jpeg.size());
-			pending_jpeg.clear();
 
-			if (rgba) {
-				auto tex = std::make_shared<render::Texture>();
-				if (tex->load_from_surface(rgba))
-					preview_texture = tex;
-				SDL_DestroySurface(rgba);
-			}
-		}
+		if (auto texture = render::texture_from_jpeg(pending_jpeg))
+			preview_texture = std::move(texture);
+
+		pending_jpeg.clear();
 	}
 
 	auto render_preview = [&] {

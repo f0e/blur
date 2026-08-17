@@ -1,5 +1,7 @@
 #pragma once
 
+#include <span>
+
 #include "font/font.h"
 
 enum EFontFlags : unsigned int {
@@ -281,4 +283,7 @@ namespace render {
 
 	SDL_Surface* jpeg_bytes_to_surface(const void* data, size_t size);
 	SDL_Surface* png_bytes_to_surface(const void* data, size_t size);
+
+	// decode + upload in one go, null on empty input or failure. must be called on the render thread
+	std::shared_ptr<Texture> texture_from_jpeg(std::span<const uint8_t> jpeg);
 }
