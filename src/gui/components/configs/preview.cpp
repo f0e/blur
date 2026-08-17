@@ -62,15 +62,16 @@ void configs::config_preview(ui::Container& container) {
 	bool sample_video_exists = std::filesystem::exists(sample_video_path);
 
 	// upload pending surface on render thread
+	std::vector<uint8_t> jpeg;
 	{
 		std::lock_guard lock(preview_mutex);
-
-		if (auto texture = render::texture_from_jpeg(pending_jpeg)) {
-			preview_texture = std::move(texture);
-			preview_id++;
-		}
-
+		jpeg = std::move(pending_jpeg);
 		pending_jpeg.clear();
+	}
+
+	if (auto texture = render::texture_from_jpeg(jpeg)) {
+		preview_texture = std::move(texture);
+		preview_id++;
 	}
 
 	auto render_preview = [&] {
