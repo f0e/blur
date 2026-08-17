@@ -8,6 +8,7 @@
 #include "../../ui/ui.h"
 #include "../../render/render.h"
 #include "../notifications.h"
+#include "gui/renderer.h"
 
 namespace {
 	BlurSettings previewed_settings;
@@ -375,19 +376,10 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 		}
 	}
 
-	ui::add_separator("config preview separator", content_container, ui::SeparatorStyle::FADE_BOTH);
-
 	auto validation_res = config_blur::validate(settings, app_settings, preset_settings, false);
 	std::string fixable_errors = validation_res.message(true);
 	if (!fixable_errors.empty()) {
-		ui::add_text(
-			"config validation error/s",
-			content_container,
-			fixable_errors,
-			gfx::Color(255, 50, 50, 255),
-			fonts::dejavu,
-			FONT_CENTERED_X | FONT_OUTLINE
-		);
+		ui::add_separator("config preview separator", content_container, ui::SeparatorStyle::FADE_BOTH);
 
 		ui::add_button(
 			"fix config button", content_container, "Reset invalid config options to defaults", fonts::dejavu, [] {
@@ -395,59 +387,4 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 			}
 		);
 	}
-
-	ui::add_button("export config", content_container, "Export", fonts::dejavu, [] {
-		std::string exported_config = config_blur::export_concise(settings);
-		SDL_SetClipboardText(exported_config.c_str());
-
-		gui::components::notifications::add(
-			"Exported config to clipboard", ui::NotificationType::INFO, {}, std::chrono::duration<float>(2.f)
-		);
-	});
-
-	ui::set_next_same_line(content_container);
-
-	ui::add_button("import config", content_container, "Import", fonts::dejavu, [] {
-		size_t len = 0;
-		void* clipboard_data = SDL_GetClipboardData("text/plain", &len);
-
-		if (clipboard_data && len > 0) {
-			std::string clipboard_text(static_cast<char*>(clipboard_data), len);
-			SDL_free(clipboard_data);
-
-			try {
-				auto clipboard_settings = config_blur::parse(clipboard_text);
-
-				ui::reset_tied_sliders();
-				settings = clipboard_settings;
-
-				gui::components::notifications::add(
-					"Imported config from clipboard", ui::NotificationType::INFO, {}, std::chrono::duration<float>(2.f)
-				);
-			}
-			catch (const std::exception& e) {
-				gui::components::notifications::add(
-					std::string("Failed to load config: ") + e.what(),
-					ui::NotificationType::NOTIF_ERROR,
-					{},
-					std::chrono::duration<float>(3.f)
-				);
-			}
-		}
-		else {
-			gui::components::notifications::add(
-				"Clipboard is empty or unreadable",
-				ui::NotificationType::NOTIF_ERROR,
-				{},
-				std::chrono::duration<float>(2.f)
-			);
-		}
-	});
-
-	ui::add_button("open config folder", content_container, "Open config folder", fonts::dejavu, [] {
-		std::string file_url = std::format("file://{}", blur.settings_path);
-		if (!SDL_OpenURL(file_url.c_str())) {
-			u::log_error("Failed to open config folder: {}", SDL_GetError());
-		}
-	});
 }

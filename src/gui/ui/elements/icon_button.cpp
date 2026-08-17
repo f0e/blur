@@ -27,6 +27,9 @@ bool ui::update_icon_button(const Container& container, AnimatedElement& element
 	if (hovered) {
 		set_cursor(SDL_SYSTEM_CURSOR_POINTER);
 
+		if (!button_data.tooltip.empty())
+			tooltip::set(button_data.tooltip);
+
 		if (button_data.on_press) {
 			if (keys::is_mouse_down()) {
 				(*button_data.on_press)();
@@ -48,7 +51,8 @@ ui::AnimatedElement* ui::add_icon_button(
 	const gfx::Size& size,
 	gfx::Color color,
 	gfx::Color hover_color,
-	std::optional<std::function<void()>> on_press
+	std::optional<std::function<void()>> on_press,
+	const std::string& tooltip
 ) {
 	Element element(
 		id,
@@ -59,6 +63,7 @@ ui::AnimatedElement* ui::add_icon_button(
 			.font = &font,
 			.color = color,
 			.hover_color = hover_color,
+			.tooltip = tooltip,
 			.on_press = std::move(on_press),
 		},
 		render_icon_button,

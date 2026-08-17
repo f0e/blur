@@ -115,9 +115,12 @@ namespace config_presets {
 
 	const std::string PRESET_CONFIG_FILENAME = "presets.cfg";
 
+	std::string generate_config_string(const PresetSettings& settings);
+
 	void create(const std::filesystem::path& filepath, const PresetSettings& current_settings = PresetSettings());
 
 	PresetSettings parse(const std::filesystem::path& config_filepath);
+	PresetSettings parse(const std::string& config_content);
 
 	std::filesystem::path get_preset_config_path();
 

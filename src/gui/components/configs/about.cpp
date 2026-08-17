@@ -65,25 +65,31 @@ void configs::about(ui::Container& container) {
 		fonts::dejavu
 	);
 
+	ui::add_button("open config folder", container, "Open config folder", fonts::dejavu, [] {
+		std::string file_url = std::format("file://{}", blur.settings_path);
+		if (!SDL_OpenURL(file_url.c_str())) {
+			u::log_error("Failed to open config folder: {}", SDL_GetError());
+		}
+	});
+
 	gui::components::update_notice::render(container, ui::UpdateNoticeAlign::CENTER, false);
 
-	if (gui::components::update_notice::is_available())
-		return;
+	if (!gui::components::update_notice::is_available()) {
+		bool checking = gui::components::update_notice::is_checking();
 
-	bool checking = gui::components::update_notice::is_checking();
+		std::optional<std::function<void()>> on_press;
+		if (!checking) {
+			on_press = [] {
+				gui::components::update_notice::check_now();
+			};
+		}
 
-	std::optional<std::function<void()>> on_press;
-	if (!checking) {
-		on_press = [] {
-			gui::components::update_notice::check_now();
-		};
+		ui::add_button(
+			"check for updates button",
+			container,
+			checking ? "Checking for updates..." : "Check for updates",
+			fonts::dejavu,
+			on_press
+		);
 	}
-
-	ui::add_button(
-		"check for updates button",
-		container,
-		checking ? "Checking for updates..." : "Check for updates",
-		fonts::dejavu,
-		on_press
-	);
 }

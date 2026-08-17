@@ -1,25 +1,30 @@
 #include "config_app.h"
 #include "config_base.h"
 
-void config_app::create(const std::filesystem::path& filepath, const GlobalAppSettings& settings) {
-	std::ofstream output(filepath);
+std::string config_app::generate_config_string(const GlobalAppSettings& settings, bool shareable_only) {
+	std::ostringstream output;
 
 	output << "[blur v" << BLUR_VERSION << "]" << "\n";
 
 	output << "\n";
 	output << "- pc-specific blur settings" << "\n";
 	output << "output prefix: " << settings.output_prefix << "\n";
-	output << "gpu type (nvidia/amd/intel): " << settings.gpu_type << "\n";
-	output << "rife gpu number: " << settings.rife_device_index << "\n";
+
+	if (!shareable_only) {
+		output << "gpu type (nvidia/amd/intel): " << settings.gpu_type << "\n";
+		output << "rife gpu number: " << settings.rife_device_index << "\n";
 
 #ifdef TENSORRT
-	output << "rife (tensorrt) gpu number: " << settings.tensorrt_device_index << "\n";
+		output << "rife (tensorrt) gpu number: " << settings.tensorrt_device_index << "\n";
 #endif
+	}
 
 	output << "\n";
 	output << "- gui" << "\n";
+
 	output << "window width: " << settings.gui_width << "\n";
 	output << "window height: " << settings.gui_height << "\n";
+
 	output << "dpi scale (0 = auto): " << settings.dpi_scale_override << "\n";
 	output << "blur amount tied to fps: " << (settings.blur_amount_tied_to_fps ? "true" : "false") << "\n";
 	output << "skip queue: " << (settings.skip_queue ? "true" : "false") << "\n";
@@ -27,8 +32,11 @@ void config_app::create(const std::filesystem::path& filepath, const GlobalAppSe
 	output << "\n";
 	output << "- preview" << "\n";
 	output << "preview volume: " << settings.preview_volume << "\n";
-	output << "sample video path: " << settings.sample_video_path << "\n";
-	output << "config preview seek: " << settings.config_preview_seek << "\n";
+
+	if (!shareable_only) {
+		output << "sample video path: " << settings.sample_video_path << "\n";
+		output << "config preview seek: " << settings.config_preview_seek << "\n";
+	}
 
 	output << "\n";
 	output << "- desktop notifications" << "\n";
@@ -39,23 +47,68 @@ void config_app::create(const std::filesystem::path& filepath, const GlobalAppSe
 	output << "- updates" << "\n";
 	output << "check for updates: " << (settings.check_updates ? "true" : "false") << "\n";
 	output << "include beta updates: " << (settings.check_beta ? "true" : "false") << "\n";
-	output << "dismissed update version: " << settings.dismissed_update_version << "\n";
+
+	if (!shareable_only)
+		output << "dismissed update version: " << settings.dismissed_update_version << "\n";
 
 	output << "\n";
 	output << "- misc" << "\n";
 	output << "notify about config overrides: " << (settings.notify_about_config_override ? "true" : "false") << "\n";
 
 #ifdef __linux__
-	output << "\n";
-	output << "- linux" << "\n";
-	output << "vapoursynth lib path: " << settings.vapoursynth_lib_path << "\n";
+	if (!shareable_only) {
+		output << "\n";
+		output << "- linux" << "\n";
+		output << "vapoursynth lib path: " << settings.vapoursynth_lib_path << "\n";
+	}
 #endif
+
+	return output.str();
+}
+
+void config_app::create(const std::filesystem::path& filepath, const GlobalAppSettings& settings) {
+	std::ofstream output(filepath);
+	output << generate_config_string(settings, false);
+}
+
+std::string config_app::export_shareable(const GlobalAppSettings& settings) {
+	return generate_config_string(settings, true);
+}
+
+void config_app::copy_machine_settings(GlobalAppSettings& to, const GlobalAppSettings& from) {
+	to.gpu_type = from.gpu_type;
+	to.rife_device_index = from.rife_device_index;
+	to.tensorrt_device_index = from.tensorrt_device_index;
+
+	to.sample_video_path = from.sample_video_path;
+	to.config_preview_seek = from.config_preview_seek;
+
+	to.dismissed_update_version = from.dismissed_update_version;
+
+#ifdef __linux__
+	to.vapoursynth_lib_path = from.vapoursynth_lib_path;
+#endif
+}
+
+GlobalAppSettings config_app::parse(const std::string& config_content) {
+	std::istringstream stream(config_content);
+	auto config_map = config_base::read_config_map(stream);
+	return parse_from_map(config_map);
 }
 
 GlobalAppSettings config_app::parse(const std::filesystem::path& config_filepath) {
 	std::ifstream file_stream(config_filepath);
 	auto config_map = config_base::read_config_map(file_stream);
 
+	auto settings = parse_from_map(config_map);
+
+	// recreate the config file using the parsed values (keeps nice formatting)
+	create(config_filepath, settings);
+
+	return settings;
+}
+
+GlobalAppSettings config_app::parse_from_map(const std::map<std::string, std::string>& config_map) {
 	GlobalAppSettings settings;
 
 	config_base::extract_config_value(config_map, "output prefix", settings.output_prefix);
@@ -96,9 +149,6 @@ GlobalAppSettings config_app::parse(const std::filesystem::path& config_filepath
 #ifdef __linux__
 	config_base::extract_config_value(config_map, "vapoursynth lib path", settings.vapoursynth_lib_path);
 #endif
-
-	// recreate the config file using the parsed values (keeps nice formatting)
-	create(config_filepath, settings);
 
 	return settings;
 }

@@ -200,10 +200,12 @@ namespace ui {
 		const render::Font* font;
 		gfx::Color color;
 		gfx::Color hover_color;
+		std::string tooltip;
 		std::optional<std::function<void()>> on_press;
 
 		bool operator==(const IconButtonElementData& other) const {
-			return icon == other.icon && font == other.font && color == other.color && hover_color == other.hover_color;
+			return icon == other.icon && font == other.font && color == other.color &&
+			       hover_color == other.hover_color && tooltip == other.tooltip;
 		}
 	};
 
@@ -757,7 +759,8 @@ namespace ui {
 		const gfx::Size& size,
 		gfx::Color color,
 		gfx::Color hover_color,
-		std::optional<std::function<void()>> on_press = {}
+		std::optional<std::function<void()>> on_press = {},
+		const std::string& tooltip = ""
 	);
 
 	AnimatedElement* add_notification(
@@ -909,6 +912,7 @@ namespace ui {
 	void center_elements_in_container(Container& container, bool horizontal = true, bool vertical = true);
 
 	void center_element(Container& container, AnimatedElement* animated_element);
+	void center_elements(Container& container, const std::vector<AnimatedElement*>& animated_elements);
 
 	void right_align_element(Container& container, AnimatedElement* animated_element);
 
@@ -926,6 +930,17 @@ namespace ui {
 
 	bool set_hovered_element(AnimatedElement& element);
 	std::string get_hovered_id();
+
+	namespace tooltip {
+		inline const float DELAY = 0.6f;
+
+		void set(const std::string& text, const render::Font& font = fonts::dejavu);
+
+		void on_input_end(const std::string& hovered_element_id);
+
+		bool update(float delta_time);
+		void render();
+	}
 
 	bool update_container_input(Container& container);
 	void on_update_input_start();

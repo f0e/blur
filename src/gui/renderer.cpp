@@ -340,6 +340,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	want_to_render |= ui::update_container_frame(config_preview_header_container, delta_time);
 	want_to_render |= ui::update_container_frame(config_preview_content_container, delta_time);
 	want_to_render |= ui::update_container_frame(option_information_container, delta_time);
+	want_to_render |= ui::tooltip::update(delta_time);
 	ui::on_update_frame_end();
 
 	if (!want_to_render)
@@ -393,6 +394,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		ui::render_container(nav_container);
 		ui::render_container(update_container);
 		ui::render_container(notification_container);
+
+		ui::tooltip::render();
 
 		// file drop overlay
 		if (bg_drop_overlay_percent > 0.f)

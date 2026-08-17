@@ -386,6 +386,24 @@ void ui::center_element(Container& container, AnimatedElement* animated_element)
 	element->orig_rect.x = element->rect.x;
 }
 
+void ui::center_elements(Container& container, const std::vector<AnimatedElement*>& animated_elements) {
+	if (animated_elements.empty())
+		return;
+
+	const auto& first = animated_elements.front()->element;
+	const auto& last = animated_elements.back()->element;
+
+	int total_width = last->rect.x2() - first->rect.x;
+	int shift_x = container.get_usable_rect().center().x - (total_width / 2) - first->rect.x;
+
+	for (auto* animated_element : animated_elements) {
+		auto& element = animated_element->element;
+
+		element->rect.x += shift_x;
+		element->orig_rect.x = element->rect.x;
+	}
+}
+
 void ui::right_align_element(Container& container, AnimatedElement* animated_element) {
 	if (!animated_element)
 		return;
@@ -512,6 +530,8 @@ void ui::on_update_input_start() {
 }
 
 void ui::on_update_input_end() {
+	tooltip::on_input_end(hovered_id);
+
 	// reset scroll, shouldn't scroll stuff on a later update
 	keys::scroll_delta = 0.f;
 	keys::scroll_x_delta = 0.f;

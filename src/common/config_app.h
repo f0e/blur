@@ -44,8 +44,17 @@ namespace config_app {
 
 	// inline const std::vector<std::string> CHECK_UPDATES_OPTIONS = { "off", "on", "beta" };
 
+	std::string generate_config_string(const GlobalAppSettings& settings, bool shareable_only);
+
 	void create(const std::filesystem::path& filepath, const GlobalAppSettings& current_settings = GlobalAppSettings());
+
+	std::string export_shareable(const GlobalAppSettings& settings);
+
+	void copy_machine_settings(GlobalAppSettings& to, const GlobalAppSettings& from);
+
+	GlobalAppSettings parse(const std::string& config_content);
 	GlobalAppSettings parse(const std::filesystem::path& config_filepath);
+	GlobalAppSettings parse_from_map(const std::map<std::string, std::string>& config_map);
 	std::filesystem::path get_app_config_path();
 	GlobalAppSettings get_app_config();
 }
