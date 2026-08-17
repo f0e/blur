@@ -39,31 +39,25 @@ namespace {
 }
 
 void configs::about(ui::Container& container) {
-	ui::add_about(
-		"about blur",
+	ui::add_logo_and_version(
+		"logo and version",
 		container,
 		get_logo_texture(),
 		"blur",
 		std::format("v{}", BLUR_VERSION),
-		{
-			{
-				.text = "github",
-				.on_press =
-					[] {
-						SDL_OpenURL(GITHUB_URL.c_str());
-					},
-			},
-			{
-				.text = "discord",
-				.on_press =
-					[] {
-						SDL_OpenURL(DISCORD_URL.c_str());
-					},
-			},
-		},
 		fonts::header_font,
 		fonts::dejavu
 	);
+
+	ui::add_link("github link", container, "github", fonts::dejavu, [] {
+		SDL_OpenURL(GITHUB_URL.c_str());
+	});
+
+	ui::set_next_same_line(container);
+
+	ui::add_link("discord link", container, "discord", fonts::dejavu, [] {
+		SDL_OpenURL(DISCORD_URL.c_str());
+	});
 
 	ui::add_button("open config folder", container, "Open config folder", fonts::dejavu, [] {
 		std::string file_url = std::format("file://{}", blur.settings_path);
