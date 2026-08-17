@@ -71,14 +71,6 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	void app_options(ui::Container& container);
 	void preset_options(ui::Container& container);
 
-	// why the preset at this index can't be saved, if it can't
-	std::optional<std::string> get_preset_error(const std::vector<PresetSettings::Preset>& presets, size_t index);
-
-	// the device holding the first preset that can't be saved, if there is one
-	std::optional<std::string> find_preset_error_device();
-
-	std::optional<std::string> get_settings_error();
-
 	void about(ui::Container& container);
 
 	void config_preview(ui::Container& container);

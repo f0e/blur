@@ -141,6 +141,22 @@ namespace config_presets {
 
 	tl::expected<std::string, std::string> extract_codec_from_args(const std::vector<std::string>& ffmpeg_args);
 
+	struct ValidationMessage {
+		std::string message;
+		bool is_error = false;
+	};
+
+	std::optional<ValidationMessage> validate(const std::vector<PresetSettings::Preset>& presets, size_t index);
+
+	struct PresetError {
+		std::string gpu_type;
+		std::string message;
+	};
+
+	std::optional<PresetError> validate(
+		const PresetSettings& settings
+	); // @todo: should this return all erroring presets not just first?
+
 	struct QualityConfig {
 		int min_quality;
 		int max_quality;
