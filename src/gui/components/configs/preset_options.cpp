@@ -223,6 +223,7 @@ void configs::preset_options(ui::Container& container) {
 			bind_read_only_input(std::format("{} name", id), preset.name),
 			"",
 			fonts::dejavu,
+			"",
 			{},
 			true
 		);
@@ -234,6 +235,7 @@ void configs::preset_options(ui::Container& container) {
 			bind_read_only_input(std::format("{} args", id), preset.args),
 			"",
 			fonts::dejavu,
+			"",
 			{},
 			true
 		);
@@ -278,8 +280,9 @@ void configs::preset_options(ui::Container& container) {
 			std::format("{} name input", id),
 			container,
 			bind_input(std::format("{} name", id), preset.name),
-			"name",
+			"",
 			fonts::dejavu,
+			"name",
 			{},
 			false,
 			container.get_usable_rect().w - delete_icon_size - DELETE_ICON_GAP

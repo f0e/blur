@@ -253,10 +253,11 @@ namespace ui {
 
 	struct TextInputElementData {
 		helpers::text_input::TextInputData text_input;
+		std::string label;
 		std::string placeholder;
 
 		bool operator==(const TextInputElementData& other) const {
-			return text_input == other.text_input && placeholder == other.placeholder;
+			return text_input == other.text_input && label == other.label && placeholder == other.placeholder;
 		}
 	};
 
@@ -777,15 +778,16 @@ namespace ui {
 		const std::string& tooltip = ""
 	);
 
-	// height of a text input using this font, for lining other elements up with one
+	// height of a text input's field using this font (excluding any label), for lining other elements up with one
 	int text_input_height(const render::Font& font);
 
 	AnimatedElement* add_text_input(
 		const std::string& id,
 		Container& container,
 		std::string& text,
-		const std::string& placeholder,
+		const std::string& label,
 		const render::Font& font,
+		const std::string& placeholder = "",
 		std::optional<std::function<void(const std::string&)>> on_change = {},
 		bool read_only = false,
 		std::optional<int> width = {} // defaults to filling the container

@@ -13,6 +13,8 @@ constexpr gfx::Color TEXT_COLOR(255, 255, 255, 255);
 constexpr gfx::Color READ_ONLY_TEXT_COLOR(255, 255, 255, 155);
 constexpr gfx::Color PLACEHOLDER_COLOR(150, 150, 150, 180);
 
+const std::string EMPTY_PLACEHOLDER = "...";
+
 constexpr gfx::Color SELECTION_COLOR(100, 100, 200, 100);
 constexpr gfx::Color COMPOSITION_TEXT_COLOR(200, 200, 255, 255); // For IME
 constexpr gfx::Color COMPOSITION_BG_COLOR(60, 60, 60, 150);      // For IME
@@ -28,8 +30,14 @@ namespace {
 		const ui::Container& container, const ui::TextInputElementData& input_data, const ui::AnimatedElement& element
 	) {
 		gfx::Point label_pos = element.element->rect.origin();
+
 		auto input_rect = element.element->rect;
-		// Assuming element rect is the input field directly
+		if (!input_data.label.empty()) {
+			int label_offset = input_data.text_input.font->height() + LABEL_GAP;
+			input_rect.y += label_offset;
+			input_rect.h -= label_offset;
+		}
+
 		gfx::Point text_pos(input_rect.x + TEXT_INPUT_PADDING.w, input_rect.y + TEXT_INPUT_PADDING.h);
 
 		return {
@@ -50,6 +58,11 @@ void ui::render_text_input(const Container& container, const AnimatedElement& el
 	auto pos = get_positions(container, input_data, element);
 	auto& state = helpers::text_input::text_input_map.at(element.element->id);
 
+	// --- Render Label ---
+	if (!input_data.label.empty()) {
+		render::text(pos.label_pos, TEXT_COLOR.adjust_alpha(anim), input_data.label, *input_data.text_input.font);
+	}
+
 	// --- Render Background and Border ---
 	gfx::Color current_bg_color = BG_COLOR.adjust_alpha(anim);
 	render::rounded_rect_filled(pos.input_rect, current_bg_color, TEXT_INPUT_ROUNDING);
@@ -67,13 +80,17 @@ void ui::render_text_input(const Container& container, const AnimatedElement& el
 	clip_rect.w = std::max(clip_rect.w, 0);
 	clip_rect.h = std::max(clip_rect.h, 0);
 
+	std::string placeholder = input_data.placeholder;
+	if (placeholder.empty() && !input_data.text_input.read_only)
+		placeholder = EMPTY_PLACEHOLDER;
+
 	helpers::text_input::render_text(
 		input_data.text_input,
 		state,
 		pos.text_pos,
 		(input_data.text_input.read_only ? READ_ONLY_TEXT_COLOR : TEXT_COLOR).adjust_alpha(anim),
 		clip_rect,
-		input_data.placeholder,
+		placeholder,
 		PLACEHOLDER_COLOR.adjust_alpha(anim),
 		SELECTION_COLOR.adjust_alpha(anim),
 		COMPOSITION_TEXT_COLOR.adjust_alpha(anim),
@@ -179,8 +196,9 @@ ui::AnimatedElement* ui::add_text_input(
 	const std::string& id,
 	Container& container,
 	std::string& text, // Reference to the external string
-	const std::string& placeholder,
+	const std::string& label,
 	const render::Font& font,
+	const std::string& placeholder,
 	std::optional<std::function<void(const std::string&)>> on_change,
 	bool read_only,
 	std::optional<int> width
@@ -193,14 +211,17 @@ ui::AnimatedElement* ui::add_text_input(
 
 	helpers::text_input::add_text_edit(id, state);
 
-	const gfx::Size input_size(width.value_or(container.get_usable_rect().w), text_input_height(font));
+	gfx::Size total_size(width.value_or(container.get_usable_rect().w), text_input_height(font));
+	if (!label.empty())
+		total_size.h += font.height() + LABEL_GAP;
 
 	Element element(
 		id,
 		ElementType::TEXT_INPUT,
-		gfx::Rect(container.current_position, input_size),
+		gfx::Rect(container.current_position, total_size),
 		TextInputElementData{
 			.text_input = std::move(state),
+			.label = label,
 			.placeholder = placeholder,
 		},
 		render_text_input,
