@@ -3,18 +3,29 @@
 #include "render_pipeline.h"
 
 namespace {
-	size_t get_seek_start_frame(const std::filesystem::path& input_path, float seek) {
-		auto video_info = u::get_video_info(input_path);
+	constexpr int FRAMES_NEEDED_FOR_VSPIPE_TO_NOT_POO_ITSELF =
+		3; // need some buffer of frames so something actually renders out. idk how to get a proper value for this.
+	       // @todo: make sure this doesnt ever fail (set config preview seek = 1 and try lots of diff vids and configs,
+	       // make sure preview never fails to render)
+
+	size_t get_seek_start_frame(const BlurSettings& settings, const u::VideoInfo& video_info, float seek) {
 		if (!video_info.has_video_stream || video_info.fps_num <= 0 || video_info.fps_den <= 0 ||
 		    video_info.duration <= 0.f)
 			return 0;
 
+		double ffmpeg_required_extra_time = 1.f / settings.blur_output_fps; // see -ss below
 		double fps = static_cast<double>(video_info.fps_num) / video_info.fps_den;
-		auto total_frames = static_cast<size_t>(video_info.duration * fps);
 
-		return std::min(
-			static_cast<size_t>(std::clamp(seek, 0.f, 1.f) * total_frames), total_frames - 1
-		); // cap at total_frames - 1 cause otherwise start will be end and vspipe will error (needs at least 1 frame)
+		size_t total_frames = static_cast<size_t>(video_info.duration * fps);
+
+		size_t total_usable_frames = static_cast<size_t>(std::max(
+			0.0, ((video_info.duration - ffmpeg_required_extra_time) * fps) - FRAMES_NEEDED_FOR_VSPIPE_TO_NOT_POO_ITSELF
+		));
+
+		size_t start_frame = static_cast<size_t>(std::clamp(seek, 0.f, 1.f) * total_frames);
+		size_t offset = total_frames > total_usable_frames ? total_frames - total_usable_frames : 0;
+
+		return offset < start_frame ? start_frame - offset : 0;
 	}
 }
 
@@ -35,14 +46,11 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 	if (!merged_settings)
 		return tl::unexpected(merged_settings.error());
 
-	auto vspipe_args = detail::build_vspipe_base_args(input_path, *merged_settings);
+	auto video_info = u::get_video_info(input_path);
 
-	if (seek > 0.f) {
-		size_t start_frame = get_seek_start_frame(input_path, seek);
-		if (start_frame > 0) {
-			vspipe_args.insert(vspipe_args.end() - 2, { "-a", std::format("start={}", start_frame) });
-		}
-	}
+	auto vspipe_args = detail::build_vspipe_video_args(
+		input_path, *merged_settings, video_info, seek > 0.f ? get_seek_start_frame(settings, video_info, seek) : 0
+	);
 
 	RenderCommands commands = {
         .vspipe_video = std::move(vspipe_args),
@@ -51,11 +59,12 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
             "-hide_banner",
             "-stats",
             "-i", "-",
+            "-ss", std::to_string(1.f / settings.blur_output_fps), // skip ahead a frame, likely need a frame for frames to start being blended @todo: revisit if i ever change that behaviour (first frame of video not being blurred properly thing)
             "-map", "0:v",
-            "-vframes", "1",
+            "-frames:v", "1",
+            "-c:v", "mjpeg",
             "-q:v", "2",
             "-f", "image2pipe",
-            "-vcodec", "mjpeg",
             "-",
         },
     };

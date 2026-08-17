@@ -21,8 +21,8 @@ namespace rendering::detail {
 		const std::filesystem::path& input_path,
 		const nlohmann::json& merged_settings,
 		const u::VideoInfo& video_info,
-		size_t start_frame,
-		size_t end_frame
+		std::optional<size_t> start_frame = {},
+		std::optional<size_t> end_frame = {}
 	);
 
 	bool copies_audio(const BlurSettings& settings, const GlobalAppSettings& app_settings);
