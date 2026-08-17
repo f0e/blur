@@ -334,15 +334,12 @@ void configs::config_preview(ui::Container& container) {
 
 // todo: refactor
 void configs::preview(ui::Container& header_container, ui::Container& content_container) {
-	int interp_fps = 1200;
-	bool parsed_interp_fps = false;
-
+	std::optional<int> interp_fps;
 	if (settings.interpolate) {
 		std::istringstream iss(settings.interpolated_fps);
 		int temp_fps{};
 		if ((iss >> temp_fps) && iss.eof()) {
 			interp_fps = temp_fps;
-			parsed_interp_fps = true;
 		}
 	}
 
@@ -364,7 +361,7 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 
 		auto weights_res = weighting::get_weights(weight_settings, interp_fps);
 		if (weights_res.error.empty()) {
-			ui::add_weighting_graph("weighting graph", content_container, weights_res.weights, parsed_interp_fps);
+			ui::add_weighting_graph("weighting graph", content_container, weights_res.weights, interp_fps.has_value());
 		}
 		else {
 			ui::add_text(
