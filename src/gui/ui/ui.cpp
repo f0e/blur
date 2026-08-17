@@ -646,6 +646,9 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 			continue;
 		}
 
+		if (element.element->always_render)
+			need_to_render_animation_update |= true;
+
 		++it;
 	}
 

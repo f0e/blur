@@ -684,11 +684,6 @@ void render::borders(const gfx::Rect& rect, const gfx::Color& border_color, cons
 	rect_stroke(rect, border_color, 1.f);
 }
 
-void render::loader(const gfx::Rect& rect, const gfx::Color& color, const std::string& loader_text) {
-	// TODO: make this nicer? use in other places too?
-	text(rect.center(), color, loader_text, fonts::dejavu, FONT_CENTERED_X | FONT_CENTERED_Y);
-}
-
 void render::spinner(
 	const gfx::Point& pos,
 	float radius,
