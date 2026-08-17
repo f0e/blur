@@ -199,8 +199,8 @@ std::vector<std::string> rendering::detail::build_vspipe_video_args(
 	const std::filesystem::path& input_path,
 	const nlohmann::json& merged_settings,
 	const u::VideoInfo& video_info,
-	size_t start_frame,
-	size_t end_frame
+	std::optional<size_t> start_frame,
+	std::optional<size_t> end_frame
 ) {
 	auto args = build_vspipe_base_args(input_path, merged_settings);
 	args.insert(
@@ -214,12 +214,15 @@ std::vector<std::string> rendering::detail::build_vspipe_video_args(
 			"color_range=" + (video_info.color_range ? *video_info.color_range : "undefined"),
 			"-a",
 			std::format("preroll_frames={}", video_info.preroll_frames),
-			"-a",
-			std::format("start={}", start_frame),
-			"-a",
-			std::format("end={}", end_frame),
 		}
 	);
+
+	if (start_frame)
+		args.insert(args.end(), { "-a", std::format("start={}", *start_frame) });
+
+	if (end_frame)
+		args.insert(args.end(), { "-a", std::format("end={}", *end_frame) });
+
 	return args;
 }
 
