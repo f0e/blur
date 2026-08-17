@@ -8,7 +8,7 @@ namespace sdl {
 	inline SDL_Window* window = nullptr;
 	inline SDL_GLContext gl_context = nullptr;
 
-	inline constexpr gfx::Size MINIMUM_WINDOW_SIZE(450, 250);
+	inline constexpr gfx::Size MINIMUM_WINDOW_SIZE(500, 300);
 
 	inline const float VSYNC_EXTRA_FPS = 50;
 	inline const float MIN_FPS = 10.f;
