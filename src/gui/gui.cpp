@@ -110,15 +110,21 @@ int gui::run() {
 			if (keys::process_event(event)) {
 				ui::on_update_input_start();
 
-				to_render |= ui::update_container_input(renderer::notification_container);
-				to_render |= ui::update_container_input(renderer::update_container);
-				to_render |= ui::update_container_input(renderer::nav_container);
+				if (ui::dialog::is_open()) {
+					// modal, nothing behind it gets input
+					to_render |= ui::dialog::update_input();
+				}
+				else {
+					to_render |= ui::update_container_input(renderer::notification_container);
+					to_render |= ui::update_container_input(renderer::update_container);
+					to_render |= ui::update_container_input(renderer::nav_container);
 
-				to_render |= ui::update_container_input(renderer::main_container);
-				to_render |= ui::update_container_input(renderer::config_container);
-				to_render |= ui::update_container_input(renderer::option_information_container);
-				to_render |= ui::update_container_input(renderer::config_preview_header_container);
-				to_render |= ui::update_container_input(renderer::config_preview_content_container);
+					to_render |= ui::update_container_input(renderer::main_container);
+					to_render |= ui::update_container_input(renderer::config_container);
+					to_render |= ui::update_container_input(renderer::option_information_container);
+					to_render |= ui::update_container_input(renderer::config_preview_header_container);
+					to_render |= ui::update_container_input(renderer::config_preview_content_container);
+				}
 
 				ui::on_update_input_end();
 			}
