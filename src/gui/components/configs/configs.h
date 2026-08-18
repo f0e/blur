@@ -28,6 +28,7 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	inline const std::vector<std::string> CONFIG_TABS = { "blur", "app", "presets" };
 	inline std::string selected_config_tab = CONFIG_TABS[0];
+	inline constexpr int CONFIG_HEADER_NAV_GAP = 6;
 
 	inline const std::vector<std::string> TABS = { "preview", "weightings" };
 	inline std::string selected_tab = TABS[0];

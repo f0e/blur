@@ -74,6 +74,24 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 	ui::reset_container(nav_container, sdl::window, nav_container_rect, fonts::dejavu.height(), {});
 
+	constexpr int navigation_button_size = 36;
+	gfx::Rect navigation_button_container_rect;
+
+	if (screen == Screens::CONFIG) {
+		const int config_navigation_button_size = ui::tabs_height(fonts::dejavu);
+		navigation_button_container_rect =
+			gfx::Rect(rect.x + PAD_X, rect.y + PAD_Y, config_navigation_button_size, config_navigation_button_size);
+	}
+	else {
+		navigation_button_container_rect = gfx::Rect(
+			rect.x + PAD_X,
+			nav_container_rect.y + ((nav_container_rect.h - navigation_button_size) / 2),
+			navigation_button_size,
+			navigation_button_size
+		);
+	}
+	ui::reset_container(navigation_button_container, sdl::window, navigation_button_container_rect, 0, {});
+
 	int nav_cutoff = rect.y2() - nav_container_rect.y;
 	int bottom_pad = std::max(PAD_Y, nav_cutoff);
 
@@ -180,6 +198,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	);
 
 	bool render_corner_update_notice = components::update_notice::is_updating();
+	ui::AnimatedElement* config_back_button = nullptr;
 
 	// built first so it gets escape before the screens do
 	ui::dialog::build(sdl::window, rect);
@@ -188,9 +207,11 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		case Screens::TEST: {
 			components::test::screen(main_container, delta_time);
 
-			ui::add_button("back button", nav_container, "Back", fonts::dejavu, [] {
-				screen = Screens::MAIN;
-			});
+			ui::add_navigation_button(
+				"test back navigation", navigation_button_container, ui::NavigationIcon::BACK, [] {
+					screen = Screens::MAIN;
+				}
+			);
 			break;
 		}
 		case Screens::MAIN: {
@@ -204,7 +225,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 				switch (main_screen) {
 					case components::main::MainScreen::HOME: {
 #ifdef _DEBUG
-						ui::add_button("test button", nav_container, "Test", fonts::dejavu, [] {
+						ui::add_navigation_button("test button", navigation_button_container, "Test", [] {
 							screen = Screens::TEST;
 						});
 #endif
@@ -273,9 +294,17 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 				}
 
 				ui::set_next_same_line(nav_container);
-				ui::add_button("config button", nav_container, "Config", fonts::dejavu, [] {
-					screen = Screens::CONFIG;
-				});
+				ui::add_navigation_button(
+					"configuration navigation",
+					nav_container,
+					ui::NavigationIcon::SETTINGS,
+					[] {
+						screen = Screens::CONFIG;
+					},
+					"",
+					ui::NavigationButtonStyle::DEFAULT,
+					"Config"
+				);
 			}
 
 			ui::center_elements_in_container(main_container);
@@ -287,20 +316,6 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		case Screens::CONFIG: {
 			components::configs::should_load_config = true;
 
-			ui::set_next_same_line(nav_container);
-			ui::add_button("back button", nav_container, "Back", fonts::dejavu, [] {
-				if (!components::configs::has_unsaved_changes()) {
-					screen = Screens::MAIN;
-					return;
-				}
-
-				ui::dialog::confirm_destructive(
-					"Discard unsaved changes?", "Going back will discard your unsaved config changes.", "Discard", [] {
-						screen = Screens::MAIN;
-					}
-				);
-			});
-
 			components::configs::screen(
 				config_container,
 				nav_container,
@@ -308,6 +323,29 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 				config_preview_content_container,
 				option_information_container,
 				delta_time
+			);
+
+			config_back_button = ui::add_navigation_button(
+				"config back navigation",
+				navigation_button_container,
+				ui::NavigationIcon::BACK,
+				[] {
+					if (!components::configs::has_unsaved_changes()) {
+						screen = Screens::MAIN;
+						return;
+					}
+
+					ui::dialog::confirm_destructive(
+						"Discard unsaved changes?",
+						"Going back will discard your unsaved config changes.",
+						"Discard",
+						[] {
+							screen = Screens::MAIN;
+						}
+					);
+				},
+				"",
+				ui::NavigationButtonStyle::TAB
 			);
 
 			ui::center_elements_in_container(config_preview_header_container, true, false);
@@ -346,12 +384,16 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	want_to_render |= ui::update_container_frame(notification_container, delta_time);
 	want_to_render |= ui::update_container_frame(update_container, delta_time);
 	want_to_render |= ui::update_container_frame(nav_container, delta_time);
+	want_to_render |= ui::update_container_frame(navigation_button_container, delta_time);
 
 	want_to_render |= ui::update_container_frame(main_container, delta_time);
 	want_to_render |= ui::update_container_frame(config_container, delta_time);
 	want_to_render |= ui::update_container_frame(config_preview_header_container, delta_time);
 	want_to_render |= ui::update_container_frame(config_preview_content_container, delta_time);
 	want_to_render |= ui::update_container_frame(option_information_container, delta_time);
+
+	ui::stick_element_to_top(config_container, config_back_button);
+
 	want_to_render |= ui::dialog::update_frame(delta_time);
 	want_to_render |= ui::tooltip::update(delta_time);
 	ui::on_update_frame_end();
@@ -405,6 +447,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		ui::render_container(config_preview_header_container);
 		ui::render_container(option_information_container);
 		ui::render_container(nav_container);
+		ui::render_container(navigation_button_container);
 		ui::render_container(update_container);
 		ui::render_container(notification_container);
 

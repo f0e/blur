@@ -327,7 +327,16 @@ void configs::screen(
 			"config tabs", config_container, CONFIG_TABS, selected_config_tab, fonts::dejavu, on_tab_select
 		);
 
-		ui::center_element(config_container, config_tabs);
+		if (selected_config_tab == "presets")
+			ui::center_element(config_container, config_tabs);
+		else {
+			const auto usable_rect = config_container.get_usable_rect();
+			const int tabs_region_x = usable_rect.x + ui::tabs_height(fonts::dejavu) + CONFIG_HEADER_NAV_GAP;
+			const int tabs_region_width = usable_rect.x2() - tabs_region_x;
+
+			config_tabs->element->rect.x = tabs_region_x + (tabs_region_width - config_tabs->element->rect.w) / 2;
+			config_tabs->element->orig_rect.x = config_tabs->element->rect.x;
+		}
 
 		config_actions(config_container);
 	}
