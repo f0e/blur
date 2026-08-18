@@ -106,19 +106,17 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 	gfx::Rect config_container_rect = rect;
 
-	if (components::configs::loaded_config) {
-		const int base_width = 200 + PAD_X * 2;
+	const int base_config_width = 200 + PAD_X * 2;
 
-		// presets need the room, ffmpeg commands are long
-		int goal_width = components::configs::selected_config_tab == "presets" ? rect.w : base_width;
+	// presets need the room, ffmpeg commands are long
+	int config_goal_width = components::configs::selected_config_tab == "presets" ? rect.w : base_config_width;
 
-		static float config_width = goal_width;
-		float last_config_width = config_width;
-		config_width = u::lerp(config_width, (float)goal_width, 25.f * delta_time, 0.5f);
-		want_to_render |= config_width != last_config_width;
+	static float config_width = config_goal_width;
+	float last_config_width = config_width;
+	config_width = u::lerp(config_width, (float)config_goal_width, 25.f * delta_time, 0.5f);
+	want_to_render |= config_width != last_config_width;
 
-		config_container_rect.w = std::lround(config_width);
-	}
+	config_container_rect.w = std::lround(config_width);
 
 	ui::reset_container(
 		config_container,

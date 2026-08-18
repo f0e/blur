@@ -248,6 +248,29 @@ void configs::screen(
 	ui::Container& option_information_container,
 	float delta_time
 ) {
+	auto on_tab_select = [&config_container] {
+		config_container.scroll_to_top = true;
+	};
+
+	config_container.push_element_gap(2);
+	{
+		auto* config_tabs = ui::add_tabs(
+			"config tabs", config_container, CONFIG_TABS, selected_config_tab, fonts::dejavu, on_tab_select
+		);
+
+		if (selected_config_tab == "presets")
+			ui::center_element(config_container, config_tabs);
+		else {
+			const auto usable_rect = config_container.get_usable_rect();
+			const int tabs_region_x = usable_rect.x + ui::tabs_height(fonts::dejavu) + CONFIG_HEADER_NAV_GAP;
+			const int tabs_region_width = usable_rect.x2() - tabs_region_x;
+
+			config_tabs->element->rect.x = tabs_region_x + (tabs_region_width - config_tabs->element->rect.w) / 2;
+			config_tabs->element->orig_rect.x = config_tabs->element->rect.x;
+		}
+	}
+	config_container.pop_element_gap();
+
 	static bool loading_config = false;
 	if (!loaded_config) {
 		if (!loading_config) {
@@ -264,7 +287,8 @@ void configs::screen(
 			}).detach();
 		}
 
-		ui::add_text(
+		const int content_y = config_container.current_position.y;
+		auto* loading_text = ui::add_text(
 			"config loading text",
 			config_container,
 			"Loading config...",
@@ -273,7 +297,18 @@ void configs::screen(
 			FONT_CENTERED_X
 		);
 
-		ui::center_elements_in_container(config_container);
+		const auto usable_rect = config_container.get_usable_rect();
+		loading_text->element->rect.y = content_y + (usable_rect.y2() - content_y - loading_text->element->rect.h) / 2;
+		loading_text->element->orig_rect.y = loading_text->element->rect.y;
+
+		// stuff that doesnt need configs to be loaded
+		if (selected_config_tab == "blur") {
+			preview_tabs(preview_header_container, preview_content_container);
+		}
+		else if (selected_config_tab == "app") {
+			about(preview_content_container);
+		}
+
 		return;
 	}
 
@@ -317,29 +352,8 @@ void configs::screen(
 		});
 	}
 
-	auto on_tab_select = [&config_container] {
-		config_container.scroll_to_top = true;
-	};
-
 	config_container.push_element_gap(2);
-	{
-		auto* config_tabs = ui::add_tabs(
-			"config tabs", config_container, CONFIG_TABS, selected_config_tab, fonts::dejavu, on_tab_select
-		);
-
-		if (selected_config_tab == "presets")
-			ui::center_element(config_container, config_tabs);
-		else {
-			const auto usable_rect = config_container.get_usable_rect();
-			const int tabs_region_x = usable_rect.x + ui::tabs_height(fonts::dejavu) + CONFIG_HEADER_NAV_GAP;
-			const int tabs_region_width = usable_rect.x2() - tabs_region_x;
-
-			config_tabs->element->rect.x = tabs_region_x + (tabs_region_width - config_tabs->element->rect.w) / 2;
-			config_tabs->element->orig_rect.x = config_tabs->element->rect.x;
-		}
-
-		config_actions(config_container);
-	}
+	config_actions(config_container);
 	config_container.pop_element_gap();
 
 	if (selected_config_tab == "blur") {
