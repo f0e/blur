@@ -53,7 +53,7 @@ namespace ui {
 		gfx::Color fill_color;
 		std::optional<std::string> bar_text;
 		std::optional<gfx::Color> text_color;
-		std::optional<const render::Font*> font;
+		std::optional<render::Font> font;
 
 		bool operator==(const BarElementData& other) const {
 			return percent_fill == other.percent_fill && background_color == other.background_color &&
@@ -65,7 +65,7 @@ namespace ui {
 	struct TextElementData {
 		std::vector<std::string> lines;
 		gfx::Color color;
-		const render::Font* font;
+		render::Font font;
 		unsigned int flags;
 
 		bool operator==(const TextElementData& other) const {
@@ -192,7 +192,7 @@ namespace ui {
 
 	struct ButtonElementData {
 		std::string text;
-		const render::Font* font;
+		render::Font font;
 		std::optional<std::function<void()>> on_press;
 		std::optional<gfx::Color> accent_color;
 
@@ -203,7 +203,7 @@ namespace ui {
 
 	struct IconButtonElementData {
 		std::string icon;
-		const render::Font* font;
+		render::Font font;
 		gfx::Color color;
 		gfx::Color hover_color;
 		std::string tooltip;
@@ -224,7 +224,7 @@ namespace ui {
 	struct NotificationElementData {
 		std::vector<std::string> lines;
 		NotificationType type;
-		const render::Font* font;
+		render::Font font;
 		int line_height;
 		std::optional<std::function<void(const std::string& id)>> on_click;
 		std::optional<std::function<void(const std::string& id)>> on_close;
@@ -239,7 +239,7 @@ namespace ui {
 		std::variant<int, float> max_value;
 		std::variant<int*, float*> current_value;
 		std::string label_format;
-		const render::Font* font;
+		render::Font font;
 		std::optional<std::function<void(const std::variant<int*, float*>&)>> on_change;
 		float precision;
 		std::string tooltip;
@@ -273,7 +273,7 @@ namespace ui {
 	struct SeekBarElementData {
 		float* value;
 		float duration;
-		const render::Font* font;
+		render::Font font;
 
 		bool operator==(const SeekBarElementData& other) const {
 			return value == other.value && duration == other.duration && font == other.font;
@@ -283,7 +283,7 @@ namespace ui {
 	struct CheckboxElementData {
 		std::string label;
 		bool* checked;
-		const render::Font* font;
+		render::Font font;
 		std::optional<std::function<void(bool)>> on_change;
 
 		bool operator==(const CheckboxElementData& other) const {
@@ -295,7 +295,7 @@ namespace ui {
 		std::string label;
 		std::vector<std::string> options;
 		std::string* selected;
-		const render::Font* font;
+		render::Font font;
 		std::optional<std::function<void(std::string*)>> on_change;
 		std::vector<std::string> muted_options;
 
@@ -348,7 +348,7 @@ namespace ui {
 		std::vector<std::string> options;
 
 		std::string* selected;
-		const render::Font* font;
+		render::Font font;
 		std::optional<std::function<void()>> on_select;
 
 		std::vector<gfx::Rect> option_offset_rects;
@@ -370,7 +370,7 @@ namespace ui {
 	struct HintElementData {
 		std::vector<Paragraph> paragraphs;
 		gfx::Color color;
-		const render::Font* font;
+		render::Font font;
 
 		bool operator==(const HintElementData& other) const {
 			return paragraphs == other.paragraphs && color == other.color && font == other.font;
@@ -410,7 +410,7 @@ namespace ui {
 		std::string subtext;
 		std::optional<float> progress;
 		UpdateNoticeAlign align;
-		const render::Font* font;
+		render::Font font;
 
 		bool operator==(const UpdateNoticeElementData& other) const {
 			return status == other.status && subtext == other.subtext && progress == other.progress &&
@@ -422,8 +422,8 @@ namespace ui {
 		std::shared_ptr<render::Texture> logo;
 		std::string title;
 		std::string subtitle;
-		const render::Font* title_font;
-		const render::Font* font;
+		render::Font title_font;
+		render::Font font;
 
 		bool operator==(const LogoAndVersionElementData& other) const {
 			return logo == other.logo && title == other.title && subtitle == other.subtitle &&
@@ -436,7 +436,7 @@ namespace ui {
 		std::optional<std::function<void()>> on_press;
 		gfx::Color color;
 		gfx::Color hover_color;
-		const render::Font* font;
+		render::Font font;
 
 		bool operator==(const LinkElementData& other) const {
 			return text == other.text && color == other.color && hover_color == other.hover_color && font == other.font;
@@ -719,7 +719,7 @@ namespace ui {
 		int bar_width,
 		std::optional<std::string> bar_text = {},
 		std::optional<gfx::Color> text_color = {},
-		std::optional<const render::Font*> font = {}
+		std::optional<render::Font> font = {}
 	);
 
 	AnimatedElement* add_text(

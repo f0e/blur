@@ -81,7 +81,7 @@ void ui::render_notification(const Container& container, const AnimatedElement& 
 	text_pos.y += NOTIFICATION_TEXT_PADDING.h;
 
 	for (const auto& line : notification_data.lines) {
-		render::text(text_pos, text_color, line, *notification_data.font); // TODO: align properly
+		render::text(text_pos, text_color, line, notification_data.font); // TODO: align properly
 		text_pos.y += notification_data.line_height;
 	}
 }
@@ -162,7 +162,7 @@ ui::AnimatedElement* ui::add_notification(
 		NotificationElementData{
 			.lines = lines,
 			.type = type,
-			.font = &font,
+			.font = font,
 			.line_height = line_height,
 			.on_click = std::move(on_click),
 			.on_close = std::move(on_close),

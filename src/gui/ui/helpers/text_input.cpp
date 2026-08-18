@@ -110,7 +110,7 @@ namespace {
 			return;
 		}
 
-		const render::Font& font = *str->font;
+		const render::Font& font = str->font;
 		const std::string& text = *str->text;
 		int len = static_cast<int>(text.length());
 
@@ -153,7 +153,7 @@ namespace {
 
 		// measure the whole codepoint, not the single byte the old implementation used
 		int seq = std::min(utf8_seq_len(static_cast<unsigned char>((*str->text)[idx])), len - idx);
-		return measure(*str->font, *str->text, idx, seq);
+		return measure(str->font, *str->text, idx, seq);
 	}
 
 	void textedit_deletechars(IMSTB_TEXTEDIT_STRING* str, int i, int n) {
@@ -398,7 +398,7 @@ float ui::helpers::text_input::get_cursor_x(
 
 	cursor_pos = std::clamp(cursor_pos, 0, static_cast<int>(input_data.text->length()));
 
-	return static_cast<float>(text_start_pos.x) + measure(*input_data.font, *input_data.text, 0, cursor_pos);
+	return static_cast<float>(text_start_pos.x) + measure(input_data.font, *input_data.text, 0, cursor_pos);
 }
 
 bool ui::helpers::text_input::has_selection(const STB_TexteditState& state) {
@@ -737,7 +737,7 @@ void ui::helpers::text_input::render_text(
 	// version recomputed the offset from the caret every frame, so the text jumped around while typing
 	float cursor_offset = get_cursor_x(input_data, state.edit_state.cursor, gfx::Point(0, 0));
 	auto visible_width = static_cast<float>(clip_rect.w);
-	float text_width = measure(*input_data.font, display_text, 0, static_cast<int>(display_text.size()));
+	float text_width = measure(input_data.font, display_text, 0, static_cast<int>(display_text.size()));
 
 	// leave room for the caret itself so it isn't clipped when sitting at the very end of the text
 	float max_scroll = std::max(0.f, (text_width + CURSOR_WIDTH) - visible_width);
@@ -759,7 +759,7 @@ void ui::helpers::text_input::render_text(
 	text_pos.x -= static_cast<int>(state.scroll_x);
 
 	if (display_text.empty() && !state.active && !placeholder.empty()) {
-		render::text(text_pos, placeholder_color, placeholder, *input_data.font);
+		render::text(text_pos, placeholder_color, placeholder, input_data.font);
 		render::pop_clip_rect();
 		return;
 	}
@@ -774,25 +774,23 @@ void ui::helpers::text_input::render_text(
 		float x1 = get_cursor_x(input_data, sel_start, text_pos);
 		float x2 = get_cursor_x(input_data, sel_end, text_pos);
 
-		gfx::Rect selection_rect(
-			static_cast<int>(x1), text_pos.y, static_cast<int>(x2 - x1), input_data.font->height()
-		);
+		gfx::Rect selection_rect(static_cast<int>(x1), text_pos.y, static_cast<int>(x2 - x1), input_data.font.height());
 
 		if (selection_rect.w > 0 && selection_rect.h > 0)
 			render::rect_filled(selection_rect, selection_colour);
 	}
 
-	render::text(text_pos, text_color, display_text, *input_data.font);
+	render::text(text_pos, text_color, display_text, input_data.font);
 
 	// --- Render IME Composition ---
 	if (state.active && !state.composition.empty()) {
 		float base_comp_x = get_cursor_x(input_data, state.edit_state.cursor, text_pos);
 		gfx::Point comp_pos = { static_cast<int>(base_comp_x), text_pos.y };
-		gfx::Size comp_size = input_data.font->calc_size(state.composition);
+		gfx::Size comp_size = input_data.font.calc_size(state.composition);
 		gfx::Rect comp_bg_rect(comp_pos.x, comp_pos.y, comp_size.w, comp_size.h);
 
 		render::rect_filled(comp_bg_rect, composition_bg_color);
-		render::text(comp_pos, composition_text_color, state.composition, *input_data.font);
+		render::text(comp_pos, composition_text_color, state.composition, input_data.font);
 		render::line(
 			{ comp_pos.x, comp_pos.y + comp_size.h },
 			{ comp_pos.x + comp_size.w, comp_pos.y + comp_size.h },
@@ -801,11 +799,11 @@ void ui::helpers::text_input::render_text(
 
 		if (state.ime_cursor >= 0) {
 			float ime_cursor_x_offset = measure(
-				*input_data.font, state.composition, 0, std::min(state.ime_cursor, (int)state.composition.size())
+				input_data.font, state.composition, 0, std::min(state.ime_cursor, (int)state.composition.size())
 			);
 			render::line(
 				{ comp_pos.x + (int)ime_cursor_x_offset, comp_pos.y },
-				{ comp_pos.x + (int)ime_cursor_x_offset, comp_pos.y + input_data.font->height() },
+				{ comp_pos.x + (int)ime_cursor_x_offset, comp_pos.y + input_data.font.height() },
 				composition_text_color,
 				false,
 				1.f
@@ -826,7 +824,7 @@ void ui::helpers::text_input::render_text(
 
 		if (cursor_visible) {
 			gfx::Point p1(cursor_x, text_pos.y);
-			gfx::Point p2(cursor_x, text_pos.y + input_data.font->height());
+			gfx::Point p2(cursor_x, text_pos.y + input_data.font.height());
 
 			auto current_clip = render::get_clip_rect();
 			if (p1.x >= current_clip.x && p1.x <= current_clip.x + current_clip.w)
