@@ -143,7 +143,7 @@ bool VideoPlayer::render(int w, int h) {
 		return false;
 	}
 
-	bool size_changed = (w != m_current_width && h != m_current_height);
+	bool size_changed = (w != m_current_width || h != m_current_height);
 	setup_fbo_texture(w, h);
 
 	if (!m_new_frame_available && !size_changed)
