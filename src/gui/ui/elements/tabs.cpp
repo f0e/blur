@@ -6,6 +6,8 @@
 const gfx::Size TAB_PADDING = { 10, 7 };
 const float TAB_ROUNDING = 5.f;
 
+const int TAB_STROKE_SHADE = 100;
+
 namespace {
 	void update_background(ui::AnimatedElement& element) {
 		const auto& tabs_data = std::get<ui::TabsElementData>(element.element->data);
@@ -68,7 +70,11 @@ void ui::render_tabs(const Container& container, const AnimatedElement& element)
 
 	render::pop_clip_rect();
 
-	render::rounded_rect_stroke(element.element->rect, gfx::Color(100, 100, 100, anim * 255), TAB_ROUNDING);
+	render::rounded_rect_stroke(
+		element.element->rect,
+		gfx::Color(TAB_STROKE_SHADE, TAB_STROKE_SHADE, TAB_STROKE_SHADE, anim * 255),
+		TAB_ROUNDING
+	);
 }
 
 bool ui::update_tabs(const Container& container, AnimatedElement& element) {
