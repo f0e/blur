@@ -3,7 +3,6 @@
 
 static const int RULE_HEIGHT = 1;
 static const int RULE_GAP = 9;
-static const int SUBTEXT_GAP = 3;
 static const int LINE_GAP = 5;
 static const int LINK_GAP = 14;
 
@@ -131,7 +130,7 @@ void ui::render_update_notice(const Container& container, const AnimatedElement&
 	);
 
 	if (!notice_data.subtext.empty()) {
-		text_pos.y += notice_data.font.height() + SUBTEXT_GAP;
+		text_pos.y += notice_data.font.height() + LINE_GAP;
 
 		render::text(
 			text_pos,
@@ -163,7 +162,7 @@ ui::AnimatedElement* ui::add_update_notice(
 	);
 	size.h += font.height();
 	if (!subtext.empty())
-		size.h += SUBTEXT_GAP + font.height();
+		size.h += LINE_GAP + font.height();
 	for (const auto& line : lines) {
 		if (!line.empty())
 			size.h += LINE_GAP + font.height();
