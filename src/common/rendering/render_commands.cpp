@@ -135,6 +135,8 @@ namespace {
 
 		return false;
 	}
+
+	constexpr int PREVIEW_MAX_HEIGHT = 720;
 }
 
 bool rendering::detail::copies_audio(const BlurSettings& settings, const GlobalAppSettings& app_settings) {
@@ -348,4 +350,14 @@ void rendering::detail::copy_file_timestamp(const std::filesystem::path& from, c
 	catch (const std::exception& e) {
 		u::log_error("Failed to copy timestamp: {}", e.what());
 	}
+}
+
+std::vector<std::string> rendering::detail::build_ffmpeg_preview_args() {
+	return {
+		"-vf",  std::format("scale=-2:min(ih\\,{})", PREVIEW_MAX_HEIGHT),
+		"-c:v", "mjpeg",
+		"-q:v", "2",
+		"-f",   "image2pipe",
+		"-",
+	};
 }

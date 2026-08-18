@@ -157,22 +157,8 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 
 	// add preview pipe if needed
 	if (settings.preview && blur.using_preview) {
-		commands.ffmpeg.insert(
-			commands.ffmpeg.end(),
-			{
-				"-map",
-				"0:v",
-				"-q:v",
-				"2",
-				"-update",
-				"1",
-				"-f",
-				"image2pipe",
-				"-vcodec",
-				"mjpeg",
-				"-",
-			}
-		);
+		auto preview_args = detail::build_ffmpeg_preview_args();
+		commands.ffmpeg.insert(commands.ffmpeg.end(), preview_args.begin(), preview_args.end());
 
 		state->enable_preview_capture();
 	}

@@ -100,41 +100,112 @@ namespace {
 	}
 
 	// scan ffmpeg's stdout for complete jpeg frames (FFD8..FFD9) and hand each
-	// one to the state as the latest preview
+	// one to the state as the latest preview.
+	// note: reads in big chunks - pulling a byte at a time out of the stream can't
+	// keep up with ffmpeg's output, which backpressures the pipe and stalls the render
 	void extract_jpeg_stream(bp::ipstream& ffmpeg_stdout, const std::shared_ptr<rendering::RenderState>& state) {
 		if (!state->preview_capture_enabled())
 			return;
 
+		static constexpr size_t CHUNK_SIZE = 64 * 1024;
+		static constexpr size_t INITIAL_JPEG_CAPACITY = 1024 * 512;
+
+		// a render going much faster than realtime produces preview frames far quicker than
+		// anything can display them, and every one the gui picks up costs a jpeg decode and a
+		// texture upload on the main thread. throttled here rather than in ffmpeg because
+		// ffmpeg can only cap this in video time, which would starve slow renders of previews
+		static constexpr auto MIN_PREVIEW_INTERVAL = std::chrono::milliseconds(50);
+
+		std::array<char, CHUNK_SIZE> chunk{};
+
 		std::vector<uint8_t> buf;
-		buf.reserve(1024 * 512);
+		buf.reserve(INITIAL_JPEG_CAPACITY);
 
-		uint8_t byte;
+		std::vector<uint8_t> pending; // most recent frame the throttle skipped
+
 		bool in_jpeg = false;
+		bool trailing_ff = false; // last byte of the previous chunk was 0xFF (start marker may straddle chunks)
 
-		while (ffmpeg_stdout.read(reinterpret_cast<char*>(&byte), 1)) {
-			if (!in_jpeg) {
-				if (byte == 0xFF) {
-					buf.push_back(byte);
-				}
-				else if (!buf.empty() && byte == 0xD8) {
-					buf.push_back(byte);
-					in_jpeg = true;
+		auto last_handoff = std::chrono::steady_clock::now() - MIN_PREVIEW_INTERVAL; // let the first frame through
+
+		while (ffmpeg_stdout.read(chunk.data(), chunk.size()) || ffmpeg_stdout.gcount() > 0) {
+			const auto* data = reinterpret_cast<const uint8_t*>(chunk.data());
+			size_t size = ffmpeg_stdout.gcount();
+			size_t pos = 0;
+
+			while (pos < size) {
+				if (!in_jpeg) {
+					// look for the FFD8 start marker, skipping anything before it
+					if (trailing_ff) {
+						trailing_ff = false;
+
+						if (data[pos] == 0xD8) {
+							buf.assign({ 0xFF, 0xD8 });
+							in_jpeg = true;
+							pos++;
+							continue;
+						}
+					}
+
+					const auto* ff = static_cast<const uint8_t*>(std::memchr(data + pos, 0xFF, size - pos));
+					if (!ff)
+						break;
+
+					size_t ff_pos = ff - data;
+					if (ff_pos + 1 == size) {
+						trailing_ff = true;
+						break;
+					}
+
+					if (data[ff_pos + 1] == 0xD8) {
+						buf.assign({ 0xFF, 0xD8 });
+						in_jpeg = true;
+						pos = ff_pos + 2;
+					}
+					else {
+						pos = ff_pos + 1;
+					}
 				}
 				else {
-					buf.clear();
-				}
-			}
-			else {
-				buf.push_back(byte);
+					// consume up to and including the next FFD9 end marker (0xFF bytes inside
+					// entropy-coded data are always stuffed, so FFD9 only appears as EOI)
+					const auto* d9 = static_cast<const uint8_t*>(std::memchr(data + pos, 0xD9, size - pos));
+					if (!d9) {
+						buf.insert(buf.end(), data + pos, data + size);
+						break;
+					}
 
-				if (buf.size() >= 2 && buf[buf.size() - 2] == 0xFF && buf[buf.size() - 1] == 0xD9) {
-					state->set_preview_jpeg(buf);
+					size_t end = (d9 - data) + 1;
+					buf.insert(buf.end(), data + pos, data + end);
+					pos = end;
 
-					buf.clear();
-					in_jpeg = false;
+					if (buf.size() >= 2 && buf[buf.size() - 2] == 0xFF) {
+						auto now = std::chrono::steady_clock::now();
+
+						if (now - last_handoff >= MIN_PREVIEW_INTERVAL) {
+							state->set_preview_jpeg(std::move(buf));
+							last_handoff = now;
+							pending.clear();
+
+							buf = {}; // moved from, reset it properly
+							buf.reserve(INITIAL_JPEG_CAPACITY);
+						}
+						else {
+							// came too soon after the last one, but hold onto it in case it
+							// turns out to be the final frame (swapped so the buffers get reused)
+							std::swap(pending, buf);
+							buf.clear();
+						}
+
+						in_jpeg = false;
+					}
 				}
 			}
 		}
+
+		// the stream's ended, so make sure the last frame rendered is the one left on screen
+		if (!pending.empty())
+			state->set_preview_jpeg(std::move(pending));
 	}
 
 	// turn a non-zero exit into a user-facing error, preferring a parsed blur
