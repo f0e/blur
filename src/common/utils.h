@@ -485,6 +485,11 @@ namespace u {
 
 	int get_video_preroll_frames(const std::filesystem::path& path, double fps, double max_preroll_seconds = 5.0);
 	VideoInfo get_video_info(const std::filesystem::path& path);
+
+	// grab a single frame from the video as a jpeg, straight from the source video (no blur pipeline).
+	// fast enough to use while scrubbing
+	std::vector<uint8_t> get_video_frame_jpeg(const std::filesystem::path& path, float timestamp);
+
 	int16_t get_audio_percentile_peak(const std::vector<int16_t>& samples, float percentile);
 
 	struct EncodingDevice {
