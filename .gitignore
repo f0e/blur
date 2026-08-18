@@ -22,6 +22,10 @@ out/
 
 # cmake
 compile_commands.json
+CMakeFiles/
+
+# vcpkg
+vcpkg_installed/
 
 # Keep .gitkeep files
 !.gitkeep
