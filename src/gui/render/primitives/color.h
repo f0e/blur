@@ -64,7 +64,6 @@ namespace gfx {
 		}
 
 		[[nodiscard]] std::string to_hex_string(bool include_alpha = false) const;
-		void from_hex_string(const std::string& hex, bool include_alpha = true);
 
 		// Operators
 		constexpr bool operator==(const Color& other) const {
@@ -101,6 +100,7 @@ namespace gfx {
 
 		// Static color creation methods
 		static Color from_hex(uint32_t hex);
+		static std::optional<Color> from_hex_string(const std::string& hex, bool allow_alpha);
 		static Color from_hsb(float hue, float saturation, float brightness, uint8_t alpha = 255);
 
 		// Interpolation
@@ -148,5 +148,4 @@ namespace gfx {
 			return { value, value, value, a };
 		}
 	};
-
 }

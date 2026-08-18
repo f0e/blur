@@ -176,7 +176,7 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 
 	int track_shade = 40 + (20 * hover_anim);
 	gfx::Color track_color(track_shade, track_shade, track_shade, anim * 255);
-	gfx::Color filled_color = HIGHLIGHT_COLOR.adjust_alpha(anim);
+	gfx::Color filled_color = highlight_color.adjust_alpha(anim);
 	gfx::Color handle_border_color(0, 0, 0, anim * 50);
 	gfx::Color text_color(255, 255, 255, anim * 255);
 	gfx::Color tooltip_color(125, 125, 125, anim * 255);

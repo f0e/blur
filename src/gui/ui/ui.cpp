@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "common/config_app.h"
 #include "keys.h"
 #include "../render/render.h"
 #include "../sdl.h"
@@ -675,6 +676,12 @@ void ui::render_container(Container& container) {
 
 void ui::on_frame_start() {
 	frame++;
+
+#ifdef BLUR_COLOR_THEMES
+	auto app_config = config_app::get_app_config();
+	auto parsed_config_highlight_color = gfx::Color::from_hex_string(app_config.gui_color_hex, false);
+	highlight_color = parsed_config_highlight_color ? parsed_config_highlight_color.value() : DEFAULT_HIGHLIGHT_COLOR;
+#endif
 }
 
 void ui::on_frame_end() {

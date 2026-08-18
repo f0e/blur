@@ -20,7 +20,7 @@ void ui::render_checkbox(const Container& container, const AnimatedElement& elem
 
 	// Checkbox border and check mark colors
 	gfx::Color border_color = gfx::Color(100, 100, 100, anim * 255);
-	gfx::Color check_color = HIGHLIGHT_COLOR.adjust_alpha(anim * check_anim);
+	gfx::Color check_color = highlight_color.adjust_alpha(anim * check_anim);
 
 	// render::rect_stroke(element.element->rect, gfx::Color(255, 0, 0, 255));
 
