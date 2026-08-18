@@ -87,6 +87,7 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	void config_preview(ui::Container& container);
 	void reset_config_preview();
 
+	void preview_tabs(ui::Container& header_container, ui::Container& content_container);
 	void preview(ui::Container& header_container, ui::Container& content_container);
 	void option_information(ui::Container& container);
 
