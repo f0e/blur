@@ -60,6 +60,37 @@ namespace config_base {
 		}
 	}
 
+	inline std::mutex config_file_mutex;
+
+	inline std::optional<std::string> read_config_file(const std::filesystem::path& filepath) {
+		std::lock_guard lock(config_file_mutex);
+
+		std::ifstream file(filepath);
+		if (!file)
+			return {};
+
+		return std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+	}
+
+	inline bool write_config_string(const std::filesystem::path& filepath, const std::string& content) {
+		std::lock_guard lock(config_file_mutex);
+
+		// don't write if the content is the same
+		{
+			std::ifstream existing(filepath);
+			if (existing) {
+				std::string current((std::istreambuf_iterator<char>(existing)), std::istreambuf_iterator<char>());
+				if (current == content)
+					return false;
+			}
+		}
+
+		std::ofstream output(filepath);
+		output << content;
+
+		return true;
+	}
+
 	template<typename ConfigType>
 	ConfigType load_config(
 		const std::filesystem::path& config_path,

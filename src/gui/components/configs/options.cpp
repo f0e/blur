@@ -274,7 +274,7 @@ void configs::options(ui::Container& container) {
 	*/
 	section_component("rendering");
 
-	auto presets = u::get_supported_presets(settings.gpu_encoding, app_settings.gpu_type);
+	auto presets = u::get_supported_presets(preset_settings, settings.gpu_encoding, app_settings.gpu_type);
 
 	if (!presets.empty() && !u::contains(presets, settings.encode_preset)) {
 		settings.encode_preset = presets[0];
@@ -304,6 +304,7 @@ void configs::options(ui::Container& container) {
 
 	if (settings.advanced.ffmpeg_override.empty()) {
 		std::vector<std::string> preset_args = config_presets::get_preset_params(
+			preset_settings,
 			settings.gpu_encoding ? app_settings.gpu_type : "cpu",
 			u::to_lower(settings.encode_preset.empty() ? "h264" : settings.encode_preset),
 			settings.quality

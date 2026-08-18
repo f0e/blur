@@ -2,12 +2,6 @@
 #include "config_base.h"
 
 namespace {
-	constexpr auto CACHE_RELOAD_INTERVAL = std::chrono::seconds(5);
-
-	std::mutex cache_mutex;
-	PresetSettings cached_config;
-	std::optional<std::chrono::steady_clock::time_point> cache_time;
-
 	std::vector<std::string> get_ffmpeg_args(std::string params_str, int quality) {
 		// replace quality placeholder
 		params_str = u::replace_all(params_str, "{quality}", std::to_string(quality));
@@ -108,20 +102,17 @@ std::string config_presets::generate_config_string(const PresetSettings& setting
 }
 
 void config_presets::create(const std::filesystem::path& filepath, const PresetSettings& current_settings) {
-	std::ofstream output(filepath);
-	output << generate_config_string(current_settings);
+	config_base::write_config_string(filepath, generate_config_string(current_settings));
 }
 
 PresetSettings config_presets::parse(const std::filesystem::path& config_filepath) {
-	std::ifstream file(config_filepath);
-	if (!file)
+	auto content = config_base::read_config_file(config_filepath);
+	if (!content)
 		return DEFAULT_CONFIG; // defaults if file couldn't be opened
 
-	std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+	auto settings = parse(*content);
 
-	auto settings = parse(content);
-
-	// recreate the config file using the parsed values (keeps nice formatting)
+	// write formatted file
 	create(config_filepath, settings);
 
 	return settings;
@@ -210,33 +201,26 @@ std::filesystem::path config_presets::get_preset_config_path() {
 }
 
 PresetSettings config_presets::get_preset_config() {
-	std::lock_guard lock(cache_mutex);
-
-	auto now = std::chrono::steady_clock::now();
-	if (!cache_time || now - *cache_time >= CACHE_RELOAD_INTERVAL) {
-		cached_config = config_base::load_config<PresetSettings>(get_preset_config_path(), create, parse);
-		cache_time = now;
-	}
-
-	return cached_config;
+	return config_base::load_config<PresetSettings>(get_preset_config_path(), create, parse);
 }
 
 void config_presets::save(const PresetSettings& settings) {
 	create(get_preset_config_path(), settings);
-
-	std::lock_guard lock(cache_mutex);
-	cached_config = settings;
-	cache_time = std::chrono::steady_clock::now();
 }
 
 std::vector<config_presets::PresetDetails> config_presets::get_available_presets(
 	bool gpu_encoding, const std::string& gpu_type
 ) {
+	return get_available_presets(get_preset_config(), gpu_encoding, gpu_type);
+}
+
+std::vector<config_presets::PresetDetails> config_presets::get_available_presets(
+	const PresetSettings& config, bool gpu_encoding, const std::string& gpu_type
+) {
 	std::vector<PresetDetails> available_presets;
 
 	std::string type_to_check = gpu_encoding ? gpu_type : "cpu";
 
-	PresetSettings config = get_preset_config();
 	const auto* preset_group = config.find_preset_group(type_to_check);
 
 	if (preset_group) {

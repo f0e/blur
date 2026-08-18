@@ -126,8 +126,6 @@ namespace config_presets {
 
 	PresetSettings get_preset_config();
 
-	// writes the presets to disk and refreshes the cache get_preset_config reads from, so renders started right
-	// after saving use the new presets
 	void save(const PresetSettings& settings);
 
 	struct PresetDetails {
@@ -136,6 +134,9 @@ namespace config_presets {
 	};
 
 	std::vector<PresetDetails> get_available_presets(bool gpu_encoding, const std::string& gpu_type);
+	std::vector<PresetDetails> get_available_presets(
+		const PresetSettings& config, bool gpu_encoding, const std::string& gpu_type
+	);
 
 	std::vector<std::string> get_preset_params(const std::string& gpu_type, const std::string& preset, int quality);
 	std::vector<std::string> get_preset_params(
