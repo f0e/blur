@@ -45,6 +45,11 @@ namespace {
 	}
 }
 
+bool configs::has_unsaved_changes() {
+	return settings != current_global_settings || app_settings != current_app_settings ||
+	       preset_settings != current_preset_settings;
+}
+
 void configs::add_with_message(
 	ui::Container& container,
 	const std::string& message_id,
@@ -272,10 +277,7 @@ void configs::screen(
 		return;
 	}
 
-	bool config_changed = settings != current_global_settings || app_settings != current_app_settings ||
-	                      preset_settings != current_preset_settings;
-
-	if (config_changed) {
+	if (has_unsaved_changes()) {
 		ui::set_next_same_line(nav_container);
 		ui::add_button("save button", nav_container, "Save", fonts::dejavu, [] {
 			// saving would silently drop the broken presets, send the user to fix them instead
