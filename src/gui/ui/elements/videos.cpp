@@ -9,6 +9,7 @@
 // animations
 constexpr float VIDEO_OFFSET_ANIMATION_SPEED = 25.f;
 constexpr float EACH_VIDEO_OFFSET_ANIMATION_SPEED = 25.f;
+constexpr float VIDEO_SIZE_ANIMATION_SPEED = 15.f;
 
 // videos
 constexpr float START_FADE = 0.5f;
@@ -40,11 +41,14 @@ namespace {
 	std::shared_ptr<VideoPlayer> video_player; // TODO: should probably be in VideoData, but there's only one of those
 	                                           // showing at a time so i don't care
 
-	gfx::Size fit_size(const ui::Container& container, const ui::UIVideo& video) {
-		float aspect_ratio = 1.f;
+	float get_aspect_ratio(const ui::UIVideo& video) {
 		if (video.video_info)
-			aspect_ratio = static_cast<float>(video.video_info->width) / static_cast<float>(video.video_info->height);
+			return static_cast<float>(video.video_info->width) / static_cast<float>(video.video_info->height);
 
+		return 16.f / 9.f;
+	}
+
+	gfx::Size fit_size_for_aspect_ratio(const ui::Container& container, float aspect_ratio) {
 		gfx::Size max_size(container.get_usable_rect().w, container.get_usable_rect().h / 1.5f);
 
 		gfx::Size size = max_size;
@@ -74,7 +78,25 @@ namespace {
 		return size;
 	}
 
-	std::vector<gfx::Rect> get_video_rects(const ui::AnimatedElement& element, const gfx::Rect& rect) {
+	gfx::Size fit_size(const ui::Container& container, const ui::UIVideo& video) {
+		return fit_size_for_aspect_ratio(container, get_aspect_ratio(video));
+	}
+
+	// only the aspect ratio itself is animated (e.g. when video metadata loads in) - the resulting pixel size is
+	// always derived fresh from the current container size, so window resizes are never lerped/laggy
+	gfx::Size get_animated_video_size(
+		const ui::Container& container, const ui::AnimatedElement& element, const ui::VideoElementData::Video& video
+	) {
+		auto it = element.animations.find(ui::hasher("video_aspect_" + std::to_string(video.data.video_id)));
+		if (it == element.animations.end())
+			return video.size;
+
+		return fit_size_for_aspect_ratio(container, it->second.current);
+	}
+
+	std::vector<gfx::Rect> get_video_rects(
+		const ui::Container& container, const ui::AnimatedElement& element, const gfx::Rect& rect
+	) {
 		const auto& video_data = std::get<ui::VideoElementData>(element.element->data);
 
 		std::vector<gfx::Rect> rects;
@@ -83,7 +105,7 @@ namespace {
 			auto it = element.animations.find(ui::hasher("video_offset_" + std::to_string(video.data.video_id)));
 			float offset = (it != element.animations.end()) ? it->second.current : 0.f;
 
-			rects.emplace_back(rect.origin().offset_x(offset), video.size);
+			rects.emplace_back(rect.origin().offset_x(offset), get_animated_video_size(container, element, video));
 		}
 
 		return rects;
@@ -291,6 +313,20 @@ namespace {
 			it->second.set_goal(goal);
 		}
 	}
+
+	void update_video_aspect_ratios(ui::AnimatedElement& element) {
+		auto& video_data = std::get<ui::VideoElementData>(element.element->data);
+
+		for (const auto& video : video_data.videos) {
+			float aspect_ratio = get_aspect_ratio(video.data);
+
+			auto key = ui::hasher("video_aspect_" + std::to_string(video.data.video_id));
+			auto [it, inserted] =
+				element.animations.try_emplace(key, ui::AnimationState(VIDEO_SIZE_ANIMATION_SPEED, aspect_ratio));
+
+			it->second.set_goal(aspect_ratio);
+		}
+	}
 }
 
 void ui::handle_videos_event(const SDL_Event& event, bool& to_render) {
@@ -324,9 +360,11 @@ void render_videos_actual(const ui::Container& container, const ui::AnimatedElem
 
 	float fade_step = START_FADE / video_data.videos.size();
 
-	auto rect = get_video_rect(element.element->rect.origin(), active_video->size, offset);
+	auto rect = get_video_rect(
+		element.element->rect.origin(), get_animated_video_size(container, element, *active_video), offset
+	);
 
-	std::vector<gfx::Rect> rects = get_video_rects(element, rect);
+	std::vector<gfx::Rect> rects = get_video_rects(container, element, rect);
 
 	for (auto [i, video] : u::enumerate(video_data.videos)) {
 		float fade = i == *video_data.index ? 0.f : START_FADE + (fade_step * i);
@@ -409,7 +447,8 @@ void render_track(const ui::Container& container, const ui::AnimatedElement& ele
 	if (!element.animations.contains(ui::hasher("track_zoom_end")))
 		return;
 
-	auto rect = get_track_rect(element.element->rect.origin(), active_video->size);
+	auto rect =
+		get_track_rect(element.element->rect.origin(), get_animated_video_size(container, element, *active_video));
 
 	float anim = element.animations.at(ui::hasher("main")).current;
 	float progress = element.animations.at(ui::hasher("progress")).current;
@@ -526,7 +565,8 @@ bool update_track(const ui::Container& container, ui::AnimatedElement& element) 
 
 	bool updated = false;
 
-	auto rect = get_track_rect(element.element->rect.origin(), active_video->size);
+	auto rect =
+		get_track_rect(element.element->rect.origin(), get_animated_video_size(container, element, *active_video));
 
 	// Use the new zoom animation states (start/end instead of scale/offset)
 	auto& track_zoom_start_anim = element.animations.at(ui::hasher("track_zoom_start"));
@@ -857,7 +897,7 @@ bool update_videos_actual(const ui::Container& container, ui::AnimatedElement& e
 	auto rect = get_video_rect(element.element->rect.origin(), active_video->size, offset_anim.current);
 
 	// clicking on videos
-	std::vector<gfx::Rect> rects = get_video_rects(element, rect);
+	std::vector<gfx::Rect> rects = get_video_rects(container, element, rect);
 
 	bool active_video_hovered = false;
 	bool remove_button_hovered = false;
@@ -1068,6 +1108,7 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 	// some stuff has to update every time, not just on events
 	update_progress(*elem);
 	update_video_offsets(*elem);
+	update_video_aspect_ratios(*elem);
 
 	// update offset animation
 	if (offset) {
