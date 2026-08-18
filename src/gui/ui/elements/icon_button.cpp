@@ -12,7 +12,7 @@ void ui::render_icon_button(const Container& container, const AnimatedElement& e
 	gfx::Color color = gfx::Color::lerp(button_data.color, button_data.hover_color, hover_anim).adjust_alpha(anim);
 
 	render::text(
-		element.element->rect.center(), color, button_data.icon, *button_data.font, FONT_CENTERED_X | FONT_CENTERED_Y
+		element.element->rect.center(), color, button_data.icon, button_data.font, FONT_CENTERED_X | FONT_CENTERED_Y
 	);
 }
 
@@ -60,7 +60,7 @@ ui::AnimatedElement* ui::add_icon_button(
 		gfx::Rect(container.current_position, size),
 		IconButtonElementData{
 			.icon = icon,
-			.font = &font,
+			.font = font,
 			.color = color,
 			.hover_color = hover_color,
 			.tooltip = tooltip,

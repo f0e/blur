@@ -58,7 +58,7 @@ void ui::render_seek_bar(const Container& container, const AnimatedElement& elem
 			gfx::Point(rect.x + PADDING.w, text_y),
 			gfx::Color::white(anim * hover_anim * 255),
 			format_time(progress * seek_bar_data.duration),
-			*seek_bar_data.font,
+			seek_bar_data.font,
 			FONT_CENTERED_Y
 		);
 
@@ -66,7 +66,7 @@ void ui::render_seek_bar(const Container& container, const AnimatedElement& elem
 			gfx::Point(rect.x2() - PADDING.w, text_y),
 			gfx::Color::white(anim * hover_anim * 100),
 			format_time(seek_bar_data.duration),
-			*seek_bar_data.font,
+			seek_bar_data.font,
 			FONT_RIGHT_ALIGN | FONT_CENTERED_Y
 		);
 	}
@@ -120,7 +120,7 @@ ui::AnimatedElement* ui::add_seek_bar(
 		SeekBarElementData{
 			.value = &value,
 			.duration = duration,
-			.font = &font,
+			.font = font,
 		},
 		render_seek_bar,
 		update_seek_bar

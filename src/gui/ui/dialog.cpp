@@ -143,7 +143,9 @@ void ui::dialog::build(SDL_Window* window, const gfx::Rect& screen_rect) {
 		add_text("dialog body", container, current->body, gfx::Color::white(150), fonts::dejavu);
 
 	if (!current->detail.empty())
-		add_text("dialog detail", container, current->detail, gfx::Color::white(105), fonts::dejavu_small);
+		add_text(
+			"dialog detail", container, current->detail, gfx::Color::white(105), fonts::dejavu(fonts::size::SMALL)
+		);
 
 	add_spacing(container, 4);
 

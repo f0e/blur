@@ -48,7 +48,7 @@ void ui::render_button(const Container& container, const AnimatedElement& elemen
 		element.element->rect.center(),
 		text_color,
 		button_data.text,
-		*button_data.font,
+		button_data.font,
 		FONT_CENTERED_X | FONT_CENTERED_Y
 	);
 }
@@ -98,7 +98,7 @@ ui::AnimatedElement* ui::add_button(
 		rect,
 		ButtonElementData{
 			.text = text,
-			.font = &font,
+			.font = font,
 			.on_press = std::move(on_press),
 			.accent_color = accent_color,
 		},

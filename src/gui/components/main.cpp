@@ -104,7 +104,7 @@ void main::render_progress(
 		container,
 		render_title_text,
 		gfx::Color(255, 255, 255, (current ? 255 : 100)),
-		fonts::smaller_header_font,
+		fonts::garamond(fonts::size::SMALL_HEADER),
 		FONT_CENTERED_X
 	);
 
@@ -155,7 +155,7 @@ void main::render_progress(
 			bar_width,
 			std::format("{:.1f}%", render_progress * 100),
 			gfx::Color::white(),
-			&fonts::dejavu
+			fonts::dejavu
 		);
 
 		container.push_element_gap(6);
@@ -270,7 +270,7 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 		container,
 		render_title_text,
 		gfx::Color::white(),
-		fonts::smaller_header_font,
+		fonts::garamond(fonts::size::SMALL_HEADER),
 		FONT_CENTERED_X | FONT_OUTLINE
 	);
 
@@ -324,12 +324,12 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 void main::render_home(ui::Container& container) {
 	gfx::Point title_pos = container.get_usable_rect().center();
 	if (container.rect.h > 275)
-		title_pos.y = int(renderer::PAD_Y + fonts::header_font.height());
+		title_pos.y = int(renderer::PAD_Y + fonts::garamond.height());
 	else
-		title_pos.y = 10 + fonts::header_font.height();
+		title_pos.y = 10 + fonts::garamond.height();
 
 	ui::add_text_fixed(
-		"blur title text", container, title_pos, "blur", gfx::Color::white(), fonts::header_font, FONT_CENTERED_X
+		"blur title text", container, title_pos, "blur", gfx::Color::white(), fonts::garamond, FONT_CENTERED_X
 	);
 
 	if (!initialisation_res) {

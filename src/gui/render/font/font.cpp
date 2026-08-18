@@ -15,13 +15,13 @@ bool render::Font::init(std::span<const unsigned char> data, float size, ImFontC
 
 	m_font = io->Fonts->AddFontFromMemoryCompressedTTF(data.data(), data.size(), m_size, font_cfg);
 
-	m_height = calc_size("Q").h;
-
-	m_initialised = m_font != nullptr;
-	return m_initialised;
+	return m_font != nullptr;
 }
 
 gfx::Size render::Font::calc_size(const std::string& text) const {
+	if (!m_font)
+		return {};
+
 	auto size = m_font->CalcTextSizeA(m_size, FLT_MAX, 0.f, text.c_str());
 	return { (int)size.x, (int)size.y };
 }

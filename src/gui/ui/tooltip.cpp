@@ -10,16 +10,16 @@ const float TOOLTIP_ROUNDING = 4.f;
 namespace {
 	// what's being hovered right now, filled in by elements as they update
 	std::string requested_text;
-	const render::Font* requested_font = nullptr;
+	render::Font requested_font;
 
 	std::string hovered_id; // element the pending tooltip belongs to, empty if nothing's hovered
 	std::string hovered_text;
-	const render::Font* hovered_font = nullptr;
+	render::Font hovered_font;
 	std::chrono::steady_clock::time_point hover_start;
 
 	// what's actually being drawn (kept around while it fades back out)
 	std::string shown_text;
-	const render::Font* shown_font = nullptr;
+	render::Font shown_font;
 	gfx::Point shown_pos;
 
 	ui::AnimationState anim(20.f);
@@ -27,7 +27,7 @@ namespace {
 
 void ui::tooltip::set(const std::string& text, const render::Font& font) {
 	requested_text = text;
-	requested_font = &font;
+	requested_font = font;
 }
 
 void ui::tooltip::on_input_end(const std::string& hovered_element_id) {
@@ -43,7 +43,7 @@ void ui::tooltip::on_input_end(const std::string& hovered_element_id) {
 	hovered_font = requested_font;
 
 	requested_text.clear();
-	requested_font = nullptr;
+	requested_font = {};
 }
 
 bool ui::tooltip::update(float delta_time) {
@@ -74,7 +74,7 @@ void ui::tooltip::render() {
 	if (anim.current < 0.01f || shown_text.empty() || !shown_font)
 		return;
 
-	gfx::Size text_size = shown_font->calc_size(shown_text);
+	gfx::Size text_size = shown_font.calc_size(shown_text);
 
 	gfx::Rect rect(
 		shown_pos.x + TOOLTIP_CURSOR_OFFSET.x,
@@ -103,7 +103,7 @@ void ui::tooltip::render() {
 			render::rounded_rect_filled(rect, background_color, TOOLTIP_ROUNDING);
 			render::rounded_rect_stroke(rect, border_color, TOOLTIP_ROUNDING);
 
-			render::text(rect.center(), text_color, text, *font, FONT_CENTERED_X | FONT_CENTERED_Y);
+			render::text(rect.center(), text_color, text, font, FONT_CENTERED_X | FONT_CENTERED_Y);
 		}
 	);
 }

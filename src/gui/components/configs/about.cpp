@@ -45,7 +45,7 @@ void configs::about(ui::Container& container) {
 		get_logo_texture(),
 		"blur",
 		std::format("v{}", BLUR_VERSION),
-		fonts::header_font,
+		fonts::garamond,
 		fonts::dejavu
 	);
 

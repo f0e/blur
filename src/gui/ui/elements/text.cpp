@@ -48,8 +48,8 @@ void ui::render_text(const Container& container, const AnimatedElement& element)
 		text_pos.x = element.element->rect.x2();
 
 	for (const auto& line : text_data.lines) {
-		render::text(text_pos, adjusted_color, line, *text_data.font, text_data.flags);
-		text_pos.y += get_line_spacing(container, *text_data.font);
+		render::text(text_pos, adjusted_color, line, text_data.font, text_data.flags);
+		text_pos.y += get_line_spacing(container, text_data.font);
 	}
 }
 
@@ -85,7 +85,7 @@ ui::AnimatedElement* ui::add_text(
 		TextElementData{
 			.lines = lines,
 			.color = color,
-			.font = &font,
+			.font = font,
 			.flags = flags,
 		},
 		render_text
@@ -128,7 +128,7 @@ ui::AnimatedElement* ui::add_text_fixed(
 		TextElementData{
 			.lines = lines,
 			.color = color,
-			.font = &font,
+			.font = font,
 			.flags = flags,
 		},
 		render_text,

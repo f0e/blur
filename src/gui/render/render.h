@@ -35,11 +35,19 @@ enum ERoundingFlags : unsigned int { // c+p from imgui
 };
 
 namespace fonts {
-	inline render::Font dejavu;
-	inline render::Font dejavu_small;
-	inline render::Font header_font;
-	inline render::Font smaller_header_font;
-	inline render::Font icons;
+	namespace size {
+		inline constexpr float BODY = 13.f;
+		inline constexpr float SMALL = 11.f;
+		inline constexpr float HEADER = 32.f;
+		inline constexpr float SMALL_HEADER = 20.f;
+		inline constexpr float ICON = 14.f;
+	}
+
+	// these are initialised at their most common size - call them with another one to get the same
+	// typeface resized, e.g. fonts::dejavu(fonts::size::SMALL)
+	inline render::Font dejavu;   // size::BODY
+	inline render::Font garamond; // size::HEADER
+	inline render::Font icons;    // size::ICON
 }
 
 namespace render {

@@ -33,7 +33,7 @@ namespace {
 
 		auto input_rect = element.element->rect;
 		if (!input_data.label.empty()) {
-			int label_offset = input_data.text_input.font->height() + LABEL_GAP;
+			int label_offset = input_data.text_input.font.height() + LABEL_GAP;
 			input_rect.y += label_offset;
 			input_rect.h -= label_offset;
 		}
@@ -60,7 +60,7 @@ void ui::render_text_input(const Container& container, const AnimatedElement& el
 
 	// --- Render Label ---
 	if (!input_data.label.empty()) {
-		render::text(pos.label_pos, TEXT_COLOR.adjust_alpha(anim), input_data.label, *input_data.text_input.font);
+		render::text(pos.label_pos, TEXT_COLOR.adjust_alpha(anim), input_data.label, input_data.text_input.font);
 	}
 
 	// --- Render Background and Border ---
@@ -179,7 +179,7 @@ bool ui::update_text_input(const Container& container, AnimatedElement& element)
 		);
 
 		if (!input_data.text_input.read_only)
-			helpers::text_input::update_ime_area(container.window, state, *input_data.text_input.font);
+			helpers::text_input::update_ime_area(container.window, state, input_data.text_input.font);
 	}
 
 	// Clamp cursor/selection just in case
@@ -205,7 +205,7 @@ ui::AnimatedElement* ui::add_text_input(
 ) {
 	helpers::text_input::TextInputData state;
 	state.text = &text;
-	state.font = &font;
+	state.font = font;
 	state.on_change = std::move(on_change);
 	state.read_only = read_only;
 

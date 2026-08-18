@@ -24,7 +24,7 @@ struct STB_TexteditState;
 namespace ui::helpers::text_input {
 	struct TextInputData {
 		std::string* text{};
-		const render::Font* font{};
+		render::Font font{};
 		std::optional<std::function<void(const std::string&)>> on_change;
 		bool read_only = false; // still focusable & selectable, just can't be edited
 

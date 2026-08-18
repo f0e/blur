@@ -42,7 +42,7 @@ void ui::render_checkbox(const Container& container, const AnimatedElement& elem
 	text_pos.x += CHECKBOX_SIZE + LABEL_GAP;
 	text_pos.y = element.element->rect.center().y;
 
-	render::text(text_pos, gfx::Color::white(anim * 255), checkbox_data.label, *checkbox_data.font, FONT_CENTERED_Y);
+	render::text(text_pos, gfx::Color::white(anim * 255), checkbox_data.label, checkbox_data.font, FONT_CENTERED_Y);
 }
 
 bool ui::update_checkbox(const Container& container, AnimatedElement& element) {
@@ -91,7 +91,7 @@ ui::AnimatedElement* ui::add_checkbox(
 		CheckboxElementData{
 			.label = label,
 			.checked = &checked,
-			.font = &font,
+			.font = font,
 			.on_change = std::move(on_change),
 		},
 		render_checkbox,

@@ -11,7 +11,7 @@ void ui::render_link(const Container& container, const AnimatedElement& element)
 
 	gfx::Color color = gfx::Color::lerp(link_data.color, link_data.hover_color, hover).adjust_alpha(anim);
 
-	render::text(element.element->rect.top_left(), color, link_data.text, *link_data.font);
+	render::text(element.element->rect.top_left(), color, link_data.text, link_data.font);
 
 	// underline fades in on hover so it reads as clickable
 	if (hover > 0.f) {
@@ -62,7 +62,7 @@ ui::AnimatedElement* ui::add_link(
 			.on_press = std::move(on_press),
 			.color = color,
 			.hover_color = hover_color,
-			.font = &font,
+			.font = font,
 		},
 		render_link,
 		update_link
