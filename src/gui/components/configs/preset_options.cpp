@@ -231,13 +231,23 @@ void configs::preset_options(ui::Container& container) {
 			gfx::Size(delete_icon_size, delete_icon_size),
 			DELETE_ICON_COLOR,
 			DELETE_ICON_HOVER_COLOR,
-			[gpu_type = selected_preset_gpu_type, i] {
-				auto* group = preset_settings.find_preset_group(gpu_type);
-				if (!group || i >= group->size() || (*group)[i].is_default)
-					return;
+			[gpu_type = selected_preset_gpu_type, i, name = preset.name, args = preset.args] {
+				ui::dialog::confirm_destructive(
+					"Remove preset?",
+					name.empty() ? "This preset will be removed from the config."
+								 : std::format("'{}' will be removed from the config.", name),
+					"Remove",
+					[gpu_type, i] {
+						auto* group = preset_settings.find_preset_group(gpu_type);
+						if (!group || i >= group->size() || (*group)[i].is_default)
+							return;
 
-				group->erase(group->begin() + i);
-			}
+						group->erase(group->begin() + i);
+					},
+					std::format("ffmpeg args: {}", args)
+				);
+			},
+			"Remove preset"
 		);
 
 		ui::right_align_element(container, delete_button);
@@ -258,8 +268,9 @@ void configs::preset_options(ui::Container& container) {
 				std::format("{} args input", id),
 				container,
 				bind_input(std::format("{} args", id), preset.args),
-				"ffmpeg arguments",
-				fonts::dejavu
+				"",
+				fonts::dejavu,
+				"ffmpeg arguments"
 			);
 		});
 

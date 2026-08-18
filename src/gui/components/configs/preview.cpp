@@ -29,6 +29,12 @@ namespace {
 	std::atomic<float> sample_video_duration = 0.f;
 	std::string fetched_duration_path;
 
+	void confirm_clear_sample_video() {
+		ui::dialog::confirm_destructive("Remove sample video?", "", "Remove", [] {
+			gui::components::configs::clear_sample_video();
+		});
+	}
+
 	void fetch_sample_video_duration(const std::filesystem::path& path) {
 		std::thread([path] {
 			auto video_info = u::get_video_info(path);
@@ -252,7 +258,7 @@ void configs::config_preview(ui::Container& container) {
 		);
 
 		ui::add_button("remove old sample video button", container, "Clear sample video", fonts::dejavu, [] {
-			clear_sample_video();
+			confirm_clear_sample_video();
 		});
 
 		add_open_sample_video_prompt(true);
@@ -305,8 +311,9 @@ void configs::config_preview(ui::Container& container) {
 				DELETE_ICON_COLOR,
 				DELETE_ICON_HOVER_COLOR,
 				[] {
-					clear_sample_video();
-				}
+					confirm_clear_sample_video();
+				},
+				"Remove sample video"
 			);
 		}
 		container.pop_element_gap();

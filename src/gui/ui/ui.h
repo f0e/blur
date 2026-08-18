@@ -193,9 +193,10 @@ namespace ui {
 		std::string text;
 		const render::Font* font;
 		std::optional<std::function<void()>> on_press;
+		std::optional<gfx::Color> accent_color;
 
 		bool operator==(const ButtonElementData& other) const {
-			return text == other.text && font == other.font;
+			return text == other.text && font == other.font && accent_color == other.accent_color;
 		}
 	};
 
@@ -757,7 +758,8 @@ namespace ui {
 		Container& container,
 		const std::string& text,
 		const render::Font& font,
-		std::optional<std::function<void()>> on_press = {}
+		std::optional<std::function<void()>> on_press = {},
+		std::optional<gfx::Color> accent_color = {}
 	);
 
 	AnimatedElement* add_icon_button(
@@ -957,6 +959,41 @@ namespace ui {
 		void on_input_end(const std::string& hovered_element_id);
 
 		bool update(float delta_time);
+		void render();
+	}
+
+	namespace dialog {
+		struct Options {
+			std::string title;
+			std::string body;
+
+			std::string detail;
+
+			std::string confirm_text = "Confirm";
+			std::string cancel_text = "Cancel";
+
+			std::optional<gfx::Color> confirm_color;
+
+			std::function<void()> on_confirm;
+			std::function<void()> on_cancel;
+		};
+
+		void open(Options options);
+		void close();
+		bool is_open();
+
+		void confirm_destructive(
+			const std::string& title,
+			const std::string& body,
+			const std::string& confirm_text,
+			std::function<void()> on_confirm,
+			const std::string& detail = ""
+		);
+
+		void build(SDL_Window* window, const gfx::Rect& screen_rect);
+
+		bool update_input();
+		bool update_frame(float delta_time);
 		void render();
 	}
 

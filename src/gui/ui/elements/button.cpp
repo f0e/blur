@@ -12,6 +12,9 @@ constexpr int BUTTON_HOVER_SHADE = 42;
 constexpr int BUTTON_TEXT_SHADE = 255;
 constexpr int BUTTON_TEXT_HOVER_SHADE = 255;
 
+// how bright the accent fill gets on hover - full strength is far too loud behind white text
+constexpr float BUTTON_ACCENT_FILL_MULT = 0.45f;
+
 void ui::render_button(const Container& container, const AnimatedElement& element) {
 	const auto& button_data = std::get<ButtonElementData>(element.element->data);
 	float anim = element.animations.at(hasher("main")).current;
@@ -20,19 +23,30 @@ void ui::render_button(const Container& container, const AnimatedElement& elemen
 	int shade = u::lerp((float)BUTTON_SHADE, (float)BUTTON_HOVER_SHADE, hover_anim);
 	int text_shade = u::lerp((float)BUTTON_TEXT_SHADE, (float)BUTTON_TEXT_HOVER_SHADE, hover_anim);
 
+	gfx::Color fill_color(shade, shade, shade, anim * 255);
+	gfx::Color stroke_color(BUTTON_STROKE_SHADE, BUTTON_STROKE_SHADE, BUTTON_STROKE_SHADE, anim * 255);
+	gfx::Color text_color(text_shade, text_shade, text_shade, anim * 255);
+
+	if (button_data.accent_color) {
+		const auto& accent = *button_data.accent_color;
+
+		fill_color = gfx::Color(
+			gfx::Color::lerp(gfx::Color::gray(BUTTON_SHADE), accent * BUTTON_ACCENT_FILL_MULT, hover_anim), anim * 255
+		);
+
+		stroke_color = gfx::Color(accent, anim * 255);
+		text_color = gfx::Color(gfx::Color::lerp(accent, gfx::Color::white(), hover_anim), anim * 255);
+	}
+
 	// fill
-	render::rounded_rect_filled(element.element->rect, gfx::Color(shade, shade, shade, anim * 255), BUTTON_ROUNDING);
+	render::rounded_rect_filled(element.element->rect, fill_color, BUTTON_ROUNDING);
 
 	// border
-	render::rounded_rect_stroke(
-		element.element->rect,
-		gfx::Color(BUTTON_STROKE_SHADE, BUTTON_STROKE_SHADE, BUTTON_STROKE_SHADE, anim * 255),
-		BUTTON_ROUNDING
-	);
+	render::rounded_rect_stroke(element.element->rect, stroke_color, BUTTON_ROUNDING);
 
 	render::text(
 		element.element->rect.center(),
-		gfx::Color(text_shade, text_shade, text_shade, anim * 255),
+		text_color,
 		button_data.text,
 		*button_data.font,
 		FONT_CENTERED_X | FONT_CENTERED_Y
@@ -68,7 +82,8 @@ ui::AnimatedElement* ui::add_button(
 	Container& container,
 	const std::string& text,
 	const render::Font& font,
-	std::optional<std::function<void()>> on_press
+	std::optional<std::function<void()>> on_press,
+	std::optional<gfx::Color> accent_color
 ) {
 	gfx::Size text_size = font.calc_size(text);
 
@@ -85,6 +100,7 @@ ui::AnimatedElement* ui::add_button(
 			.text = text,
 			.font = &font,
 			.on_press = std::move(on_press),
+			.accent_color = accent_color,
 		},
 		render_button,
 		update_button
