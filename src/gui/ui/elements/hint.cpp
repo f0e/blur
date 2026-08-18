@@ -61,13 +61,13 @@ void ui::render_hint(const Container& container, const AnimatedElement& element)
 	render::rounded_rect_stroke(element.element->rect, border_colour, HINT_ROUNDING);
 
 	gfx::Point text_pos = { element.element->rect.center().x, element.element->rect.origin().y + HINT_PADDING.h };
-	int line_height = get_line_height(container, *text_data.font);
+	int line_height = get_line_height(container, text_data.font);
 
 	// Render each paragraph
 	for (const auto& paragraph : text_data.paragraphs) {
 		// Render all lines in this paragraph
 		for (const auto& line : paragraph.lines) {
-			render::text(text_pos, adjusted_colour, line, *text_data.font, FONT_CENTERED_X);
+			render::text(text_pos, adjusted_colour, line, text_data.font, FONT_CENTERED_X);
 			text_pos.y += line_height;
 		}
 
@@ -95,7 +95,7 @@ ui::AnimatedElement* ui::add_hint(
 		HintElementData{
 			.paragraphs = wrapped_paragraphs,
 			.color = color,
-			.font = &font,
+			.font = font,
 		},
 		render_hint
 	);

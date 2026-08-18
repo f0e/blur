@@ -126,18 +126,18 @@ void ui::render_update_notice(const Container& container, const AnimatedElement&
 		text_pos,
 		gfx::Color::white(static_cast<uint8_t>(anim * 210.f)),
 		notice_data.status,
-		*notice_data.font,
+		notice_data.font,
 		text_flags
 	);
 
 	if (!notice_data.subtext.empty()) {
-		text_pos.y += notice_data.font->height() + SUBTEXT_GAP;
+		text_pos.y += notice_data.font.height() + SUBTEXT_GAP;
 
 		render::text(
 			text_pos,
 			gfx::Color::white(static_cast<uint8_t>(anim * 105.f)),
 			notice_data.subtext,
-			*notice_data.font,
+			notice_data.font,
 			text_flags
 		);
 	}
@@ -184,7 +184,7 @@ ui::AnimatedElement* ui::add_update_notice(
 			.subtext = subtext,
 			.progress = progress,
 			.align = align,
-			.font = &font,
+			.font = font,
 		},
 		render_update_notice
 	);
@@ -208,7 +208,7 @@ ui::AnimatedElement* ui::add_update_notice(
 					.on_press = link.on_press,
 					.color = color,
 					.hover_color = hover_color,
-					.font = &font,
+					.font = font,
 				},
 				render_link,
 				update_link

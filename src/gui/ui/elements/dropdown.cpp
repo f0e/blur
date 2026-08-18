@@ -31,14 +31,14 @@ namespace {
 		gfx::Point label_pos = element.element->rect.origin();
 
 		gfx::Rect dropdown_rect = element.element->rect;
-		dropdown_rect.y = label_pos.y + dropdown_data.font->height() + LABEL_GAP;
+		dropdown_rect.y = label_pos.y + dropdown_data.font.height() + LABEL_GAP;
 		dropdown_rect.h -= dropdown_rect.y - element.element->rect.y;
 
 		gfx::Point selected_text_pos = dropdown_rect.origin();
 		selected_text_pos.x += DROPDOWN_PADDING.w;
 		selected_text_pos.y = dropdown_rect.center().y;
 
-		float option_line_height = dropdown_data.font->height() + OPTION_LINE_HEIGHT_ADD;
+		float option_line_height = dropdown_data.font.height() + OPTION_LINE_HEIGHT_ADD;
 
 		gfx::Rect options_rect = element.element->rect;
 		options_rect.y = options_rect.y2() + OPTIONS_GAP;
@@ -111,7 +111,7 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 		return u::contains(dropdown_data.muted_options, option);
 	};
 
-	render::text(pos.label_pos, text_color, dropdown_data.label, *dropdown_data.font);
+	render::text(pos.label_pos, text_color, dropdown_data.label, dropdown_data.font);
 
 	// Render dropdown main area
 	render::rounded_rect_filled(pos.dropdown_rect, adjusted_color, DROPDOWN_ROUNDING);
@@ -122,7 +122,7 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 		pos.selected_text_pos,
 		is_muted(*dropdown_data.selected) ? muted_text_color : text_color,
 		*dropdown_data.selected,
-		*dropdown_data.font,
+		dropdown_data.font,
 		FONT_CENTERED_Y
 	);
 
@@ -188,7 +188,7 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 						 : gfx::Color::lerp(option_base_colour, hover_text_color, option_hover_anim);
 
 			render::late_draw_calls.emplace_back(
-				[option_text_pos, option_text_colour, option, font = *dropdown_data.font] {
+				[option_text_pos, option_text_colour, option, font = dropdown_data.font] {
 					render::text(option_text_pos, option_text_colour, option, font);
 				}
 			);
@@ -352,7 +352,7 @@ ui::AnimatedElement* ui::add_dropdown(
 			.label = label,
 			.options = options,
 			.selected = &selected,
-			.font = &font,
+			.font = font,
 			.on_change = std::move(on_change),
 			.muted_options = muted_options,
 			.hovered_option = "",

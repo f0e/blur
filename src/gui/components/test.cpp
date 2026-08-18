@@ -103,6 +103,6 @@ void test::render_test_strings(const std::string& label, ui::Container& containe
 
 void test::screen(ui::Container& container, float delta_time) {
 	render_test_strings("dejavu", container, fonts::dejavu);
-	render_test_strings("header", container, fonts::header_font);
-	render_test_strings("smaller_header", container, fonts::smaller_header_font);
+	render_test_strings("header", container, fonts::garamond);
+	render_test_strings("smaller_header", container, fonts::garamond(fonts::size::SMALL_HEADER));
 }

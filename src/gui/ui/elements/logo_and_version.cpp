@@ -7,14 +7,14 @@ static const int SUBTITLE_GAP = 2;
 
 namespace {
 	int text_block_height(const ui::LogoAndVersionElementData& data) {
-		int height = data.title_font->height();
+		int height = data.title_font.height();
 		if (!data.subtitle.empty())
-			height += SUBTITLE_GAP + data.font->height();
+			height += SUBTITLE_GAP + data.font.height();
 		return height;
 	}
 
 	int text_block_width(const ui::LogoAndVersionElementData& data) {
-		return std::max(data.title_font->calc_size(data.title).w, data.font->calc_size(data.subtitle).w);
+		return std::max(data.title_font.calc_size(data.title).w, data.font.calc_size(data.subtitle).w);
 	}
 
 	int header_height(const ui::LogoAndVersionElementData& data) {
@@ -36,12 +36,12 @@ void ui::render_logo_and_version(const Container& container, const AnimatedEleme
 
 	gfx::Point text_pos(logo_rect.x2() + LOGO_GAP, rect.y + ((header_h - text_block_height(data)) / 2));
 
-	render::text(text_pos, gfx::Color::white(static_cast<uint8_t>(anim * 255.f)), data.title, *data.title_font);
+	render::text(text_pos, gfx::Color::white(static_cast<uint8_t>(anim * 255.f)), data.title, data.title_font);
 
 	if (!data.subtitle.empty()) {
-		text_pos.y += data.title_font->height() + SUBTITLE_GAP;
+		text_pos.y += data.title_font.height() + SUBTITLE_GAP;
 
-		render::text(text_pos, gfx::Color::white(static_cast<uint8_t>(anim * 105.f)), data.subtitle, *data.font);
+		render::text(text_pos, gfx::Color::white(static_cast<uint8_t>(anim * 105.f)), data.subtitle, data.font);
 	}
 }
 
@@ -58,8 +58,8 @@ ui::AnimatedElement* ui::add_logo_and_version(
 		.logo = std::move(logo),
 		.title = title,
 		.subtitle = subtitle,
-		.title_font = &title_font,
-		.font = &font,
+		.title_font = title_font,
+		.font = font,
 	};
 
 	gfx::Size size(LOGO_SIZE + LOGO_GAP + text_block_width(data), header_height(data));

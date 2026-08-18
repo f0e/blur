@@ -41,7 +41,7 @@ void ui::render_tabs(const Container& container, const AnimatedElement& element)
 			option_rect.center(),
 			gfx::Color(100, 100, 100, anim * 255),
 			option,
-			*tabs_data.font,
+			tabs_data.font,
 			FONT_CENTERED_X | FONT_CENTERED_Y
 		);
 	}
@@ -61,7 +61,7 @@ void ui::render_tabs(const Container& container, const AnimatedElement& element)
 			option_rect.center(),
 			gfx::Color::black(anim * 255),
 			option,
-			*tabs_data.font,
+			tabs_data.font,
 			FONT_CENTERED_X | FONT_CENTERED_Y
 		);
 	}
@@ -144,7 +144,7 @@ ui::AnimatedElement* ui::add_tabs(
 		TabsElementData{
 			.options = options,
 			.selected = &selected,
-			.font = &font,
+			.font = font,
 			.on_select = std::move(on_select),
 			.option_offset_rects = std::move(option_offset_rects),
 		},

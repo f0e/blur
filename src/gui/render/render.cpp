@@ -82,19 +82,13 @@ bool render::init(SDL_Window* window, const SDL_GLContext& context) {
 	ImFontConfig font_cfg;
 
 	// init fonts
-	if (!fonts::dejavu.init(DEJAVU_SANS_COMPRESSED_DATA, 13.f, &font_cfg))
+	if (!fonts::dejavu.init(DEJAVU_SANS_COMPRESSED_DATA, fonts::size::BODY, &font_cfg))
 		return false;
 
-	if (!fonts::dejavu_small.init(DEJAVU_SANS_COMPRESSED_DATA, 11.f, &font_cfg))
+	if (!fonts::garamond.init(NV_GARAMOND_COMPRESSED_DATA, fonts::size::HEADER, &font_cfg))
 		return false;
 
-	if (!fonts::header_font.init(NV_GARAMOND_COMPRESSED_DATA, 32.f, &font_cfg))
-		return false;
-
-	if (!fonts::smaller_header_font.init(NV_GARAMOND_COMPRESSED_DATA, 20.f, &font_cfg))
-		return false;
-
-	if (!fonts::icons.init(ICONS_COMPRESSED_DATA, 14.f, &font_cfg))
+	if (!fonts::icons.init(ICONS_COMPRESSED_DATA, fonts::size::ICON, &font_cfg))
 		return false;
 
 	initialised = true;
@@ -487,7 +481,7 @@ void render::text(
 	if (!font)
 		return;
 
-	ImGui::PushFont(font.im_font(), font.im_font()->LegacySize);
+	ImGui::PushFont(font.im_font(), font.size());
 
 	int vtx_idx_begin = imgui.drawlist->_VtxCurrentIdx;
 

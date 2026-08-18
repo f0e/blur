@@ -36,7 +36,7 @@ namespace {
 	SliderPositions get_slider_positions(
 		const ui::Container& container, const ui::AnimatedElement& element, const ui::SliderElementData& slider_data
 	) {
-		int line_height = slider_data.font->height();
+		int line_height = slider_data.font.height();
 
 		gfx::Rect track_rect = element.element->rect;
 		track_rect.h = TRACK_HEIGHT;
@@ -53,8 +53,8 @@ namespace {
 		if (slider_data.is_tied_slider) {
 			const int icon_size = fonts::icons.calc_size(TIED_ICON).w;
 			const int text_size =
-				slider_data.tied_text.empty() ? 0 : slider_data.font->calc_size(slider_data.tied_text).w;
-			const int tie_text_height = std::max(slider_data.font->height(), fonts::icons.height());
+				slider_data.tied_text.empty() ? 0 : slider_data.font.calc_size(slider_data.tied_text).w;
+			const int tie_text_height = std::max(slider_data.font.height(), fonts::icons.height());
 
 			gfx::Size tied_size(
 				icon_size + (slider_data.tied_text.empty() ? 0 : TIED_ICON_GAP + text_size) // no gap if empty text
@@ -78,7 +78,7 @@ namespace {
 			tooltip_pos.y += line_height + TOOLTIP_GAP;
 			track_rect.y += line_height + TOOLTIP_GAP;
 
-			line_height = slider_data.font->height();
+			line_height = slider_data.font.height();
 		}
 
 		track_rect.y += line_height + TRACK_LABEL_GAP;
@@ -207,12 +207,12 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 	}
 	else {
 		std::string label = format_label(slider_data.current_value, slider_data.label_format);
-		render::text(positions.label_rect.origin(), text_color, label, *slider_data.font);
+		render::text(positions.label_rect.origin(), text_color, label, slider_data.font);
 	}
 
 	// Render tooltip if provided
 	if (!slider_data.tooltip.empty()) {
-		render::text(positions.tooltip_pos, tooltip_color, slider_data.tooltip, *slider_data.font);
+		render::text(positions.tooltip_pos, tooltip_color, slider_data.tooltip, slider_data.font);
 	}
 
 	// Render tied icon
@@ -227,7 +227,7 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 		// gfx::Color tie_text_colour = *slider_data.is_tied ? text_color : tooltip_color;
 
 		render::text(positions.tied_icon_pos, tie_text_colour, TIED_ICON, fonts::icons);
-		render::text(positions.tied_text_pos, tie_text_colour, slider_data.tied_text, *slider_data.font);
+		render::text(positions.tied_text_pos, tie_text_colour, slider_data.tied_text, slider_data.font);
 	}
 
 	// Render track and filled portion
@@ -392,7 +392,7 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 					(SDL_GetModState() & SDL_KMOD_SHIFT) != 0u
 				);
 
-				helpers::text_input::update_ime_area(container.window, state, *slider_data.font);
+				helpers::text_input::update_ime_area(container.window, state, slider_data.font);
 
 				bool value_changed = false;
 
@@ -515,7 +515,7 @@ ui::AnimatedElement* ui::add_slider(
 	                       .max_value = max_value,
 	                       .current_value = value,
 	                       .label_format = label_format,
-	                       .font = &font,
+	                       .font = font,
 	                       .on_change = std::move(on_change),
 	                       .precision = precision,
 	                       .tooltip = tooltip,
@@ -568,7 +568,7 @@ ui::AnimatedElement* ui::add_slider_tied(
 	                       .max_value = max_value,
 	                       .current_value = value,
 	                       .label_format = label_format,
-	                       .font = &font,
+	                       .font = font,
 	                       .on_change = std::move(on_change),
 	                       .precision = precision,
 	                       .tooltip = tooltip,
