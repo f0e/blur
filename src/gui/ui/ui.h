@@ -35,6 +35,7 @@ namespace ui {
 		TEXT_INPUT,
 		CHECKBOX,
 		DROPDOWN,
+		COLOR_PICKER,
 		SEEK_BAR,
 		SEPARATOR,
 		WEIGHTING_GRAPH,
@@ -306,6 +307,34 @@ namespace ui {
 		}
 	};
 
+	struct ColorPickerElementData {
+		std::string label;
+		std::string* hex; // empty = use the default color
+		render::Font font;
+		gfx::Color default_color;
+		std::vector<gfx::Color> presets;
+		std::optional<std::function<void()>> on_change;
+
+		// internal state. kept out of operator== so it survives the element being rebuilt each frame
+		float hue = 0.f;
+		float saturation = 0.f;
+		float brightness = 0.f;
+		std::string synced_hex; // the hex the hsb above was taken from, to notice outside changes
+		int drag_target = 0;    // ColorPickerDrag
+		bool mouse_was_down = false;
+		bool open = false;
+		int hovered_preset = -1;
+
+		std::string editing_text; // scratch buffer while the hex is being typed into, so half-typed values
+		                          // don't get written out as the color
+		helpers::text_input::TextInputData text_input;
+
+		bool operator==(const ColorPickerElementData& other) const {
+			return label == other.label && hex == other.hex && font == other.font &&
+			       default_color == other.default_color && presets == other.presets;
+		}
+	};
+
 	struct WeightingGraphElementData {
 		std::vector<double> weights;
 		bool accurate_fps;
@@ -427,6 +456,7 @@ namespace ui {
 		TextInputElementData,
 		CheckboxElementData,
 		DropdownElementData,
+		ColorPickerElementData,
 		SeparatorElementData,
 		WeightingGraphElementData,
 		TabsElementData,
@@ -631,6 +661,13 @@ namespace ui {
 
 	void render_dropdown(const Container& container, const AnimatedElement& element);
 	bool update_dropdown(const Container& container, AnimatedElement& element);
+
+	void render_color_picker(const Container& container, const AnimatedElement& element);
+	bool update_color_picker(const Container& container, AnimatedElement& element);
+	void remove_color_picker(AnimatedElement& element);
+
+	// whether the color picker with this id is currently showing its popup
+	bool is_color_picker_open(const Container& container, const std::string& id);
 
 	void render_separator(const Container& container, const AnimatedElement& element);
 
@@ -857,6 +894,17 @@ namespace ui {
 		const render::Font& font,
 		std::optional<std::function<void(std::string*)>> on_change = {},
 		const std::vector<std::string>& muted_options = {}
+	);
+
+	AnimatedElement* add_color_picker(
+		const std::string& id,
+		Container& container,
+		const std::string& label,
+		std::string& hex,
+		const render::Font& font,
+		gfx::Color default_color,
+		const std::vector<gfx::Color>& presets = {},
+		std::optional<std::function<void()>> on_change = {}
 	);
 
 	AnimatedElement* add_weighting_graph(

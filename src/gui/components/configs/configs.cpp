@@ -337,7 +337,11 @@ void configs::screen(
 	}
 	else if (selected_config_tab == "app") {
 		app_options(config_container);
-		about(preview_content_container);
+
+		if (theme_preview_open(config_container))
+			theme_preview(preview_content_container);
+		else
+			about(preview_content_container);
 	}
 	else {
 		preset_options(config_container);
