@@ -9,6 +9,8 @@ const std::string BLUR_VERSION = "2.45";
 #	define TENSORRT
 #endif
 
+#define BLUR_COLOR_THEMES
+
 class Blur { // todo: switch all the classes which could be namespaces into namespaces
 public:
 	bool initialised = false;

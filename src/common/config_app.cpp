@@ -22,6 +22,10 @@ std::string config_app::generate_config_string(const GlobalAppSettings& settings
 	output << "\n";
 	output << "- gui" << "\n";
 
+#ifdef BLUR_COLOR_THEMES
+	output << "color theme: " << settings.gui_color_hex << "\n";
+#endif
+
 	output << "window width: " << settings.gui_width << "\n";
 	output << "window height: " << settings.gui_height << "\n";
 
@@ -117,6 +121,10 @@ GlobalAppSettings config_app::parse_from_map(const std::map<std::string, std::st
 
 #ifdef TENSORRT
 	config_base::extract_config_value(config_map, "rife (tensorrt) gpu number", settings.tensorrt_device_index);
+#endif
+
+#ifdef BLUR_COLOR_THEMES
+	config_base::extract_config_value(config_map, "color theme", settings.gui_color_hex);
 #endif
 
 	config_base::extract_config_value(config_map, "window width", settings.gui_width);

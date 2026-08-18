@@ -7,6 +7,10 @@ struct GlobalAppSettings {
 	int rife_device_index = -1;
 	int tensorrt_device_index = -1;
 
+#ifdef BLUR_COLOR_THEMES
+	std::string gui_color_hex;
+#endif
+
 	int gui_width = 591;
 	int gui_height = 381;
 	bool blur_amount_tied_to_fps = true;

@@ -5,6 +5,9 @@
 #include "helpers/video.h"
 
 namespace ui {
+	inline constexpr gfx::Color DEFAULT_HIGHLIGHT_COLOR = { 133, 24, 16, 255 };
+	inline gfx::Color highlight_color = DEFAULT_HIGHLIGHT_COLOR;
+
 	inline size_t frame = 0;
 
 	struct Padding {
@@ -586,7 +589,6 @@ namespace ui {
 
 	inline std::unordered_map<std::string, SliderObserver> slider_observers;
 
-	inline const auto HIGHLIGHT_COLOR = gfx::Color(133, 24, 16, 255);
 	inline const int TYPE_SWITCH_PADDING = 5;
 
 	void render_bar(const Container& container, const AnimatedElement& element);
