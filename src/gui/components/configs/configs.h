@@ -90,6 +90,7 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	void option_information(ui::Container& container);
 
 	void parse_interp();
+	bool has_unsaved_changes();
 	void save_config();
 	void on_load();
 
