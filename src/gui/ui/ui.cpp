@@ -432,6 +432,16 @@ void ui::anchor_elements_to_bottom(Container& container) {
 	}
 }
 
+void ui::stick_element_to_top(const Container& scroll_container, AnimatedElement* animated_element) {
+	if (!animated_element)
+		return;
+
+	auto& element = animated_element->element;
+	element->rect.y = std::max(
+		scroll_container.get_usable_rect().y, element->orig_rect.y - static_cast<int>(scroll_container.scroll_y)
+	);
+}
+
 void ui::set_cursor(SDL_SystemCursor cursor) {
 	desired_cursor = cursor;
 }
