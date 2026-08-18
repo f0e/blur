@@ -181,8 +181,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 }
 
 void config_blur::create(const std::filesystem::path& filepath, const BlurSettings& current_settings) {
-	std::ofstream output(filepath);
-	output << generate_config_string(current_settings, false);
+	config_base::write_config_string(filepath, generate_config_string(current_settings, false));
 }
 
 std::string config_blur::export_concise(const BlurSettings& settings) {
@@ -281,14 +280,15 @@ BlurSettings config_blur::parse(const std::string& config_content) {
 }
 
 BlurSettings config_blur::parse(const std::filesystem::path& config_filepath) {
-	std::ifstream file_stream(config_filepath);
-	auto config_map = config_base::read_config_map(file_stream);
-	return parse_from_map(config_map, config_filepath);
+	auto settings = parse(config_base::read_config_file(config_filepath).value_or(""));
+
+	// write formatted file
+	create(config_filepath, settings);
+
+	return settings;
 }
 
-BlurSettings config_blur::parse_from_map(
-	const std::map<std::string, std::string>& config_map, const std::optional<std::filesystem::path>& config_filepath
-) {
+BlurSettings config_blur::parse_from_map(const std::map<std::string, std::string>& config_map) {
 	BlurSettings settings;
 
 	config_base::extract_config_value(config_map, "blur", settings.blur);
@@ -382,11 +382,6 @@ BlurSettings config_blur::parse_from_map(
 
 	u::verify_gpu_encoding(settings);
 	u::set_fastest_devices(settings);
-
-	if (config_filepath) {
-		// rewrite config with proper structure and default values
-		create(*config_filepath, settings);
-	}
 
 	return settings;
 }

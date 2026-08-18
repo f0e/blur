@@ -609,10 +609,16 @@ std::set<std::string> u::get_available_codecs(const std::set<std::string>& codec
 }
 
 std::vector<std::string> u::get_supported_presets(bool gpu_encoding, const std::string& gpu_type) {
+	return get_supported_presets(config_presets::get_preset_config(), gpu_encoding, gpu_type);
+}
+
+std::vector<std::string> u::get_supported_presets(
+	const PresetSettings& presets, bool gpu_encoding, const std::string& gpu_type
+) {
 	if (!init_hw)
 		get_hardware_encoding_devices();
 
-	auto available_presets = config_presets::get_available_presets(gpu_encoding, gpu_type);
+	auto available_presets = config_presets::get_available_presets(presets, gpu_encoding, gpu_type);
 
 	std::set<std::string> all_codecs;
 	for (const auto& preset : available_presets) {

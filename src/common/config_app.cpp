@@ -71,8 +71,7 @@ std::string config_app::generate_config_string(const GlobalAppSettings& settings
 }
 
 void config_app::create(const std::filesystem::path& filepath, const GlobalAppSettings& settings) {
-	std::ofstream output(filepath);
-	output << generate_config_string(settings, false);
+	config_base::write_config_string(filepath, generate_config_string(settings, false));
 }
 
 std::string config_app::export_shareable(const GlobalAppSettings& settings) {
@@ -101,12 +100,9 @@ GlobalAppSettings config_app::parse(const std::string& config_content) {
 }
 
 GlobalAppSettings config_app::parse(const std::filesystem::path& config_filepath) {
-	std::ifstream file_stream(config_filepath);
-	auto config_map = config_base::read_config_map(file_stream);
+	auto settings = parse(config_base::read_config_file(config_filepath).value_or(""));
 
-	auto settings = parse_from_map(config_map);
-
-	// recreate the config file using the parsed values (keeps nice formatting)
+	// write formatted file
 	create(config_filepath, settings);
 
 	return settings;

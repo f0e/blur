@@ -3,6 +3,7 @@
 #include "render/render.h"
 #include "os/desktop_notification.h"
 #include "os/window.h"
+#include "ui/ui.h"
 #include "renderer.h"
 #include "gui.h"
 
@@ -35,7 +36,18 @@ namespace {
 		SDL_SetWindowSize(window, new_w, new_h);
 	}
 
+	// returns true if something that's already on screen needs redrawing
 	bool apply_app_config(const GlobalAppSettings& config) {
+		bool highlight_color_changed = false;
+
+#ifdef BLUR_COLOR_THEMES
+		auto parsed_highlight_color = gfx::Color::from_hex_string(config.gui_color_hex, false);
+		auto highlight_color = parsed_highlight_color.value_or(ui::DEFAULT_HIGHLIGHT_COLOR);
+
+		highlight_color_changed = highlight_color != ui::highlight_color;
+		ui::highlight_color = highlight_color;
+#endif
+
 		float previous_scale = render::dpi_scale_override;
 		float previous_content_scale = sdl::window ? render::get_content_scale(sdl::window) : 1.f;
 
@@ -65,7 +77,7 @@ namespace {
 			}
 		}
 
-		return scale_changed;
+		return scale_changed || highlight_color_changed;
 	}
 }
 
@@ -274,9 +286,9 @@ bool sdl::poll_config_reload() {
 		return false; // unchanged since we last looked
 
 	auto config = config_app::get_app_config();
-	bool scale_changed = apply_app_config(config);
-	remember_config_write_time(); // note: store modified time after get_app_config since it itself edits the file
+	bool needs_redraw = apply_app_config(config);
+	remember_config_write_time(); // note: store modified time after get_app_config, since parsing can rewrite the file
 
 	// only force a redraw if something visible actually changed
-	return scale_changed;
+	return needs_redraw;
 }
