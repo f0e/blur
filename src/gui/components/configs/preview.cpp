@@ -351,10 +351,10 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 
 	ui::add_tabs("preview tab", header_container, TABS, selected_tab, fonts::dejavu, on_tab_select);
 
-	if (selected_tab == "output video") {
+	if (selected_tab == TABS[0]) {
 		config_preview(content_container);
 	}
-	else {
+	else if (selected_tab == TABS[1]) {
 		auto weight_settings = settings;
 
 		if (!hovered_weighting.empty())
