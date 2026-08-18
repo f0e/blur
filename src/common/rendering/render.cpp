@@ -55,7 +55,7 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 	auto video_info = u::get_video_info(input_path);
 
 	auto vspipe_args = detail::build_vspipe_video_args(
-		input_path, *merged_settings, video_info, seek > 0.f ? get_seek_start_frame(settings, video_info, seek) : 0
+		input_path, *merged_settings, video_info, get_seek_start_frame(settings, video_info, seek)
 	);
 
 	RenderCommands commands = {
@@ -88,15 +88,14 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 	};
 }
 
+// get_seek_start_frame handles the rest of the unusable-video cases itself
 float rendering::get_preview_frame_timestamp(const BlurSettings& settings, const u::VideoInfo& video_info, float seek) {
-	if (!video_info.has_video_stream || video_info.fps_num <= 0 || video_info.fps_den <= 0 ||
-	    video_info.duration <= 0.f)
+	if (video_info.fps_num <= 0 || video_info.fps_den <= 0)
 		return 0.f;
 
 	double fps = static_cast<double>(video_info.fps_num) / video_info.fps_den;
-	size_t start_frame = seek > 0.f ? get_seek_start_frame(settings, video_info, seek) : 0;
 
-	return static_cast<float>((start_frame / fps) + get_output_seek(settings));
+	return static_cast<float>((get_seek_start_frame(settings, video_info, seek) / fps) + get_output_seek(settings));
 }
 
 tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>> rendering::detail::
