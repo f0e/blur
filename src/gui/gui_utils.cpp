@@ -42,10 +42,12 @@ namespace {
 		ffmpeg_args.insert(
 			ffmpeg_args.end(),
 			{
-				"-f",
-				"image2pipe",
 				"-vcodec",
 				"mjpeg",
+				"-q:v",
+				"2",
+				"-f",
+				"image2pipe",
 				"-",
 			}
 		);

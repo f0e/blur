@@ -50,5 +50,7 @@ namespace rendering::detail {
 		bool trimming
 	);
 
+	std::vector<std::string> build_ffmpeg_preview_args();
+
 	void copy_file_timestamp(const std::filesystem::path& from, const std::filesystem::path& to);
 }
