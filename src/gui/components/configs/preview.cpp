@@ -1,158 +1,31 @@
 #include "configs.h"
 
-#include "common/rendering.h"
+#include "preview_frames.h"
+
 #include "common/weighting.h"
 
 #include "../../tasks.h"
 
 #include "../../ui/ui.h"
 #include "../../render/render.h"
-#include "../notifications.h"
-#include "gui/renderer.h"
 
 namespace {
-	BlurSettings previewed_settings;
-	std::string previewed_sample_video_path;
-	float previewed_seek = 0.f;
-	bool first = true;
-	size_t preview_id = 0;
-	std::atomic<bool> loading = false;
-	std::mutex preview_mutex;
-	std::shared_ptr<render::Texture> preview_texture;
-	float preview_texture_seek = 0.f;
-	std::vector<uint8_t> pending_jpeg;
-	float pending_jpeg_seek = 0.f;
-
-	// while the seek bar is being dragged we show a frame straight from the source video (unblurred) instead, so
-	// you can find the spot you want without waiting for a blur render at every position you pass through
+	// left over from the last ui frame - the seek bar is added after the preview image it affects
 	bool seek_bar_dragging = false;
-	float requested_raw_seek = -1.f;
-	std::shared_ptr<render::Texture> raw_frame_texture;
-	std::string raw_frame_video_path;
-	size_t raw_frame_id = 0;
-	std::vector<uint8_t> pending_raw_jpeg;
-	std::string pending_raw_jpeg_path;
-
-	std::mutex raw_frame_mutex;
-	std::optional<float> queued_raw_seek;
-	bool raw_frame_worker_running = false;
-
-	// the render backing the newest preview request. anything older has been stopped and isn't allowed
-	// to publish its result anymore
-	std::mutex current_render_mutex;
-	std::shared_ptr<rendering::RenderState> current_render_state;
-
-	std::atomic<float> sample_video_duration = 0.f;
-	std::string fetched_duration_path;
 
 	void confirm_clear_sample_video() {
 		ui::dialog::confirm_destructive("Remove sample video?", "", "Remove", [] {
 			gui::components::configs::clear_sample_video();
 		});
 	}
-
-	void fetch_sample_video_duration(const std::filesystem::path& path) {
-		std::thread([path] {
-			auto video_info = u::get_video_info(path);
-			sample_video_duration = video_info.has_video_stream ? video_info.duration : 0.f;
-		}).detach();
-	}
-
-	std::shared_ptr<rendering::RenderState> begin_preview_render() {
-		auto state = std::make_shared<rendering::RenderState>();
-
-		std::lock_guard lock(current_render_mutex);
-
-		if (current_render_state)
-			current_render_state->stop();
-
-		current_render_state = state;
-
-		return state;
-	}
-
-	bool is_current_preview_render(const std::shared_ptr<rendering::RenderState>& state) {
-		std::lock_guard lock(current_render_mutex);
-		return current_render_state == state;
-	}
-
-	// grabs an unblurred frame from the source video in the background. only one runs at a time - newer requests
-	// replace the queued one, so dragging the seek bar doesn't pile up ffmpeg processes
-	void request_raw_frame(const std::filesystem::path& path, float seek) {
-		std::lock_guard lock(raw_frame_mutex);
-
-		queued_raw_seek = seek;
-
-		if (raw_frame_worker_running)
-			return;
-
-		raw_frame_worker_running = true;
-
-		std::thread([path] {
-			while (true) {
-				float seek = 0.f;
-
-				{
-					std::lock_guard lock(raw_frame_mutex);
-
-					if (!queued_raw_seek) {
-						raw_frame_worker_running = false;
-						return;
-					}
-
-					seek = *queued_raw_seek;
-					queued_raw_seek.reset();
-				}
-
-				auto jpeg = u::get_video_frame_jpeg(path, seek * sample_video_duration);
-				if (jpeg.empty())
-					continue;
-
-				std::lock_guard lock(preview_mutex);
-
-				pending_raw_jpeg = std::move(jpeg);
-				pending_raw_jpeg_path = u::path_to_string(path);
-			}
-		}).detach();
-	}
 }
 
 namespace configs = gui::components::configs;
 
 void configs::reset_config_preview() {
-	{
-		std::lock_guard lock(current_render_mutex);
+	preview_frames::reset();
 
-		if (current_render_state)
-			current_render_state->stop();
-
-		current_render_state.reset();
-	}
-
-	{
-		std::lock_guard lock(raw_frame_mutex);
-		queued_raw_seek.reset();
-	}
-
-	preview_texture.reset();
-	preview_texture_seek = 0.f;
-	pending_jpeg.clear();
-	preview_id = 0;
-	loading = false;
-	first = true;
-
-	raw_frame_texture.reset();
-	raw_frame_video_path.clear();
-	raw_frame_id = 0;
-	pending_raw_jpeg.clear();
-	pending_raw_jpeg_path.clear();
-	requested_raw_seek = -1.f;
 	seek_bar_dragging = false;
-	previewed_settings = {};
-	previewed_sample_video_path.clear();
-	previewed_seek = 0.f;
-	fetched_duration_path.clear();
-	sample_video_duration = 0.f;
 }
 
 bool configs::has_sample_video() {
@@ -186,12 +59,8 @@ void configs::save_preview_app_settings() {
 }
 
 void configs::config_preview(ui::Container& container) {
-	static auto debounce_time = std::chrono::milliseconds(50);
-	auto now = std::chrono::steady_clock::now();
-	static auto last_render_time = now;
-
-	// from last frame - the seek bar is added further down. cleared here so it can't get stuck on if the seek bar
-	// stops being drawn mid-drag
+	// from the last ui frame - the seek bar is added further down. cleared here so it can't get stuck on if the seek
+	// bar stops being drawn mid-drag
 	bool dragging_seek_bar = seek_bar_dragging;
 	seek_bar_dragging = false;
 
@@ -199,117 +68,17 @@ void configs::config_preview(ui::Container& container) {
 	bool sample_video_set = !app_settings.sample_video_path.empty();
 	bool sample_video_exists = sample_video_set && std::filesystem::exists(sample_video_path);
 
-	if (sample_video_exists && fetched_duration_path != app_settings.sample_video_path) {
-		fetched_duration_path = app_settings.sample_video_path;
-		sample_video_duration = 0.f;
+	// an unusable video goes in as an empty path, which tears the preview down
+	auto preview_video_path = sample_video_exists ? sample_video_path : std::filesystem::path{};
 
-		fetch_sample_video_duration(sample_video_path);
-	}
-
-	if (raw_frame_video_path != app_settings.sample_video_path) {
-		raw_frame_video_path = app_settings.sample_video_path;
-		raw_frame_texture.reset();
-		requested_raw_seek = -1.f;
-	}
-
-	// upload pending surfaces on render thread
-	std::vector<uint8_t> jpeg;
-	float jpeg_seek = 0.f;
-	std::vector<uint8_t> raw_jpeg;
-	std::string raw_jpeg_path;
-	{
-		std::lock_guard lock(preview_mutex);
-		jpeg = std::move(pending_jpeg);
-		jpeg_seek = pending_jpeg_seek;
-		pending_jpeg.clear();
-
-		raw_jpeg = std::move(pending_raw_jpeg);
-		raw_jpeg_path = pending_raw_jpeg_path;
-		pending_raw_jpeg.clear();
-	}
-
-	if (auto texture = render::texture_from_jpeg(jpeg)) {
-		preview_texture = std::move(texture);
-		preview_texture_seek = jpeg_seek;
-		preview_id++;
-	}
-
-	if (raw_jpeg_path == app_settings.sample_video_path) {
-		if (auto texture = render::texture_from_jpeg(raw_jpeg)) {
-			raw_frame_texture = std::move(texture);
-			raw_frame_id++;
+	auto preview = preview_frames::update(
+		{
+			.video_path = preview_video_path,
+			.settings = settings,
+			.app_settings = app_settings,
+			.seeking = dragging_seek_bar,
 		}
-	}
-
-	auto render_preview = [&] {
-		if (!sample_video_exists) {
-			preview_texture.reset();
-			return;
-		}
-
-		// no point rendering positions the drag is only passing through, it'd be thrown away on the next mouse move
-		if (dragging_seek_bar)
-			return;
-
-		if (first) {
-			first = false;
-		}
-		else {
-			if (settings == previewed_settings && app_settings.sample_video_path == previewed_sample_video_path &&
-			    app_settings.config_preview_seek == previewed_seek)
-				return;
-
-			if (now - last_render_time < debounce_time)
-				return;
-		}
-
-		u::log("generating config preview");
-
-		previewed_settings = settings;
-		previewed_sample_video_path = app_settings.sample_video_path;
-		previewed_seek = app_settings.config_preview_seek;
-		last_render_time = now;
-
-		loading = true;
-
-		auto local_settings = settings;
-		auto local_app_settings = app_settings;
-		float seek = local_app_settings.config_preview_seek;
-		std::thread([sample_video_path, local_settings, local_app_settings, seek] {
-			auto state = begin_preview_render();
-
-			auto res = rendering::render_frame(sample_video_path, local_settings, local_app_settings, state, seek);
-
-			// the result is for stale settings, throw it away
-			if (!is_current_preview_render(state))
-				return;
-
-			loading = false;
-
-			std::lock_guard lock(preview_mutex);
-
-			if (res) {
-				pending_jpeg = std::move(res->frame_jpeg);
-				pending_jpeg_seek = seek;
-
-				u::log("config preview finished rendering");
-			}
-			else {
-				components::notifications::show_failure_notification(
-					"Failed to generate config preview.", res.error(), std::chrono::duration<float>(10.f)
-				);
-			}
-		}).detach();
-	};
-
-	render_preview();
-
-	if (sample_video_exists && dragging_seek_bar && sample_video_duration > 0.f &&
-	    app_settings.config_preview_seek != requested_raw_seek)
-	{
-		requested_raw_seek = app_settings.config_preview_seek;
-		request_raw_frame(sample_video_path, requested_raw_seek);
-	}
+	);
 
 	auto add_open_sample_video_prompt = [&](bool was_deleted) {
 		ui::add_text(
@@ -375,23 +144,17 @@ void configs::config_preview(ui::Container& container) {
 		return;
 	}
 
-	// show the source frame at the seeked position until the blurred render catches up, faded out like the loading
-	// state, so seeking is instant rather than seek -> wait for a render -> seek again
-	bool preview_out_of_date = !preview_texture || preview_texture_seek != app_settings.config_preview_seek;
-	bool show_raw_frame = preview_out_of_date && raw_frame_texture && raw_frame_texture->is_valid();
-
-	const auto& display_texture = show_raw_frame ? raw_frame_texture : preview_texture;
-
-	if (display_texture && display_texture->is_valid()) {
+	if (preview.frame) {
 		container.push_element_gap(2);
 
+		// anything that isn't the finished blurred frame for the current settings is faded out
 		ui::add_image(
 			"config preview image",
 			container,
-			display_texture,
+			preview.frame->texture,
 			container.get_usable_rect().size(),
-			show_raw_frame ? std::format("raw {}", raw_frame_id) : std::to_string(preview_id),
-			gfx::Color::white(preview_out_of_date || loading ? 100 : 255)
+			preview.frame->image_id,
+			gfx::Color::white(preview.frame->up_to_date ? 255 : 100)
 		);
 
 		container.pop_element_gap();
@@ -405,7 +168,7 @@ void configs::config_preview(ui::Container& container) {
 				container,
 				app_settings.config_preview_seek,
 				fonts::dejavu_small,
-				sample_video_duration,
+				preview.video_duration,
 				container.get_usable_rect().w - seek_bar_height - DELETE_ICON_GAP
 			);
 
@@ -434,7 +197,7 @@ void configs::config_preview(ui::Container& container) {
 		}
 		container.pop_element_gap();
 	}
-	else if (loading) {
+	else if (preview.rendering) {
 		ui::add_text(
 			"loading config preview text",
 			container,
