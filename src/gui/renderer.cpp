@@ -289,7 +289,16 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 			ui::set_next_same_line(nav_container);
 			ui::add_button("back button", nav_container, "Back", fonts::dejavu, [] {
-				screen = Screens::MAIN;
+				if (!components::configs::has_unsaved_changes()) {
+					screen = Screens::MAIN;
+					return;
+				}
+
+				ui::dialog::confirm_destructive(
+					"Discard unsaved changes?", "Going back will discard your unsaved config changes.", "Discard", [] {
+						screen = Screens::MAIN;
+					}
+				);
 			});
 
 			components::configs::screen(
