@@ -421,6 +421,52 @@ u::VideoInfo u::get_video_info(const std::filesystem::path& path) {
 	return info;
 }
 
+std::vector<uint8_t> u::get_video_frame_jpeg(const std::filesystem::path& path, float timestamp) {
+	namespace bp = boost::process;
+
+	bp::ipstream pipe_stream;
+
+	auto c = u::run_command(
+		blur.ffmpeg_path,
+		{
+			"-v",
+			"error",
+			// -ss before the input seeks from the nearest keyframe, which is what makes this fast enough to scrub with
+			"-ss",
+			std::format("{:.3f}", std::max(timestamp, 0.f)),
+			"-i",
+			u::path_to_string(path),
+			"-map",
+			"0:v:0",
+			"-frames:v",
+			"1",
+			"-c:v",
+			"mjpeg",
+			"-q:v",
+			"4",
+			"-f",
+			"image2pipe",
+			"-",
+		},
+		bp::std_out > pipe_stream,
+		bp::std_err.null()
+	);
+
+	std::vector<uint8_t> jpeg;
+	std::array<char, 4096> buffer{};
+
+	while (pipe_stream.read(buffer.data(), buffer.size()) || pipe_stream.gcount() > 0) {
+		jpeg.insert(jpeg.end(), buffer.data(), buffer.data() + pipe_stream.gcount());
+	}
+
+	c.wait();
+
+	if (c.exit_code() != 0)
+		return {};
+
+	return jpeg;
+}
+
 int16_t u::get_audio_percentile_peak(const std::vector<int16_t>& samples, float percentile) {
 	if (samples.empty())
 		return 1;

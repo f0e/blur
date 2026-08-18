@@ -8,12 +8,18 @@ namespace {
 	       // @todo: make sure this doesnt ever fail (set config preview seek = 1 and try lots of diff vids and configs,
 	       // make sure preview never fails to render)
 
+	// render_frame skips this far into the blurred output - the first frame doesn't have anything to blend with yet.
+	// @todo: revisit if i ever change that behaviour (first frame of video not being blurred properly thing)
+	double get_output_seek(const BlurSettings& settings) {
+		return 1.0 / settings.blur_output_fps;
+	}
+
 	size_t get_seek_start_frame(const BlurSettings& settings, const u::VideoInfo& video_info, float seek) {
 		if (!video_info.has_video_stream || video_info.fps_num <= 0 || video_info.fps_den <= 0 ||
 		    video_info.duration <= 0.f)
 			return 0;
 
-		double ffmpeg_required_extra_time = 1.f / settings.blur_output_fps; // see -ss below
+		double ffmpeg_required_extra_time = get_output_seek(settings);
 		double fps = static_cast<double>(video_info.fps_num) / video_info.fps_den;
 
 		size_t total_frames = static_cast<size_t>(video_info.duration * fps);
@@ -59,7 +65,7 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
             "-hide_banner",
             "-stats",
             "-i", "-",
-            "-ss", std::to_string(1.f / settings.blur_output_fps), // skip ahead a frame, likely need a frame for frames to start being blended @todo: revisit if i ever change that behaviour (first frame of video not being blurred properly thing)
+            "-ss", std::to_string(get_output_seek(settings)),
             "-map", "0:v",
             "-frames:v", "1",
             "-c:v", "mjpeg",
@@ -80,6 +86,17 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 		.frame_jpeg = state->take_preview_jpeg(),
 		.stopped = pipeline_result->stopped,
 	};
+}
+
+float rendering::get_preview_frame_timestamp(const BlurSettings& settings, const u::VideoInfo& video_info, float seek) {
+	if (!video_info.has_video_stream || video_info.fps_num <= 0 || video_info.fps_den <= 0 ||
+	    video_info.duration <= 0.f)
+		return 0.f;
+
+	double fps = static_cast<double>(video_info.fps_num) / video_info.fps_den;
+	size_t start_frame = seek > 0.f ? get_seek_start_frame(settings, video_info, seek) : 0;
+
+	return static_cast<float>((start_frame / fps) + get_output_seek(settings));
 }
 
 tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>> rendering::detail::

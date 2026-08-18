@@ -21,6 +21,8 @@ namespace rendering {
 		float seek = 0.f
 	);
 
+	float get_preview_frame_timestamp(const BlurSettings& settings, const u::VideoInfo& video_info, float seek);
+
 	namespace detail {
 		tl::expected<RenderResult, std::variant<std::string, RenderError>> render_video(
 			const std::filesystem::path& input_path,

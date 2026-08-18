@@ -19,7 +19,23 @@ namespace {
 	std::atomic<bool> loading = false;
 	std::mutex preview_mutex;
 	std::shared_ptr<render::Texture> preview_texture;
+	float preview_texture_seek = 0.f;
 	std::vector<uint8_t> pending_jpeg;
+	float pending_jpeg_seek = 0.f;
+
+	// while the seek bar is being dragged we show a frame straight from the source video (unblurred) instead, so
+	// you can find the spot you want without waiting for a blur render at every position you pass through
+	bool seek_bar_dragging = false;
+	float requested_raw_seek = -1.f;
+	std::shared_ptr<render::Texture> raw_frame_texture;
+	std::string raw_frame_video_path;
+	size_t raw_frame_id = 0;
+	std::vector<uint8_t> pending_raw_jpeg;
+	std::string pending_raw_jpeg_path;
+
+	std::mutex raw_frame_mutex;
+	std::optional<float> queued_raw_seek;
+	bool raw_frame_worker_running = false;
 
 	// the render backing the newest preview request. anything older has been stopped and isn't allowed
 	// to publish its result anymore
@@ -59,6 +75,46 @@ namespace {
 		std::lock_guard lock(current_render_mutex);
 		return current_render_state == state;
 	}
+
+	// grabs an unblurred frame from the source video in the background. only one runs at a time - newer requests
+	// replace the queued one, so dragging the seek bar doesn't pile up ffmpeg processes
+	void request_raw_frame(const std::filesystem::path& path, float seek) {
+		std::lock_guard lock(raw_frame_mutex);
+
+		queued_raw_seek = seek;
+
+		if (raw_frame_worker_running)
+			return;
+
+		raw_frame_worker_running = true;
+
+		std::thread([path] {
+			while (true) {
+				float seek = 0.f;
+
+				{
+					std::lock_guard lock(raw_frame_mutex);
+
+					if (!queued_raw_seek) {
+						raw_frame_worker_running = false;
+						return;
+					}
+
+					seek = *queued_raw_seek;
+					queued_raw_seek.reset();
+				}
+
+				auto jpeg = u::get_video_frame_jpeg(path, seek * sample_video_duration);
+				if (jpeg.empty())
+					continue;
+
+				std::lock_guard lock(preview_mutex);
+
+				pending_raw_jpeg = std::move(jpeg);
+				pending_raw_jpeg_path = u::path_to_string(path);
+			}
+		}).detach();
+	}
 }
 
 namespace configs = gui::components::configs;
@@ -73,11 +129,25 @@ void configs::reset_config_preview() {
 		current_render_state.reset();
 	}
 
+	{
+		std::lock_guard lock(raw_frame_mutex);
+		queued_raw_seek.reset();
+	}
+
 	preview_texture.reset();
+	preview_texture_seek = 0.f;
 	pending_jpeg.clear();
 	preview_id = 0;
 	loading = false;
 	first = true;
+
+	raw_frame_texture.reset();
+	raw_frame_video_path.clear();
+	raw_frame_id = 0;
+	pending_raw_jpeg.clear();
+	pending_raw_jpeg_path.clear();
+	requested_raw_seek = -1.f;
+	seek_bar_dragging = false;
 	previewed_settings = {};
 	previewed_sample_video_path.clear();
 	previewed_seek = 0.f;
@@ -120,6 +190,11 @@ void configs::config_preview(ui::Container& container) {
 	auto now = std::chrono::steady_clock::now();
 	static auto last_render_time = now;
 
+	// from last frame - the seek bar is added further down. cleared here so it can't get stuck on if the seek bar
+	// stops being drawn mid-drag
+	bool dragging_seek_bar = seek_bar_dragging;
+	seek_bar_dragging = false;
+
 	auto sample_video_path = u::string_to_path(app_settings.sample_video_path);
 	bool sample_video_set = !app_settings.sample_video_path.empty();
 	bool sample_video_exists = sample_video_set && std::filesystem::exists(sample_video_path);
@@ -131,17 +206,39 @@ void configs::config_preview(ui::Container& container) {
 		fetch_sample_video_duration(sample_video_path);
 	}
 
-	// upload pending surface on render thread
+	if (raw_frame_video_path != app_settings.sample_video_path) {
+		raw_frame_video_path = app_settings.sample_video_path;
+		raw_frame_texture.reset();
+		requested_raw_seek = -1.f;
+	}
+
+	// upload pending surfaces on render thread
 	std::vector<uint8_t> jpeg;
+	float jpeg_seek = 0.f;
+	std::vector<uint8_t> raw_jpeg;
+	std::string raw_jpeg_path;
 	{
 		std::lock_guard lock(preview_mutex);
 		jpeg = std::move(pending_jpeg);
+		jpeg_seek = pending_jpeg_seek;
 		pending_jpeg.clear();
+
+		raw_jpeg = std::move(pending_raw_jpeg);
+		raw_jpeg_path = pending_raw_jpeg_path;
+		pending_raw_jpeg.clear();
 	}
 
 	if (auto texture = render::texture_from_jpeg(jpeg)) {
 		preview_texture = std::move(texture);
+		preview_texture_seek = jpeg_seek;
 		preview_id++;
+	}
+
+	if (raw_jpeg_path == app_settings.sample_video_path) {
+		if (auto texture = render::texture_from_jpeg(raw_jpeg)) {
+			raw_frame_texture = std::move(texture);
+			raw_frame_id++;
+		}
 	}
 
 	auto render_preview = [&] {
@@ -149,6 +246,10 @@ void configs::config_preview(ui::Container& container) {
 			preview_texture.reset();
 			return;
 		}
+
+		// no point rendering positions the drag is only passing through, it'd be thrown away on the next mouse move
+		if (dragging_seek_bar)
+			return;
 
 		if (first) {
 			first = false;
@@ -189,6 +290,7 @@ void configs::config_preview(ui::Container& container) {
 
 			if (res) {
 				pending_jpeg = std::move(res->frame_jpeg);
+				pending_jpeg_seek = seek;
 
 				u::log("config preview finished rendering");
 			}
@@ -201,6 +303,13 @@ void configs::config_preview(ui::Container& container) {
 	};
 
 	render_preview();
+
+	if (sample_video_exists && dragging_seek_bar && sample_video_duration > 0.f &&
+	    app_settings.config_preview_seek != requested_raw_seek)
+	{
+		requested_raw_seek = app_settings.config_preview_seek;
+		request_raw_frame(sample_video_path, requested_raw_seek);
+	}
 
 	auto add_open_sample_video_prompt = [&](bool was_deleted) {
 		ui::add_text(
@@ -266,16 +375,23 @@ void configs::config_preview(ui::Container& container) {
 		return;
 	}
 
-	if (preview_texture && preview_texture->is_valid()) {
+	// show the source frame at the seeked position until the blurred render catches up, faded out like the loading
+	// state, so seeking is instant rather than seek -> wait for a render -> seek again
+	bool preview_out_of_date = !preview_texture || preview_texture_seek != app_settings.config_preview_seek;
+	bool show_raw_frame = preview_out_of_date && raw_frame_texture && raw_frame_texture->is_valid();
+
+	const auto& display_texture = show_raw_frame ? raw_frame_texture : preview_texture;
+
+	if (display_texture && display_texture->is_valid()) {
 		container.push_element_gap(2);
 
 		ui::add_image(
 			"config preview image",
 			container,
-			preview_texture,
+			display_texture,
 			container.get_usable_rect().size(),
-			std::to_string(preview_id),
-			gfx::Color::white(loading ? 100 : 255)
+			show_raw_frame ? std::format("raw {}", raw_frame_id) : std::to_string(preview_id),
+			gfx::Color::white(preview_out_of_date || loading ? 100 : 255)
 		);
 
 		container.pop_element_gap();
@@ -293,10 +409,10 @@ void configs::config_preview(ui::Container& container) {
 				container.get_usable_rect().w - seek_bar_height - DELETE_ICON_GAP
 			);
 
+			seek_bar_dragging = ui::get_active_element() == seek_bar;
+
 			// save once the drag is over rather than writing the config on every frame it moves
-			if (app_settings.config_preview_seek != current_app_settings.config_preview_seek &&
-			    ui::get_active_element() != seek_bar)
-			{
+			if (app_settings.config_preview_seek != current_app_settings.config_preview_seek && !seek_bar_dragging) {
 				save_preview_app_settings();
 			}
 
