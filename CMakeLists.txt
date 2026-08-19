@@ -174,19 +174,25 @@ target_link_libraries(
                glad::glad)
 
 if(APPLE)
-  # Disable precompiled headers for the .mm file and .cpp file
+  # Disable precompiled headers for the macOS Objective-C++ sources
   set_source_files_properties(src/gui/os/desktop_notification_mac.mm
                               src/gui/os/window_mac.mm
+                              src/gui/os/clipboard_mac.mm
+                              src/gui/os/file_browser_mac.mm
                               PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 
-  # Set Objective-C++ compilation for both files
+  # Set Objective-C++ compilation for the macOS sources
   set_source_files_properties(src/gui/os/desktop_notification_mac.mm
                               src/gui/os/window_mac.mm
+                              src/gui/os/clipboard_mac.mm
+                              src/gui/os/file_browser_mac.mm
                               PROPERTIES COMPILE_FLAGS "-x objective-c++")
 
-  # Add the .mm files for macOS notifications and window tweaks
+  # Add the native macOS implementations
   target_sources(blur PRIVATE src/gui/os/desktop_notification_mac.mm
-                              src/gui/os/window_mac.mm)
+                              src/gui/os/window_mac.mm
+                              src/gui/os/clipboard_mac.mm
+                              src/gui/os/file_browser_mac.mm)
 
   target_link_libraries(
     blur
@@ -256,7 +262,7 @@ elseif(UNIX)
 elseif(WIN32)
   find_package(cppwinrt CONFIG REQUIRED)
 
-  target_link_libraries(blur PRIVATE Shcore Microsoft::CppWinRT windowsapp)
+  target_link_libraries(blur PRIVATE Shcore Shell32 Microsoft::CppWinRT windowsapp)
 endif()
 
 target_precompile_headers(blur PRIVATE src/gui/gui_pch.h)

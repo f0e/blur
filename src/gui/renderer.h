@@ -9,6 +9,9 @@ namespace gui::renderer {
 	inline constexpr int PAD_X = 24;
 	inline constexpr int PAD_Y = PAD_X;
 
+	inline constexpr int HISTORY_PANEL_W = 380;
+	inline constexpr int HISTORY_PANEL_PAD = 10;
+
 	inline constexpr float FPS_SMOOTHING = 0.95f;
 
 	enum class Screens : uint8_t {
@@ -25,6 +28,8 @@ namespace gui::renderer {
 	inline ui::Container config_preview_content_container;
 	inline ui::Container option_information_container;
 	inline ui::Container notification_container;
+	inline ui::Container history_button_container;
+	inline ui::Container history_panel_container;
 	inline ui::Container update_container;
 	inline ui::Container nav_container;
 	inline ui::Container navigation_button_container;

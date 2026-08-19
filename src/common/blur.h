@@ -3,7 +3,7 @@
 #include "updates.h"
 
 const std::string APPLICATION_NAME = "blur";
-const std::string BLUR_VERSION = "2.45";
+const std::string BLUR_VERSION = "2.44";
 
 #ifdef WIN32
 #	define TENSORRT
