@@ -163,7 +163,7 @@ void tasks::process_pending_files() {
 		else {
 			pending_videos[index]->video_info = video_info;
 
-			if (config_app::get_app_config().skip_queue) {
+			if (config_app::get_app_config().skip_queue || pending_videos[index]->start_immediately) {
 				auto pending_video = pending_videos[index];
 				pending_videos.erase(pending_videos.begin() + index);
 
@@ -207,15 +207,16 @@ void tasks::cancel_pending(size_t video_id) {
 void tasks::start_pending_videos() {
 	std::lock_guard<std::mutex> lock(pending_videos_mutex);
 
-	while (!pending_videos.empty()) {
-		auto pending_video = std::move(pending_videos.front());
-		pending_videos.erase(pending_videos.begin());
-
-		if (!pending_video->video_info)
-			continue;
+	std::erase_if(pending_videos, [](const std::shared_ptr<PendingVideo>& pending_video) {
+		if (!pending_video->video_info) {
+			// not parsed yet, flag it to be started immediately when parsing finishes & don't erase
+			pending_video->start_immediately = true;
+			return false;
+		}
 
 		queue_render(pending_video);
-	}
+		return true;
+	});
 }
 
 std::vector<std::shared_ptr<tasks::PendingVideo>> tasks::get_pending_copy() {
