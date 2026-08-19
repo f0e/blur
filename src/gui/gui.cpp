@@ -109,6 +109,7 @@ int gui::run() {
 
 			if (keys::process_event(event)) {
 				ui::on_update_input_start();
+				to_render |= ui::update_container_input(renderer::notification_container);
 
 				if (ui::dialog::is_open()) {
 					// modal, nothing behind it gets input
@@ -117,7 +118,6 @@ int gui::run() {
 				else {
 					to_render |= ui::update_container_input(renderer::history_button_container);
 					to_render |= ui::update_container_input(renderer::history_panel_container);
-					to_render |= ui::update_container_input(renderer::notification_container);
 					to_render |= ui::update_container_input(renderer::update_container);
 					to_render |= ui::update_container_input(renderer::navigation_button_container);
 					to_render |= ui::update_container_input(renderer::nav_container);
