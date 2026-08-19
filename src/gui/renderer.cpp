@@ -19,6 +19,11 @@
 
 #define DEBUG_RENDER 0
 
+namespace {
+	const std::string BACK_ICON = "k";
+	const std::string SETTINGS_ICON = "l";
+}
+
 bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	keys::on_frame_start();
 	ui::on_frame_start();
@@ -74,13 +79,12 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 	ui::reset_container(nav_container, sdl::window, nav_container_rect, fonts::dejavu.height(), {});
 
-	constexpr int navigation_button_size = 36;
+	const int navigation_button_size = ui::button_height(fonts::dejavu);
 	gfx::Rect navigation_button_container_rect;
 
 	if (screen == Screens::CONFIG) {
-		const int config_navigation_button_size = ui::tabs_height(fonts::dejavu);
 		navigation_button_container_rect =
-			gfx::Rect(rect.x + PAD_X, rect.y + PAD_Y, config_navigation_button_size, config_navigation_button_size);
+			gfx::Rect(rect.x + PAD_X, rect.y + PAD_Y, navigation_button_size, navigation_button_size);
 	}
 	else {
 		navigation_button_container_rect = gfx::Rect(
@@ -205,10 +209,16 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		case Screens::TEST: {
 			components::test::screen(main_container, delta_time);
 
-			ui::add_navigation_button(
-				"test back navigation", navigation_button_container, ui::NavigationIcon::BACK, [] {
+			ui::add_button(
+				"test back navigation",
+				navigation_button_container,
+				"",
+				fonts::dejavu,
+				[] {
 					screen = Screens::MAIN;
-				}
+				},
+				{},
+				BACK_ICON
 			);
 			break;
 		}
@@ -223,7 +233,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 				switch (main_screen) {
 					case components::main::MainScreen::HOME: {
 #ifdef _DEBUG
-						ui::add_navigation_button("test button", navigation_button_container, "Test", [] {
+						ui::add_button("test button", navigation_button_container, "Test", fonts::dejavu, [] {
 							screen = Screens::TEST;
 						});
 #endif
@@ -292,16 +302,16 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 				}
 
 				ui::set_next_same_line(nav_container);
-				ui::add_navigation_button(
+				ui::add_button(
 					"configuration navigation",
 					nav_container,
-					ui::NavigationIcon::SETTINGS,
+					"Config",
+					fonts::dejavu,
 					[] {
 						screen = Screens::CONFIG;
 					},
-					"",
-					ui::NavigationButtonStyle::DEFAULT,
-					"Config"
+					{},
+					SETTINGS_ICON
 				);
 			}
 
@@ -323,10 +333,11 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 				delta_time
 			);
 
-			config_back_button = ui::add_navigation_button(
+			config_back_button = ui::add_button(
 				"config back navigation",
 				navigation_button_container,
-				ui::NavigationIcon::BACK,
+				"",
+				fonts::dejavu,
 				[] {
 					if (!components::configs::has_unsaved_changes()) {
 						screen = Screens::MAIN;
@@ -342,8 +353,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 						}
 					);
 				},
-				"",
-				ui::NavigationButtonStyle::TAB
+				{},
+				BACK_ICON
 			);
 
 			ui::center_elements_in_container(config_preview_header_container, true, false);

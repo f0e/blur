@@ -30,7 +30,6 @@ namespace ui {
 		VIDEO,
 		BUTTON,
 		ICON_BUTTON,
-		NAVIGATION_BUTTON,
 		NOTIFICATION,
 		SLIDER,
 		TEXT_INPUT,
@@ -196,9 +195,10 @@ namespace ui {
 		render::Font font;
 		std::optional<std::function<void()>> on_press;
 		std::optional<gfx::Color> accent_color;
+		std::optional<std::string> icon;
 
 		bool operator==(const ButtonElementData& other) const {
-			return text == other.text && font == other.font && accent_color == other.accent_color;
+			return text == other.text && font == other.font && accent_color == other.accent_color && icon == other.icon;
 		}
 	};
 
@@ -213,27 +213,6 @@ namespace ui {
 		bool operator==(const IconButtonElementData& other) const {
 			return icon == other.icon && font == other.font && color == other.color &&
 			       hover_color == other.hover_color && tooltip == other.tooltip;
-		}
-	};
-
-	enum class NavigationIcon : std::uint8_t {
-		BACK,
-		SETTINGS
-	};
-	enum class NavigationButtonStyle : std::uint8_t {
-		DEFAULT,
-		TAB
-	};
-
-	struct NavigationButtonElementData {
-		std::optional<NavigationIcon> icon;
-		NavigationButtonStyle style;
-		std::string label;
-		std::string tooltip;
-		std::optional<std::function<void()>> on_press;
-
-		bool operator==(const NavigationButtonElementData& other) const {
-			return icon == other.icon && style == other.style && label == other.label && tooltip == other.tooltip;
 		}
 	};
 
@@ -471,7 +450,6 @@ namespace ui {
 		VideoElementData,
 		ButtonElementData,
 		IconButtonElementData,
-		NavigationButtonElementData,
 		NotificationElementData,
 		SliderElementData,
 		SeekBarElementData,
@@ -659,12 +637,10 @@ namespace ui {
 
 	void render_button(const Container& container, const AnimatedElement& element);
 	bool update_button(const Container& container, AnimatedElement& element);
+	int button_height(const render::Font& font);
 
 	void render_icon_button(const Container& container, const AnimatedElement& element);
 	bool update_icon_button(const Container& container, AnimatedElement& element);
-
-	void render_navigation_button(const Container& container, const AnimatedElement& element);
-	bool update_navigation_button(const Container& container, AnimatedElement& element);
 
 	inline const int NOTIFICATION_DEFAULT_W = 270;
 
@@ -820,7 +796,8 @@ namespace ui {
 		const std::string& text,
 		const render::Font& font,
 		std::optional<std::function<void()>> on_press = {},
-		std::optional<gfx::Color> accent_color = {}
+		std::optional<gfx::Color> accent_color = {},
+		std::optional<std::string> icon = {}
 	);
 
 	AnimatedElement* add_icon_button(
@@ -833,25 +810,6 @@ namespace ui {
 		gfx::Color hover_color,
 		std::optional<std::function<void()>> on_press = {},
 		const std::string& tooltip = ""
-	);
-
-	AnimatedElement* add_navigation_button(
-		const std::string& id,
-		Container& container,
-		std::optional<NavigationIcon> icon,
-		std::optional<std::function<void()>> on_press = {},
-		const std::string& tooltip = "",
-		NavigationButtonStyle style = NavigationButtonStyle::DEFAULT,
-		const std::string& label = ""
-	);
-
-	AnimatedElement* add_navigation_button(
-		const std::string& id,
-		Container& container,
-		const std::string& label,
-		std::optional<std::function<void()>> on_press = {},
-		const std::string& tooltip = "",
-		NavigationButtonStyle style = NavigationButtonStyle::DEFAULT
 	);
 
 	AnimatedElement* add_notification(
