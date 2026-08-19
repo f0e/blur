@@ -193,13 +193,13 @@ void configs::config_actions(ui::Container& container) {
 	};
 
 	add_action_button(
-		"export config button", EXPORT_ICON, std::format("Export {} to clipboard", label), [do_export, label] {
+		"export config button", icons::EXPORT, std::format("Export {} to clipboard", label), [do_export, label] {
 			copy_to_clipboard(do_export(), label);
 		}
 	);
 
 	add_action_button(
-		"import config button", IMPORT_ICON, std::format("Import {} from clipboard", label), [do_import, label] {
+		"import config button", icons::IMPORT, std::format("Import {} from clipboard", label), [do_import, label] {
 			auto text = get_clipboard_text();
 			if (!text)
 				return;
@@ -228,7 +228,7 @@ void configs::config_actions(ui::Container& container) {
 	if (do_restore_defaults) {
 		add_action_button(
 			"restore defaults button",
-			RESTORE_DEFAULTS_ICON,
+			icons::RESTORE_DEFAULTS,
 			std::format("Restore default {}", label),
 			[do_restore_defaults] {
 				if (do_restore_defaults)

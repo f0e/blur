@@ -1,5 +1,6 @@
 #include "../ui.h"
 #include "../../render/render.h"
+#include "../../fonts/icons.h"
 #include "../keys.h"
 
 constexpr float SLIDER_ROUNDING = 4.0f;
@@ -8,7 +9,6 @@ constexpr int TRACK_HEIGHT = 4;
 constexpr int LINE_HEIGHT_ADD = 7;
 constexpr int TRACK_LABEL_GAP = 10;
 constexpr int TOOLTIP_GAP = 4;
-const std::string TIED_ICON = "b"; // chain
 constexpr int TIED_ICON_GAP = 3;
 constexpr gfx::Size TIE_PAD(5, 3);
 constexpr float TIE_ROUNDING = 4.0f;
@@ -51,7 +51,7 @@ namespace {
 		gfx::Point tied_text_pos;
 
 		if (slider_data.is_tied_slider) {
-			const int icon_size = fonts::icons.calc_size(TIED_ICON).w;
+			const int icon_size = fonts::icons.calc_size(icons::CHAIN).w;
 			const int text_size =
 				slider_data.tied_text.empty() ? 0 : slider_data.font.calc_size(slider_data.tied_text).w;
 			const int tie_text_height = std::max(slider_data.font.height(), fonts::icons.height());
@@ -226,7 +226,7 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 		auto tie_text_colour = gfx::Color::lerp(tooltip_color, text_color, tied_anim);
 		// gfx::Color tie_text_colour = *slider_data.is_tied ? text_color : tooltip_color;
 
-		render::text(positions.tied_icon_pos, tie_text_colour, TIED_ICON, fonts::icons);
+		render::text(positions.tied_icon_pos, tie_text_colour, icons::CHAIN, fonts::icons);
 		render::text(positions.tied_text_pos, tie_text_colour, slider_data.tied_text, slider_data.font);
 	}
 

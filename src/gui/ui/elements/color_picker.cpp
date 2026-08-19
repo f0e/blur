@@ -1,5 +1,6 @@
 #include "../ui.h"
 #include "../../render/render.h"
+#include "../../fonts/icons.h"
 
 #include "../keys.h"
 
@@ -8,7 +9,6 @@ const gfx::Size BOX_PADDING(10, 5);
 const int LABEL_GAP = 10;
 const int SWATCH_GAP = 8;
 const float SWATCH_ROUNDING = 3.f;
-const std::string ARROW_ICON = "a"; // dropdown arrow thing
 const int ARROW_PAD = 2;
 const int ARROW_TEXT_GAP = 6;
 
@@ -89,7 +89,8 @@ namespace {
 			gfx::Size(swatch_size, swatch_size)
 		);
 
-		int arrow_left = positions.box_rect.x2() - BOX_PADDING.w - ARROW_PAD - fonts::icons.calc_size(ARROW_ICON).w;
+		int arrow_left =
+			positions.box_rect.x2() - BOX_PADDING.w - ARROW_PAD - fonts::icons.calc_size(icons::DROPDOWN_ARROW).w;
 
 		bool editing = ui::helpers::text_input::has_text_edit(element.element->id);
 
@@ -238,7 +239,7 @@ void ui::render_color_picker(const Container& container, const AnimatedElement& 
 	render::text(
 		arrow_pos,
 		arrow_colour,
-		ARROW_ICON,
+		icons::DROPDOWN_ARROW,
 		fonts::icons,
 		FONT_CENTERED_X | FONT_CENTERED_Y,
 		expand_goal * 180.f,

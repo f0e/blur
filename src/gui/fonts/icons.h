@@ -1,5 +1,20 @@
 #pragma once
 
+#include <string>
+
+namespace icons {
+	inline const std::string DROPDOWN_ARROW = "a";
+	inline const std::string CHAIN = "b";
+	inline const std::string CLOSE = "c";
+	inline const std::string EXPORT = "d";
+	inline const std::string IMPORT = "e";
+	inline const std::string RESTORE_DEFAULTS = "f";
+	inline const std::string FOLDER = "g";
+	inline const std::string PLAY = "h";
+	inline const std::string BACK = "k";
+	inline const std::string SETTINGS = "l";
+}
+
 inline constexpr std::array<unsigned char, 4551> ICONS_COMPRESSED_DATA = {
 	87,  188, 0,   0,   0,   0,   0,   0,   0,   0,   23,  60,  0,   4,   0,   0,   55,  0,   1,   0,   0,   0,   15,
 	0,   128, 0,   3,   0,   112, 71,  83,  85,  66,  184, 250, 184, 244, 0,   0,   23,  16,  130, 21,  44,  42,  79,

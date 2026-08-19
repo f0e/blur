@@ -1,5 +1,6 @@
 #include "../ui.h"
 #include "../../render/render.h"
+#include "../../fonts/icons.h"
 
 #include "../keys.h"
 
@@ -9,8 +10,6 @@ const float OPTION_LINE_HEIGHT_ADD = 11;
 const int LABEL_GAP = 10;
 const int OPTIONS_GAP = 3;
 const gfx::Size OPTIONS_PADDING(10, 3);
-// const float DROPDOWN_ARROW_SIZE = 10.0f;
-const std::string DROPDOWN_ARROW_ICON = "a"; // dropdown arrow thing
 const int DROPDOWN_ARROW_PAD = 2;
 
 namespace {
@@ -151,7 +150,7 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 	render::text(
 		arrow_pos,
 		arrow_colour,
-		DROPDOWN_ARROW_ICON,
+		icons::DROPDOWN_ARROW,
 		fonts::icons,
 		FONT_CENTERED_X | FONT_CENTERED_Y,
 		expand_goal * 180.f,
