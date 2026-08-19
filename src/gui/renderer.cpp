@@ -486,13 +486,14 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		ui::render_container(nav_container);
 		ui::render_container(navigation_button_container);
 		ui::render_container(update_container);
-		ui::render_container(notification_container);
 		components::render_history::draw_panel(history_panel_container);
 		ui::render_container(history_button_container); // over the panel, so rows fold away into it
 
 		ui::dialog::render();
 
 		ui::tooltip::render();
+
+		ui::render_container(notification_container);
 
 		// file drop overlay
 		if (bg_drop_overlay_percent > 0.f)
