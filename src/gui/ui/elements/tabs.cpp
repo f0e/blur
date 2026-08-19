@@ -3,7 +3,7 @@
 
 #include "../keys.h"
 
-const gfx::Size TAB_PADDING = { 10, 7 };
+const int TAB_PADDING_X = 10;
 const float TAB_ROUNDING = 5.f;
 
 const int TAB_STROKE_SHADE = 100;
@@ -110,7 +110,7 @@ bool ui::update_tabs(const Container& container, AnimatedElement& element) {
 }
 
 int ui::tabs_height(const render::Font& font) {
-	return font.height() + (TAB_PADDING.h * 2);
+	return button_height(font);
 }
 
 ui::AnimatedElement* ui::add_tabs(
@@ -131,7 +131,7 @@ ui::AnimatedElement* ui::add_tabs(
 
 		gfx::Size text_size = font.calc_size(option);
 
-		gfx::Rect option_rect = { 0, 0, text_size.w + (TAB_PADDING.w * 2), rect.h };
+		gfx::Rect option_rect = { 0, 0, text_size.w + (TAB_PADDING_X * 2), rect.h };
 		if (i > 0)
 			option_rect.x = option_offset_rects.back().x2();
 
