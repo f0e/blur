@@ -1,5 +1,6 @@
 #include "../ui.h"
 #include "../../render/render.h"
+#include "../../fonts/icons.h"
 #include "../keys.h"
 #include "../helpers/video.h"
 #include "../../sdl.h"
@@ -18,7 +19,6 @@ constexpr int REMOVE_BUTTON_GAP = 22;
 constexpr int REMOVE_BUTTON_RADIUS = 12;
 constexpr gfx::Color REMOVE_BUTTON_COLOUR(17, 17, 17);
 constexpr gfx::Color REMOVE_BUTTON_HOVER_COLOUR(153, 40, 40);
-const std::string REMOVE_ICON = "c"; // x
 
 // track
 constexpr int TRACK_GAP = 10;
@@ -428,7 +428,7 @@ void render_videos_actual(const ui::Container& container, const ui::AnimatedElem
 				render::text(
 					remove_button_pos,
 					gfx::Color(255, 255, 255).adjust_alpha(remove_button_alpha),
-					REMOVE_ICON,
+					icons::CLOSE,
 					fonts::icons,
 					FONT_CENTERED_X | FONT_CENTERED_Y
 				);

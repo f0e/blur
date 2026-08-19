@@ -3,6 +3,7 @@
 #include "common/config_app.h"
 #include "common/config_presets.h"
 #include "common/rendering.h"
+#include "../../fonts/icons.h"
 #include "../../ui/ui.h"
 
 namespace gui::components::configs { // naming it configs to avoid conflict with common lol
@@ -11,7 +12,6 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	const gfx::Color DELETE_ICON_COLOR = gfx::Color::white(120);
 	const gfx::Color DELETE_ICON_HOVER_COLOR(255, 80, 80, 255);
-	const std::string DELETE_ICON = "c"; // x
 	const int DELETE_ICON_GAP = 6;
 
 	void add_with_message(
@@ -21,10 +21,6 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 		const gfx::Color& color,
 		const std::function<void()>& add_element
 	);
-
-	inline const std::string EXPORT_ICON = "d";
-	inline const std::string IMPORT_ICON = "e";
-	inline const std::string RESTORE_DEFAULTS_ICON = "f";
 
 	inline const std::vector<std::string> CONFIG_TABS = { "blur", "app", "presets" };
 	inline std::string selected_config_tab = CONFIG_TABS[0];

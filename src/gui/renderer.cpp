@@ -9,6 +9,7 @@
 
 #include "ui/ui.h"
 #include "render/render.h"
+#include "fonts/icons.h"
 #include "os/desktop_notification.h"
 
 #include "components/main.h"
@@ -18,11 +19,6 @@
 #include "components/configs/configs.h"
 
 #define DEBUG_RENDER 0
-
-namespace {
-	const std::string BACK_ICON = "k";
-	const std::string SETTINGS_ICON = "l";
-}
 
 bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	keys::on_frame_start();
@@ -218,7 +214,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 					screen = Screens::MAIN;
 				},
 				{},
-				BACK_ICON
+				icons::BACK
 			);
 			break;
 		}
@@ -311,7 +307,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 						screen = Screens::CONFIG;
 					},
 					{},
-					SETTINGS_ICON
+					icons::SETTINGS
 				);
 			}
 
@@ -354,7 +350,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 					);
 				},
 				{},
-				BACK_ICON
+				icons::BACK
 			);
 
 			ui::center_elements_in_container(config_preview_header_container, true, false);
