@@ -1,5 +1,6 @@
 #include "../ui.h"
 #include "../../render/render.h"
+#include "../../fonts/icons.h"
 #include "../keys.h"
 
 const gfx::Size NOTIFICATION_DEFAULT_SIZE = { ui::NOTIFICATION_DEFAULT_W, 100 }; // height is a maximum to start with
@@ -7,7 +8,6 @@ const gfx::Size NOTIFICATION_TEXT_PADDING = { 10, 7 };
 static const float NOTIFICATION_ROUNDING = 7.f;
 static const int CLOSE_BUTTON_SIZE = 16;
 static const int CLOSE_BUTTON_PADDING = 5;
-static const std::string CLOSE_ICON = "c"; // x
 
 namespace {
 	gfx::Rect get_close_button_rect(const gfx::Rect& notification_rect) {
@@ -72,7 +72,11 @@ void ui::render_notification(const Container& container, const AnimatedElement& 
 
 		// close x
 		render::text(
-			close_button_rect.center(), close_button_color, CLOSE_ICON, fonts::icons, FONT_CENTERED_X | FONT_CENTERED_Y
+			close_button_rect.center(),
+			close_button_color,
+			icons::CLOSE,
+			fonts::icons,
+			FONT_CENTERED_X | FONT_CENTERED_Y
 		);
 	}
 

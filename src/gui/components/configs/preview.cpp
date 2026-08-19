@@ -184,7 +184,7 @@ void configs::config_preview(ui::Container& container) {
 			ui::add_icon_button(
 				"remove sample video button",
 				container,
-				DELETE_ICON,
+				icons::CLOSE,
 				fonts::icons,
 				gfx::Size(seek_bar_height, seek_bar_height),
 				DELETE_ICON_COLOR,

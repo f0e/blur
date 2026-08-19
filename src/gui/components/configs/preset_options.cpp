@@ -226,7 +226,7 @@ void configs::preset_options(ui::Container& container) {
 		auto* delete_button = ui::add_icon_button(
 			std::format("{} delete button", id),
 			container,
-			DELETE_ICON,
+			icons::CLOSE,
 			fonts::icons,
 			gfx::Size(delete_icon_size, delete_icon_size),
 			DELETE_ICON_COLOR,
