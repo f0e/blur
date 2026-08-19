@@ -9,6 +9,7 @@ namespace tasks {
 		std::optional<u::VideoInfo> video_info;
 		float start = 0.f;
 		float end = 1.f;
+		bool start_immediately = false;
 	};
 
 	void run(const std::vector<std::string>& arguments);
