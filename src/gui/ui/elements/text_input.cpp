@@ -256,16 +256,19 @@ ui::AnimatedElement* ui::add_selectable_text(
 	state.read_only = true;
 	state.multiline = true;
 
+	// verbatim rather than wrap_text: this is for logs and diagnostics, where indentation and blank lines are
+	// part of what's being read
+	auto lines = render::wrap_text_verbatim(text, field_width - (TEXT_INPUT_PADDING.w * 2), font);
+
 	// the state outlives the element, so the wrapped copy stays readable while the element fades out. the caller's
 	// string doesn't have to survive the call
 	auto& internal_state = helpers::text_input::add_text_edit(id, state);
-	internal_state.owned_text = u::join(
-		render::wrap_text(text, gfx::Size(std::max(field_width - (TEXT_INPUT_PADDING.w * 2), 1), 0), font), "\n"
-	);
+	internal_state.owned_text = u::join(lines, "\n");
 	state.text = &internal_state.owned_text;
 
-	int line_count = 1 + static_cast<int>(std::ranges::count(internal_state.owned_text, '\n'));
-	gfx::Size total_size(field_width, (line_count * font.height()) + (TEXT_INPUT_PADDING.h * 2));
+	gfx::Size total_size(
+		field_width, (static_cast<int>(std::max<size_t>(lines.size(), 1)) * font.height()) + (TEXT_INPUT_PADDING.h * 2)
+	);
 
 	Element element(
 		id,
