@@ -394,7 +394,8 @@ void history::draw_panel(ui::Container& container, ui::Container& button_contain
 		return;
 	}
 
-	if (panel_transforming && ((panel_showing && anim >= 1.f) || (!panel_showing && anim <= 0.01f)))
+	// the fade-out end is handled by the early return above, so settling at the top is the only case left
+	if (panel_transforming && panel_showing && anim >= 1.f)
 		panel_transforming = false;
 
 	bool transform_contents = panel_transforming && panel_collapse_rect.has_value();
@@ -429,8 +430,11 @@ void history::draw_panel(ui::Container& container, ui::Container& button_contain
 
 	size_t rows_first_vertex = render::draw_vertex_count();
 
-	// This clip only contains row scroll overflow. During a transition it expands with the transformed rows.
-	render::push_clip_rect(animated_panel_rect, true);
+	// The rows are submitted at the panel's settled coordinates and only moved into animated_panel_rect afterwards,
+	// so this has to clip against the settled rect. Clipping against the animated one would cull the glyphs before
+	// the transform ever ran (imgui drops text outside the clip rect at submission time, see ImFont::RenderText).
+	// animated_panel_rect is always inside panel_rect, so scroll overflow is still clipped either way.
+	render::push_clip_rect(panel_rect, true);
 
 	std::vector<std::pair<ui::AnimationState*, float>> row_animations;
 	if (transform_contents) {
