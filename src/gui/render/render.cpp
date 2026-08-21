@@ -934,9 +934,15 @@ void render::transform_draw_vertices(size_t first_vertex, const gfx::Rect& from,
 	if (from.is_empty())
 		return;
 
+	opacity = std::clamp(opacity, 0.f, 1.f);
+
+	// settled and fully opaque, so there's nothing to apply. worth checking: this runs over every vertex the
+	// caller submitted, and callers hand it the same range every frame whether or not anything is moving
+	if (from == to && opacity == 1.f)
+		return;
+
 	float scale_x = to.w / static_cast<float>(from.w);
 	float scale_y = to.h / static_cast<float>(from.h);
-	opacity = std::clamp(opacity, 0.f, 1.f);
 
 	for (size_t i = first_vertex; i < static_cast<size_t>(imgui.drawlist->VtxBuffer.Size); i++) {
 		auto& vertex = imgui.drawlist->VtxBuffer[static_cast<int>(i)];
