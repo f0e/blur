@@ -204,9 +204,14 @@ void ui::render_render_history_entry(const Container& container, const AnimatedE
 bool ui::update_render_history_entry(const Container& container, AnimatedElement& element) {
 	const auto& entry_data = std::get<RenderHistoryEntryElementData>(element.element->data);
 
+	// hit test where the row is drawn, not where it was laid out - while it's still folding out of the button it
+	// covers a fraction of its final bounds, and clicking empty space shouldn't hit a row that isn't there yet
+	gfx::Rect rect =
+		get_animated_rect(entry_data, element.element->rect, element.animations.at(hasher("main")).current);
+
 	bool over_action = false;
 
-	std::vector<gfx::Rect> action_rects = get_action_rects(element.element->rect, entry_data.actions, entry_data.font);
+	std::vector<gfx::Rect> action_rects = get_action_rects(rect, entry_data.actions, entry_data.font);
 
 	for (const auto [i, action] : u::enumerate(entry_data.actions)) {
 		bool action_hovered = action_rects[i].contains(keys::mouse_pos) && set_hovered_element(element);
@@ -230,7 +235,7 @@ bool ui::update_render_history_entry(const Container& container, AnimatedElement
 		}
 	}
 
-	bool hovered = over_action || (element.element->rect.contains(keys::mouse_pos) && set_hovered_element(element));
+	bool hovered = over_action || (rect.contains(keys::mouse_pos) && set_hovered_element(element));
 	element.animations.at(hasher("hover")).set_goal(hovered ? 1.f : 0.f);
 
 	if (hovered && !over_action && entry_data.on_click) {
