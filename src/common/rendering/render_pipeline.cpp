@@ -222,8 +222,12 @@ namespace {
 			err.is_blur_exception = false;
 		}
 
-		err.vspipe_errors = vspipe_errors;
-		err.ffmpeg_errors = ffmpeg_errors;
+		// a parsed blur exception already says everything worth saying, and the stderr it came out of is just the
+		// json blob it was parsed from - showing that back to the user is noise
+		if (!err.is_blur_exception) {
+			err.vspipe_errors = vspipe_errors;
+			err.ffmpeg_errors = ffmpeg_errors;
+		}
 
 		return err;
 	}
