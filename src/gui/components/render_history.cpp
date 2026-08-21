@@ -126,10 +126,15 @@ namespace {
 					[entry](ui::Container& container) {
 						const auto log_font = fonts::dejavu(fonts::size::SMALL);
 
+						// element state is keyed by id and outlives the dialog, so key the ids by entry
+						auto element_id = [id = entry->id](std::string_view name) {
+							return std::format("error {} {}", id, name);
+						};
+
 						ui::dialog::add_body(
-							container, "error body", std::format("{} could not be rendered.", entry->title)
+							container, element_id("body"), std::format("{} could not be rendered.", entry->title)
 						);
-						ui::dialog::add_field(container, "error message", "Error", entry->error.user_message);
+						ui::dialog::add_field(container, element_id("message"), "Error", entry->error.user_message);
 
 						// errors that came through as a bare message have none of these
 						std::vector<std::pair<std::string, const std::string*>> logs{
@@ -144,11 +149,11 @@ namespace {
 								continue;
 
 							if (!heading_added) {
-								ui::dialog::add_heading(container, "advanced heading", "Advanced diagnostics");
+								ui::dialog::add_heading(container, element_id("advanced"), "Advanced diagnostics");
 								heading_added = true;
 							}
 
-							ui::dialog::add_field(container, std::format("error {}", title), title, *text, log_font);
+							ui::dialog::add_field(container, element_id(title), title, *text, log_font);
 						}
 					},
 				.close_on_confirm = false,
