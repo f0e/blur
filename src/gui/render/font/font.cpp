@@ -25,3 +25,10 @@ gfx::Size render::Font::calc_size(const std::string& text) const {
 	auto size = m_font->CalcTextSizeA(m_size, FLT_MAX, 0.f, text.c_str());
 	return { (int)size.x, (int)size.y };
 }
+
+float render::Font::calc_width(const char* begin, const char* end) const {
+	if (!m_font || begin >= end)
+		return 0.f;
+
+	return m_font->CalcTextSizeA(m_size, FLT_MAX, 0.f, begin, end).x;
+}
