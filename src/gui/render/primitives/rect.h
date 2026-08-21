@@ -18,6 +18,8 @@ namespace gfx {
 		constexpr Rect(const Point& position, const Size& size);
 		constexpr Rect(const Point& p1, const Point& p2);
 
+		constexpr bool operator==(const Rect& other) const = default;
+
 		// Position and size accessors
 		[[nodiscard]] constexpr Point position() const;
 
