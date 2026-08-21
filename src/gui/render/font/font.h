@@ -21,6 +21,10 @@ namespace render {
 
 		[[nodiscard]] gfx::Size calc_size(const std::string& text) const;
 
+		// float-precision width of a substring. calc_size truncates to int, which is fine for laying a single
+		// string out but drifts once widths are summed
+		[[nodiscard]] float calc_width(const char* begin, const char* end) const;
+
 		[[nodiscard]] int height() const {
 			return calc_size("Q").h;
 		}

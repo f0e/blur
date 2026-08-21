@@ -973,6 +973,75 @@ bool render::clip_string(std::string& text, const Font& font, int max_width, int
 	return false;
 }
 
+namespace {
+	// bytes in the utf-8 sequence starting at c. measuring a lone continuation byte would give the width of the
+	// fallback glyph rather than the character it belongs to
+	int utf8_seq_len(unsigned char c) {
+		if (c < 0x80)
+			return 1;
+		if ((c & 0xE0) == 0xC0)
+			return 2;
+		if ((c & 0xF0) == 0xE0)
+			return 3;
+		if ((c & 0xF8) == 0xF0)
+			return 4;
+		return 1;
+	}
+}
+
+std::vector<std::string> render::wrap_text_verbatim(const std::string& text, int max_width, const Font& font) {
+	std::vector<std::string> lines;
+	if (!font)
+		return lines;
+
+	auto limit = static_cast<float>(std::max(max_width, 1));
+
+	size_t line_start = 0;
+	while (true) {
+		size_t newline = text.find('\n', line_start);
+		size_t line_end = newline == std::string::npos ? text.length() : newline;
+
+		size_t start = line_start;
+		size_t break_at = std::string::npos; // where we'd rather break than split a word, just past a space
+		float width = 0.f;
+
+		size_t i = line_start;
+		while (i < line_end) {
+			size_t next = std::min(i + utf8_seq_len(static_cast<unsigned char>(text[i])), line_end);
+			float advance = font.calc_width(text.data() + i, text.data() + next);
+
+			// i > start keeps a field narrower than a single glyph from looping forever
+			if (width + advance > limit && i > start) {
+				size_t split = break_at > start && break_at != std::string::npos ? break_at : i;
+
+				lines.push_back(text.substr(start, split - start));
+				start = split;
+				break_at = std::string::npos;
+
+				// whatever carried onto the new line, which is at most one word
+				width = font.calc_width(text.data() + start, text.data() + i);
+			}
+
+			width += advance;
+
+			// break after the space, so trailing spaces stay on the line they ended
+			if (text[i] == ' ' || text[i] == '\t')
+				break_at = next;
+
+			i = next;
+		}
+
+		lines.push_back(text.substr(start, line_end - start));
+
+		if (newline == std::string::npos)
+			break;
+
+		line_start = newline + 1;
+	}
+
+	return lines;
+}
+
 std::vector<std::string> render::wrap_text(
 	const std::string& text, const gfx::Size& dimensions, const Font& font, int line_height
 ) {
