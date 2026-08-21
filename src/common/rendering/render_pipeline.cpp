@@ -208,18 +208,9 @@ namespace {
 			state->set_preview_jpeg(std::move(pending));
 	}
 
-	// turn a non-zero exit into a user-facing error, preferring a parsed blur
-	// exception and otherwise attaching the raw stderr streams for debugging
+	// turn a non-zero exit into a user-facing error, preferring a parsed blur exception. keep each process's
+	// stderr separate so the UI can present it clearly; RenderError::to_string combines them for support copies.
 	rendering::RenderError assemble_render_error(const std::string& vspipe_errors, const std::string& ffmpeg_errors) {
-		std::string process_errors;
-		if (!vspipe_errors.empty()) {
-			process_errors += "--- [vspipe] ---\n" + vspipe_errors + "\n";
-		}
-
-		if (!ffmpeg_errors.empty()) {
-			process_errors += "--- [ffmpeg] ---\n" + ffmpeg_errors;
-		}
-
 		rendering::RenderError err;
 
 		auto parsed = u::parse_error_output(vspipe_errors);
@@ -231,14 +222,8 @@ namespace {
 			err.is_blur_exception = false;
 		}
 
-		// if exception isnt coming from blur, include process stderr streams for debugging
-		if (!err.is_blur_exception) {
-			if (!err.technical_details.empty()) {
-				err.technical_details += "\n\n";
-			}
-
-			err.technical_details += process_errors;
-		}
+		err.vspipe_errors = vspipe_errors;
+		err.ffmpeg_errors = ffmpeg_errors;
 
 		return err;
 	}

@@ -239,11 +239,12 @@ namespace ui {
 	// a button drawn inside a render history entry
 	struct RenderHistoryAction {
 		std::string icon;
+		std::string label;
 		std::string tooltip;
 		std::function<void()> on_press;
 
 		bool operator==(const RenderHistoryAction& other) const {
-			return icon == other.icon && tooltip == other.tooltip;
+			return icon == other.icon && label == other.label && tooltip == other.tooltip;
 		}
 	};
 
@@ -931,6 +932,16 @@ namespace ui {
 		std::optional<int> width = {} // defaults to filling the container
 	);
 
+	// A read-only text field, soft-wrapped to its width and laid out over as many lines as that takes. Text stays
+	// focusable/selectable so users can copy any subsection of it.
+	AnimatedElement* add_selectable_text(
+		const std::string& id,
+		Container& container,
+		const std::string& text,
+		const render::Font& font,
+		std::optional<int> width = {} // defaults to filling the container
+	);
+
 	AnimatedElement* add_checkbox(
 		const std::string& id,
 		Container& container,
@@ -1069,12 +1080,18 @@ namespace ui {
 	namespace dialog {
 		struct Options {
 			std::string title;
-			std::string body;
 
-			std::string detail;
+			// Adds everything between the title and the footer buttons. Runs every frame the dialog is building, so
+			// it can reflect live state. The dialog owns the chrome, the creator owns the contents.
+			std::function<void(Container& container)> content;
+
+			bool action_required = false;
+			bool close_on_confirm = true;
+			int width = 330;
 
 			std::string confirm_text = "Confirm";
 			std::string cancel_text = "Cancel";
+			std::optional<std::string> confirm_icon;
 
 			std::optional<gfx::Color> confirm_color;
 
@@ -1085,6 +1102,27 @@ namespace ui {
 		void open(Options options);
 		void close();
 		bool is_open();
+
+		// Building blocks for Options::content. They're just styled wrappers over the normal element functions, so
+		// dialogs share a type scale without dialog.cpp having to know what any particular dialog contains.
+
+		// the main line under the title, explaining what's happening
+		void add_body(Container& container, const std::string& id, const std::string& text);
+
+		// smaller, dimmer supporting text
+		void add_detail(Container& container, const std::string& id, const std::string& text);
+
+		// labels a group of content below it
+		void add_heading(Container& container, const std::string& id, const std::string& text);
+
+		// a labelled, selectable block of text - for anything the user might want to read closely or copy out of
+		void add_field(
+			Container& container,
+			const std::string& id,
+			const std::string& label,
+			const std::string& text,
+			const render::Font& font = fonts::dejavu
+		);
 
 		void confirm_destructive(
 			const std::string& title,

@@ -148,6 +148,8 @@ namespace gfx {
 			return { nx, ny, nx2 - nx, ny2 - ny };
 		}
 
+		[[nodiscard]] static Rect lerp(const Rect& from, const Rect& to, float amount);
+
 		// methods that need external state or implementation
 		[[nodiscard]] bool hovered() const;
 		[[nodiscard]] float mouse_percent_x(bool uncapped = false) const;

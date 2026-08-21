@@ -926,6 +926,30 @@ gfx::Rect render::get_clip_rect() {
 	};
 }
 
+size_t render::draw_vertex_count() {
+	return static_cast<size_t>(imgui.drawlist->VtxBuffer.Size);
+}
+
+void render::transform_draw_vertices(size_t first_vertex, const gfx::Rect& from, const gfx::Rect& to, float opacity) {
+	if (from.is_empty())
+		return;
+
+	float scale_x = to.w / static_cast<float>(from.w);
+	float scale_y = to.h / static_cast<float>(from.h);
+	opacity = std::clamp(opacity, 0.f, 1.f);
+
+	for (size_t i = first_vertex; i < static_cast<size_t>(imgui.drawlist->VtxBuffer.Size); i++) {
+		auto& vertex = imgui.drawlist->VtxBuffer[static_cast<int>(i)];
+
+		vertex.pos.x = to.x + ((vertex.pos.x - from.x) * scale_x);
+		vertex.pos.y = to.y + ((vertex.pos.y - from.y) * scale_y);
+
+		uint32_t alpha = (vertex.col >> IM_COL32_A_SHIFT) & 0xff;
+		alpha = static_cast<uint32_t>(std::lround(alpha * opacity));
+		vertex.col = (vertex.col & ~IM_COL32_A_MASK) | (alpha << IM_COL32_A_SHIFT);
+	}
+}
+
 bool render::clip_string(std::string& text, const Font& font, int max_width, int min_chars) {
 	int size = font.calc_size(text).w;
 	if (size <= max_width)

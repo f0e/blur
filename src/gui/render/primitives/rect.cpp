@@ -5,6 +5,19 @@
 #include "../../ui/keys.h"
 
 namespace gfx {
+	Rect Rect::lerp(const Rect& from, const Rect& to, float amount) {
+		auto lerp_value = [amount](int start, int end) {
+			return static_cast<int>(std::lround(std::lerp(static_cast<float>(start), static_cast<float>(end), amount)));
+		};
+
+		return {
+			lerp_value(from.x, to.x),
+			lerp_value(from.y, to.y),
+			lerp_value(from.w, to.w),
+			lerp_value(from.h, to.h),
+		};
+	}
+
 	bool Rect::hovered() const {
 		return keys::mouse_pos.in_rect(*this);
 	}

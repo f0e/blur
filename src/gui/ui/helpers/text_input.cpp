@@ -98,6 +98,33 @@ namespace {
 		return measure(font, data + offset, data + offset + count);
 	}
 
+	struct TextPosition {
+		float x;
+		int line;
+	};
+
+	TextPosition get_text_position(const ui::helpers::text_input::TextInputData& input_data, int cursor_pos) {
+		if (!input_data.text || !input_data.font)
+			return {};
+
+		const std::string& text = *input_data.text;
+		cursor_pos = std::clamp(cursor_pos, 0, static_cast<int>(text.length()));
+
+		int line_start = 0;
+		int line = 0;
+		for (int i = 0; i < cursor_pos; i++) {
+			if (text[i] == '\n') {
+				line_start = i + 1;
+				line++;
+			}
+		}
+
+		return {
+			.x = measure(input_data.font, text, line_start, cursor_pos - line_start),
+			.line = line,
+		};
+	}
+
 	// --- stb_textedit callbacks --------------------------------------------------------------------------
 
 	void textedit_layoutrow(StbTexteditRow* r, IMSTB_TEXTEDIT_STRING* str, int n) {
@@ -393,12 +420,7 @@ namespace {
 float ui::helpers::text_input::get_cursor_x(
 	const ui::helpers::text_input::TextInputData& input_data, int cursor_pos, const gfx::Point& text_start_pos
 ) {
-	if (!input_data.text || !input_data.font)
-		return static_cast<float>(text_start_pos.x);
-
-	cursor_pos = std::clamp(cursor_pos, 0, static_cast<int>(input_data.text->length()));
-
-	return static_cast<float>(text_start_pos.x) + measure(input_data.font, *input_data.text, 0, cursor_pos);
+	return static_cast<float>(text_start_pos.x) + get_text_position(input_data, cursor_pos).x;
 }
 
 bool ui::helpers::text_input::has_selection(const STB_TexteditState& state) {
@@ -674,9 +696,9 @@ ui::helpers::text_input::TextInputStateInternal& ui::helpers::text_input::add_te
 	if (it == text_input_map.end()) {
 		TextInputStateInternal new_state;
 		stb_textedit_initialize_state(&new_state.edit_state, 1);
-		new_state.edit_state.single_line = 1;
 		it = text_input_map.emplace(id, std::move(new_state)).first;
 	}
+	it->second.edit_state.single_line = input_data.multiline ? 0 : 1;
 
 	// the fork dereferences str->Stb, and TextInputData is rebuilt each frame by the element, so this has to be
 	// re-pointed every time rather than only on creation
@@ -735,26 +757,32 @@ void ui::helpers::text_input::render_text(
 	// --- Scrolling ---
 	// sticky: only moves when the caret would leave the visible range, and then by a chunk at a time. the old
 	// version recomputed the offset from the caret every frame, so the text jumped around while typing
-	float cursor_offset = get_cursor_x(input_data, state.edit_state.cursor, gfx::Point(0, 0));
-	auto visible_width = static_cast<float>(clip_rect.w);
-	float text_width = measure(input_data.font, display_text, 0, static_cast<int>(display_text.size()));
-
-	// leave room for the caret itself so it isn't clipped when sitting at the very end of the text
-	float max_scroll = std::max(0.f, (text_width + CURSOR_WIDTH) - visible_width);
-
-	if (state.active && state.cursor_follow) {
-		float scroll_chunk = visible_width * SCROLL_CHUNK_FRACTION;
-
-		if (cursor_offset < state.scroll_x)
-			state.scroll_x = std::max(0.f, cursor_offset - scroll_chunk);
-		else if (cursor_offset - visible_width >= state.scroll_x)
-			state.scroll_x = cursor_offset - visible_width + scroll_chunk;
-
+	if (input_data.multiline) {
+		state.scroll_x = 0.f;
 		state.cursor_follow = false;
 	}
+	else {
+		float cursor_offset = get_cursor_x(input_data, state.edit_state.cursor, gfx::Point(0, 0));
+		auto visible_width = static_cast<float>(clip_rect.w);
+		float text_width = measure(input_data.font, display_text, 0, static_cast<int>(display_text.size()));
 
-	// deleting text (or the field growing) can leave us scrolled past the end, which would show a blank gap
-	state.scroll_x = std::clamp(state.scroll_x, 0.f, max_scroll);
+		// leave room for the caret itself so it isn't clipped when sitting at the very end of the text
+		float max_scroll = std::max(0.f, (text_width + CURSOR_WIDTH) - visible_width);
+
+		if (state.active && state.cursor_follow) {
+			float scroll_chunk = visible_width * SCROLL_CHUNK_FRACTION;
+
+			if (cursor_offset < state.scroll_x)
+				state.scroll_x = std::max(0.f, cursor_offset - scroll_chunk);
+			else if (cursor_offset - visible_width >= state.scroll_x)
+				state.scroll_x = cursor_offset - visible_width + scroll_chunk;
+
+			state.cursor_follow = false;
+		}
+
+		// deleting text (or the field growing) can leave us scrolled past the end, which would show a blank gap
+		state.scroll_x = std::clamp(state.scroll_x, 0.f, max_scroll);
+	}
 
 	text_pos.x -= static_cast<int>(state.scroll_x);
 
@@ -771,13 +799,54 @@ void ui::helpers::text_input::render_text(
 		if (sel_start > sel_end)
 			std::swap(sel_start, sel_end);
 
-		float x1 = get_cursor_x(input_data, sel_start, text_pos);
-		float x2 = get_cursor_x(input_data, sel_end, text_pos);
+		if (input_data.multiline) {
+			int line_start = 0;
+			int line = 0;
+			int text_length = static_cast<int>(display_text.length());
 
-		gfx::Rect selection_rect(static_cast<int>(x1), text_pos.y, static_cast<int>(x2 - x1), input_data.font.height());
+			while (line_start <= text_length) {
+				size_t newline = display_text.find('\n', line_start);
+				int line_end = newline == std::string::npos ? text_length : static_cast<int>(newline);
+				int start = std::clamp(sel_start, line_start, line_end);
+				int end = std::clamp(sel_end, line_start, line_end);
+				bool newline_selected = line_end < text_length && sel_start <= line_end && sel_end > line_end;
 
-		if (selection_rect.w > 0 && selection_rect.h > 0)
-			render::rect_filled(selection_rect, selection_colour);
+				if (end > start || newline_selected) {
+					float x1 = text_pos.x + measure(input_data.font, display_text, line_start, start - line_start);
+					float x2 = text_pos.x + measure(input_data.font, display_text, line_start, end - line_start);
+					int width = std::max(static_cast<int>(x2 - x1), newline_selected ? 4 : 0);
+
+					if (width > 0) {
+						render::rect_filled(
+							gfx::Rect(
+								static_cast<int>(x1),
+								text_pos.y + (line * input_data.font.height()),
+								width,
+								input_data.font.height()
+							),
+							selection_colour
+						);
+					}
+				}
+
+				if (newline == std::string::npos)
+					break;
+
+				line_start = line_end + 1;
+				line++;
+			}
+		}
+		else {
+			float x1 = get_cursor_x(input_data, sel_start, text_pos);
+			float x2 = get_cursor_x(input_data, sel_end, text_pos);
+
+			gfx::Rect selection_rect(
+				static_cast<int>(x1), text_pos.y, static_cast<int>(x2 - x1), input_data.font.height()
+			);
+
+			if (selection_rect.w > 0 && selection_rect.h > 0)
+				render::rect_filled(selection_rect, selection_colour);
+		}
 	}
 
 	render::text(text_pos, text_color, display_text, input_data.font);
@@ -813,8 +882,10 @@ void ui::helpers::text_input::render_text(
 
 	// --- Render Cursor ---
 	if (state.active) {
-		auto cursor_x = static_cast<int>(get_cursor_x(input_data, state.edit_state.cursor, text_pos));
-		state.last_cursor_screen_pos = { cursor_x, text_pos.y };
+		auto cursor_pos = get_text_position(input_data, state.edit_state.cursor);
+		auto cursor_x = static_cast<int>(text_pos.x + cursor_pos.x);
+		auto cursor_y = text_pos.y + (cursor_pos.line * input_data.font.height());
+		state.last_cursor_screen_pos = { cursor_x, cursor_y };
 
 		state.cursor_anim += render::frametime;
 
@@ -823,8 +894,8 @@ void ui::helpers::text_input::render_text(
 			state.cursor_anim <= 0.f || std::fmod(state.cursor_anim, CURSOR_BLINK_PERIOD) <= CURSOR_BLINK_ON;
 
 		if (cursor_visible) {
-			gfx::Point p1(cursor_x, text_pos.y);
-			gfx::Point p2(cursor_x, text_pos.y + input_data.font.height());
+			gfx::Point p1(cursor_x, cursor_y);
+			gfx::Point p2(cursor_x, cursor_y + input_data.font.height());
 
 			auto current_clip = render::get_clip_rect();
 			if (p1.x >= current_clip.x && p1.x <= current_clip.x + current_clip.w)

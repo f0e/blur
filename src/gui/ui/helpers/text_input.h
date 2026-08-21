@@ -27,6 +27,7 @@ namespace ui::helpers::text_input {
 		render::Font font{};
 		std::optional<std::function<void(const std::string&)>> on_change;
 		bool read_only = false; // still focusable & selectable, just can't be edited
+		bool multiline = false;
 
 		// these two are named for imgui's stb_textedit fork, which reads them directly out of the string object
 		// (see stb_textedit_click/_drag/_find_charpos). Stb points back at the owning state's edit_state.
@@ -34,7 +35,8 @@ namespace ui::helpers::text_input {
 		ImS8 LastMoveDirectionLR = ImGuiDir_None;
 
 		bool operator==(const TextInputData& other) const {
-			return text == other.text && font == other.font && read_only == other.read_only;
+			return text == other.text && font == other.font && read_only == other.read_only &&
+			       multiline == other.multiline;
 		}
 	};
 
@@ -44,6 +46,10 @@ namespace ui::helpers::text_input {
 		std::string composition;   // For IME
 		int ime_cursor = 0;        // Cursor within IME composition
 		int ime_selection_len = 0; // Selection length within IME composition
+
+		// storage for fields whose text is generated rather than owned by the caller (see add_selectable_text). it
+		// lives with the edit state so it stays valid for as long as the element does, including while it fades out
+		std::string owned_text;
 
 		float scroll_x = 0.f;                 // horizontal scroll in pixels, kept sticky across frames
 		bool cursor_follow = false;           // scroll to reveal the cursor on the next render

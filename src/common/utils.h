@@ -538,10 +538,20 @@ namespace u {
 		std::string user_message;
 		std::string technical_details;
 		bool is_blur_exception = false;
-		std::string logs;
+		std::string vspipe_errors;
+		std::string ffmpeg_errors;
 
 		[[nodiscard]] std::string to_string() const {
-			return user_message + "\n\n" + technical_details + "\n\n[logs]\n" + logs;
+			std::string result = user_message;
+
+			if (!technical_details.empty())
+				result += "\n\n" + technical_details;
+			if (!vspipe_errors.empty())
+				result += "\n\n--- [vspipe] ---\n" + vspipe_errors;
+			if (!ffmpeg_errors.empty())
+				result += "\n\n--- [ffmpeg] ---\n" + ffmpeg_errors;
+
+			return result;
 		}
 	};
 
