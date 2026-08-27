@@ -178,18 +178,21 @@ if(APPLE)
                               src/gui/os/window_mac.mm
                               src/gui/os/clipboard_mac.mm
                               src/gui/os/file_browser_mac.mm
+                              src/gui/os/drag_mac.mm
                               PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 
   set_source_files_properties(src/gui/os/desktop_notification_mac.mm
                               src/gui/os/window_mac.mm
                               src/gui/os/clipboard_mac.mm
                               src/gui/os/file_browser_mac.mm
+                              src/gui/os/drag_mac.mm
                               PROPERTIES COMPILE_FLAGS "-x objective-c++")
 
   target_sources(blur PRIVATE src/gui/os/desktop_notification_mac.mm
                               src/gui/os/window_mac.mm
                               src/gui/os/clipboard_mac.mm
-                              src/gui/os/file_browser_mac.mm)
+                              src/gui/os/file_browser_mac.mm
+                              src/gui/os/drag_mac.mm)
 
   target_link_libraries(
     blur

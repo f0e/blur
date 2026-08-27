@@ -348,6 +348,8 @@ void history::render_panel(ui::Container& container, float delta_time, bool with
 			entry.thumbnail,
 			get_entry_actions(const_entry),
 			std::move(on_click),
+			// failed renders have no file to hand over, only the error to show
+			entry.success ? std::make_optional(entry.output_path) : std::optional<std::filesystem::path>{},
 			panel_collapse_rect,
 			fonts::dejavu
 		);
