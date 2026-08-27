@@ -107,6 +107,11 @@ void keys::set_mouse_capture(bool capture) {
 		u::log_error("failed to {} mouse capture: {}", capture ? "enable" : "disable", SDL_GetError());
 }
 
+void keys::forget_mouse_buttons() {
+	pressed_mouse_keys.clear();
+	held_mouse_keys.clear();
+}
+
 void keys::on_frame_start() {
 	// Clear the handled keys set at the beginning of each frame
 	// This should be called at the start of each frame update

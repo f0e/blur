@@ -1,6 +1,7 @@
 #include "../ui.h"
 #include "../../render/render.h"
 #include "../keys.h"
+#include "../../os/drag.h"
 
 static const int ENTRY_PADDING = ui::RENDER_HISTORY_ENTRY_PADDING;
 static const float ENTRY_ROUNDING = 6.f;
@@ -17,9 +18,18 @@ static const int ACTION_LABEL_PADDING = 7;
 static const int TITLE_DETAIL_GAP = 3;
 static const int MAX_DETAIL_LINES = 2;
 
+// how far the mouse can move with the button down before the press stops being a click and starts dragging the
+// file out of the window
+static const float DRAG_DISTANCE = 4.f;
+
 namespace {
 	const gfx::Color DETAIL_COLOR = gfx::Color::white(120);
 	const gfx::Color ERROR_DETAIL_COLOR = { 255, 110, 110, 255 };
+
+	// the row the mouse went down on, and where it went down, so a press that turns into a drag doesn't also
+	// count as a click
+	std::string pressed_entry_id;
+	gfx::Point press_pos;
 
 	gfx::Rect get_inner_rect(const gfx::Rect& entry_rect) {
 		return entry_rect.shrink(ENTRY_PADDING);
@@ -238,15 +248,49 @@ bool ui::update_render_history_entry(const Container& container, AnimatedElement
 	bool hovered = over_action || (rect.contains(keys::mouse_pos) && set_hovered_element(element));
 	element.animations.at(hasher("hover")).set_goal(hovered ? 1.f : 0.f);
 
-	if (hovered && !over_action && entry_data.on_click) {
+	bool draggable = entry_data.drag_path && os::drag::supported();
+	bool row_hovered = hovered && !over_action && (entry_data.on_click || draggable);
+
+	if (row_hovered)
 		set_cursor(SDL_SYSTEM_CURSOR_POINTER);
 
-		if (keys::is_mouse_down()) {
-			(*entry_data.on_click)();
-			keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
+	// a press on a row that can be dragged doesn't do anything yet - it's a click if the mouse comes back up
+	// without going anywhere, and a drag of the file out of the window if it moves first
+	if (pressed_entry_id == element.element->id) {
+		if (!keys::is_mouse_dragging()) {
+			pressed_entry_id.clear();
+
+			if (row_hovered && entry_data.on_click) {
+				(*entry_data.on_click)();
+				return true;
+			}
+
+			return false;
+		}
+
+		if (draggable && press_pos.distance(keys::mouse_pos) > DRAG_DISTANCE) {
+			pressed_entry_id.clear();
+
+			os::drag::begin_file_drag(container.window, *entry_data.drag_path);
+
+			// the drag had the mouse for as long as it lasted, so the button coming back up never reached us
+			keys::forget_mouse_buttons();
 
 			return true;
 		}
+
+		return false;
+	}
+
+	if (row_hovered && keys::is_mouse_down()) {
+		// rows that can't be dragged have nothing to wait for, but they go through the same press so that every
+		// row in the panel reacts at the same point
+		pressed_entry_id = element.element->id;
+		press_pos = keys::mouse_pos;
+
+		keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
+
+		return true;
 	}
 
 	return false;
@@ -261,6 +305,7 @@ ui::AnimatedElement* ui::add_render_history_entry(
 	const std::shared_ptr<render::Texture>& thumbnail,
 	const std::vector<RenderHistoryAction>& actions,
 	std::optional<std::function<void()>> on_click,
+	const std::optional<std::filesystem::path>& drag_path,
 	const std::optional<gfx::Rect>& collapse_rect,
 	const render::Font& font
 ) {
@@ -299,12 +344,19 @@ ui::AnimatedElement* ui::add_render_history_entry(
 			.thumbnail = thumbnail,
 			.actions = actions,
 			.on_click = std::move(on_click),
+			.drag_path = drag_path,
 			.collapse_rect = collapse_rect,
 			.font = font,
 			.line_height = line_height,
 		},
 		render_render_history_entry,
-		update_render_history_entry
+		update_render_history_entry,
+		std::nullopt,
+		[](AnimatedElement& stale_element) {
+			// the row went away mid-press (the panel folding shut, say) - nothing left to click or drag
+			if (pressed_entry_id == stale_element.element->id)
+				pressed_entry_id.clear();
+		}
 	);
 
 	std::unordered_map<size_t, AnimationState> animations = {

@@ -254,13 +254,15 @@ namespace ui {
 		std::shared_ptr<render::Texture> thumbnail; // null until one has been generated
 		std::vector<RenderHistoryAction> actions;
 		std::optional<std::function<void()>> on_click;
-		std::optional<gfx::Rect> collapse_rect; // where the row grows out of and shrinks back into
+		std::optional<std::filesystem::path> drag_path; // the file the row hands to other apps when it is dragged out
+		std::optional<gfx::Rect> collapse_rect;         // where the row grows out of and shrinks back into
 		render::Font font;
 		int line_height;
 
 		bool operator==(const RenderHistoryEntryElementData& other) const {
 			return title == other.title && detail_lines == other.detail_lines && error == other.error &&
-			       thumbnail == other.thumbnail && actions == other.actions && font == other.font;
+			       thumbnail == other.thumbnail && actions == other.actions && drag_path == other.drag_path &&
+			       font == other.font;
 		}
 	};
 
@@ -867,6 +869,7 @@ namespace ui {
 		const std::shared_ptr<render::Texture>& thumbnail,
 		const std::vector<RenderHistoryAction>& actions,
 		std::optional<std::function<void()>> on_click,
+		const std::optional<std::filesystem::path>& drag_path,
 		const std::optional<gfx::Rect>& collapse_rect,
 		const render::Font& font
 	);
