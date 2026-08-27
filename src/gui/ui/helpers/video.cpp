@@ -23,7 +23,16 @@ VideoPlayer::~VideoPlayer() {
 	}
 
 	if (m_mpv) {
-		mpv_destroy(m_mpv);
+		// libmpv's wasapi output calls CoUninitialize on whatever thread tears the player down, without
+		// a matching init. sdl set this thread up as an OLE apartment and registered the window's
+		// IDropTarget on it, so previewing a few videos with audio walks that refcount down to zero: the
+		// apartment dies, the now-dead drop target is left registered on the window, and dropping files
+		// onto blur gives you a "no" cursor for the rest of the session. destroy off this thread so the
+		// stray call lands somewhere that has no apartment to lose.
+		std::thread destroy_thread([mpv = m_mpv] {
+			mpv_destroy(mpv);
+		});
+		destroy_thread.join();
 	}
 
 	u::log("Player properly terminated");
