@@ -58,7 +58,8 @@ rendering::QueueAddRes rendering::VideoRenderQueue::add(
 	const std::function<void(
 		const VideoRenderDetails& render,
 		const tl::expected<rendering::RenderResult, std::variant<std::string, RenderError>>& result
-	)>& finish_callback
+	)>& finish_callback,
+	const std::optional<std::string>& mask_override
 ) {
 	// parse config file (do it now, not when rendering. nice for batch rendering the same file with different
 	// settings)
@@ -66,6 +67,9 @@ rendering::QueueAddRes rendering::VideoRenderQueue::add(
 		config_path.has_value() ? config_path.value() : config_blur::get_config_filename(input_path.parent_path()),
 		!config_path.has_value() // use global only if no config path is specified
 	);
+
+	if (mask_override)
+		config_res.config.mask = *mask_override;
 
 	if (!video_info.audio_sample_rates.empty() && detail::copies_audio(config_res.config, app_settings)) {
 		if (auto conflict = detail::get_audio_copy_conflict(config_res.config, start != 0.f || end != 1.f)) {

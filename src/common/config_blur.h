@@ -48,6 +48,10 @@ struct BlurSettings {
 	std::string interpolation_method = "svp";
 #endif
 
+	// filename of a png in <settings path>/masks, or empty for none. masks protect regions from
+	// interpolation, so this does nothing when interpolate is off
+	std::string mask;
+
 	bool pre_interpolate = false;
 	std::string pre_interpolated_fps = "360";
 	std::string pre_interpolation_method = "rife";

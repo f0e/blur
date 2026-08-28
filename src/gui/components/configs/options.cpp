@@ -5,6 +5,7 @@
 
 #include "common/config_presets.h"
 #include "common/config_app.h"
+#include "common/masks.h"
 
 namespace configs = gui::components::configs;
 
@@ -173,6 +174,23 @@ void configs::options(ui::Container& container) {
 			interpolation_options,
 			settings.interpolation_method,
 			fonts::dejavu
+		);
+
+		// the dropdown holds onto a pointer to this, so it has to outlive the frame
+		static std::string selected_mask;
+		selected_mask = settings.mask.empty() ? masks::NONE_OPTION : settings.mask;
+
+		ui::add_dropdown(
+			"default mask dropdown",
+			container,
+			"default mask",
+			masks::options(settings.mask),
+			selected_mask,
+			fonts::dejavu,
+			[](std::string* new_value) {
+				configs::settings.mask = *new_value == masks::NONE_OPTION ? "" : *new_value;
+			},
+			{ masks::NONE_OPTION }
 		);
 	}
 

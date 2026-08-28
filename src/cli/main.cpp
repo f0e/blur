@@ -32,10 +32,14 @@ int main(int argc, char* argv[]) {
 	std::vector<PathStr> config_path_strs;
 	bool preview = false;
 	bool verbose = false;
+	std::string mask;
 
 	app.add_option("-i,--input", input_strs, "Input file name(s)")->required();
 	app.add_option("-o,--output", output_strs, "Output file name(s) (optional)");
 	app.add_option("-c,--config-path", config_path_strs, "Manual configuration file path(s) (optional)");
+	app.add_option(
+		"--mask", mask, "Mask image filename in the masks folder, or 'none' to disable one set in the config (optional)"
+	);
 	app.add_flag("-p,--preview", preview, "Enable preview");
 	app.add_flag("-v,--verbose", verbose, "Verbose mode");
 
@@ -45,7 +49,7 @@ int main(int argc, char* argv[]) {
 	auto outputs = to_paths(output_strs);
 	auto config_paths = to_paths(config_path_strs);
 
-	cli::run(inputs, outputs, config_paths, preview, verbose);
+	cli::run(inputs, outputs, config_paths, preview, verbose, false, mask);
 
 	return 0;
 }

@@ -6,6 +6,7 @@
 #include "config_blur.h"
 #include "config_app.h"
 #include "config_presets.h"
+#include "masks.h"
 
 tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_preview) {
 	resources_path = u::get_resources_path();
@@ -22,6 +23,10 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 	auto preset_config_path = config_presets::get_preset_config_path();
 	if (!std::filesystem::exists(preset_config_path))
 		config_presets::create(preset_config_path, PresetSettings{});
+
+	// so there's somewhere to drop mask images even before one's been used
+	std::error_code masks_ec;
+	std::filesystem::create_directories(masks::get_path(), masks_ec);
 
 #if defined(_WIN32)
 	used_installer = std::filesystem::exists(resources_path / "lib\\vapoursynth\\vspipe.exe") &&

@@ -1,5 +1,6 @@
 #include "cli.h"
 #include "common/rendering.h"
+#include "common/masks.h"
 
 bool cli::run(
 	std::vector<std::filesystem::path> inputs,
@@ -7,7 +8,8 @@ bool cli::run(
 	std::vector<std::filesystem::path> config_paths,
 	bool preview,
 	bool verbose,
-	bool disable_update_check
+	bool disable_update_check,
+	const std::string& mask
 ) {
 	auto init_res = blur.initialise(verbose, preview);
 	if (!init_res) { // todo: preview in cli
@@ -81,8 +83,21 @@ bool cli::run(
 				std::filesystem::create_directories(parent);
 		}
 
+		std::optional<std::string> mask_override;
+		if (!mask.empty()) // "none" turns off a mask the config sets, for this run only
+			mask_override = mask == masks::NONE_OPTION ? "" : mask;
+
 		auto add_res = rendering::video_render_queue.add(
-			input_path, video_info, config_path, config_app::get_app_config(), output_path
+			input_path,
+			video_info,
+			config_path,
+			config_app::get_app_config(),
+			output_path,
+			0.f,
+			1.f,
+			{},
+			{},
+			mask_override
 		);
 
 		if (add_res.error) {

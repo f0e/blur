@@ -46,7 +46,10 @@ namespace rendering {
 			const std::function<void(
 				const VideoRenderDetails& render,
 				const tl::expected<rendering::RenderResult, std::variant<std::string, RenderError>>& result
-			)>& finish_callback = {}
+			)>& finish_callback = {},
+
+			// replaces whatever mask the resolved config asks for. the queue lets each video pick its own
+			const std::optional<std::string>& mask_override = {}
 		);
 
 		// pulls the front render off the queue, runs it to completion and fires its

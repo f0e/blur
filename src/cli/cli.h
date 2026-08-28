@@ -7,6 +7,9 @@ namespace cli {
 		std::vector<std::filesystem::path> config_paths,
 		bool preview,
 		bool verbose,
-		bool disable_update_check = false
+		bool disable_update_check = false,
+
+		// mask filename to render every input with. empty leaves each config's own mask alone
+		const std::string& mask = ""
 	);
 }
