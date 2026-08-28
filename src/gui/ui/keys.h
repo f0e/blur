@@ -9,7 +9,11 @@ namespace keys {
 
 	inline float scroll_delta = 0.f;
 	inline float scroll_x_delta = 0.f;
+	inline float precise_scroll_delta = 0.f;
+	inline float precise_scroll_velocity = 0.f;
 	inline bool scroll_is_horizontal = false;
+	inline bool scroll_gesture_active = false;
+	inline bool scroll_momentum_active = false;
 
 	inline bool mouse_captured = false; // something's being dragged, keep tracking the mouse outside the window
 

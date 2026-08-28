@@ -1,6 +1,62 @@
 #include "keys.h"
 #include "gui/ui/ui.h"
 #include "gui/render/render.h"
+#include "gui/os/window.h"
+
+namespace {
+	void process_scroll_delta(float x, float y, bool precise, Uint64 timestamp) {
+		static Uint64 last_wheel_timestamp = 0;
+		static bool scroll_axis_locked = false;
+		static float gesture_x_distance = 0.f;
+		static float gesture_y_distance = 0.f;
+		constexpr Uint64 scroll_gesture_timeout_ns = 150 * SDL_NS_PER_MS;
+
+		Uint64 previous_wheel_timestamp = last_wheel_timestamp;
+		bool new_gesture =
+			previous_wheel_timestamp == 0 || timestamp - previous_wheel_timestamp > scroll_gesture_timeout_ns;
+		if (new_gesture) {
+			scroll_axis_locked = !precise;
+			gesture_x_distance = 0.f;
+			gesture_y_distance = 0.f;
+		}
+
+		gesture_x_distance += std::abs(x);
+		gesture_y_distance += std::abs(y);
+		if (!scroll_axis_locked) {
+			keys::scroll_is_horizontal = gesture_x_distance > gesture_y_distance;
+
+			constexpr float axis_lock_min_distance = 2.f;
+			constexpr float axis_dominance = 1.25f;
+			float total_distance = gesture_x_distance + gesture_y_distance;
+			bool clearly_horizontal = gesture_x_distance > gesture_y_distance * axis_dominance;
+			bool clearly_vertical = gesture_y_distance > gesture_x_distance * axis_dominance;
+			scroll_axis_locked = total_distance >= axis_lock_min_distance && (clearly_horizontal || clearly_vertical);
+		}
+		else if (new_gesture) {
+			keys::scroll_is_horizontal = gesture_x_distance > gesture_y_distance;
+		}
+
+		last_wheel_timestamp = timestamp;
+
+		// Keep controls such as timeline zoom in wheel-like units. Containers use the unscaled point delta below.
+		float control_scale = precise ? 0.1f : 1.f;
+		keys::scroll_delta += keys::scroll_is_horizontal ? 0.f : -y * control_scale;
+		keys::scroll_x_delta += keys::scroll_is_horizontal ? -x * control_scale : 0.f;
+		// Vertical scroll views should always receive the native Y component. Axis locking is only for controls that
+		// interpret wheel units (for example, horizontal timeline panning) and must not discard subtle list movement.
+		if (precise) {
+			float point_delta = -y / render::ui_scale;
+			keys::precise_scroll_delta += point_delta;
+
+			// Keep the latest native velocity for a continuous handoff from finger/momentum motion to the edge spring.
+			// The first packet uses a conservative display-rate estimate because it has no preceding timestamp.
+			float event_seconds =
+				new_gesture ? 1.f / 60.f : (float)(timestamp - previous_wheel_timestamp) / SDL_NS_PER_SECOND;
+			event_seconds = std::clamp(event_seconds, 1.f / 240.f, 1.f / 20.f);
+			keys::precise_scroll_velocity = std::clamp(point_delta / event_seconds, -6000.f, 6000.f);
+		}
+	}
+}
 
 bool keys::process_event(const SDL_Event& event) {
 	if (ui::get_active_element() &&
@@ -20,6 +76,15 @@ bool keys::process_event(const SDL_Event& event) {
 	}
 
 	ui::event_queue.push_back(event);
+
+	os::window::ScrollEvent native_scroll;
+	if (os::window::consume_native_scroll_event(event, native_scroll)) {
+		keys::scroll_gesture_active = native_scroll.physical;
+		keys::scroll_momentum_active = native_scroll.momentum;
+		if (native_scroll.x != 0.f || native_scroll.y != 0.f)
+			process_scroll_delta(native_scroll.x, native_scroll.y, native_scroll.precise, event.common.timestamp);
+		return true;
+	}
 
 	switch (event.type) {
 		case SDL_EVENT_WINDOW_MOUSE_LEAVE: {
@@ -75,18 +140,7 @@ bool keys::process_event(const SDL_Event& event) {
 		}
 
 		case SDL_EVENT_MOUSE_WHEEL: {
-			// TODO:
-			// if (event.wheel.type()) // trackpad
-			// 	scroll_delta_precise = event.wheelDelta().y;
-			// else // mouse
-
-			if (scroll_delta == 0.f && scroll_x_delta == 0.f)
-				// start of a scroll, see which direction it's (primarily) in
-				scroll_is_horizontal = std::abs(event.wheel.x) > std::abs(event.wheel.y);
-
-			scroll_delta += scroll_is_horizontal ? 0 : -event.wheel.y;
-			scroll_x_delta += scroll_is_horizontal ? -event.wheel.x : 0;
-			// todo: better trackpad scrolling (https://github.com/libsdl-org/SDL/pull/5382)
+			process_scroll_delta(event.wheel.x, event.wheel.y, false, event.wheel.timestamp);
 			return true;
 		}
 

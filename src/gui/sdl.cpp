@@ -83,7 +83,11 @@ namespace {
 
 tl::expected<void, std::string> sdl::initialise() {
 	SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1"); // idk mpv example says to
-	// SDL_SetHint(SDL_HINT_MAC_SCROLL_MOMENTUM, "1");
+#ifdef __APPLE__
+	// Let Cocoa continue precise trackpad gestures after finger lift. This must be set before SDL_Init so SDL can
+	// register AppleMomentumScrollSupported when it creates the application object.
+	SDL_SetHint(SDL_HINT_MAC_SCROLL_MOMENTUM, "1");
+#endif
 	SDL_SetHint(
 		SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1"
 	); // allows the screen to auto sleep. WHY IS THIS DISABLED BY DEFAULT?
@@ -141,6 +145,14 @@ tl::expected<void, std::string> sdl::initialise() {
 	if (!window)
 		return tl::unexpected("Failed to create SDL window");
 
+	if (!os::window::initialise_scroll_tracking())
+		return tl::unexpected("Failed to initialise native scroll handling");
+#ifdef __APPLE__
+	// Cocoa scroll events are translated by the native handler with point precision and gesture phase information.
+	// Suppress SDL's legacy deltaX/deltaY copy so each physical event reaches the UI exactly once.
+	SDL_SetEventEnabled(SDL_EVENT_MOUSE_WHEEL, false);
+#endif
+
 	apply_app_config(config);
 	remember_config_write_time();
 
@@ -181,6 +193,8 @@ tl::expected<void, std::string> sdl::initialise() {
 }
 
 void sdl::cleanup() {
+	os::window::cleanup_scroll_tracking();
+
 	for (auto& [_, cursor] : cursor_cache) {
 		SDL_DestroyCursor(cursor);
 	}

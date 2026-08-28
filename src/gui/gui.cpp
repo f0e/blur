@@ -158,7 +158,7 @@ int gui::run() {
 		}
 		else {
 			rendered_last = false;
-			SDL_Delay(sdl::TICKRATE_MS);
+			SDL_WaitEventTimeout(nullptr, (Sint32)sdl::TICKRATE_MS);
 		}
 	}
 }

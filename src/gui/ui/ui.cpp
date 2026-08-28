@@ -40,6 +40,69 @@ namespace {
 		return std::max(get_content_height(container) - container.get_usable_rect().h, 0);
 	}
 
+	float scroll_edge(float scroll_y, float max_scroll) {
+		return std::clamp(scroll_y, 0.f, max_scroll);
+	}
+
+	void apply_precise_scroll(ui::Container& container) {
+		float delta = keys::precise_scroll_delta;
+		float max_scroll = (float)get_max_scroll(container);
+		float edge = scroll_edge(container.scroll_y, max_scroll);
+		float overscroll = std::abs(container.scroll_y - edge);
+		float proposed_scroll = container.scroll_y + delta;
+		bool moving_outward = (proposed_scroll < 0.f && delta < 0.f) || (proposed_scroll > max_scroll && delta > 0.f);
+
+		float resistance = 1.f;
+		if (moving_outward) {
+			resistance = 0.35f / (1.f + overscroll / 80.f);
+			if (keys::scroll_momentum_active && !keys::scroll_gesture_active && overscroll > 0.f)
+				delta = 0.f; // the spring carries momentum after it enters the rubber band
+			else
+				delta *= resistance;
+		}
+
+		container.scroll_y += delta;
+		edge = scroll_edge(container.scroll_y, max_scroll);
+		if (container.scroll_y != edge && delta != 0.f)
+			container.scroll_speed_y = keys::precise_scroll_velocity * resistance;
+		else if (container.scroll_y == edge)
+			container.scroll_speed_y = 0.f;
+
+		float overscroll_limit = container.rect.h * 0.2f;
+		container.scroll_y = std::clamp(container.scroll_y, -overscroll_limit, max_scroll + overscroll_limit);
+	}
+
+	void update_overscroll_spring(ui::Container& container, float max_scroll, float delta_time) {
+		float target = scroll_edge(container.scroll_y, max_scroll);
+		float displacement = container.scroll_y - target;
+		if (displacement == 0.f)
+			return;
+
+		float step = std::min(delta_time, 1.f / 30.f);
+		if (keys::scroll_gesture_active) {
+			container.scroll_speed_y *= std::exp(-18.f * step);
+			return;
+		}
+
+		// Exact critically damped spring, preserving the incoming scroll velocity through the bounce.
+		constexpr float frequency = 15.f;
+		float coefficient = container.scroll_speed_y + frequency * displacement;
+		float decay = std::exp(-frequency * step);
+		float next_displacement = (displacement + coefficient * step) * decay;
+		float next_velocity = (container.scroll_speed_y - frequency * coefficient * step) * decay;
+
+		if (next_displacement * displacement <= 0.f ||
+		    (std::abs(next_displacement) < 0.05f && std::abs(next_velocity) < 2.f))
+		{
+			container.scroll_y = target;
+			container.scroll_speed_y = 0.f;
+		}
+		else {
+			container.scroll_y = target + next_displacement;
+			container.scroll_speed_y = next_velocity;
+		}
+	}
+
 	struct ScrollbarGeometry {
 		gfx::Rect track_rect; // the area the thumb travels in
 		gfx::Rect thumb_rect;
@@ -510,26 +573,18 @@ bool ui::update_container_input(Container& container) {
 	hovered_id = hovered_element_internal ? hovered_element_internal->element->id : "";
 
 	// scroll
-	if (keys::scroll_delta != 0.f) { // || keys::scroll_delta_precise != 0.f) {
-		if (container.rect.contains(keys::mouse_pos)) {
-			if (can_scroll(container)) {
-				container.scroll_to_top = false; // user took over
-				container.scroll_speed_y += keys::scroll_delta * 1500.f;
-				keys::scroll_delta = 0.f;
+	bool has_scroll = keys::scroll_delta != 0.f || keys::precise_scroll_delta != 0.f;
+	if (has_scroll && container.rect.contains(keys::mouse_pos) && can_scroll(container)) {
+		container.scroll_to_top = false; // user took over
 
-				// if (keys::scroll_delta_precise != 0.f) {
-				// 	container.scroll_y += keys::scroll_delta_precise;
-				// 	keys::scroll_delta_precise = 0.f;
+		if (keys::precise_scroll_delta != 0.f)
+			apply_precise_scroll(container);
+		else
+			container.scroll_speed_y += keys::scroll_delta * 1500.f;
 
-				// 	// immediately clamp to edges todo: overscroll with trackpad?
-				// 	int max_scroll = get_max_scroll(container);
-				// 	container.scroll_y = std::clamp(container.scroll_y, 0.f, (float)max_scroll);
-				// }
-
-				updated |=
-					true; // if != 0 checks imply that scroll speed changed, no need to explicitly check if it has
-			}
-		}
+		keys::scroll_delta = 0.f;
+		keys::precise_scroll_delta = 0.f;
+		updated = true;
 	}
 
 	return updated;
@@ -545,7 +600,7 @@ void ui::on_update_input_end() {
 	// reset scroll, shouldn't scroll stuff on a later update
 	keys::scroll_delta = 0.f;
 	keys::scroll_x_delta = 0.f;
-	// keys::scroll_delta_precise = 0.f;
+	keys::precise_scroll_delta = 0.f;
 
 	// empty text events if they werent processed for some reason
 	text_event_queue.clear();
@@ -571,8 +626,6 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 		float last_scroll_y = container.scroll_y;
 
 		const float scroll_speed_reset_speed = 17.f;
-		const float scroll_speed_overscroll_reset_speed = 25.f;
-		const float scroll_overscroll_reset_speed = 10.f;
 		const float scroll_reset_speed = 10.f;
 		const float scroll_to_top_speed = 15.f;
 
@@ -585,19 +638,10 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 			// clamp scroll
 			int max_scroll = get_max_scroll(container);
 
-			if (container.scroll_y < 0) {
-				container.scroll_speed_y =
-					u::lerp(container.scroll_speed_y, 0.f, scroll_speed_overscroll_reset_speed * delta_time);
-				container.scroll_y = u::lerp(container.scroll_y, 0.f, scroll_overscroll_reset_speed * delta_time);
-			}
-			else if (container.scroll_y > max_scroll) {
-				container.scroll_speed_y =
-					u::lerp(container.scroll_speed_y, 0.f, scroll_speed_overscroll_reset_speed * delta_time);
-				container.scroll_y =
-					u::lerp(container.scroll_y, (float)max_scroll, scroll_overscroll_reset_speed * delta_time);
-			}
-
-			if (container.scroll_speed_y != 0.f) {
+			bool overscrolled = container.scroll_y < 0.f || container.scroll_y > max_scroll;
+			if (overscrolled)
+				update_overscroll_spring(container, (float)max_scroll, delta_time);
+			else if (container.scroll_speed_y != 0.f) {
 				container.scroll_y += container.scroll_speed_y * delta_time;
 				container.scroll_speed_y =
 					u::lerp(container.scroll_speed_y, 0.f, scroll_speed_reset_speed * delta_time);
