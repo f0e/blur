@@ -2,6 +2,7 @@
 #include "common/config_app.h"
 #include "render/render.h"
 #include "os/desktop_notification.h"
+#include "os/taskbar.h"
 #include "os/window.h"
 #include "ui/ui.h"
 #include "renderer.h"
@@ -56,6 +57,12 @@ namespace {
 		bool scale_changed = previous_scale != render::dpi_scale_override;
 
 		if (sdl::window) {
+			// live-reloadable: turning it off mid-session should clear whatever's on the icon
+			if (config.taskbar_progress)
+				os::taskbar::initialise(sdl::window);
+			else
+				os::taskbar::cleanup();
+
 			// MINIMUM_WINDOW_SIZE is in scaled (logical) design units, but sdl wants window coordinates,
 			// so scale it up by the os content scale to keep the same usable minimum on high-dpi displays
 			float content_scale = render::get_content_scale(sdl::window);
@@ -192,6 +199,9 @@ void sdl::cleanup() {
 		SDL_GL_DestroyContext(sdl::gl_context);
 		sdl::gl_context = nullptr;
 	}
+
+	// takes the progress off the icon, so it has to happen while the window's still around
+	os::taskbar::cleanup();
 
 	if (sdl::window) {
 		SDL_RemoveEventWatch(event_watcher, window);

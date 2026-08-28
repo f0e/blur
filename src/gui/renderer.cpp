@@ -521,6 +521,8 @@ void gui::renderer::on_render_finished(
 	if (!result) {
 		components::render_history::add_failure(render, result.error());
 
+		gui::render_failed = true;
+
 		auto app_config = config_app::get_app_config();
 		if (app_config.render_failure_notifications) {
 			desktop_notification::show("Blur render failed", std::format("Failed to render video {}", video_name));
@@ -538,6 +540,6 @@ void gui::renderer::on_render_finished(
 
 	auto app_config = config_app::get_app_config();
 	if (app_config.render_success_notifications) {
-		desktop_notification::show("Blur render complete", "Render completed successfully");
+		desktop_notification::show("Blur render complete", std::format("Finished rendering {}", video_name));
 	}
 }
