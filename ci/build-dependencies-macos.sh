@@ -67,6 +67,25 @@ download_library() {
   cd ../..
 }
 
+download_wheel() {
+  local url="$1"
+  local dir_name="$2"
+
+  mkdir -p download/$dir_name
+  cd download/$dir_name
+
+  if [ ! -d "wheel" ]; then
+    echo "Downloading $dir_name wheel..."
+    wget -q "$url" -O wheel.zip # a wheel is just a zip
+    unzip -q wheel.zip -d wheel
+    rm wheel.zip
+  else
+    echo "$dir_name wheel already extracted. Skipping download."
+  fi
+
+  cd ../..
+}
+
 download_model_files() {
   local base_url="$1"
   local model_name="$2"
@@ -124,6 +143,11 @@ build() {
       echo "Pulling"
       git pull
     fi
+  fi
+
+  # cloning only recurses submodules at the default branch, which may not match the pinned commit
+  if [ -f .gitmodules ]; then
+    git submodule update --init --recursive --depth 1
   fi
 
   eval "$build_cmd"
@@ -222,6 +246,10 @@ sudo make install
 ### copy vspipe
 cp build/vapoursynth/.libs/vspipe $out_dir/vapoursynth
 
+# build the plugins against the vapoursynth we just bundled, not brew's - which wins by default and
+# ships a headers-only .pc with no libdir, breaking bestsource
+export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+
 ## bestsource
 build "https://github.com/vapoursynth/bestsource.git" "--single-branch --recurse-submodules --shallow-submodules --remote-submodules" "c2be08527100a363e0018bc907c73644737b3953" "bestsource" "
 meson setup build
@@ -236,7 +264,6 @@ ninja -C build
 
 ## rife ncnn vulkan
 build "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan.git" "--single-branch" "c3ec6aabc07c8fa37a4f58d7fed9e2ad1fc1b13f" "rife-ncnn-vulkan" "
-git submodule update --init --recursive --depth 1
 meson build
 ninja -C build
 " "build" "vapoursynth-plugins"
@@ -250,15 +277,27 @@ make
 cd ../..
 " "build/unix/.libs" "vapoursynth-plugins"
 
-PATH="/opt/homebrew/opt/llvm@20/bin:$PATH"
-ZSTD_PREFIX=$(brew --prefix zstd)
+## akarin (jet fork, only published as a wheel these days. saves us building llvm too)
+download_wheel \
+  "https://files.pythonhosted.org/packages/ff/61/9bcb383dc8fdfefe4444801130f40015490227e880873b8d233cd1d4c1cb/vapoursynth_akarin-1.5.0-py3-none-macosx_14_0_arm64.whl" \
+  "akarin"
 
-## akarin
-build "https://github.com/Jaded-Encoding-Thaumaturgy/akarin-vapoursynth-plugin.git" "--single-branch" "ed8ecd58722958891684a25fb883bbe626b8950a" "akarin" "
-meson build
-sed -i.bak \"s|-lzstd|-L${ZSTD_PREFIX}/lib -lzstd|g\" build/build.ninja # fuck you
-ninja -C build
-" "build" "vapoursynth-plugins"
+akarin_plugin="$out_dir/vapoursynth-plugins/libakarin.dylib"
+mkdir -p "$out_dir/vapoursynth-plugins"
+cp download/akarin/wheel/vapoursynth/plugins/akarin/libakarin.dylib "$akarin_plugin"
+
+# repoint the wheel's bundled dylibs at the extracted copies, dylibbundler picks them up later
+otool -L "$akarin_plugin" | grep vapoursynth_akarin.dylibs | awk '{print $1}' | while read -r dep; do
+  install_name_tool -change "$dep" "$PWD/download/akarin/wheel/vapoursynth_akarin.dylibs/$(basename "$dep")" "$akarin_plugin"
+done
+
+if otool -L "$akarin_plugin" | awk 'NR>1 {print $1}' | grep -q '^@'; then
+  echo "ERROR: akarin still has unresolved dylib references"
+  exit 1
+fi
+
+# install_name_tool invalidates the ad-hoc signature, and arm64 won't load an unsigned dylib
+codesign -f -s - "$akarin_plugin"
 
 # Define model downloads
 echo "Starting model downloads..."

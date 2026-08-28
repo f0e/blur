@@ -85,7 +85,8 @@ jobs:
             libnotify-dev \
             libmpv-dev \
             ninja-build \
-            gperf
+            gperf \
+            patchelf
 
       - name: Install GCC
         if: runner.os == 'Linux'
@@ -118,7 +119,7 @@ jobs:
       - name: Collect dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install ffmpeg libass zimg imagemagick autoconf automake libtool gcc ffmpeg llvm@20 meson xxhash vapoursynth fftw dylibbundler vulkan-loader molten-vk mpv
+          brew install ffmpeg libass zimg imagemagick autoconf automake libtool gcc ffmpeg meson xxhash vapoursynth fftw dylibbundler vulkan-loader molten-vk mpv
           cd ci
           bash build-dependencies-macos.sh
 

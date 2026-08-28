@@ -175,7 +175,6 @@ Blur supports rendering from frameservers. This means you can avoid having to ru
   - smooth - _[explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - default _(default svp settings)_
 - SVP interpolation algorithm - algorithm used for framerate interpolation when using SVP, one of:
-
   - 13 - best overall quality and smoothness (default) - _[explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - 23 - sometimes smoother than 13, but can result in smearing - _[explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - 1 - _[explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
@@ -184,7 +183,6 @@ Blur supports rendering from frameservers. This means you can avoid having to ru
   - 21 - _[explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
 
 - interpolation block size - block size used for framerate interpolation. higher block size = less accurate blur, will result in spaces around non-moving objects of the frame, also renders faster. lower block size = more accurate blur, but can result in artifacting, also slower. for higher framerate input videos lower block size can be better. options:
-
   - 4
   - 8 (default)
   - 16
@@ -215,15 +213,15 @@ If your distro isn't listed below, here's a list of the things you'll need to in
   - [SVPflow](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
   - [BestSource](https://github.com/vapoursynth/bestsource) ([my automated build](https://github.com/f0e/blur-plugin-builds/releases/latest))
   - [MVTools](https://github.com/dubhater/vapoursynth-mvtools) ([my automated build](https://github.com/f0e/blur-plugin-builds/releases/latest))
-  - [Akarin](https://github.com/AkarinVS/vapoursynth-plugin) (or this [fork which supports newer LLVM versions](https://github.com/Jaded-Encoding-Thaumaturgy/akarin-vapoursynth-plugin)) ([my automated build](https://github.com/f0e/blur-plugin-builds/releases/latest))
+  - [Akarin](https://github.com/Jaded-Encoding-Thaumaturgy/akarin-vapoursynth-plugin)
   - [RIFE-ncnn-Vulkan](https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/releases/latest)
   - [Adjust](https://github.com/f0e/Vapoursynth-adjust/releases/latest)
 
 ### Arch required packages
 
-`paru -S vapoursynth ffmpeg vapoursynth-plugin-svpflow vapoursynth-plugin-bestsource vapoursynth-plugin-mvtools vapoursynth-plugin-vsakarin-av1an-git vapoursynth-plugin-rife-ncnn-vulkan`
+`paru -S vapoursynth ffmpeg vapoursynth-plugin-svpflow vapoursynth-plugin-bestsource vapoursynth-plugin-mvtools vapoursynth-plugin-rife-ncnn-vulkan`
 
-And manually install [adjust](https://github.com/f0e/Vapoursynth-adjust/releases/latest)
+And manually install [adjust](https://github.com/f0e/Vapoursynth-adjust/releases/latest) and akarin via `pip install vapoursynth-akarin`
 
 ---
 
