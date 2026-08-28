@@ -23,6 +23,7 @@ struct GlobalAppSettings {
 
 	bool render_success_notifications = false;
 	bool render_failure_notifications = false;
+	bool taskbar_progress = true;
 
 	bool check_updates = true;
 	bool check_beta = false;

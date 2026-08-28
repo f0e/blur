@@ -328,6 +328,12 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"taskbar progress checkbox",
+			{
+				"Shows how far along the current render is on the app\x27s taskbar icon",
+			},
+		},
+		{
 			"config override notification checkbox",
 			{
 				"Notifies you when a video is rendered using a config file next to it rather than the global config",

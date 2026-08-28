@@ -6,12 +6,52 @@
 #include "ui/ui.h"
 #include "components/notifications.h"
 #include "components/configs/configs.h"
+#include "os/taskbar.h"
 
 #define DEBUG_RENDER_LOGGING 0
 
 namespace {
 	const int PAD_X = 24;
 	const int PAD_Y = PAD_X;
+
+	// mirrors the render queue onto the taskbar/dock icon. runs every tick rather than every drawn frame
+	// so the icon keeps moving while the window's minimised; set_progress drops calls that wouldn't
+	// change anything, so this is cheap
+	void update_taskbar_progress() {
+		using os::taskbar::ProgressState;
+
+		auto current = rendering::video_render_queue.front();
+
+		if (current) {
+			gui::render_failed = false;
+
+			auto progress = current->state->get_progress();
+
+			// still spinning up, or building a tensorrt engine - there's no frame count to show yet
+			if (!progress.rendered_a_frame || progress.total_frames <= 0) {
+				os::taskbar::set_progress(ProgressState::INDETERMINATE);
+				return;
+			}
+
+			os::taskbar::set_progress(
+				current->state->is_paused() ? ProgressState::PAUSED : ProgressState::NORMAL,
+				float(progress.current_frame) / float(progress.total_frames)
+			);
+			return;
+		}
+
+		if (gui::render_failed) {
+			// keep the red bar up until the window's been looked at - that's the whole point of it
+			if (sdl::window && !(SDL_GetWindowFlags(sdl::window) & SDL_WINDOW_INPUT_FOCUS)) {
+				os::taskbar::set_progress(ProgressState::ERRORED, 1.f);
+				return;
+			}
+
+			gui::render_failed = false;
+		}
+
+		os::taskbar::set_progress(ProgressState::NONE);
+	}
 }
 
 int gui::run() {
@@ -33,6 +73,8 @@ int gui::run() {
 
 		// check if app config was edited & we have to re-render
 		to_render |= sdl::poll_config_reload();
+
+		update_taskbar_progress();
 
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {

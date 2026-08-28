@@ -46,6 +46,7 @@ std::string config_app::generate_config_string(const GlobalAppSettings& settings
 	output << "- desktop notifications" << "\n";
 	output << "render success notifications: " << (settings.render_success_notifications ? "true" : "false") << "\n";
 	output << "render failure notifications: " << (settings.render_failure_notifications ? "true" : "false") << "\n";
+	output << "taskbar progress: " << (settings.taskbar_progress ? "true" : "false") << "\n";
 
 	output << "\n";
 	output << "- updates" << "\n";
@@ -141,6 +142,7 @@ GlobalAppSettings config_app::parse_from_map(const std::map<std::string, std::st
 	config_base::extract_config_value(
 		config_map, "render failure notifications", settings.render_failure_notifications
 	);
+	config_base::extract_config_value(config_map, "taskbar progress", settings.taskbar_progress);
 
 	config_base::extract_config_value(config_map, "check for updates", settings.check_updates);
 	config_base::extract_config_value(config_map, "include beta updates", settings.check_beta);

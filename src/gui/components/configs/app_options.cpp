@@ -136,6 +136,14 @@ void configs::app_options(ui::Container& container) {
 	);
 
 	ui::add_checkbox(
+		"taskbar progress checkbox",
+		container,
+		"taskbar icon render progress",
+		app_settings.taskbar_progress,
+		fonts::dejavu
+	);
+
+	ui::add_checkbox(
 		"config override notification checkbox",
 		container,
 		"notify about config overrides",
