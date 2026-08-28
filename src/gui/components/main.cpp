@@ -7,6 +7,7 @@
 #include "../gui.h"
 
 #include "../ui/ui.h"
+#include "common/masks.h"
 #include "../render/render.h"
 #include <SDL3/SDL_dialog.h>
 
@@ -308,6 +309,27 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 			tasks::cancel_pending(removed_video_id);
 		}
 	);
+
+	// which mask this clip renders with. seeded from its config when it was added, so this starts on the
+	// configured default. applies to the selected clip, same as the trim controls above
+	{
+		// the dropdown holds onto a pointer to this, so it has to outlive the frame
+		static std::string selected_mask;
+		selected_mask = pending_video->mask.empty() ? masks::NONE_OPTION : pending_video->mask;
+
+		ui::add_dropdown(
+			"mask dropdown",
+			container,
+			"mask",
+			masks::options(pending_video->mask),
+			selected_mask,
+			fonts::dejavu,
+			[pending_video](std::string* new_value) {
+				pending_video->mask = *new_value == masks::NONE_OPTION ? "" : *new_value;
+			},
+			{ masks::NONE_OPTION }
+		);
+	}
 
 	if (trim_disabled) {
 		ui::add_text(

@@ -32,7 +32,8 @@ namespace {
 			[](const rendering::VideoRenderDetails& render,
 		       const tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>>& result) {
 				gui::renderer::on_render_finished(render, result);
-			}
+			},
+			pending_video->mask
 		);
 
 		// Show notification if config override is used
@@ -127,10 +128,14 @@ void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
 
 		static size_t next_video_id = 0;
 
+		// start from whatever mask this video's config resolves to. the queue screen can change it after
+		auto config_res = config_blur::get_config(config_blur::get_config_filename(path.parent_path()), true);
+
 		pending_videos.push_back(
 			std::make_shared<PendingVideo>(PendingVideo{
 				.video_id = next_video_id++,
 				.video_path = path,
+				.mask = config_res.config.mask,
 			})
 		);
 	}

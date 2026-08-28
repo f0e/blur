@@ -87,6 +87,19 @@ Using blur on 60fps footage results in clean motion blur, but occasionally leave
 
 If your footage contains duplicate frames then occasionally blurred frames will look out of place, making the video seem unsmooth at points. The 'deduplicate' option will automatically fill in duplicated frames with interpolated frames to prevent this from happening.
 
+### Masks
+
+Interpolation has no idea that a HUD isn't part of the scene, so it warps static overlays - crosshairs, killfeeds, timers - along with the world behind them. A mask marks those regions so they keep their original pixels instead.
+
+Masks are png files kept in the `masks` folder of your config folder. White means "interpolate this as normal", black means "leave this alone". Anything in between blends the two.
+
+Pick one with the `mask` config setting to apply it to everything by default, and override it per clip from the dropdown in the queue - so a Counter-Strike mask and a Fortnite mask can be used on different clips in the same batch. `blur-cli` takes a `--mask` argument for the same thing (`--mask none` turns off a mask set in the config).
+
+Two things worth knowing:
+
+- Masked areas still get motion blur. Only interpolation skips them, so they blend like the rest of the video.
+- The mask is scaled to fit the video, so one mask works across resolutions as long as the aspect ratio matches.
+
 ### Frameserver output
 
 Blur supports rendering from frameservers. This means you can avoid having to run blur on your input videos when video editing. When rendering, simply output (make sure your project is high framerate) to the frameserver and then drag the generated AVI into blur. Note that some video editing software might limit the maximum project framerate.
@@ -113,6 +126,7 @@ Blur supports rendering from frameservers. This means you can avoid having to ru
 
 - interpolate - whether or not the input video file will be interpolated to a higher fps
 - interpolated fps - if interpolate is enabled, this is the fps that the input file will be interpolated to (before blurring). can be a set fps number or a multiplier (append x to end e.g. `5x`)
+- mask - mask image used to protect parts of the frame from interpolation, or `none`. [see masks](#masks)
 - interpolation method - method used for interpolation:
   - Quality: RIFE > svp
   - Speed: svp > RIFE
