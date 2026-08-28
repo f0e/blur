@@ -77,6 +77,25 @@ download_library() {
   cd ../..
 }
 
+download_wheel() {
+  local url="$1"
+  local dir_name="$2"
+
+  mkdir -p download/$dir_name
+  cd download/$dir_name
+
+  if [ ! -d "wheel" ]; then
+    echo "Downloading $dir_name wheel..."
+    wget -q "$url" -O wheel.zip # a wheel is just a zip
+    unzip -q wheel.zip -d wheel
+    rm wheel.zip
+  else
+    echo "$dir_name wheel already extracted. Skipping download."
+  fi
+
+  cd ../..
+}
+
 download_model_files() {
   local base_url="$1"
   local model_name="$2"
@@ -117,11 +136,19 @@ download_library \
   "libbestsource.so" \
   "vapoursynth-plugins"
 
-# akarin
-download_library \
-  "https://github.com/f0e/blur-plugin-builds/releases/latest/download/libakarin.so" \
-  "libakarin.so" \
-  "vapoursynth-plugins"
+# akarin (jet fork, only published as a wheel these days)
+download_wheel \
+  "https://files.pythonhosted.org/packages/88/82/656755adce60bdf2758c0b03eb3ed7b9622c114bed1d5a1c6c7e13fb5e77/vapoursynth_akarin-1.5.0-py3-none-manylinux_2_35_x86_64.whl" \
+  "akarin"
+
+plugins_dir="$out_dir/vapoursynth-plugins"
+mkdir -p "$plugins_dir"
+cp download/akarin/wheel/vapoursynth/plugins/akarin/libakarin.so "$plugins_dir"
+
+# flatten in the wheel's bundled deps. their hashed names don't end in .so, so the plugin loader
+# ignores them
+cp download/akarin/wheel/vapoursynth_akarin.libs/* "$plugins_dir"
+patchelf --set-rpath '$ORIGIN' "$plugins_dir/libakarin.so"
 
 # mvtools
 download_library \

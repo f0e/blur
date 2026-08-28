@@ -122,9 +122,13 @@ Set-Location $PWD
 # Plugin installations
 $plugins = @(
     @{
+        # jet fork, only published as a wheel (a zip in disguise) since v1.3.0
         Name         = "Akarin";
-        Url          = "https://github.com/AkarinVS/vapoursynth-plugin/releases/download/v0.96/akarin-release-lexpr-amd64-v0.96g3.7z";
-        FilePatterns = @("akarin.dll");
+        Url          = "https://files.pythonhosted.org/packages/0d/31/95658c029a7ee3bbfc1359f9fa623a13f0a3ff0d940ba9e204421dd7a0ca/vapoursynth_akarin-1.5.0-py3-none-win_amd64.whl";
+        FilePatterns = @(
+            "vapoursynth/plugins/akarin/libakarin.dll",
+            "vapoursynth/plugins/akarin/libzstd.dll" # akarin links against this
+        );
     },
     @{
         Name         = "BestSource";
@@ -179,7 +183,7 @@ foreach ($plugin in $plugins) {
     }
     else {
         # Archive download that needs extraction
-        $archiveExt = if ($plugin.Url.EndsWith('.zip')) { '.zip' } else { '.7z' }
+        $archiveExt = if ($plugin.Url.EndsWith('.zip') -or $plugin.Url.EndsWith('.whl')) { '.zip' } else { '.7z' }
         $archivePath = Join-Path $vapoursynthDir "$($plugin.Name.ToLower())$archiveExt"
         Download-File -Url $plugin.Url -OutFile $archivePath
         Extract-Files -ArchivePath $archivePath -FilePatterns $plugin.FilePatterns -DestinationPath $pluginsDir
