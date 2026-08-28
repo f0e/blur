@@ -38,6 +38,9 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		if (!concise || settings.interpolate) {
 			output << "interpolated fps: " << settings.interpolated_fps << "\n";
 			output << "interpolation method: " << settings.interpolation_method << "\n";
+			if (!concise || !settings.mask.empty()) {
+				output << "mask: " << settings.mask << "\n";
+			}
 		}
 	}
 
@@ -300,6 +303,7 @@ BlurSettings config_blur::parse_from_map(const std::map<std::string, std::string
 	config_base::extract_config_value(config_map, "interpolate", settings.interpolate);
 	config_base::extract_config_value(config_map, "interpolated fps", settings.interpolated_fps);
 	config_base::extract_config_value(config_map, "interpolation method", settings.interpolation_method);
+	config_base::extract_config_value(config_map, "mask", settings.mask);
 
 	config_base::extract_config_value(config_map, "pre-interpolate", settings.pre_interpolate);
 	config_base::extract_config_value(config_map, "pre-interpolated fps", settings.pre_interpolated_fps);
@@ -446,6 +450,7 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 	j["interpolate"] = this->interpolate;
 	j["interpolated_fps"] = this->interpolated_fps;
 	j["interpolation_method"] = this->interpolation_method;
+	j["mask"] = this->mask;
 
 	j["pre_interpolate"] = this->pre_interpolate;
 	j["pre_interpolated_fps"] = this->pre_interpolated_fps;
