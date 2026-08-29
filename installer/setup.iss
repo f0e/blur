@@ -54,6 +54,8 @@ Name: "envPath"; Description: "Add to PATH"; GroupDescription: "{cm:AdditionalIc
 Source: ".\resources\blur-gui.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: ".\resources\blur-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: ".\resources\libmpv-2.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: ".\resources\libEGL.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: ".\resources\libGLESv2.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: ".\dependencies\*"; DestDir: "{app}"; Components: main; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: ".\redist\VC_redist.x64.exe"; DestDir: {tmp}; Flags: deleteafterinstall
 

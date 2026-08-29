@@ -2,9 +2,12 @@ cmake_minimum_required(VERSION 3.20)
 
 set(VCPKG_LIBRARY_LINKAGE static)
 if(WIN32)
+  set(VCPKG_OVERLAY_TRIPLETS
+      "${CMAKE_CURRENT_LIST_DIR}/cmake/triplets"
+      CACHE STRING "" FORCE)
   set(VCPKG_TARGET_TRIPLET
-      "x64-windows-static"
-      CACHE STRING "")
+      "x64-windows-blur"
+      CACHE STRING "" FORCE)
 endif()
 
 # Force static runtime on Windows
@@ -30,7 +33,11 @@ find_package(CLI11 CONFIG REQUIRED)
 find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3)
 find_package(SDL3_image CONFIG REQUIRED)
 find_package(Freetype REQUIRED)
-find_package(glad CONFIG REQUIRED)
+if(WIN32)
+  find_package(unofficial-angle REQUIRED CONFIG)
+else()
+  find_package(glad CONFIG REQUIRED)
+endif()
 find_package(GTest CONFIG REQUIRED)
 find_package(tl-expected CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
@@ -142,7 +149,11 @@ endif()
 # imgui
 target_include_directories(blur
                            PRIVATE ${PROJECT_SOURCE_DIR}/dependencies/imgui)
-target_compile_definitions(blur PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
+if(WIN32)
+  target_compile_definitions(blur PRIVATE IMGUI_IMPL_OPENGL_ES3)
+else()
+  target_compile_definitions(blur PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
+endif()
 
 # stb
 target_include_directories(blur PRIVATE ${PROJECT_SOURCE_DIR}/dependencies/stb)
@@ -170,8 +181,22 @@ else()
 endif()
 
 target_link_libraries(
-  blur PRIVATE blur-common SDL3::SDL3 SDL3_image::SDL3_image Freetype::Freetype
-               glad::glad)
+  blur PRIVATE blur-common SDL3::SDL3 SDL3_image::SDL3_image Freetype::Freetype)
+
+if(WIN32)
+  target_link_libraries(blur PRIVATE unofficial::angle::libGLESv2)
+  add_custom_command(
+    TARGET blur
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:unofficial::angle::libEGL>" "$<TARGET_FILE_DIR:blur>/"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:unofficial::angle::libGLESv2>"
+            "$<TARGET_FILE_DIR:blur>/"
+    COMMENT "Copying ANGLE runtime to output directory")
+else()
+  target_link_libraries(blur PRIVATE glad::glad)
+endif()
 
 if(APPLE)
   set_source_files_properties(src/gui/os/desktop_notification_mac.mm

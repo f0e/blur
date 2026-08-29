@@ -1,6 +1,7 @@
 output/
 
 resources/*.exe
+resources/*.dll
 
 redist/*
 
