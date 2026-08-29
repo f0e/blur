@@ -630,6 +630,15 @@ void configs::options(ui::Container& container) {
 			fonts::dejavu
 		);
 
+		ui::add_dropdown(
+			"source plugin dropdown",
+			container,
+			"source plugin",
+			config_blur::SOURCE_PLUGINS,
+			settings.advanced.source_plugin,
+			fonts::dejavu
+		);
+
 		/*
 		    Advanced Interpolation
 		*/

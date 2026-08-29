@@ -137,8 +137,8 @@ $plugins = @(
     },
     @{
         Name         = "LSmashSource";
-        Url          = "https://github.com/HomeOfAviSynthPlusEvolution/L-SMASH-Works/releases/download/1194.0.0.0/L-SMASH-Works-r1194.0.0.0.7z";
-        FilePatterns = @("x64/LSMASHSource.dll");
+        Url          = "https://files.pythonhosted.org/packages/a2/4f/f5804dbeb6563486e1d72ce3e72cb9ae2c7201c6660112447f2e1c6f85ec/vapoursynth_lsmas-1310.0.0.0-py3-none-win_amd64.whl";
+        FilePatterns = @("vapoursynth/plugins/LSMASHSource.dll");
     },
     @{
         Name         = "MVTools";

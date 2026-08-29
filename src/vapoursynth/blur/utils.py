@@ -91,7 +91,7 @@ def load_plugins(extension: str):
             try:
                 core.std.LoadPlugin(path=str(plugin))
             except Exception as e:
-                raise BlurException(f"Failed to load plugin {plugin.name}: {e}")
+                log(f"Failed to load plugin {plugin.name}: {e}")
 
 
 def safe_int(value):

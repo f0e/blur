@@ -136,13 +136,20 @@ download_library \
   "libbestsource.so" \
   "vapoursynth-plugins"
 
+# lsmash
+download_wheel \
+  "https://files.pythonhosted.org/packages/ec/de/40a4c15d0ddb4014edb3fd92f1358cf9e2c2b14eb272b04912aaa802e58f/vapoursynth_lsmas-1310.0.0.0-py3-none-manylinux_2_28_x86_64.whl" \
+  "lsmas"
+
+mkdir -p "$out_dir/vapoursynth-plugins"
+cp download/lsmas/wheel/vapoursynth/plugins/liblsmashsource.so "$out_dir/vapoursynth-plugins"
+
 # akarin (jet fork, only published as a wheel these days)
 download_wheel \
   "https://files.pythonhosted.org/packages/88/82/656755adce60bdf2758c0b03eb3ed7b9622c114bed1d5a1c6c7e13fb5e77/vapoursynth_akarin-1.5.0-py3-none-manylinux_2_35_x86_64.whl" \
   "akarin"
 
 plugins_dir="$out_dir/vapoursynth-plugins"
-mkdir -p "$plugins_dir"
 cp download/akarin/wheel/vapoursynth/plugins/akarin/libakarin.so "$plugins_dir"
 
 # flatten in the wheel's bundled deps. their hashed names don't end in .so, so the plugin loader
