@@ -10,12 +10,7 @@ from pathlib import Path
 from fractions import Fraction
 from dataclasses import dataclass
 
-DEBUG_ENABLED = False
-
-
-def log(*args):
-    if DEBUG_ENABLED:  # printing to stdout garbles video output
-        print(*args)
+from blur import log
 
 
 class BlurException(Exception):
@@ -87,11 +82,11 @@ def load_plugins(extension: str):
 
     for plugin in plugin_dir.glob(f"*{extension}"):
         if plugin.name not in ignored:
-            log("Loading", plugin.name)
+            log.info("Loading", plugin.name)
             try:
                 core.std.LoadPlugin(path=str(plugin))
             except Exception as e:
-                log(f"Failed to load plugin {plugin.name}: {e}")
+                log.info(f"Failed to load plugin {plugin.name}: {e}")
 
 
 def safe_int(value):
@@ -223,7 +218,7 @@ def with_format(
                 # here im just making educated guesses as to what they are but this is so dumb
                 props = dict(video.get_frame(0).props)
 
-                log("guessing video props. original props:", props)
+                log.info("guessing video props. original props:", props)
 
                 set_props = {}
 
@@ -242,7 +237,7 @@ def with_format(
             if video_info.resize_chromaloc is not None:
                 convert_kwargs["chromaloc_s"] = video_info.resize_chromaloc
 
-            log("conversion kwargs", convert_kwargs)
+            log.info("conversion kwargs", convert_kwargs)
 
             video = core.resize.Point(video, **convert_kwargs)
     except BlurException:
@@ -269,7 +264,7 @@ def with_format(
             ):
                 convert_back_kwargs["matrix_s"] = "709"
 
-            log("conversion back kwargs", convert_back_kwargs)
+            log.info("conversion back kwargs", convert_back_kwargs)
 
             video = core.resize.Point(video, **convert_back_kwargs)
 

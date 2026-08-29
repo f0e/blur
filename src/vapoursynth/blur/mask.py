@@ -15,11 +15,11 @@ import vapoursynth as vs
 
 import hashlib
 import struct
-import sys
 import zlib
 from pathlib import Path
 
 import blur.utils as u
+from blur import log
 
 
 def load(path: Path) -> vs.VideoNode:
@@ -140,16 +140,6 @@ NOTHING_SUFFIX = ".nothing"
 # nothing left to do, so the detection is treated as a miss either way
 MIN_STATIC_FRACTION = 0.0001
 MAX_STATIC_FRACTION = 0.5
-
-
-def _note(message: str):
-    """Say something about the mask where the user can actually see it.
-
-    u.log goes to stdout, which is where the video is being piped, so it's off unless someone turns it on
-    while developing. blur reads the script's stderr for its render log, and watches it for the sentinel that
-    puts "generating a mask" on screen in place of the render progress.
-    """
-    print(f"[blur] {message}", file=sys.stderr, flush=True)
 
 
 def _detached(clip: vs.VideoNode) -> vs.VideoNode:
@@ -314,14 +304,15 @@ def generate(clip: vs.VideoNode) -> vs.VideoNode | None:
     to find - too short a clip, no static region, or so much of the frame static that it can't be an overlay.
     The caller should render without a mask in that case.
     """
-    # this exact wording is what blur watches for to show "analysing video" instead of the render progress
-    _note("Generating mask")
+    # this exact line, prefix included, is what blur watches for to show "analysing video" in place of
+    # the render progress
+    log.info("Generating mask")
 
     analysed = _analysed(clip)
 
     indices = _samples(analysed, SAMPLE_COUNT)
     if len(indices) < MIN_SAMPLES:
-        _note(
+        log.info(
             f"Mask: only {len(indices)} frames of this video differ from each other, "
             "so there's nothing to tell an overlay apart from the scene. Rendering unmasked"
         )
@@ -358,19 +349,19 @@ def generate(clip: vs.VideoNode) -> vs.VideoNode | None:
     fraction = core.std.PlaneStats(static).get_frame(0).props["PlaneStatsAverage"]
 
     if fraction < MIN_STATIC_FRACTION:
-        _note(
+        log.info(
             f"Mask: nothing static found ({fraction:.4%} of the frame). Rendering unmasked"
         )
         return None
 
     if fraction > MAX_STATIC_FRACTION:
-        _note(
+        log.info(
             f"Mask: {fraction:.1%} of the frame is static, far too much of it to be an overlay. "
             "Rendering unmasked"
         )
         return None
 
-    _note(f"Mask: protecting the {fraction:.2%} of the frame that never moves")
+    log.info(f"Mask: protecting the {fraction:.2%} of the frame that never moves")
 
     # the blur's ramp is centred on the edge it's given, so growing by GROW_PX + FEATHER_PX first leaves
     # everything within GROW_PX of the detection fully protected once the ramp has eaten back into it
@@ -493,21 +484,21 @@ def cached(
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / _cache_name(video_path, _cache_key(video_path, analysed))
     except OSError as e:
-        _note(f"Mask: can't use the cache ({e}), analysing this video every time")
+        log.info(f"Mask: can't use the cache ({e}), analysing this video every time")
         return generate(clip)
 
     if path.with_suffix(NOTHING_SUFFIX).exists():
-        u.log("mask: cached as nothing worth masking")
+        log.info("Mask: cached as nothing worth masking")
         return None
 
     mask_file = path.with_suffix(MASK_SUFFIX)
     if mask_file.exists():
         try:
-            u.log(f"mask: reusing {mask_file.name}")
+            log.info(f"Mask: reusing {mask_file.name}")
             return load(mask_file)
         except Exception as e:
             # unreadable, so it's no better than not having it
-            u.log(f"mask: couldn't read {mask_file.name} ({e}), analysing again")
+            log.info(f"Mask: couldn't read {mask_file.name} ({e}), analysing again")
 
     gray = generate(clip)
 
@@ -515,7 +506,7 @@ def cached(
         _store(gray, path)
         _prune(folder)
     except OSError as e:
-        _note(f"Mask: couldn't save to the cache ({e})")
+        log.info(f"Mask: couldn't save to the cache ({e})")
 
     return gray
 

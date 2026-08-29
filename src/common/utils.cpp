@@ -1051,6 +1051,39 @@ namespace {
 	}
 }
 
+std::string u::without_error_objects(const std::string& stderr_output) {
+	std::string kept;
+	kept.reserve(stderr_output.size());
+
+	size_t copied = 0;
+	for (size_t start = stderr_output.find('{'); start != std::string::npos; start = stderr_output.find('{', start + 1))
+	{
+		if (start < copied) // inside a blob that's already been skipped
+			continue;
+
+		size_t end = find_object_end(stderr_output, start);
+		if (end == std::string::npos)
+			break;
+
+		auto json = nlohmann::json::parse(
+			stderr_output.begin() + static_cast<std::ptrdiff_t>(start),
+			stderr_output.begin() + static_cast<std::ptrdiff_t>(end) + 1,
+			nullptr,
+			false
+		);
+
+		if (json.is_discarded() || !json.is_object() || !json.contains("error_type"))
+			continue;
+
+		kept.append(stderr_output, copied, start - copied);
+		copied = end + 1;
+	}
+
+	kept.append(stderr_output, copied, std::string::npos);
+
+	return kept;
+}
+
 tl::expected<u::ParsedError, std::string> u::parse_error_output(const std::string& stderr_output) {
 	ParsedError result;
 	result.is_blur_exception = false;
