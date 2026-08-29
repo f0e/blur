@@ -556,4 +556,6 @@ namespace u {
 	};
 
 	tl::expected<ParsedError, std::string> parse_error_output(const std::string& stderr_output);
+
+	std::string without_error_objects(const std::string& stderr_output);
 }

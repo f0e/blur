@@ -222,12 +222,10 @@ namespace {
 			err.is_blur_exception = false;
 		}
 
-		// a parsed blur exception already says everything worth saying, and the stderr it came out of is just the
-		// json blob it was parsed from - showing that back to the user is noise
-		if (!err.is_blur_exception) {
-			err.vspipe_errors = vspipe_errors;
-			err.ffmpeg_errors = ffmpeg_errors;
-		}
+		// the blobs a blur exception was parsed out of are already the error message, so they come out - but
+		// what the script logged on its way there stays, since that's the part that says what it was doing
+		err.vspipe_errors = err.is_blur_exception ? u::without_error_objects(vspipe_errors) : vspipe_errors;
+		err.ffmpeg_errors = ffmpeg_errors;
 
 		return err;
 	}

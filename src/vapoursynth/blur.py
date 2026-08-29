@@ -14,6 +14,7 @@ import blur.interpolate
 import blur.mask
 import blur.weighting
 import blur.utils as u
+from blur import log
 
 EXPECTED_PLUGINS = [
     "com.holywu.rife",
@@ -96,7 +97,7 @@ try:
 
     source_plugin = settings["source_plugin"]
     if source_plugin == "LWLibavSource" and LSMASH_PLUGIN not in loaded_plugins:
-        u.log("LSMASH isn't available, falling back to BestSource")
+        log.info("LSMASH isn't available, falling back to BestSource")
         source_plugin = "BestSource"
 
     if source_plugin == "LWLibavSource":
@@ -275,7 +276,7 @@ try:
             ):  # if can be while if rife limits the max interpolation fps, but i don't think it does
                 old_fps = video.fps
 
-                u.log(f"pre-interpolating to {pre_interpolated_fps}")
+                log.info(f"pre-interpolating to {pre_interpolated_fps}")
 
                 match settings["pre_interpolation_method"]:
                     case "rife":
@@ -303,12 +304,12 @@ try:
                         )
 
                 fps_added = video.fps - old_fps
-                u.log(
+                log.info(
                     f"added {fps_added} (interp: {pre_interpolated_fps}. video.fps: {video.fps}/{pre_interpolated_fps})"
                 )
 
         if video.fps < interpolated_fps:
-            u.log(
+            log.info(
                 f"interpolating to {interpolated_fps} with {settings['interpolation_method']}"
             )
             old_fps = video.fps
@@ -375,7 +376,7 @@ try:
                     )
 
             fps_added = video.fps - old_fps
-            u.log(
+            log.info(
                 f"added {fps_added} (interp: {interpolated_fps}. video.fps: {video.fps}/{interpolated_fps})"
             )
 
@@ -384,7 +385,7 @@ try:
     # masking. deduplication is included because filling a dropped frame means interpolating one, and it's
     # interpolation that warps an overlay - but if neither actually ran there are no artifacts to put back
     if mask_name and (deduplicating or interpolated):
-        u.log(f"applying mask {mask_name}")
+        log.info(f"applying mask {mask_name}")
 
         if mask_name == blur.mask.AUTO:
             mask_clip = blur.mask.cached(
