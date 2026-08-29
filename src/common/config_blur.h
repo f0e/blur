@@ -48,8 +48,9 @@ struct BlurSettings {
 	std::string interpolation_method = "svp";
 #endif
 
-	// filename of a png in <settings path>/masks, or empty for none. masks protect regions from
-	// interpolation, so this does nothing when interpolate is off
+	// filename of an image in <settings path>/masks, "auto" to work one out from the video, or empty for
+	// none. masks protect regions from being interpolated, so this does nothing unless interpolation or
+	// deduplication is running
 	std::string mask;
 
 	bool pre_interpolate = false;

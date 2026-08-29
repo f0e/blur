@@ -160,15 +160,25 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 		((abs_end_time - video_info.video_start_time) * video_info.fps_num / video_info.fps_den) + 0.5
 	);
 
+	bool trimmed = start != 0.f || end != 1.f;
+
 	auto ffmpeg_args = detail::build_ffmpeg_video_args(
-		input_path, video_info, settings, app_settings, output_path, start_frame, end_frame, start != 0.f || end != 1.f
+		input_path, video_info, settings, app_settings, output_path, start_frame, end_frame, trimmed
 	);
 	if (!ffmpeg_args)
 		return tl::unexpected(ffmpeg_args.error());
 
 	RenderCommands commands = {
-		.vspipe_video =
-			detail::build_vspipe_video_args(input_path, *merged_settings, video_info, start_frame, end_frame),
+		.vspipe_video = detail::build_vspipe_video_args(
+			input_path,
+			*merged_settings,
+			video_info,
+			start_frame,
+			end_frame,
+			// only when there's actually a trim. left off, the script works the mask out from the whole video,
+		    // which is what a preview does too - so an untrimmed render and its preview share one cached mask
+			trimmed ? std::optional{ std::pair{ start_frame, end_frame } } : std::nullopt
+		),
 		.ffmpeg = *ffmpeg_args,
 	};
 

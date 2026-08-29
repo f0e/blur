@@ -125,11 +125,19 @@ try:
     start = int(vars().get("start", 0))
     end = int(vars().get("end", video.num_frames))
 
+    # what an automatic mask gets worked out from. blur passes this separately from the trim above, because a
+    # render's start is the user's trim but a preview's is wherever the seek bar is - and a mask that followed
+    # the seek bar would be a different mask every time, none of them cacheable. left unset it's the whole
+    # video, which is what a preview and an untrimmed render both want
+    mask_start = max(0, int(vars().get("mask_start", 0)))
+    mask_end = min(int(vars().get("mask_end", video.num_frames)), video.num_frames)
+    mask_source = video[mask_start:mask_end]
+
     video = video[start:end]
 
-    # the video as it arrived, before anything fills in or invents frames. this is both what an automatic mask
-    # is worked out from and what masked regions get put back to, because deduplication's fill frames are
-    # interpolated and warp an overlay exactly the way interpolation proper does
+    # what masked regions get put back to. taken after trimming so it lines up with the render frame for
+    # frame, and before deduplication because its fill frames are interpolated and warp an overlay exactly
+    # the way interpolation proper does
     original = video
 
     # input timescale
@@ -372,7 +380,12 @@ try:
         u.log(f"applying mask {mask_name}")
 
         if mask_name == blur.mask.AUTO:
-            mask_clip = blur.mask.generate(original)
+            mask_clip = blur.mask.cached(
+                mask_source,
+                video_path,
+                settings_path / blur.mask.CACHE_FOLDER,
+                (mask_start, mask_end),
+            )
         else:
             mask_clip = blur.mask.load(settings_path / "masks" / mask_name)
 

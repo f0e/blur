@@ -5,22 +5,25 @@ A mask marks those regions, and the original frames get put back over them after
 warped, while still going through frame blending like everything else. Deduplication fills a dropped frame by
 interpolating one, so it warps an overlay the same way and a mask covers it too.
 
-A mask is a png in <settings path>/masks: white where the frame should be interpolated as normal, black where
-it should be left alone. The "auto" setting skips the png and works one out from the video itself - see
+A mask is an image in <settings path>/masks: white where the frame should be interpolated as normal, black
+where it should be left alone. The "auto" setting skips the file and works one out from the video itself - see
 `generate`.
 """
 
 from vapoursynth import core
 import vapoursynth as vs
 
+import hashlib
+import struct
 import sys
+import zlib
 from pathlib import Path
 
 import blur.utils as u
 
 
 def load(path: Path) -> vs.VideoNode:
-    """Read a mask png into a one frame GRAY clip."""
+    """Read a mask image into a one frame GRAY clip."""
     if not path.exists():
         raise u.BlurException(f"Mask '{path.name}' wasn't found in {path.parent}")
 
@@ -119,11 +122,34 @@ CLUSTER_COVERAGE = 0.06
 GROW_PX = 1
 FEATHER_PX = 1
 
+# generated masks are kept here, under the settings folder alongside blur's other state, so a video is only
+# ever analysed once however many previews and renders it goes through
+CACHE_FOLDER = "auto-masks"
+
+# how many to keep, oldest dropped first. a mask is mostly flat black and white so it compresses to a few
+# kilobytes - the whole cache at this limit is a couple of megabytes, which is why the limit can be this loose
+CACHE_LIMIT = 256
+
+# a cached mask, and a cached "there was nothing to mask here". the mask is a png so that it's the same kind
+# of file as a hand made one - copy it into the masks folder and it's a mask like any other
+MASK_SUFFIX = ".png"
+NOTHING_SUFFIX = ".nothing"
+
 # below this fraction of the frame there's nothing worth protecting. above it, whatever was found is far bigger
 # than a HUD - a locked-off shot, or a video that barely moves - and masking it would leave interpolation with
 # nothing left to do, so the detection is treated as a miss either way
 MIN_STATIC_FRACTION = 0.0001
 MAX_STATIC_FRACTION = 0.5
+
+
+def _note(message: str):
+    """Say something about the mask where the user can actually see it.
+
+    u.log goes to stdout, which is where the video is being piped, so it's off unless someone turns it on
+    while developing. blur reads the script's stderr for its render log, and watches it for the sentinel that
+    puts "generating a mask" on screen in place of the render progress.
+    """
+    print(f"[blur] {message}", file=sys.stderr, flush=True)
 
 
 def _detached(clip: vs.VideoNode) -> vs.VideoNode:
@@ -288,16 +314,16 @@ def generate(clip: vs.VideoNode) -> vs.VideoNode | None:
     to find - too short a clip, no static region, or so much of the frame static that it can't be an overlay.
     The caller should render without a mask in that case.
     """
-    # stderr, not u.log: this one is for the user rather than the render log, and blur watches for it to say
-    # why nothing is rendering yet. stdout would garble the video going down the pipe
-    print("[blur] Generating mask", file=sys.stderr, flush=True)
+    # this exact wording is what blur watches for to show "analysing video" instead of the render progress
+    _note("Generating mask")
 
     analysed = _analysed(clip)
 
     indices = _samples(analysed, SAMPLE_COUNT)
     if len(indices) < MIN_SAMPLES:
-        u.log(
-            f"auto mask: only {len(indices)} frames of this clip differ from each other, not masking"
+        _note(
+            f"Mask: only {len(indices)} frames of this video differ from each other, "
+            "so there's nothing to tell an overlay apart from the scene. Rendering unmasked"
         )
         return None
 
@@ -332,18 +358,19 @@ def generate(clip: vs.VideoNode) -> vs.VideoNode | None:
     fraction = core.std.PlaneStats(static).get_frame(0).props["PlaneStatsAverage"]
 
     if fraction < MIN_STATIC_FRACTION:
-        u.log(
-            f"auto mask: found nothing static ({fraction:.4%} of the frame), not masking"
+        _note(
+            f"Mask: nothing static found ({fraction:.4%} of the frame). Rendering unmasked"
         )
         return None
 
     if fraction > MAX_STATIC_FRACTION:
-        u.log(
-            f"auto mask: {fraction:.1%} of the frame is static, too much of it to be an overlay, not masking"
+        _note(
+            f"Mask: {fraction:.1%} of the frame is static, far too much of it to be an overlay. "
+            "Rendering unmasked"
         )
         return None
 
-    u.log(f"auto mask: {fraction:.3%} of the frame is static")
+    _note(f"Mask: protecting the {fraction:.2%} of the frame that never moves")
 
     # the blur's ramp is centred on the edge it's given, so growing by GROW_PX + FEATHER_PX first leaves
     # everything within GROW_PX of the detection fully protected once the ramp has eaten back into it
@@ -354,6 +381,143 @@ def generate(clip: vs.VideoNode) -> vs.VideoNode | None:
 
     # masks read the other way round: white means "interpolate this as normal"
     return _detached(core.std.Expr(static, "1 x -"))
+
+
+# Caching
+#
+# A config preview re-runs this whole script for every setting the user nudges and every seek, so without
+# somewhere to put the answer the video would be analysed again each time. Masks are static, so the answer
+# only depends on the video and on how the analysis works, and both of those go into the key.
+
+
+def _cache_key(video_path: Path, analysed: tuple[int, int]) -> str:
+    """Identify a video, the part of it being analysed, and the analysis that would be run on it.
+
+    This module's own source is part of the key, so any change to how a mask is worked out - a retuned
+    constant included - leaves old cached masks behind rather than quietly reusing them.
+    """
+    stat = video_path.stat()
+    subject = f"{video_path.resolve()}\n{stat.st_size}\n{stat.st_mtime_ns}\n{analysed}".encode()
+
+    return hashlib.sha1(subject + Path(__file__).read_bytes()).hexdigest()[:16]
+
+
+def _cache_name(video_path: Path, key: str) -> str:
+    """`key` is what identifies the file; the video's name is in there to make the folder readable."""
+    readable = "".join(c if c.isalnum() or c in "-_" else "_" for c in video_path.stem)[
+        :48
+    ]
+
+    return f"{readable}-{key}"
+
+
+def _greyscale_png(plane, width: int, height: int) -> bytes:
+    """Encode a single 8 bit plane as a png.
+
+    Hand rolled because none of the plugins blur ships can write an image, and a png is worth the twenty lines
+    - it's what a mask is normally, so a generated one can be opened, touched up and kept like any other.
+
+    Scanlines go in unfiltered. Filtering exists to help the compressor find patterns, and a mask is mostly
+    flat runs of black and white, which zlib already handles about as well as it's going to.
+    """
+    packed = (
+        plane.tobytes()
+    )  # tobytes drops the stride padding, leaving exactly width bytes a row
+    scanlines = b"".join(
+        b"\x00" + packed[y * width : (y + 1) * width] for y in range(height)
+    )
+
+    def chunk(kind: bytes, body: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(body))
+            + kind
+            + body
+            + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
+        )
+
+    return b"".join(
+        [
+            b"\x89PNG\r\n\x1a\n",
+            # 8 bits a sample, colour type 0 (greyscale), no interlacing
+            chunk(b"IHDR", struct.pack(">2I5B", width, height, 8, 0, 0, 0, 0)),
+            chunk(b"IDAT", zlib.compress(scanlines, 9)),
+            chunk(b"IEND", b""),
+        ]
+    )
+
+
+def _store(gray: vs.VideoNode | None, path: Path):
+    """Write a generated mask out, or note that there wasn't one worth having."""
+    if gray is None:
+        path.with_suffix(NOTHING_SUFFIX).write_bytes(b"")
+        return
+
+    # 8 bit is what a mask png is, and all a coverage value needs
+    eight_bit = core.resize.Point(
+        gray, format=vs.GRAY8, range_in_s="full", range_s="full", dither_type="none"
+    )
+    png = _greyscale_png(eight_bit.get_frame(0)[0], eight_bit.width, eight_bit.height)
+
+    # written alongside and moved into place, so a half written file is never picked up as a cached mask
+    partial = path.with_suffix(".partial")
+    partial.write_bytes(png)
+    partial.replace(path.with_suffix(MASK_SUFFIX))
+
+
+def _prune(folder: Path):
+    """Drop the oldest cached masks once there are more than CACHE_LIMIT of them."""
+    kept = sorted(
+        (p for p in folder.iterdir() if p.suffix in (MASK_SUFFIX, NOTHING_SUFFIX)),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+
+    for stale in kept[CACHE_LIMIT:]:
+        stale.unlink(missing_ok=True)
+
+
+def cached(
+    clip: vs.VideoNode, video_path: Path, folder: Path, analysed: tuple[int, int]
+) -> vs.VideoNode | None:
+    """`generate`, but remembering the answer on disk between runs.
+
+    `analysed` is which frames of `video_path` the clip covers. It's only used to tell cached masks apart:
+    trimming to a different part of a video can turn up a different overlay, so it can't share one.
+
+    Comes back 8 bit rather than float when it's read from the cache, which `match` handles either way.
+
+    Falls back to generating in place if the cache can't be read or written - a cache that isn't working is
+    not a reason to fail a render.
+    """
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / _cache_name(video_path, _cache_key(video_path, analysed))
+    except OSError as e:
+        _note(f"Mask: can't use the cache ({e}), analysing this video every time")
+        return generate(clip)
+
+    if path.with_suffix(NOTHING_SUFFIX).exists():
+        u.log("mask: cached as nothing worth masking")
+        return None
+
+    mask_file = path.with_suffix(MASK_SUFFIX)
+    if mask_file.exists():
+        try:
+            u.log(f"mask: reusing {mask_file.name}")
+            return load(mask_file)
+        except Exception as e:
+            # unreadable, so it's no better than not having it
+            u.log(f"mask: couldn't read {mask_file.name} ({e}), analysing again")
+
+    gray = generate(clip)
+
+    try:
+        _store(gray, path)
+        _prune(folder)
+    except OSError as e:
+        _note(f"Mask: couldn't save to the cache ({e})")
+
+    return gray
 
 
 def match(gray: vs.VideoNode, clip: vs.VideoNode) -> vs.VideoNode:

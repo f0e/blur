@@ -39,9 +39,6 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		if (!concise || settings.interpolate) {
 			output << "interpolated fps: " << settings.interpolated_fps << "\n";
 			output << "interpolation method: " << settings.interpolation_method << "\n";
-			if (!concise || !settings.mask.empty()) {
-				output << "mask: " << settings.mask << "\n";
-			}
 		}
 	}
 
@@ -64,6 +61,13 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		if (!concise || settings.deduplicate) {
 			output << "deduplicate method: " << settings.deduplicate_method << "\n";
 		}
+	}
+
+	// Masking section - after the two things it protects against, since it applies to both
+	if (!concise || !settings.mask.empty()) {
+		output << "\n";
+		output << "- masking" << "\n";
+		output << "mask: " << settings.mask << "\n";
 	}
 
 	// Rendering section (always included)

@@ -91,7 +91,7 @@ If your footage contains duplicate frames then occasionally blurred frames will 
 
 Interpolation has no idea that a HUD isn't part of the scene, so it warps static overlays - crosshairs, killfeeds, timers - along with the world behind them. A mask marks those regions so they keep their original pixels instead. It applies to deduplication as well, since filling in a dropped frame means interpolating one, and that warps an overlay the same way.
 
-Masks are png files kept in the `masks` folder of your config folder. White means "interpolate this as normal", black means "leave this alone". Anything in between blends the two.
+Masks are image files kept in the `masks` folder of your config folder - png, jpg, bmp, webp and tiff all work. White means "interpolate this as normal", black means "leave this alone". Anything in between blends the two.
 
 Pick one with the `mask` config setting to apply it to everything by default, and override it per clip from the dropdown in the queue - so a Counter-Strike mask and a Fortnite mask can be used on different clips in the same batch. `blur-cli` takes a `--mask` argument for the same thing (`--mask none` turns off a mask set in the config).
 
@@ -110,7 +110,11 @@ The mask is kept tight to what it found, with only a pixel or two of margin. Tha
 
 Because it works off what doesn't change, it finds overlays that are always on screen and always in the same place. Parts that animate - a killfeed appearing and disappearing, say - move like the rest of the frame, and faint text that barely stands out from what's behind it can be missed too. It also needs the scene itself to move: if the video doesn't change enough for the overlay to stand out against it, or so much of the frame is static that it can't be an overlay, the video is rendered without a mask.
 
-It costs a couple of dozen extra frame decodes per video, once, before rendering starts - a few seconds for a 1440p clip.
+If you've trimmed a clip, only the trimmed part is analysed - a different section of a video can have a different overlay on it, so the mask is worked out from what you're actually rendering.
+
+It costs a couple of dozen extra frame decodes per video, once, before rendering starts - a few seconds for a 1440p clip. The result is then kept in the `auto-masks` folder of your config folder and reused, so a video is only analysed once instead of again for every preview you scrub through. It's keyed on the video, on the part of it being rendered, and on how the analysis works, so trimming differently, editing the video or updating blur each get you a fresh one. They're pngs of a few kilobytes each, and the 256 most recent are kept.
+
+Those are ordinary mask images, so if one comes out nearly right you can copy it into the `masks` folder, touch it up in whatever you like, and use it as a normal mask on other clips of the same game.
 
 ### Frameserver output
 
@@ -138,7 +142,6 @@ Blur supports rendering from frameservers. This means you can avoid having to ru
 
 - interpolate - whether or not the input video file will be interpolated to a higher fps
 - interpolated fps - if interpolate is enabled, this is the fps that the input file will be interpolated to (before blurring). can be a set fps number or a multiplier (append x to end e.g. `5x`)
-- mask - mask image used to protect parts of the frame from interpolation and deduplication, `auto` to generate one from the video, or `none`. [see masks](#masks)
 - interpolation method - method used for interpolation:
   - Quality: RIFE > svp
   - Speed: svp > RIFE
@@ -148,6 +151,10 @@ Blur supports rendering from frameservers. This means you can avoid having to ru
 
 - pre-interpolation - enable pre-interpolation using a more accurate but slower AI model before main interpolation
 - pre-interpolated fps - FPS to pre-interpolate input video to (before blurring). can be a set fps number or a multiplier (append x to end e.g. `5x`)
+
+### masking
+
+- mask - mask image used to protect parts of the frame from interpolation and deduplication, `auto` to work one out from the video, or `none`. [see masks](#masks)
 
 ### rendering
 
@@ -186,6 +193,9 @@ Blur supports rendering from frameservers. This means you can avoid having to ru
 - video container - the output video container format (e.g. `mp4`, `mkv`, `avi`)
 - custom ffmpeg filters - custom ffmpeg filters to be used when rendering (replaces gpu & quality options)
 - debug - shows debug window, prints commands used by blur
+- source plugin - what decodes the input video, one of:
+  - `LWLibavSource` (default) - L-SMASH-Works, generally faster
+  - `BestSource` - slower, but more accurate seeking. also used as a fallback when L-SMASH-Works isn't available
 
 ### advanced blur
 
@@ -238,6 +248,7 @@ If your distro isn't listed below, here's a list of the things you'll need to in
 - VapourSynth plugins (install to your system vapoursynth plugin path or [your blur binary directory]/vapoursynth-plugins)
   - [SVPflow](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
   - [BestSource](https://github.com/vapoursynth/bestsource) ([my automated build](https://github.com/f0e/blur-plugin-builds/releases/latest))
+  - [L-SMASH-Works](https://github.com/HomeOfAviSynthPlusEvolution/L-SMASH-Works) - `pip install vapoursynth-lsmas`
   - [MVTools](https://github.com/dubhater/vapoursynth-mvtools) ([my automated build](https://github.com/f0e/blur-plugin-builds/releases/latest))
   - [Akarin](https://github.com/Jaded-Encoding-Thaumaturgy/akarin-vapoursynth-plugin)
   - [RIFE-ncnn-Vulkan](https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/releases/latest)
