@@ -36,6 +36,20 @@ namespace {
 		return attributes;
 	}
 
+	std::filesystem::path angle_library_dir() {
+		auto exe_dir = std::filesystem::path(u::get_executable_path()).parent_path();
+
+#ifdef __APPLE__
+		auto frameworks_dir = exe_dir.parent_path() / "Frameworks";
+
+		std::error_code ec;
+		if (std::filesystem::is_directory(frameworks_dir, ec))
+			return frameworks_dir;
+#endif
+
+		return exe_dir;
+	}
+
 	void remember_config_write_time() {
 		std::error_code ec;
 		auto write_time = std::filesystem::last_write_time(config_app::get_app_config_path(), ec);
@@ -117,11 +131,17 @@ tl::expected<void, std::string> sdl::initialise() {
 	SDL_SetHint(SDL_HINT_VIDEO_FORCE_EGL, "1");
 	SDL_SetHint(SDL_HINT_OPENGL_ES_DRIVER, "1");
 
-	// Use the packaged libraries beside the executable instead of another ANGLE
-	// installation that happens to be on the system loader's search path.
-	const char* base_path = SDL_GetBasePath();
-	const std::string angle_egl_path = std::format("{}{}", base_path ? base_path : "", BLUR_ANGLE_EGL_LIBRARY);
-	const std::string angle_gles_path = std::format("{}{}", base_path ? base_path : "", BLUR_ANGLE_GLES_LIBRARY);
+	// Use the packaged libraries instead of another ANGLE installation that
+	// happens to be on the system loader's search path.
+	const auto angle_dir = angle_library_dir();
+	const std::string angle_egl_path = (angle_dir / BLUR_ANGLE_EGL_LIBRARY).string();
+	const std::string angle_gles_path = (angle_dir / BLUR_ANGLE_GLES_LIBRARY).string();
+
+	for (const auto& path : { angle_egl_path, angle_gles_path }) {
+		if (!std::filesystem::exists(path))
+			u::log_error("ANGLE library missing: {} (the build didn't package it next to the app)", path);
+	}
+
 	SDL_SetHint(SDL_HINT_EGL_LIBRARY, angle_egl_path.c_str());
 	SDL_SetHint(SDL_HINT_OPENGL_LIBRARY, angle_gles_path.c_str());
 

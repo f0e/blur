@@ -84,9 +84,16 @@ bool render::init(SDL_Window* window, const SDL_GLContext& context) {
 void render::destroy() {
 	initialised = false;
 
+	if (!imgui.ctx)
+		return;
+
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplSDL3_Shutdown();
 	ImGui::DestroyContext();
+
+	imgui.ctx = nullptr;
+	imgui.io = nullptr;
+	imgui.drawlist = nullptr;
 }
 
 float render::get_content_scale(SDL_Window* window) {
