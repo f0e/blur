@@ -17,6 +17,12 @@ struct GlobalAppSettings {
 	float dpi_scale_override = 0.f; // 0 = auto (use the os content/dpi scale)
 
 	int preview_volume = 70;
+#ifdef __APPLE__
+	// off on mac by default because videotoolbox is slow to decode high fps footage (idk why)
+	bool preview_hardware_decoding = false;
+#else
+	bool preview_hardware_decoding = true;
+#endif
 
 	std::string sample_video_path;
 	float config_preview_seek = 0.5f;

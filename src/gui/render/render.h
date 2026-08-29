@@ -56,6 +56,7 @@ namespace render {
 	inline gfx::Size window_size;
 	inline float ui_scale = 1.f;
 	inline float dpi_scale_override = 0.f;
+	inline float framebuffer_scale = 1.f;
 	inline std::vector<std::function<void()>> late_draw_calls;
 
 	// Texture wrapper class for OpenGL textures
