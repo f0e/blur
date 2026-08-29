@@ -28,6 +28,12 @@ DEFAULT_SPEED = "medium"
 DEFAULT_MASKING = 50
 DEFAULT_GPU = True
 
+# svpflow has no cpu renderer on apple silicon - SmoothFps refuses outright with "CPU rendering is not supported
+# on ARM" - and the arm build is the only svp blur ships for macos. so there's no such thing as a cpu svp render
+# here, and anything that asks for one is a failure waiting to happen: dedupe turns gpu off on purpose (see
+# deduplicate.fill_drops_svp), and the gpu interpolation setting turns it off for the whole render
+SVP_REQUIRES_GPU = sys.platform == "darwin"
+
 
 def generate_svp_strings(
     new_fps,
@@ -40,6 +46,9 @@ def generate_svp_strings(
     gpu=DEFAULT_GPU,
     scene_detect=False,
 ):
+    if SVP_REQUIRES_GPU:
+        gpu = True
+
     # build super json
     super_json = {
         "pel": 1,

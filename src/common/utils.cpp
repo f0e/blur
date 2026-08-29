@@ -1018,27 +1018,70 @@ bool u::windows_toggle_suspend_process(DWORD pid, bool to_suspend) {
 }
 #endif
 
+namespace {
+	// where the json object starting at `start` ends, or npos if it never does. strings are tracked so that a
+	// brace inside one - blur's exception blobs carry whole python tracebacks - doesn't throw the count off
+	size_t find_object_end(const std::string& text, size_t start) {
+		int depth = 0;
+		bool in_string = false;
+		bool escaped = false;
+
+		for (size_t i = start; i < text.size(); i++) {
+			char c = text[i];
+
+			if (in_string) {
+				if (escaped)
+					escaped = false;
+				else if (c == '\\')
+					escaped = true;
+				else if (c == '"')
+					in_string = false;
+				continue;
+			}
+
+			if (c == '"')
+				in_string = true;
+			else if (c == '{')
+				depth++;
+			else if (c == '}' && --depth == 0)
+				return i;
+		}
+
+		return std::string::npos;
+	}
+}
+
 tl::expected<u::ParsedError, std::string> u::parse_error_output(const std::string& stderr_output) {
 	ParsedError result;
 	result.is_blur_exception = false;
 
-	size_t json_start = stderr_output.find('{');
-	size_t json_end = stderr_output.rfind('}');
+	// blur's scripts print one of these json blobs per failure, and a failure raised inside a frame callback
+	// gets printed once for every frame vapoursynth had in flight - so there can be several of them in here,
+	// back to back, surrounded by vspipe's own output. each is taken on its own: handing the whole span from
+	// the first brace to the last to the parser is a syntax error, and the first blur exception in it is the
+	// one that started everything anyway.
+	// nothing here throws - a render failing is not the moment to risk taking the app down with it
+	for (size_t start = stderr_output.find('{'); start != std::string::npos; start = stderr_output.find('{', start + 1))
+	{
+		size_t end = find_object_end(stderr_output, start);
+		if (end == std::string::npos)
+			break;
 
-	if (json_start != std::string::npos && json_end != std::string::npos && json_end > json_start) {
-		try {
-			std::string json_str = stderr_output.substr(json_start, json_end - json_start + 1);
-			auto json = nlohmann::json::parse(json_str);
+		auto json = nlohmann::json::parse(
+			stderr_output.begin() + static_cast<std::ptrdiff_t>(start),
+			stderr_output.begin() + static_cast<std::ptrdiff_t>(end) + 1,
+			nullptr,
+			false
+		);
 
-			if (json.contains("error_type") && json["error_type"] == "BlurException") {
-				result.is_blur_exception = true;
-				result.user_message = json.value("user_message", "An error occurred during processing");
-				result.technical_details = json.value("technical_details", stderr_output);
-				return result;
-			}
-		}
-		catch (const nlohmann::json::exception& e) {
-			DEBUG_LOG("Failed to parse JSON error: {}", e.what());
+		if (json.is_discarded() || !json.is_object())
+			continue;
+
+		if (json.contains("error_type") && json["error_type"] == "BlurException") {
+			result.is_blur_exception = true;
+			result.user_message = json.value("user_message", "An error occurred during processing");
+			result.technical_details = json.value("technical_details", stderr_output);
+			return result;
 		}
 	}
 

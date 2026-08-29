@@ -73,6 +73,7 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
             "-f", "image2pipe",
             "-",
         },
+        .ffmpeg_stops_early = true,
     };
 
 	state->enable_preview_capture();

@@ -451,7 +451,10 @@ def fill_drops_svp(
                 svp_algorithm,
                 svp_blocksize,
                 svp_masking,
-                False,  # TODO: check if false is actually faster (i think it is, gpu initialisation is slow(?), and it has to happen lots here) # svp_gpu,
+                # TODO: check if false is actually faster (i think it is, gpu initialisation is slow(?), and
+                # it has to happen lots here) # svp_gpu,
+                # macos ignores this and uses the gpu regardless - see interpolate.SVP_REQUIRES_GPU
+                False,
             ),
             debug,
             duplicate_mode,
