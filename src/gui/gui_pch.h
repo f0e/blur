@@ -12,11 +12,10 @@
 #include "render/primitives/size.h"
 #include "render/primitives/primitives_impl.h"
 
-#ifdef _WIN32
-#	include <GLES3/gl3.h>
-#else
-#	include <glad/glad.h>
-#endif
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#include <EGL/eglext_angle.h>
+#include <GLES3/gl3.h>
 
 #include <SDL3/SDL.h>
 // #include <SDL3/SDL_opengl.h>

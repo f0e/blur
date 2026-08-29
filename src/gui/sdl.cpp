@@ -19,6 +19,23 @@ namespace {
 	bool has_config_write_time = false;
 	Uint64 last_config_check_ms = 0;
 
+	SDL_EGLAttrib* SDLCALL angle_platform_attributes(void*) {
+		auto* attributes = static_cast<SDL_EGLAttrib*>(SDL_malloc(3 * sizeof(SDL_EGLAttrib)));
+		if (!attributes)
+			return nullptr;
+
+		attributes[0] = EGL_PLATFORM_ANGLE_TYPE_ANGLE;
+#ifdef _WIN32
+		attributes[1] = EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE;
+#elif defined(__APPLE__)
+		attributes[1] = EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE;
+#else
+		attributes[1] = EGL_PLATFORM_ANGLE_TYPE_OPENGL_ANGLE;
+#endif
+		attributes[2] = EGL_NONE;
+		return attributes;
+	}
+
 	void remember_config_write_time() {
 		std::error_code ec;
 		auto write_time = std::filesystem::last_write_time(config_app::get_app_config_path(), ec);
@@ -95,15 +112,26 @@ tl::expected<void, std::string> sdl::initialise() {
 		SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1"
 	); // allows the screen to auto sleep. WHY IS THIS DISABLED BY DEFAULT?
 
-#ifdef _WIN32
-	// SDL normally uses WGL on Windows. Force its OpenGL ES path so both SDL and
-	// libmpv share ANGLE's EGL/D3D11 device instead of a session-bound WGL driver.
+	// Use ANGLE's EGL/GLES implementation on every platform. The backing renderer
+	// is selected below (D3D11 on Windows, Metal on macOS, OpenGL on Linux).
 	SDL_SetHint(SDL_HINT_VIDEO_FORCE_EGL, "1");
 	SDL_SetHint(SDL_HINT_OPENGL_ES_DRIVER, "1");
-#endif
+
+	// Use the packaged libraries beside the executable instead of another ANGLE
+	// installation that happens to be on the system loader's search path.
+	const char* base_path = SDL_GetBasePath();
+	const std::string angle_egl_path = std::format("{}{}", base_path ? base_path : "", BLUR_ANGLE_EGL_LIBRARY);
+	const std::string angle_gles_path = std::format("{}{}", base_path ? base_path : "", BLUR_ANGLE_GLES_LIBRARY);
+	SDL_SetHint(SDL_HINT_EGL_LIBRARY, angle_egl_path.c_str());
+	SDL_SetHint(SDL_HINT_OPENGL_LIBRARY, angle_gles_path.c_str());
 
 	if (!SDL_Init(SDL_INIT_VIDEO))
-		return tl::unexpected("SDL initialization failed");
+		return tl::unexpected(std::format("SDL initialization failed: {}", SDL_GetError()));
+
+	if (!SDL_GL_SetAttribute(SDL_GL_EGL_PLATFORM, EGL_PLATFORM_ANGLE_ANGLE))
+		return tl::unexpected(std::format("Failed to select ANGLE's EGL platform: {}", SDL_GetError()));
+
+	SDL_EGL_SetAttributeCallbacks(angle_platform_attributes, nullptr, nullptr, nullptr);
 
 	auto config = config_app::get_app_config();
 
@@ -112,32 +140,11 @@ tl::expected<void, std::string> sdl::initialise() {
 		desktop_notification::initialise(APPLICATION_NAME);
 	}
 
-	// Decide GL+GLSL versions
-#if defined(IMGUI_IMPL_OPENGL_ES2)
-	// GL ES 2.0 + GLSL 100 (WebGL 1.0)
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#elif defined(IMGUI_IMPL_OPENGL_ES3)
 	// GL ES 3.0 + GLSL 300 es (WebGL 2.0)
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#elif defined(__APPLE__)
-	// GL 3.2 Core + GLSL 150
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Always required on Mac
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-#else
-	// GL 3.0 + GLSL 130
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#endif
 
 	// Create window with graphics context
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
@@ -169,17 +176,10 @@ tl::expected<void, std::string> sdl::initialise() {
 	// enable drag and drop
 	SDL_SetEventEnabled(SDL_EVENT_DROP_FILE, true);
 
-	// create opengl context
+	// create OpenGL ES context
 	gl_context = SDL_GL_CreateContext(window);
 	if (!gl_context)
 		return tl::unexpected(std::format("Failed to create SDL GL context: {}", SDL_GetError()));
-
-#ifndef _WIN32
-	if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) { // NOLINT(cppcoreguidelines-pro-type-cstyle-cast)
-		                                                          // ^ c lib
-		return tl::unexpected("Failed to initialise GLAD");
-	}
-#endif
 
 	if (!SDL_GL_MakeCurrent(window, gl_context))
 		return tl::unexpected(std::format("Failed to activate SDL GL context: {}", SDL_GetError()));
