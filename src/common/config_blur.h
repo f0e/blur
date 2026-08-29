@@ -12,6 +12,7 @@ struct AdvancedSettings {
 	std::string ffmpeg_override;
 	bool debug = false;
 	std::string resize_chromaloc = "default";
+	std::string source_plugin = "LWLibavSource";
 
 	float blur_weighting_gaussian_std_dev = 1.f;
 	float blur_weighting_gaussian_mean = 2.f;
@@ -117,6 +118,8 @@ namespace config_blur {
 	inline const std::vector<std::string> RESIZE_CHROMA_LOCATIONS = {
 		"default", "left", "center", "top_left", "top", "bottom_left", "bottom",
 	};
+
+	inline const std::vector<std::string> SOURCE_PLUGINS = { "LWLibavSource", "BestSource" };
 
 	const std::string CONFIG_FILENAME = ".blur-config.cfg";
 

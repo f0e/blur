@@ -29,6 +29,8 @@ EXPECTED_PLUGINS = [
     "info.akarin.vsplugin",
 ]
 
+LSMASH_PLUGIN = "systems.innocent.lsmas"
+
 try:
     if vars().get("macos_bundled") == "true":
         u.load_plugins(".dylib")
@@ -92,7 +94,12 @@ try:
     if tensorrt_device_index == -1:  # haven't benchmarked yet..?
         tensorrt_device_index = 0
 
-    if vars().get("enable_lsmash") == "true":
+    source_plugin = settings["source_plugin"]
+    if source_plugin == "LWLibavSource" and LSMASH_PLUGIN not in loaded_plugins:
+        u.log("LSMASH isn't available, falling back to BestSource")
+        source_plugin = "BestSource"
+
+    if source_plugin == "LWLibavSource":
         video = core.lsmas.LWLibavSource(
             source=video_path,
             cache=0,

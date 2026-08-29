@@ -148,6 +148,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 				output << "debug: " << (settings.advanced.debug ? "true" : "false") << "\n";
 			}
 			output << "resizing chroma location: " << settings.advanced.resize_chromaloc << "\n";
+			output << "source plugin: " << settings.advanced.source_plugin << "\n";
 
 			output << "\n";
 			output << "- advanced blur" << "\n";
@@ -358,6 +359,7 @@ BlurSettings config_blur::parse_from_map(const std::map<std::string, std::string
 		config_base::extract_config_value(config_map, "custom ffmpeg filters", settings.advanced.ffmpeg_override);
 		config_base::extract_config_value(config_map, "debug", settings.advanced.debug);
 		config_base::extract_config_value(config_map, "resizing chroma location", settings.advanced.resize_chromaloc);
+		config_base::extract_config_value(config_map, "source plugin", settings.advanced.source_plugin);
 
 		config_base::extract_config_value(
 			config_map, "blur weighting gaussian std dev", settings.advanced.blur_weighting_gaussian_std_dev
@@ -502,6 +504,7 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 	// j["ffmpeg_override"] = this->advanced.ffmpeg_override;
 	j["debug"] = this->advanced.debug;
 	j["resize_chromaloc"] = this->advanced.resize_chromaloc;
+	j["source_plugin"] = this->advanced.source_plugin;
 
 	j["blur_weighting_gaussian_std_dev"] = this->advanced.blur_weighting_gaussian_std_dev;
 	j["blur_weighting_gaussian_mean"] = this->advanced.blur_weighting_gaussian_mean;

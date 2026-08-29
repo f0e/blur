@@ -277,13 +277,20 @@ make
 cd ../..
 " "build/unix/.libs" "vapoursynth-plugins"
 
+## lsmash
+download_wheel \
+  "https://files.pythonhosted.org/packages/0a/3e/9ffe270c6c48d4c108a613931519edfc8ffecf39f50db9c0d57357654e64/vapoursynth_lsmas-1310.0.0.0-py3-none-macosx_15_0_arm64.whl" \
+  "lsmas"
+
+mkdir -p "$out_dir/vapoursynth-plugins"
+cp download/lsmas/wheel/vapoursynth/plugins/liblsmashsource.dylib "$out_dir/vapoursynth-plugins"
+
 ## akarin (jet fork, only published as a wheel these days. saves us building llvm too)
 download_wheel \
   "https://files.pythonhosted.org/packages/ff/61/9bcb383dc8fdfefe4444801130f40015490227e880873b8d233cd1d4c1cb/vapoursynth_akarin-1.5.0-py3-none-macosx_14_0_arm64.whl" \
   "akarin"
 
 akarin_plugin="$out_dir/vapoursynth-plugins/libakarin.dylib"
-mkdir -p "$out_dir/vapoursynth-plugins"
 cp download/akarin/wheel/vapoursynth/plugins/akarin/libakarin.dylib "$akarin_plugin"
 
 # repoint the wheel's bundled dylibs at the extracted copies, dylibbundler picks them up later
