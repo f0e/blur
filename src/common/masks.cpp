@@ -28,7 +28,7 @@ std::vector<std::string> masks::list() {
 std::vector<std::string> masks::options(const std::string& current) {
 	auto mask_files = list();
 
-	std::vector<std::string> options = { NONE_OPTION };
+	std::vector<std::string> options = { NONE_OPTION, AUTO_OPTION };
 	options.insert(options.end(), mask_files.begin(), mask_files.end());
 
 	if (!current.empty() && !u::contains(options, current))

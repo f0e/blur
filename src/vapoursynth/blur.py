@@ -124,6 +124,11 @@ try:
 
     video = video[start:end]
 
+    # what an automatic mask gets worked out from. taken before deduplication, whose fill frames are
+    # interpolated and warp overlays like any other interpolation would - which is exactly what the analysis
+    # is looking for the absence of
+    mask_analysis_source = video
+
     # input timescale
     if settings["timescale"]:
         input_timescale = float(settings["input_timescale"])
@@ -361,9 +366,15 @@ try:
         if mask_name and video.num_frames != pre_interpolation.num_frames:
             u.log(f"applying mask {mask_name}")
 
-            mask_clip = blur.mask.load(settings_path / "masks" / mask_name)
+            if mask_name == blur.mask.AUTO:
+                # returns None when it couldn't find an overlay to protect, in which case there's nothing
+                # sensible to mask and the video is left as interpolated
+                mask_clip = blur.mask.generate(mask_analysis_source)
+            else:
+                mask_clip = blur.mask.load(settings_path / "masks" / mask_name)
 
-            video = blur.mask.protect(video, pre_interpolation, mask_clip)
+            if mask_clip is not None:
+                video = blur.mask.protect(video, pre_interpolation, mask_clip)
 
     # output timescale
     if settings["timescale"]:
