@@ -6,6 +6,14 @@ namespace rendering {
 	// progress and preview frames). All mutable state is private; the two
 	// sides only ever touch it through the methods below.
 	struct RenderState {
+		// what a render is busy with before it starts producing frames, so the UI can say why it's taking a
+		// while (see RenderState::report_log_line). these happen in order, so the latest one reported wins
+		enum class InitStage : uint8_t {
+			none,
+			generating_mask,
+			building_engine,
+		};
+
 		struct Progress {
 			bool rendered_a_frame = false;
 			int current_frame = 0;
@@ -19,9 +27,7 @@ namespace rendering {
 
 			std::string string;
 
-			// set once a one-time TensorRT engine build is detected happening in place
-			// of frame rendering (see RenderState::report_log_line)
-			bool building_engine = false;
+			InitStage init_stage = InitStage::none;
 		};
 
 		// -- control (called from the UI thread) --
@@ -75,8 +81,8 @@ namespace rendering {
 		// fold a vspipe "Frame: n/m" update into progress + the status string
 		void report_frame_progress(int current_frame, int total_frames);
 
-		// scan a raw stderr line for the TensorRT engine-build sentinel, flipping
-		// building_engine on so the UI can show a more specific loading message
+		// scan a raw stderr line for the sentinels blur's scripts print before a slow one-off step, so the
+		// UI can show a more specific loading message than "initialising"
 		void report_log_line(const std::string& line);
 
 		// -- preview frames (jpeg piped out of ffmpeg) --

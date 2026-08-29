@@ -89,7 +89,7 @@ If your footage contains duplicate frames then occasionally blurred frames will 
 
 ### Masks
 
-Interpolation has no idea that a HUD isn't part of the scene, so it warps static overlays - crosshairs, killfeeds, timers - along with the world behind them. A mask marks those regions so they keep their original pixels instead.
+Interpolation has no idea that a HUD isn't part of the scene, so it warps static overlays - crosshairs, killfeeds, timers - along with the world behind them. A mask marks those regions so they keep their original pixels instead. It applies to deduplication as well, since filling in a dropped frame means interpolating one, and that warps an overlay the same way.
 
 Masks are png files kept in the `masks` folder of your config folder. White means "interpolate this as normal", black means "leave this alone". Anything in between blends the two.
 
@@ -104,9 +104,11 @@ Two things worth knowing:
 
 Setting `mask` to `auto` skips the png and works a mask out from the video itself, so you don't have to draw one per game.
 
-It samples frames from across the whole video and looks for the pixels that stayed put in nearly all of them - either because they were exactly the same colour every time, which is what a solid overlay looks like, or because they kept sitting on the same side of their surroundings, which is what a see-through one like a crosshair does when the scene behind it keeps changing. The scene moves as the camera does; a crosshair, HUD, scoreboard or watermark doesn't. What's left is grown slightly and softened at the edges, since interpolation drags in pixels from around an overlay as well as from it.
+It samples frames from across the whole video and looks for the pixels that stayed put in nearly all of them - either because they were exactly the same colour every time, which is what a solid overlay looks like, or because they kept sitting on the same side of their surroundings, which is what a see-through one like a crosshair does when the scene behind it keeps changing. Both brightness and colour are checked, so a green crosshair is still found on ground it happens to match in brightness. The scene moves as the camera does; a crosshair, HUD, scoreboard or watermark doesn't.
 
-Because it works off what doesn't change, it finds overlays that are always on screen and always in the same place. Parts that animate - a killfeed appearing and disappearing, say - move like the rest of the frame, and faint text that barely stands out from what's behind it can be missed too. If nothing static is found, or so much of the frame is static that it can't be an overlay (a locked-off shot, say), the video is rendered without a mask.
+The mask is kept tight to what it found, with only a pixel or two of margin. That matters more than it sounds: masked pixels come from the un-interpolated video, so mask that spills onto the scene freezes a halo of background around each overlay, and a frozen halo in the middle of smooth motion is more noticeable than the interpolation artifact the margin would have covered.
+
+Because it works off what doesn't change, it finds overlays that are always on screen and always in the same place. Parts that animate - a killfeed appearing and disappearing, say - move like the rest of the frame, and faint text that barely stands out from what's behind it can be missed too. It also needs the scene itself to move: if the video doesn't change enough for the overlay to stand out against it, or so much of the frame is static that it can't be an overlay, the video is rendered without a mask.
 
 It costs a couple of dozen extra frame decodes per video, once, before rendering starts - a few seconds for a 1440p clip.
 
@@ -136,7 +138,7 @@ Blur supports rendering from frameservers. This means you can avoid having to ru
 
 - interpolate - whether or not the input video file will be interpolated to a higher fps
 - interpolated fps - if interpolate is enabled, this is the fps that the input file will be interpolated to (before blurring). can be a set fps number or a multiplier (append x to end e.g. `5x`)
-- mask - mask image used to protect parts of the frame from interpolation, `auto` to generate one from the video, or `none`. [see masks](#masks)
+- mask - mask image used to protect parts of the frame from interpolation and deduplication, `auto` to generate one from the video, or `none`. [see masks](#masks)
 - interpolation method - method used for interpolation:
   - Quality: RIFE > svp
   - Speed: svp > RIFE

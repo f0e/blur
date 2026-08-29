@@ -74,8 +74,11 @@ try:
     if settings["blur_output_fps"] <= 0:
         raise u.BlurException("Output FPS must be above 0")
 
-    # masks only protect against interpolation, so there's nothing to apply when it's off
-    mask_name = settings["mask"] if settings["interpolate"] else ""
+    deduplicating = settings["deduplicate"] and settings["deduplicate_range"] != 0
+
+    # masks protect against interpolation, and deduplication fills the gaps it finds by interpolating too, so
+    # a mask is worth applying whenever either of them runs
+    mask_name = settings["mask"] if settings["interpolate"] or deduplicating else ""
 
     resize_chromaloc = settings["resize_chromaloc"]
     if resize_chromaloc == "default":
@@ -124,10 +127,10 @@ try:
 
     video = video[start:end]
 
-    # what an automatic mask gets worked out from. taken before deduplication, whose fill frames are
-    # interpolated and warp overlays like any other interpolation would - which is exactly what the analysis
-    # is looking for the absence of
-    mask_analysis_source = video
+    # the video as it arrived, before anything fills in or invents frames. this is both what an automatic mask
+    # is worked out from and what masked regions get put back to, because deduplication's fill frames are
+    # interpolated and warp an overlay exactly the way interpolation proper does
+    original = video
 
     # input timescale
     if settings["timescale"]:
@@ -135,7 +138,7 @@ try:
         if settings["input_timescale"] != 1:
             video = u.assume_scaled_fps(video, 1 / input_timescale)
 
-    if settings["deduplicate"] and settings["deduplicate_range"] != 0:
+    if deduplicating:
         deduplicate_range: int | None = int(settings["deduplicate_range"])
         if deduplicate_range == -1:  # -1 = infinite
             deduplicate_range = None
@@ -211,10 +214,9 @@ try:
                 )
 
     # interpolation
+    interpolated = False
     if settings["interpolate"]:
-        # what the masked regions get put back to afterwards. taken after deduplication so masked regions keep
-        # their filled-in frames, and before any interpolation so they never get warped by it
-        pre_interpolation = video
+        frames_before_interpolation = video.num_frames
 
         def parse_fps_setting(setting_key):
             fps_value = settings[setting_key].strip()
@@ -362,19 +364,22 @@ try:
                 f"added {fps_added} (interp: {interpolated_fps}. video.fps: {video.fps}/{interpolated_fps})"
             )
 
-        # nothing was actually interpolated if the frame count didn't change - no artifacts to mask off
-        if mask_name and video.num_frames != pre_interpolation.num_frames:
-            u.log(f"applying mask {mask_name}")
+        interpolated = video.num_frames != frames_before_interpolation
 
-            if mask_name == blur.mask.AUTO:
-                # returns None when it couldn't find an overlay to protect, in which case there's nothing
-                # sensible to mask and the video is left as interpolated
-                mask_clip = blur.mask.generate(mask_analysis_source)
-            else:
-                mask_clip = blur.mask.load(settings_path / "masks" / mask_name)
+    # masking. deduplication is included because filling a dropped frame means interpolating one, and it's
+    # interpolation that warps an overlay - but if neither actually ran there are no artifacts to put back
+    if mask_name and (deduplicating or interpolated):
+        u.log(f"applying mask {mask_name}")
 
-            if mask_clip is not None:
-                video = blur.mask.protect(video, pre_interpolation, mask_clip)
+        if mask_name == blur.mask.AUTO:
+            mask_clip = blur.mask.generate(original)
+        else:
+            mask_clip = blur.mask.load(settings_path / "masks" / mask_name)
+
+        # generate returns None when it couldn't find an overlay worth protecting, in which case there's
+        # nothing sensible to mask and the video is left as it is
+        if mask_clip is not None:
+            video = blur.mask.protect(video, original, mask_clip)
 
     # output timescale
     if settings["timescale"]:

@@ -1,8 +1,9 @@
 """Masks protect regions of the frame from interpolation.
 
 The interpolator has no idea a HUD isn't part of the scene, so it warps it along with the world behind it.
-A mask marks those regions, and the pre-interpolation frames get put back over them afterwards - so they never
-get warped, while still going through frame blending like everything else.
+A mask marks those regions, and the original frames get put back over them afterwards - so they never get
+warped, while still going through frame blending like everything else. Deduplication fills a dropped frame by
+interpolating one, so it warps an overlay the same way and a mask covers it too.
 
 A mask is a png in <settings path>/masks: white where the frame should be interpolated as normal, black where
 it should be left alone. The "auto" setting skips the png and works one out from the video itself - see
@@ -12,6 +13,7 @@ it should be left alone. The "auto" setting skips the png and works one out from
 from vapoursynth import core
 import vapoursynth as vs
 
+import sys
 from pathlib import Path
 
 import blur.utils as u
@@ -42,14 +44,20 @@ def load(path: Path) -> vs.VideoNode:
 #
 #  - `_held_still`: the pixel is the same colour every time. this is what an opaque overlay looks like - the
 #    money counter, weapon icons, panel backgrounds.
-#  - `_stands_out`: the pixel is always brighter (or always darker) than the pixels around it. an overlay drawn
-#    with any transparency changes colour with whatever is behind it, so it never holds still, but a white
-#    crosshair is still a light mark on its surroundings in every frame. scene content moves, so the pixel it
-#    happens to sit on doesn't keep landing on the same side of its neighbours.
+#  - `_stands_out`: the pixel always sits on the same side of the pixels around it. an overlay drawn with any
+#    transparency changes colour with whatever is behind it, so it never holds still, but a white crosshair is
+#    still a light mark on its surroundings in every frame. scene content moves, so the pixel it happens to sit
+#    on doesn't keep landing on the same side of its neighbours.
 #
 # A pixel counts as static if either test says so, which is what gets both the solid parts of a HUD and the
-# translucent ones. `_stands_out` runs twice, against a tight neighbourhood and a wide one - see
-# TIGHT_RADIUS_PX_1080P.
+# translucent ones. `_stands_out` looks at colour as well as brightness - a green crosshair reads as brighter
+# than a dark wall and darker than bright sand, so brightness alone never settles on an answer for it, while it
+# stays the same green against both.
+#
+# Both tests answer for the pixel itself and nothing further, which is what keeps the mask on the overlay
+# rather than around it. That matters more than it sounds: a masked pixel shows the un-interpolated frame, so
+# any part of the mask that lands on scene content freezes a halo of background that stutters while everything
+# around it stays smooth. Overshooting is more visible than the artifact it covers up.
 
 # what the `mask` setting is set to to ask for this instead of a file
 AUTO = "auto"
@@ -58,9 +66,28 @@ AUTO = "auto"
 # for confidence that what looks static really is
 SAMPLE_COUNT = 24
 
+# the analysis runs on the video shrunk to this height, if it's taller. more pixels doesn't buy better
+# detection - shrinking averages compression noise away and turns a thin overlay stroke into something more
+# solid, which reads more consistently - and every sampled frame is held in memory at once, so this is what
+# stops that scaling with the source resolution
+MAX_ANALYSIS_HEIGHT = 720
+
 # skipped at each end, as a fraction of the clip. fades and title cards live there and have nothing in common
 # with the rest of the video
 SAMPLE_MARGIN = 0.02
+
+# two samples this close to each other count as the same frame. everything here rests on the scene having
+# moved between samples - an overlay only stands out because everything else changed - so frames from a
+# stretch where nothing happened are worse than useless, they make the scene look as static as the overlay
+SAMPLE_DIFFERENCE = 0.012
+
+# when too many evenly spaced samples turn out to be near-duplicates, the search widens to a pool this many
+# times larger and keeps the frames that do differ
+SAMPLE_POOL_FACTOR = 3
+
+# under this many usable samples there isn't enough to tell an overlay from a scene that happens to be sitting
+# still, and no mask is made
+MIN_SAMPLES = 8
 
 # how much of the time a test has to hold for the pixel to count. below 1 so a single odd sample - a flashbang,
 # a cut to black - doesn't disqualify an overlay that's there the rest of the time
@@ -71,30 +98,53 @@ MIN_CONSISTENCY = 0.9
 SAME_PIXEL_THRESHOLD = 0.03
 
 # how far a pixel has to sit from the average of the box around it to count as standing out from it, and how
-# big those boxes are in pixels at 1080p, scaled from there. two sizes, because they pick up different things:
-# the tight box is what registers a crosshair or thin text, which a wide box averages away, and the wide box is
-# what fills in the middle of a solid panel, where a tight box sees nothing but more panel
+# big that box is in pixels at 1080p, scaled from there. it wants to be a little wider than the strokes an
+# overlay is drawn with, so a crosshair is measured against the scene rather than against itself, and no wider:
+# a big box reaches over whatever is next to it, so a pixel of ordinary scene sat near a bright panel starts
+# looking like it stands out too. the same distance applies to the colour planes, which span half the range
+# brightness does, so it asks a bit more of them
 LOCAL_CONTRAST = 0.01
-TIGHT_RADIUS_PX_1080P = 3
-WIDE_RADIUS_PX_1080P = 9
+LOCAL_RADIUS_PX_1080P = 3
 
-# a static pixel is thrown away unless this much of the box of radius CLUSTER_RADIUS around it is static too.
-# lone pixels are noise - flat or dark areas that happened not to move - and growing them would turn each one
-# into a blob. a 1px crosshair line still fills a fifth of its box, so thin overlays survive this
+# a static pixel is thrown away unless this much of the box of radius CLUSTER_RADIUS around it is static too,
+# which drops pixels that came back static entirely on their own - flat or dark scene that happened not to
+# move. set so that a lone pixel goes and a pair stays, since the smallest real thing to find is a dot
+# crosshair, and a 1px line fills a fifth of its box either way
 CLUSTER_RADIUS = 2
-CLUSTER_COVERAGE = 0.12
+CLUSTER_COVERAGE = 0.06
 
-# how far the mask reaches past what was detected, in pixels at 1080p and scaled from there. interpolation
-# drags pixels in from the surrounding area, so the border around an overlay needs protecting too. GROW is
-# fully protected and FEATHER ramps off after it, so the edge of the mask isn't a hard seam
-GROW_PX_1080P = 4
-FEATHER_PX_1080P = 4
+# how far the mask reaches past what was detected, and how far it ramps off after that, in analysis pixels.
+# just enough to cover an overlay's own antialiased edge and to keep the boundary from being a hard seam -
+# see the note above on why this doesn't want to be generous
+GROW_PX = 1
+FEATHER_PX = 1
 
 # below this fraction of the frame there's nothing worth protecting. above it, whatever was found is far bigger
 # than a HUD - a locked-off shot, or a video that barely moves - and masking it would leave interpolation with
 # nothing left to do, so the detection is treated as a miss either way
 MIN_STATIC_FRACTION = 0.0001
 MAX_STATIC_FRACTION = 0.5
+
+
+def _detached(clip: vs.VideoNode) -> vs.VideoNode:
+    """Work out `clip`'s only frame now, and hand back a clip that does nothing but hold it.
+
+    What this buys is that everything upstream can be freed the moment it returns. A mask still wired up to the
+    analysis is a mask whose two dozen sampled frames, and every pass over them, sit in vapoursynth's cache for
+    the length of the render - which is the point at which that memory is wanted for interpolation instead.
+    """
+    frame = clip.get_frame(0)
+
+    # built from measurements rather than from `clip`, so the returned node has no path back to the analysis
+    holder = core.std.BlankClip(
+        width=clip.width,
+        height=clip.height,
+        format=clip.format.id,
+        length=1,
+        keep=True,
+    )
+
+    return core.std.ModifyFrame(holder, holder, lambda n, f: frame.copy())
 
 
 def _sample_indices(num_frames: int, count: int) -> list[int]:
@@ -112,18 +162,81 @@ def _sample_indices(num_frames: int, count: int) -> list[int]:
     return sorted({first + round(i * step) for i in range(count)})
 
 
-def _luma(clip: vs.VideoNode) -> vs.VideoNode:
-    """Get `clip`'s brightness as a float GRAY clip, so samples can be compared on a 0-1 scale."""
-    if clip.format.color_family == vs.RGB:
-        # rgb has no luma plane to take, so one has to be matrixed out of it. which matrix barely matters -
-        # these values only ever get compared against each other
-        return core.resize.Point(clip, format=vs.GRAYS, matrix_s="709", range_s="full")
+def _differing(analysed: vs.VideoNode, indices: list[int]) -> list[int]:
+    """Drop frames too much like the last one kept, so a stretch where nothing moved collapses to one sample."""
+    kept = indices[:1]
 
-    gray = core.std.ShufflePlanes(clip, 0, vs.GRAY)
+    for index in indices[1:]:
+        difference = core.std.PlaneStats(analysed[kept[-1]], analysed[index])
+        if difference.get_frame(0).props["PlaneStatsDiff"] >= SAMPLE_DIFFERENCE:
+            kept.append(index)
 
+    return kept
+
+
+def _samples(analysed: vs.VideoNode, count: int) -> list[int]:
+    """Frame numbers to compare: spread across the clip, and different enough from each other to be worth it."""
+    indices = _differing(analysed, _sample_indices(analysed.num_frames, count))
+
+    # a handful of duplicates can't outvote MIN_CONSISTENCY between them, so they aren't worth another pass
+    # over the video. past that the clip has real still stretches in it, and finding frames that moved means
+    # casting a wider net
+    if len(indices) >= count * MIN_CONSISTENCY:
+        return indices
+
+    pool = _differing(
+        analysed, _sample_indices(analysed.num_frames, count * SAMPLE_POOL_FACTOR)
+    )
+    if len(pool) <= count:
+        return pool
+
+    # spread the survivors back out over the whole clip
+    return [pool[round(i * (len(pool) - 1) / (count - 1))] for i in range(count)]
+
+
+def _analysed(clip: vs.VideoNode) -> vs.VideoNode:
+    """Get `clip` ready to measure: float YUV, full size colour planes, no taller than MAX_ANALYSIS_HEIGHT.
+
+    Everything downstream is per-plane, and chroma is brought up to full size rather than the scores being
+    scaled up afterwards, so that something as small as a crosshair dot is still a few pixels across in colour.
+    """
     # full range both sides - nothing here gets displayed, and stretching limited range video into full would
     # just scale up the differences being measured
-    return core.resize.Point(gray, format=vs.GRAYS, range_in_s="full", range_s="full")
+    convert = {"format": vs.YUV444PS, "range_s": "full"}
+
+    if clip.format.color_family == vs.GRAY:
+        convert |= {"format": vs.GRAYS, "range_in_s": "full"}
+    elif clip.format.color_family == vs.RGB:
+        # rgb has no brightness plane to take, so one has to be matrixed out of it. which matrix barely matters
+        # - these values only ever get compared against each other
+        convert |= {"matrix_s": "709"}
+    else:
+        convert |= {"range_in_s": "full"}
+
+    if clip.height <= MAX_ANALYSIS_HEIGHT:
+        return core.resize.Point(clip, **convert)
+
+    # bilinear rather than point, so a thin overlay stroke comes through as a fainter stroke rather than being
+    # sampled straight past
+    return core.resize.Bilinear(
+        clip,
+        width=round(clip.width * MAX_ANALYSIS_HEIGHT / clip.height / 2) * 2,
+        height=MAX_ANALYSIS_HEIGHT,
+        **convert,
+    )
+
+
+def _plane(clip: vs.VideoNode, index: int) -> vs.VideoNode:
+    return core.std.ShufflePlanes(clip, index, vs.GRAY)
+
+
+def _best_plane(clip: vs.VideoNode) -> vs.VideoNode:
+    """Flatten a per-plane score to one GRAY plane, keeping whichever plane is most convinced at each pixel."""
+    best = _plane(clip, 0)
+    for index in range(1, clip.format.num_planes):
+        best = core.std.Expr([best, _plane(clip, index)], "x y max")
+
+    return best
 
 
 def _held_still(samples: list[vs.VideoNode]) -> vs.VideoNode:
@@ -144,20 +257,28 @@ def _held_still(samples: list[vs.VideoNode]) -> vs.VideoNode:
 def _stands_out(samples: list[vs.VideoNode], radius: int) -> vs.VideoNode:
     """How much of the time each pixel sat on the same side of its neighbours, 0-1.
 
-    Brighter and darker are counted separately and the better of the two is taken, so an overlay only has to be
+    Above and below are counted separately and the better of the two is taken, so an overlay only has to be
     consistently one or the other. A pixel in a flat area sits on neither side and scores nothing.
+
+    Each plane is measured on its own and the most convinced one wins the pixel, so an overlay is found by
+    whichever of brightness or colour it actually differs from the scene in.
     """
-    brighter = core.std.BlankClip(samples[0], color=0.0)
-    darker = core.std.BlankClip(samples[0], color=0.0)
+    blank = core.std.BlankClip(samples[0], color=[0.0] * samples[0].format.num_planes)
+    above, below = blank, blank
 
     for sample in samples:
         local = core.std.BoxBlur(sample, hradius=radius, vradius=radius)
-        offset = core.std.Expr([sample, local], "x y -")
 
-        brighter = core.std.Expr([brighter, offset], f"y {LOCAL_CONTRAST} > x 1 + x ?")
-        darker = core.std.Expr([darker, offset], f"y -{LOCAL_CONTRAST} < x 1 + x ?")
+        # the difference is worked out inside both counts rather than in a node of its own. every sample's
+        # every intermediate is live at once while this runs, so a whole layer of them is worth not having
+        above = core.std.Expr(
+            [above, sample, local], f"y z - {LOCAL_CONTRAST} > x 1 + x ?"
+        )
+        below = core.std.Expr(
+            [below, sample, local], f"y z - -{LOCAL_CONTRAST} < x 1 + x ?"
+        )
 
-    return core.std.Expr([brighter, darker], f"x y max {len(samples)} /")
+    return _best_plane(core.std.Expr([above, below], f"x y max {len(samples)} /"))
 
 
 def generate(clip: vs.VideoNode) -> vs.VideoNode | None:
@@ -167,27 +288,39 @@ def generate(clip: vs.VideoNode) -> vs.VideoNode | None:
     to find - too short a clip, no static region, or so much of the frame static that it can't be an overlay.
     The caller should render without a mask in that case.
     """
-    indices = _sample_indices(clip.num_frames, SAMPLE_COUNT)
-    if len(indices) < 2:
-        u.log("auto mask: clip is too short to analyse")
+    # stderr, not u.log: this one is for the user rather than the render log, and blur watches for it to say
+    # why nothing is rendering yet. stdout would garble the video going down the pipe
+    print("[blur] Generating mask", file=sys.stderr, flush=True)
+
+    analysed = _analysed(clip)
+
+    indices = _samples(analysed, SAMPLE_COUNT)
+    if len(indices) < MIN_SAMPLES:
+        u.log(
+            f"auto mask: only {len(indices)} frames of this clip differ from each other, not masking"
+        )
         return None
 
-    scale = clip.height / 1080
+    samples = [analysed[i] for i in indices]
+
+    # the sizes below are all in analysis pixels. going through the analysis clip's own height rather than the
+    # video's is what keeps them the same distance on screen whether or not the video got shrunk to fit
+    scale = analysed.height / 1080
 
     def scaled(pixels_at_1080p: int) -> int:
         return max(1, round(pixels_at_1080p * scale))
 
-    luma = _luma(clip)
-    samples = [luma[i] for i in indices]
+    # only brightness is put through _held_still. colour is far flatter than brightness, so whole desaturated
+    # stretches of a scene sit at the same chroma frame after frame and would come back as unchanged
+    brightness = [_plane(sample, 0) for sample in samples]
 
     # a pixel is static if any of the tests is convinced
     static = core.std.Expr(
         [
-            _held_still(samples),
-            _stands_out(samples, scaled(TIGHT_RADIUS_PX_1080P)),
-            _stands_out(samples, scaled(WIDE_RADIUS_PX_1080P)),
+            _held_still(brightness),
+            _stands_out(samples, scaled(LOCAL_RADIUS_PX_1080P)),
         ],
-        f"x y max z max {MIN_CONSISTENCY} >= 1 0 ?",
+        f"x y max {MIN_CONSISTENCY} >= 1 0 ?",
     )
 
     # throw away static pixels that are on their own, judged by how much of the box around each one is static
@@ -212,18 +345,15 @@ def generate(clip: vs.VideoNode) -> vs.VideoNode | None:
 
     u.log(f"auto mask: {fraction:.3%} of the frame is static")
 
-    grow = scaled(GROW_PX_1080P)
-    feather = scaled(FEATHER_PX_1080P)
-
-    # the blur's ramp is centred on the edge it's given, so growing by grow + feather first leaves everything
-    # within grow of the detection fully protected once feather has eaten back into it
-    for _ in range(grow + feather):
+    # the blur's ramp is centred on the edge it's given, so growing by GROW_PX + FEATHER_PX first leaves
+    # everything within GROW_PX of the detection fully protected once the ramp has eaten back into it
+    for _ in range(GROW_PX + FEATHER_PX):
         static = core.std.Maximum(static)
 
-    static = core.std.BoxBlur(static, hradius=feather, vradius=feather)
+    static = core.std.BoxBlur(static, hradius=FEATHER_PX, vradius=FEATHER_PX)
 
     # masks read the other way round: white means "interpolate this as normal"
-    return core.std.Expr(static, "1 x -")
+    return _detached(core.std.Expr(static, "1 x -"))
 
 
 def match(gray: vs.VideoNode, clip: vs.VideoNode) -> vs.VideoNode:

@@ -2,7 +2,8 @@
 
 // Masks mark regions of the frame that should be protected from interpolation. The interpolator has no idea
 // that a HUD isn't part of the scene, so it warps it along with the world behind it; a mask lets the renderer
-// put the pre-interpolation pixels back over those regions afterwards.
+// put the original pixels back over those regions afterwards. Deduplication counts as interpolation here - it
+// fills a dropped frame by interpolating one - so a mask covers that too.
 //
 // A mask is a png in <settings path>/masks - white where the frame should be interpolated as normal, black
 // where it should be left alone. Settings store the bare filename, so a config stays portable between
