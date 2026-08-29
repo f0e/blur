@@ -4,6 +4,7 @@
     {
       "name": "base",
       "hidden": true,
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
       "cacheVariables": {
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_COLOR_DIAGNOSTICS": "ON"

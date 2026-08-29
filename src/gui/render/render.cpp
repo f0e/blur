@@ -53,24 +53,9 @@ bool render::ImGuiWrap::init(SDL_Window* window, const SDL_GLContext& context) {
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
 
-	// Setup Platform/Renderer backends
-	// Decide GL+GLSL versions
-#if defined(IMGUI_IMPL_OPENGL_ES2)
-	// GL ES 2.0 + GLSL 100 (WebGL 1.0)
-	const char* glsl_version = "#version 100";
-#elif defined(IMGUI_IMPL_OPENGL_ES3)
-	// GL ES 3.0 + GLSL 300 es (WebGL 2.0)
-	const char* glsl_version = "#version 300 es";
-#elif defined(__APPLE__)
-	// GL 3.2 Core + GLSL 150
-	const char* glsl_version = "#version 150";
-#else
-	// GL 3.0 + GLSL 130
-	const char* glsl_version = "#version 130";
-#endif
-
+	// Setup platform/renderer backends for ANGLE's OpenGL ES 3 context.
 	ImGui_ImplSDL3_InitForOpenGL(window, context);
-	ImGui_ImplOpenGL3_Init(glsl_version);
+	ImGui_ImplOpenGL3_Init("#version 300 es");
 
 	return true;
 }
