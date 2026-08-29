@@ -4,26 +4,44 @@ set(VCPKG_OVERLAY_TRIPLETS
     "${CMAKE_CURRENT_LIST_DIR}/cmake/triplets"
     CACHE STRING "" FORCE)
 
-string(TOLOWER "${CMAKE_HOST_SYSTEM_PROCESSOR}" BLUR_HOST_PROCESSOR)
+# CMAKE_HOST_SYSTEM_PROCESSOR isn't filled in until project(), and vcpkg's
+# toolchain runs there - so ask for the host arch directly
+cmake_host_system_information(RESULT BLUR_HOST_PROCESSOR QUERY OS_PLATFORM)
+string(TOLOWER "${BLUR_HOST_PROCESSOR}" BLUR_HOST_PROCESSOR)
 if(BLUR_HOST_PROCESSOR MATCHES "^(arm64|aarch64)$")
   set(BLUR_VCPKG_ARCH arm64)
 else()
   set(BLUR_VCPKG_ARCH x64)
 endif()
 
-if(NOT VCPKG_TARGET_TRIPLET)
-  if(WIN32)
-    set(BLUR_VCPKG_PLATFORM windows)
-  elseif(APPLE)
-    set(BLUR_VCPKG_PLATFORM osx)
-  elseif(UNIX)
-    set(BLUR_VCPKG_PLATFORM linux)
-  endif()
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+  set(BLUR_VCPKG_PLATFORM windows)
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+  set(BLUR_VCPKG_PLATFORM osx)
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+  set(BLUR_VCPKG_PLATFORM linux)
+endif()
 
-  if(BLUR_VCPKG_PLATFORM)
+if(BLUR_VCPKG_PLATFORM)
+  set(BLUR_VCPKG_DEFAULT_TRIPLET "${BLUR_VCPKG_ARCH}-${BLUR_VCPKG_PLATFORM}")
+
+  # blur's triplets are the stock ones plus a dynamic ANGLE (see
+  # cmake/triplets/blur-angle-dynamic.cmake). building against the stock triplet
+  # instead gives a static ANGLE, which SDL can't dlopen at runtime - so take
+  # over the stock triplet name too, otherwise a cache from before these
+  # triplets existed silently keeps producing a broken build.
+  if(NOT VCPKG_TARGET_TRIPLET OR VCPKG_TARGET_TRIPLET STREQUAL
+                                 "${BLUR_VCPKG_DEFAULT_TRIPLET}")
+    if(VCPKG_TARGET_TRIPLET)
+      message(
+        STATUS
+          "Replacing vcpkg triplet ${VCPKG_TARGET_TRIPLET} with ${BLUR_VCPKG_DEFAULT_TRIPLET}-blur"
+      )
+    endif()
+
     set(VCPKG_TARGET_TRIPLET
-        "${BLUR_VCPKG_ARCH}-${BLUR_VCPKG_PLATFORM}-blur"
-        CACHE STRING "")
+        "${BLUR_VCPKG_DEFAULT_TRIPLET}-blur"
+        CACHE STRING "" FORCE)
   endif()
 endif()
 
@@ -193,24 +211,48 @@ target_link_libraries(
 
 target_link_libraries(blur PRIVATE unofficial::angle::libEGL
                                    unofficial::angle::libGLESv2)
+
+# SDL dlopens EGL/GLES at runtime, so a static ANGLE can't work no matter where
+# we put it. catch it here rather than at startup - it means the wrong triplet
+# was used (see the VCPKG_TARGET_TRIPLET handling at the top of this file).
+get_target_property(BLUR_ANGLE_EGL_TYPE unofficial::angle::libEGL TYPE)
+if(NOT BLUR_ANGLE_EGL_TYPE STREQUAL "SHARED_LIBRARY")
+  message(
+    FATAL_ERROR
+      "ANGLE was built as a ${BLUR_ANGLE_EGL_TYPE} by triplet ${VCPKG_TARGET_TRIPLET}, but SDL loads it dynamically. "
+      "Reconfigure with a -blur triplet (delete the build directory if it was configured with an older cmake).")
+endif()
+
 target_compile_definitions(
   blur PRIVATE
                BLUR_ANGLE_EGL_LIBRARY="$<TARGET_FILE_NAME:unofficial::angle::libEGL>"
                BLUR_ANGLE_GLES_LIBRARY="$<TARGET_FILE_NAME:unofficial::angle::libGLESv2>")
 
+# in a macos app bundle dylibs belong in Contents/Frameworks, everywhere else
+# they sit next to the executable. sdl.cpp mirrors this when it points SDL at
+# them, so keep the two in sync.
+if(APPLE)
+  set(BLUR_ANGLE_RUNTIME_DIR "$<TARGET_BUNDLE_CONTENT_DIR:blur>/Frameworks")
+else()
+  set(BLUR_ANGLE_RUNTIME_DIR "$<TARGET_FILE_DIR:blur>")
+endif()
+
 add_custom_command(
   TARGET blur
   POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${BLUR_ANGLE_RUNTIME_DIR}"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
-          "$<TARGET_FILE:unofficial::angle::libEGL>" "$<TARGET_FILE_DIR:blur>/"
+          "$<TARGET_FILE:unofficial::angle::libEGL>"
+          "${BLUR_ANGLE_RUNTIME_DIR}/"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
           "$<TARGET_FILE:unofficial::angle::libGLESv2>"
-          "$<TARGET_FILE_DIR:blur>/"
+          "${BLUR_ANGLE_RUNTIME_DIR}/"
   COMMENT "Copying ANGLE runtime to output directory")
 
 if(APPLE)
-  set_target_properties(blur PROPERTIES BUILD_RPATH "@executable_path"
-                                        INSTALL_RPATH "@executable_path")
+  set_target_properties(
+    blur PROPERTIES BUILD_RPATH "@executable_path;@executable_path/../Frameworks"
+                    INSTALL_RPATH "@executable_path;@executable_path/../Frameworks")
 elseif(UNIX)
   set_target_properties(blur PROPERTIES BUILD_RPATH "$ORIGIN"
                                         INSTALL_RPATH "$ORIGIN")
