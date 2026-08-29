@@ -1,4 +1,5 @@
 #include "config_blur.h"
+#include "masks.h"
 #include "config_base.h"
 #include "rendering/render_commands.h"
 
@@ -304,6 +305,8 @@ BlurSettings config_blur::parse_from_map(const std::map<std::string, std::string
 	config_base::extract_config_value(config_map, "interpolated fps", settings.interpolated_fps);
 	config_base::extract_config_value(config_map, "interpolation method", settings.interpolation_method);
 	config_base::extract_config_value(config_map, "mask", settings.mask);
+	if (settings.mask == masks::NONE_OPTION) // what the dropdowns show for no mask; it isn't a filename
+		settings.mask.clear();
 
 	config_base::extract_config_value(config_map, "pre-interpolate", settings.pre_interpolate);
 	config_base::extract_config_value(config_map, "pre-interpolated fps", settings.pre_interpolated_fps);

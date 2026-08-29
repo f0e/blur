@@ -239,11 +239,22 @@ void main::render_progress(
 		else {
 			ui::add_spinner("initialising render spinner", container, 8.f, gfx::Color::white(50));
 
+			std::string initialising_text = "Initialising render...";
+			switch (progress.init_stage) {
+				case rendering::RenderState::InitStage::generating_mask:
+					initialising_text = "Analysing video to generate a mask...";
+					break;
+				case rendering::RenderState::InitStage::building_engine:
+					initialising_text = "Building TensorRT engine. This may take a few minutes...";
+					break;
+				case rendering::RenderState::InitStage::none:
+					break;
+			}
+
 			ui::add_text(
 				"initialising render text",
 				container,
-				progress.building_engine ? "Building TensorRT engine. This may take a few minutes..."
-										 : "Initialising render...",
+				initialising_text,
 				gfx::Color::white(),
 				fonts::dejavu,
 				FONT_CENTERED_X

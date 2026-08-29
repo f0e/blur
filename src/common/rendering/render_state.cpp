@@ -3,14 +3,23 @@
 namespace {
 	// printed by vsmlrt.py right before it shells out to trtexec/tensorrt_rtx
 	constexpr std::string_view ENGINE_BUILD_SENTINEL = "[blur] Building TensorRT engine";
+
+	// printed by blur/mask.py before it reads through the video to work out an automatic mask
+	constexpr std::string_view MASK_SENTINEL = "[blur] Generating mask";
 }
 
 void rendering::RenderState::report_log_line(const std::string& line) {
-	if (line.find(ENGINE_BUILD_SENTINEL) == std::string::npos)
+	InitStage stage{};
+
+	if (line.find(ENGINE_BUILD_SENTINEL) != std::string::npos)
+		stage = InitStage::building_engine;
+	else if (line.find(MASK_SENTINEL) != std::string::npos)
+		stage = InitStage::generating_mask;
+	else
 		return;
 
 	std::lock_guard lock(m_mutex);
-	m_progress.building_engine = true;
+	m_progress.init_stage = stage;
 }
 
 void rendering::RenderState::report_frame_progress(int current_frame, int total_frames) {
