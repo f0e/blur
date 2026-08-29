@@ -4,7 +4,7 @@
 
 #	ifdef _WIN32
 
-#		include <shellapi.h>
+#		include <shlobj_core.h>
 
 bool os::clipboard::copy_file(const std::filesystem::path& path) {
 	std::wstring wide_path = path.wstring();
