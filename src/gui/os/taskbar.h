@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 struct SDL_Window;
 
 namespace os::taskbar {
