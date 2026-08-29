@@ -101,8 +101,8 @@ void VideoPlayer::gen_fbo_texture() {
 	glGenTextures(1, &m_tex);
 
 	glBindTexture(GL_TEXTURE_2D, m_tex);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -223,7 +223,9 @@ void VideoPlayer::initialize_mpv(float volume) {
 	); // note: this is slower than gpu, but cant do anything abt it - https://github.com/mpv-player/mpv/issues/6829
 
 	// options
-	mpv_set_option_string(m_mpv, "hwdec", "yes");
+	mpv_set_option_string(
+		m_mpv, "hwdec", hwdec_option(m_hardware_decoding)
+	); // note: hwdec isn't always faster. on mac high fps clips stutter but with no hwdec they're smooth
 	mpv_set_option_string(m_mpv, "profile", "fast");
 	mpv_set_option_string(m_mpv, "keep-open", "yes"); // dont close when finished
 	mpv_set_option_string(m_mpv, "pause", "yes");
@@ -236,6 +238,7 @@ void VideoPlayer::initialize_mpv(float volume) {
 	mpv_observe_property(m_mpv, 0, "pause", MPV_FORMAT_FLAG);
 	mpv_observe_property(m_mpv, 0, "dwidth", MPV_FORMAT_INT64);
 	mpv_observe_property(m_mpv, 0, "dheight", MPV_FORMAT_INT64);
+	mpv_observe_property(m_mpv, 0, "hwdec-current", MPV_FORMAT_STRING);
 
 	int result = mpv_initialize(m_mpv);
 	if (result < 0) {
@@ -424,6 +427,10 @@ void VideoPlayer::process_mpv_events() {
 				}
 				else if (std::strcmp(name, "dheight") == 0 && prop->format == MPV_FORMAT_INT64) {
 					m_cached_height = *static_cast<int64_t*>(prop->data);
+				}
+				else if (std::strcmp(name, "hwdec-current") == 0 && prop->format == MPV_FORMAT_STRING) {
+					const char* hwdec = *static_cast<char**>(prop->data);
+					u::log("MPV: hardware decoder: {}", hwdec ? hwdec : "unknown");
 				}
 				break;
 			}

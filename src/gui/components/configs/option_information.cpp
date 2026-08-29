@@ -310,6 +310,13 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"preview hardware decoding checkbox",
+			{
+				"Decodes previewed videos (in the queue) on the gpu. Will usually be faster, but not always.",
+				"Try toggling it if the preview is choppy",
+			},
+		},
+		{
 			"skip queue checkbox",
 			{
 				"Starts rendering videos as soon as they're added instead of queueing them up",

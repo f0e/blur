@@ -315,6 +315,7 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 		pending_video->start,
 		pending_video->end,
 		volume,
+		app_config.preview_hardware_decoding,
 		trim_disabled,
 		[&](size_t removed_video_id) {
 			tasks::cancel_pending(removed_video_id);

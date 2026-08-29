@@ -14,8 +14,9 @@ struct Seek {
 
 class VideoPlayer {
 public:
-	VideoPlayer(float volume)
-		: m_wakeup_on_mpv_render_update(SDL_RegisterEvents(1)), m_wakeup_on_mpv_events(SDL_RegisterEvents(1)) {
+	VideoPlayer(float volume, bool hardware_decoding)
+		: m_wakeup_on_mpv_render_update(SDL_RegisterEvents(1)), m_wakeup_on_mpv_events(SDL_RegisterEvents(1)),
+		  m_hardware_decoding(hardware_decoding) {
 		if (m_wakeup_on_mpv_render_update == static_cast<Uint32>(-1) ||
 		    m_wakeup_on_mpv_events == static_cast<Uint32>(-1))
 		{
@@ -94,6 +95,15 @@ public:
 			m_cached_percent_pos = -1.0;
 		}
 		m_seek_cv.notify_one();
+	}
+
+	void set_hardware_decoding(bool hardware_decoding) {
+		if (hardware_decoding == m_hardware_decoding)
+			return;
+
+		m_hardware_decoding = hardware_decoding;
+
+		run_command_async({ "set", "hwdec", hwdec_option(hardware_decoding) });
 	}
 
 	void set_paused(bool paused) {
@@ -176,6 +186,8 @@ private:
 	std::optional<std::filesystem::path> m_current_file_path;
 	std::optional<std::filesystem::path> m_loaded_file;
 
+	bool m_hardware_decoding;
+
 	std::mutex m_mutex;
 	std::condition_variable m_seek_cv;
 	std::optional<Seek> m_queued_seek;
@@ -193,6 +205,10 @@ private:
 
 	float m_start_percent = 0.f;
 	float m_end_percent = 1.f;
+
+	static const char* hwdec_option(bool hardware_decoding) {
+		return hardware_decoding ? "yes" : "no";
+	}
 
 	void initialize_mpv(float volume);
 

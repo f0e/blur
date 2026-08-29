@@ -107,6 +107,14 @@ void configs::app_options(ui::Container& container) {
 		fonts::dejavu
 	);
 
+	ui::add_checkbox(
+		"preview hardware decoding checkbox",
+		container,
+		"video preview hardware accel",
+		app_settings.preview_hardware_decoding,
+		fonts::dejavu
+	);
+
 	/*
 	    Rendering
 	*/

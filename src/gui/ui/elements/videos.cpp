@@ -381,9 +381,13 @@ void render_videos_actual(const ui::Container& container, const ui::AnimatedElem
 		auto loader_colour = gfx::Color::white(155 * anim);
 
 		if (video.data.video_info) {
+			int player_w = (int)std::lround(
+				inner_rect.w * render::framebuffer_scale
+			); // note: render in res accounting for scaling otherwise it can look pixelated
+			int player_h = (int)std::lround(inner_rect.h * render::framebuffer_scale);
+
 			if (video_player && video_player->is_video_ready() && video_player->get_current_file_path() &&
-			    *video_player->get_current_file_path() == video.data.path &&
-			    video_player->render(inner_rect.w, inner_rect.h))
+			    *video_player->get_current_file_path() == video.data.path && video_player->render(player_w, player_h))
 			{
 				render::imgui.drawlist->AddImage(
 					video_player->get_frame_texture_for_render(),
@@ -1003,6 +1007,7 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 	float& start,
 	float& end,
 	float& volume,
+	bool hardware_decoding,
 	bool trim_disabled,
 	const std::function<void(size_t video_id)>& on_remove
 ) {
@@ -1010,7 +1015,9 @@ std::optional<ui::AnimatedElement*> ui::add_videos(
 		return {};
 
 	if (!video_player)
-		video_player = std::make_shared<VideoPlayer>(volume);
+		video_player = std::make_shared<VideoPlayer>(volume, hardware_decoding);
+	else
+		video_player->set_hardware_decoding(hardware_decoding);
 
 	if (trim_disabled && (start != 0.f || end != 1.f)) {
 		start = 0.f;

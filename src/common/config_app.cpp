@@ -38,6 +38,8 @@ std::string config_app::generate_config_string(const GlobalAppSettings& settings
 	output << "preview volume: " << settings.preview_volume << "\n";
 
 	if (!shareable_only) {
+		output << "hardware accelerated preview: " << (settings.preview_hardware_decoding ? "true" : "false") << "\n";
+
 		output << "sample video path: " << settings.sample_video_path << "\n";
 		output << "config preview seek: " << settings.config_preview_seek << "\n";
 	}
@@ -83,6 +85,8 @@ void config_app::copy_machine_settings(GlobalAppSettings& to, const GlobalAppSet
 	to.gpu_type = from.gpu_type;
 	to.rife_device_index = from.rife_device_index;
 	to.tensorrt_device_index = from.tensorrt_device_index;
+
+	to.preview_hardware_decoding = from.preview_hardware_decoding;
 
 	to.sample_video_path = from.sample_video_path;
 	to.config_preview_seek = from.config_preview_seek;
@@ -131,6 +135,7 @@ GlobalAppSettings config_app::parse_from_map(const std::map<std::string, std::st
 	config_base::extract_config_value(config_map, "skip queue", settings.skip_queue);
 
 	config_base::extract_config_value(config_map, "preview volume", settings.preview_volume);
+	config_base::extract_config_value(config_map, "hardware accelerated preview", settings.preview_hardware_decoding);
 	config_base::extract_config_value(config_map, "sample video path", settings.sample_video_path);
 	config_base::extract_config_value(config_map, "config preview seek", settings.config_preview_seek);
 
