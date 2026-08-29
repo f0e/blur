@@ -90,27 +90,24 @@ def detection_stages(clip: vs.VideoNode):
     Deliberately a copy of what generate() does rather than a refactor of it - this is a temporary tool and
     shouldn't be shaping the real code. It reads the same constants, so retuning them shows up here.
     """
-    indices = mask._sample_indices(clip.num_frames, mask.SAMPLE_COUNT)
-    if len(indices) < 2:
+    analysed = mask._analysed(clip)
+
+    indices = mask._samples(analysed, mask.SAMPLE_COUNT)
+    if len(indices) < mask.MIN_SAMPLES:
         return indices, None, None, None, None
 
-    luma = mask._luma(clip)
-    samples = [luma[i] for i in indices]
+    samples = [analysed[i] for i in indices]
 
-    scale = clip.height / 1080
+    # the analysed clip's height, not the video's - generate() shrinks tall videos to MAX_ANALYSIS_HEIGHT, and
+    # the radii are in that clip's pixels
+    scale = analysed.height / 1080
 
     def scaled(pixels_at_1080p):
         return max(1, round(pixels_at_1080p * scale))
 
     # the detection signals on their own, 0-1. the greys in here are what MIN_CONSISTENCY cuts through
-    held_still = mask._held_still(samples)
-    stands_out = core.std.Expr(
-        [
-            mask._stands_out(samples, scaled(mask.TIGHT_RADIUS_PX_1080P)),
-            mask._stands_out(samples, scaled(mask.WIDE_RADIUS_PX_1080P)),
-        ],
-        "x y max",
-    )
+    held_still = mask._held_still([mask._plane(s, 0) for s in samples])
+    stands_out = mask._stands_out(samples, scaled(mask.LOCAL_RADIUS_PX_1080P))
 
     raw = core.std.Expr(
         [held_still, stands_out], f"x y max {mask.MIN_CONSISTENCY} >= 1 0 ?"

@@ -185,9 +185,6 @@ std::vector<std::string> rendering::detail::build_vspipe_base_args(
 #ifdef __APPLE__
 	args.insert(args.end(), { "-a", std::format("macos_bundled={}", blur.used_installer ? "true" : "false") });
 #endif
-#ifdef _WIN32
-	args.insert(args.end(), { "-a", "enable_lsmash=true" });
-#endif
 #ifdef __linux__
 	bool bundled = std::filesystem::exists(blur.resources_path / "vapoursynth-plugins");
 	args.insert(args.end(), { "-a", std::format("linux_bundled={}", bundled ? "true" : "false") });
@@ -202,7 +199,8 @@ std::vector<std::string> rendering::detail::build_vspipe_video_args(
 	const nlohmann::json& merged_settings,
 	const u::VideoInfo& video_info,
 	std::optional<size_t> start_frame,
-	std::optional<size_t> end_frame
+	std::optional<size_t> end_frame,
+	std::optional<std::pair<size_t, size_t>> mask_range
 ) {
 	auto args = build_vspipe_base_args(input_path, merged_settings);
 	args.insert(
@@ -224,6 +222,11 @@ std::vector<std::string> rendering::detail::build_vspipe_video_args(
 
 	if (end_frame)
 		args.insert(args.end(), { "-a", std::format("end={}", *end_frame) });
+
+	if (mask_range) {
+		args.insert(args.end(), { "-a", std::format("mask_start={}", mask_range->first) });
+		args.insert(args.end(), { "-a", std::format("mask_end={}", mask_range->second) });
+	}
 
 	return args;
 }

@@ -175,23 +175,6 @@ void configs::options(ui::Container& container) {
 			settings.interpolation_method,
 			fonts::dejavu
 		);
-
-		// the dropdown holds onto a pointer to this, so it has to outlive the frame
-		static std::string selected_mask;
-		selected_mask = settings.mask.empty() ? masks::NONE_OPTION : settings.mask;
-
-		ui::add_dropdown(
-			"default mask dropdown",
-			container,
-			"default mask",
-			masks::options(settings.mask),
-			selected_mask,
-			fonts::dejavu,
-			[](std::string* new_value) {
-				configs::settings.mask = *new_value == masks::NONE_OPTION ? "" : *new_value;
-			},
-			{ masks::NONE_OPTION }
-		);
 	}
 
 	/*
@@ -284,6 +267,32 @@ void configs::options(ui::Container& container) {
 			},
 			settings.deduplicate_method,
 			fonts::dejavu
+		);
+	}
+
+	/*
+	    Masking
+	*/
+	// interpolation and deduplication are both things a mask protects against, so this sits after the pair of
+	// them rather than under either one. no point offering it when neither is going to run
+	if (settings.interpolate || settings.deduplicate) {
+		section_component("masking");
+
+		// the dropdown holds onto a pointer to this, so it has to outlive the frame
+		static std::string selected_mask;
+		selected_mask = settings.mask.empty() ? masks::NONE_OPTION : settings.mask;
+
+		ui::add_dropdown(
+			"default mask dropdown",
+			container,
+			"default mask",
+			masks::options(settings.mask),
+			selected_mask,
+			fonts::dejavu,
+			[](std::string* new_value) {
+				configs::settings.mask = *new_value == masks::NONE_OPTION ? "" : *new_value;
+			},
+			{ masks::NONE_OPTION }
 		);
 	}
 

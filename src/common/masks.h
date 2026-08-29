@@ -5,9 +5,12 @@
 // put the original pixels back over those regions afterwards. Deduplication counts as interpolation here - it
 // fills a dropped frame by interpolating one - so a mask covers that too.
 //
-// A mask is a png in <settings path>/masks - white where the frame should be interpolated as normal, black
+// A mask is an image in <settings path>/masks - white where the frame should be interpolated as normal, black
 // where it should be left alone. Settings store the bare filename, so a config stays portable between
 // machines, and blur.py resolves it against the settings path it's already given.
+//
+// Automatic masks are written as pngs into <settings path>/auto-masks, so one can be copied over into the
+// masks folder, touched up and kept like any other.
 namespace masks {
 	inline const std::string FOLDER_NAME = "masks";
 
@@ -20,7 +23,7 @@ namespace masks {
 
 	std::filesystem::path get_path();
 
-	// filenames of every png in the masks folder, sorted. empty if the folder doesn't exist
+	// filenames of every image in the masks folder, sorted. empty if the folder doesn't exist
 	std::vector<std::string> list();
 
 	// what a mask dropdown shows: "none", "auto", then every mask in the folder. `current` is kept in the list
