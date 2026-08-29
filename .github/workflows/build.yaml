@@ -235,6 +235,8 @@ jobs:
               cp "$build_dir/blur-cli-$config.exe" installer/resources/blur-cli.exe
               cp "$build_dir/blur-$config.exe" installer/resources/blur-gui.exe
               cp "mpv/libmpv-2.dll" installer/resources/
+              cp "$build_dir/libEGL.dll" installer/resources/
+              cp "$build_dir/libGLESv2.dll" installer/resources/
               iscc installer/setup.iss
 
               # Copy everything to bundle

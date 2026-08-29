@@ -16,6 +16,10 @@
   "name": "blur",
   "dependencies": [
     {
+      "name": "angle",
+      "platform": "windows"
+    },
+    {
       "name": "boost-asio",
       "version>=": "1.83.0"
     },
@@ -30,7 +34,10 @@
     },
     "cpr",
     "freetype",
-    "glad",
+    {
+      "name": "glad",
+      "platform": "!windows"
+    },
     "gtest",
     "nlohmann-json",
     {

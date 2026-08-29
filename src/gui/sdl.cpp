@@ -95,6 +95,13 @@ tl::expected<void, std::string> sdl::initialise() {
 		SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1"
 	); // allows the screen to auto sleep. WHY IS THIS DISABLED BY DEFAULT?
 
+#ifdef _WIN32
+	// SDL normally uses WGL on Windows. Force its OpenGL ES path so both SDL and
+	// libmpv share ANGLE's EGL/D3D11 device instead of a session-bound WGL driver.
+	SDL_SetHint(SDL_HINT_VIDEO_FORCE_EGL, "1");
+	SDL_SetHint(SDL_HINT_OPENGL_ES_DRIVER, "1");
+#endif
+
 	if (!SDL_Init(SDL_INIT_VIDEO))
 		return tl::unexpected("SDL initialization failed");
 
@@ -146,7 +153,7 @@ tl::expected<void, std::string> sdl::initialise() {
 	);
 
 	if (!window)
-		return tl::unexpected("Failed to create SDL window");
+		return tl::unexpected(std::format("Failed to create SDL window: {}", SDL_GetError()));
 
 	apply_app_config(config);
 	remember_config_write_time();
@@ -165,14 +172,22 @@ tl::expected<void, std::string> sdl::initialise() {
 	// create opengl context
 	gl_context = SDL_GL_CreateContext(window);
 	if (!gl_context)
-		return tl::unexpected("Failed to create SDL GL context");
+		return tl::unexpected(std::format("Failed to create SDL GL context: {}", SDL_GetError()));
 
+#ifndef _WIN32
 	if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) { // NOLINT(cppcoreguidelines-pro-type-cstyle-cast)
 		                                                          // ^ c lib
 		return tl::unexpected("Failed to initialise GLAD");
 	}
+#endif
 
-	SDL_GL_MakeCurrent(window, gl_context);
+	if (!SDL_GL_MakeCurrent(window, gl_context))
+		return tl::unexpected(std::format("Failed to activate SDL GL context: {}", SDL_GetError()));
+
+	const auto* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+	const auto* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+	u::log("graphics backend: {} ({})", renderer ? renderer : "unknown", version ? version : "unknown");
+
 	SDL_GL_SetSwapInterval(1); // enable vsync
 	SDL_ShowWindow(window);
 
