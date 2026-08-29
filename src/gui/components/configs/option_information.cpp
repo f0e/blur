@@ -77,7 +77,8 @@ void configs::option_information(ui::Container& container) {
 			{
 				"Mask applied to videos you add, protecting parts of the frame from interpolation",
 				"Useful for static overlays like a HUD, which interpolation tends to warp",
-				"Masks are png files in the masks folder of your config folder",
+				"'auto' builds a mask per video by finding the parts of the frame that never move",
+				"Otherwise, masks are png files in the masks folder of your config folder",
 				"White where the video should be interpolated as normal, black where it should be left alone",
 				"Masked areas still get motion blur - only interpolation skips them",
 			},

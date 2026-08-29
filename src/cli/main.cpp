@@ -38,7 +38,10 @@ int main(int argc, char* argv[]) {
 	app.add_option("-o,--output", output_strs, "Output file name(s) (optional)");
 	app.add_option("-c,--config-path", config_path_strs, "Manual configuration file path(s) (optional)");
 	app.add_option(
-		"--mask", mask, "Mask image filename in the masks folder, or 'none' to disable one set in the config (optional)"
+		"--mask",
+		mask,
+		"Mask image filename in the masks folder, 'auto' to generate one from the video, or 'none' to disable one "
+		"set in the config (optional)"
 	);
 	app.add_flag("-p,--preview", preview, "Enable preview");
 	app.add_flag("-v,--verbose", verbose, "Verbose mode");

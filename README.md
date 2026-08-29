@@ -100,6 +100,16 @@ Two things worth knowing:
 - Masked areas still get motion blur. Only interpolation skips them, so they blend like the rest of the video.
 - The mask is scaled to fit the video, so one mask works across resolutions as long as the aspect ratio matches.
 
+#### Automatic masks
+
+Setting `mask` to `auto` skips the png and works a mask out from the video itself, so you don't have to draw one per game.
+
+It samples frames from across the whole video and looks for the pixels that stayed put in nearly all of them - either because they were exactly the same colour every time, which is what a solid overlay looks like, or because they kept sitting on the same side of their surroundings, which is what a see-through one like a crosshair does when the scene behind it keeps changing. The scene moves as the camera does; a crosshair, HUD, scoreboard or watermark doesn't. What's left is grown slightly and softened at the edges, since interpolation drags in pixels from around an overlay as well as from it.
+
+Because it works off what doesn't change, it finds overlays that are always on screen and always in the same place. Parts that animate - a killfeed appearing and disappearing, say - move like the rest of the frame, and faint text that barely stands out from what's behind it can be missed too. If nothing static is found, or so much of the frame is static that it can't be an overlay (a locked-off shot, say), the video is rendered without a mask.
+
+It costs a couple of dozen extra frame decodes per video, once, before rendering starts - a few seconds for a 1440p clip.
+
 ### Frameserver output
 
 Blur supports rendering from frameservers. This means you can avoid having to run blur on your input videos when video editing. When rendering, simply output (make sure your project is high framerate) to the frameserver and then drag the generated AVI into blur. Note that some video editing software might limit the maximum project framerate.
@@ -126,7 +136,7 @@ Blur supports rendering from frameservers. This means you can avoid having to ru
 
 - interpolate - whether or not the input video file will be interpolated to a higher fps
 - interpolated fps - if interpolate is enabled, this is the fps that the input file will be interpolated to (before blurring). can be a set fps number or a multiplier (append x to end e.g. `5x`)
-- mask - mask image used to protect parts of the frame from interpolation, or `none`. [see masks](#masks)
+- mask - mask image used to protect parts of the frame from interpolation, `auto` to generate one from the video, or `none`. [see masks](#masks)
 - interpolation method - method used for interpolation:
   - Quality: RIFE > svp
   - Speed: svp > RIFE

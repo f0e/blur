@@ -13,13 +13,17 @@ namespace masks {
 	// shown in the mask dropdowns, and what an empty setting means
 	inline const std::string NONE_OPTION = "none";
 
+	// picks no file at all - blur.py works a mask out from the video instead, by finding the parts of the frame
+	// that never move. not a filename, so it's never looked for in the masks folder
+	inline const std::string AUTO_OPTION = "auto";
+
 	std::filesystem::path get_path();
 
 	// filenames of every png in the masks folder, sorted. empty if the folder doesn't exist
 	std::vector<std::string> list();
 
-	// what a mask dropdown shows: "none", then every mask in the folder. `current` is kept in the list even if
-	// it's been deleted since it was picked, so that's visible instead of the dropdown silently snapping to
-	// something else
+	// what a mask dropdown shows: "none", "auto", then every mask in the folder. `current` is kept in the list
+	// even if it's been deleted since it was picked, so that's visible instead of the dropdown silently snapping
+	// to something else
 	std::vector<std::string> options(const std::string& current);
 }
