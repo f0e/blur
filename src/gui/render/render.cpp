@@ -146,6 +146,8 @@ void render::ImGuiWrap::begin(SDL_Window* window) {
 			window_size.w > 0 ? (float)pixel_w / (float)window_size.w : 1.f,
 			window_size.h > 0 ? (float)pixel_h / (float)window_size.h : 1.f
 		);
+
+		framebuffer_scale = std::max(io->DisplayFramebufferScale.x, io->DisplayFramebufferScale.y);
 	}
 
 	ImGui::NewFrame();
