@@ -95,9 +95,9 @@ namespace render {
 	};
 
 	struct ImGuiWrap {
-		ImGuiContext* ctx;
-		ImGuiIO* io;
-		ImDrawList* drawlist;
+		ImGuiContext* ctx = nullptr;
+		ImGuiIO* io = nullptr;
+		ImDrawList* drawlist = nullptr;
 
 		bool init(SDL_Window* window, const SDL_GLContext& context);
 
