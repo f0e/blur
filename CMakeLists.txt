@@ -1,13 +1,30 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(VCPKG_LIBRARY_LINKAGE static)
-if(WIN32)
-  set(VCPKG_OVERLAY_TRIPLETS
-      "${CMAKE_CURRENT_LIST_DIR}/cmake/triplets"
-      CACHE STRING "" FORCE)
-  set(VCPKG_TARGET_TRIPLET
-      "x64-windows-blur"
-      CACHE STRING "" FORCE)
+set(VCPKG_OVERLAY_TRIPLETS
+    "${CMAKE_CURRENT_LIST_DIR}/cmake/triplets"
+    CACHE STRING "" FORCE)
+
+string(TOLOWER "${CMAKE_HOST_SYSTEM_PROCESSOR}" BLUR_HOST_PROCESSOR)
+if(BLUR_HOST_PROCESSOR MATCHES "^(arm64|aarch64)$")
+  set(BLUR_VCPKG_ARCH arm64)
+else()
+  set(BLUR_VCPKG_ARCH x64)
+endif()
+
+if(NOT VCPKG_TARGET_TRIPLET)
+  if(WIN32)
+    set(BLUR_VCPKG_PLATFORM windows)
+  elseif(APPLE)
+    set(BLUR_VCPKG_PLATFORM osx)
+  elseif(UNIX)
+    set(BLUR_VCPKG_PLATFORM linux)
+  endif()
+
+  if(BLUR_VCPKG_PLATFORM)
+    set(VCPKG_TARGET_TRIPLET
+        "${BLUR_VCPKG_ARCH}-${BLUR_VCPKG_PLATFORM}-blur"
+        CACHE STRING "")
+  endif()
 endif()
 
 # Force static runtime on Windows
@@ -21,7 +38,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
     ${PROJECT_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE})
-set(CMAKE_BINARY_DIR ${PROJECT_SOURCE_DIR}/build/${CMAKE_BUILD_TYPE})
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
@@ -33,11 +49,7 @@ find_package(CLI11 CONFIG REQUIRED)
 find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3)
 find_package(SDL3_image CONFIG REQUIRED)
 find_package(Freetype REQUIRED)
-if(WIN32)
-  find_package(unofficial-angle REQUIRED CONFIG)
-else()
-  find_package(glad CONFIG REQUIRED)
-endif()
+find_package(unofficial-angle REQUIRED CONFIG)
 find_package(GTest CONFIG REQUIRED)
 find_package(tl-expected CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
@@ -149,11 +161,7 @@ endif()
 # imgui
 target_include_directories(blur
                            PRIVATE ${PROJECT_SOURCE_DIR}/dependencies/imgui)
-if(WIN32)
-  target_compile_definitions(blur PRIVATE IMGUI_IMPL_OPENGL_ES3)
-else()
-  target_compile_definitions(blur PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
-endif()
+target_compile_definitions(blur PRIVATE IMGUI_IMPL_OPENGL_ES3)
 
 # stb
 target_include_directories(blur PRIVATE ${PROJECT_SOURCE_DIR}/dependencies/stb)
@@ -183,19 +191,29 @@ endif()
 target_link_libraries(
   blur PRIVATE blur-common SDL3::SDL3 SDL3_image::SDL3_image Freetype::Freetype)
 
-if(WIN32)
-  target_link_libraries(blur PRIVATE unofficial::angle::libGLESv2)
-  add_custom_command(
-    TARGET blur
-    POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:unofficial::angle::libEGL>" "$<TARGET_FILE_DIR:blur>/"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:unofficial::angle::libGLESv2>"
-            "$<TARGET_FILE_DIR:blur>/"
-    COMMENT "Copying ANGLE runtime to output directory")
-else()
-  target_link_libraries(blur PRIVATE glad::glad)
+target_link_libraries(blur PRIVATE unofficial::angle::libEGL
+                                   unofficial::angle::libGLESv2)
+target_compile_definitions(
+  blur PRIVATE
+               BLUR_ANGLE_EGL_LIBRARY="$<TARGET_FILE_NAME:unofficial::angle::libEGL>"
+               BLUR_ANGLE_GLES_LIBRARY="$<TARGET_FILE_NAME:unofficial::angle::libGLESv2>")
+
+add_custom_command(
+  TARGET blur
+  POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "$<TARGET_FILE:unofficial::angle::libEGL>" "$<TARGET_FILE_DIR:blur>/"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "$<TARGET_FILE:unofficial::angle::libGLESv2>"
+          "$<TARGET_FILE_DIR:blur>/"
+  COMMENT "Copying ANGLE runtime to output directory")
+
+if(APPLE)
+  set_target_properties(blur PROPERTIES BUILD_RPATH "@executable_path"
+                                        INSTALL_RPATH "@executable_path")
+elseif(UNIX)
+  set_target_properties(blur PROPERTIES BUILD_RPATH "$ORIGIN"
+                                        INSTALL_RPATH "$ORIGIN")
 endif()
 
 if(APPLE)

@@ -78,6 +78,7 @@ jobs:
             libxi-dev \
             libxrandr-dev \
             libgl1-mesa-dev \
+            mesa-common-dev \
             libncurses6 \
             gcc-13 g++-13 \
             libfontconfig1-dev \
@@ -165,10 +166,10 @@ jobs:
         uses: actions/cache@v5
         with:
           path: |
-            vcpkg_installed/
+            out/build/*/vcpkg_installed/
             vcpkg/downloads/
             vcpkg/packages/
-          key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ steps.vcpkg-commit.outputs.hash }}-${{ hashFiles('vcpkg.json') }}
+          key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ steps.vcpkg-commit.outputs.hash }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/*.cmake') }}
           restore-keys: |
             vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ steps.vcpkg-commit.outputs.hash }}-
             vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-
@@ -200,7 +201,7 @@ jobs:
           # CMAKE_CXX_COMPILER_LAUNCHER: ccache
 
       - name: Build
-        run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }}
+        run: cmake --build --preset ${{ steps.select-preset.outputs.preset }}
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
@@ -250,6 +251,7 @@ jobs:
               mkdir -p package
               mv blur-cli "package/blur-cli-$config"
               mv blur "package/blur-$config"
+              find . -maxdepth 1 -type f \( -name '*EGL*.so*' -o -name '*GLESv2*.so*' \) -exec mv {} package/ \;
               mv lib/ package/
               cp -r ../../ci/out/* package/
               tar -czf "$bundle_dir/blur-$config.tar.gz" -C package .

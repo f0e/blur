@@ -15,10 +15,7 @@
   },
   "name": "blur",
   "dependencies": [
-    {
-      "name": "angle",
-      "platform": "windows"
-    },
+    "angle",
     {
       "name": "boost-asio",
       "version>=": "1.83.0"
@@ -34,10 +31,6 @@
     },
     "cpr",
     "freetype",
-    {
-      "name": "glad",
-      "platform": "!windows"
-    },
     "gtest",
     "nlohmann-json",
     {
@@ -52,7 +45,24 @@
         "png"
       ]
     },
-    "tl-expected",
-    "spdlog"
-  ]
+    "spdlog",
+    "tl-expected"
+  ],
+  "default-features": [
+    "angle-metal"
+  ],
+  "features": {
+    "angle-metal": {
+      "description": "Use ANGLE's Metal renderer on Apple platforms",
+      "dependencies": [
+        {
+          "name": "angle",
+          "features": [
+            "metal"
+          ],
+          "platform": "osx"
+        }
+      ]
+    }
+  }
 }

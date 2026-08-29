@@ -31,7 +31,8 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
-#include <boost/process.hpp>
+#define BOOST_PROCESS_VERSION 1
+#include <boost/process/v1.hpp>
 #include <boost/asio.hpp>
 #ifdef _WIN32
 #	include <boost/process/v1/windows.hpp>
