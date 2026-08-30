@@ -85,7 +85,7 @@ SAMPLE_COUNT = 24
 # detection - shrinking averages compression noise away and turns a thin overlay stroke into something more
 # solid, which reads more consistently - and every sampled frame is held in memory at once, so this is what
 # stops that scaling with the source resolution
-MAX_ANALYSIS_HEIGHT = 720
+MAX_ANALYSIS_HEIGHT = 2160
 
 # skipped at each end, as a fraction of the clip. fades and title cards live there and have nothing in common
 # with the rest of the video
