@@ -175,6 +175,22 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"deduplicate real frame dropdown",
+			{
+				"When frames are dropped the recording repeats one to fill the slots, and nothing in the file says "
+				"which frame of the run is the picture that was really drawn. This is that answer.",
+
+				"'first' is what a live recording does - the picture is drawn, then held until the next one is "
+				"ready. Leave it here unless you have a reason not to.",
+
+				"'last' suits footage where the run ends on the real frame instead, which is what a variable "
+				"framerate recording resampled to a fixed one can look like.",
+
+				"It only makes a difference where runs of duplicates vary in length. Getting it wrong there shows up "
+				"as motion that speeds up and slows down rather than running at a steady rate.",
+			},
+		},
+		{
 			"deduplicate method dropdown",
 			{
 				"What generates the frames that go in place of duplicates. Only needed with interpolation off - "
