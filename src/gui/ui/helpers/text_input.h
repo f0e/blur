@@ -56,6 +56,12 @@ namespace ui::helpers::text_input {
 		float cursor_anim = 0.f;              // blink timer, negative means "solid on" right after an action
 		bool selected_all_mouse_lock = false; // after select-all, ignore drags until the button comes back up
 		gfx::Point last_cursor_screen_pos;    // where the caret last drew, used to place the IME candidate window
+
+		// SDL's click count is window-wide. Keep a text-input-local sequence so clicks elsewhere (or at a
+		// different character in this input) cannot trigger word/line selection here.
+		std::uint64_t last_mouse_press_id = 0;
+		int last_mouse_click_cursor = -1;
+		int local_mouse_click_count = 0;
 	};
 
 	inline std::unordered_map<std::string, TextInputStateInternal> text_input_map;
