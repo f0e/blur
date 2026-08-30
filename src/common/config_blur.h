@@ -7,6 +7,7 @@ struct AdvancedSettings {
 	std::string video_container = "mp4";
 	int deduplicate_range = 5;
 	std::string deduplicate_threshold = "0.003";
+	std::string duplicate_timing = "first";
 	std::string ffmpeg_override;
 	bool debug = false;
 	std::string resize_chromaloc = "default";

@@ -587,6 +587,15 @@ void configs::options(ui::Container& container) {
 			);
 		});
 
+		ui::add_dropdown(
+			"deduplicate real frame dropdown",
+			container,
+			"deduplicate real frame",
+			{ "first", "last" },
+			settings.advanced.duplicate_timing,
+			fonts::dejavu
+		);
+
 		/*
 		    Advanced Rendering
 		*/

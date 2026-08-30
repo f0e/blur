@@ -95,12 +95,16 @@ def ref_diffs(values):
     return [0.0] + [abs(values[n] - values[n - 1]) / 255 for n in range(1, len(values))]
 
 
-def ref_decisions(values, threshold, max_gap):
+def ref_decisions(values, threshold, max_gap, timing=dd.TIMING_FIRST):
     diffs = ref_diffs(values)
     last = len(values) - 1
 
     def real(i):
-        return i == 0 or diffs[i] >= threshold
+        if i == 0:
+            return True
+        if timing == dd.TIMING_LAST:
+            return i == last or diffs[i + 1] >= threshold
+        return diffs[i] >= threshold
 
     out = []
     for n in range(len(values)):
@@ -129,14 +133,58 @@ def read(dedupe, n):
 
 # --------------------------------------------------------------- 1. decisions
 
-for max_gap in (1, 2, 3, 5, 8, 13):
-    dedupe = dd.analyse(VIDEO, threshold=THRESHOLD, max_gap=max_gap)
-    want = ref_decisions(VALUES, THRESHOLD, max_gap)
+for timing in dd.TIMINGS:
+    for max_gap in (1, 2, 3, 5, 8, 13):
+        dedupe = dd.analyse(VIDEO, threshold=THRESHOLD, max_gap=max_gap, timing=timing)
+        want = ref_decisions(VALUES, THRESHOLD, max_gap, timing)
 
-    for n in range(LENGTH):
-        check(f"decision[gap={max_gap}][{n}]", read(dedupe, n), want[n])
+        for n in range(LENGTH):
+            check(f"decision[{timing}][gap={max_gap}][{n}]", read(dedupe, n), want[n])
+
+# the two timings must anchor a run at opposite ends, and agree everywhere there's nothing to
+# disagree about - a run of one frame is unambiguous
+RUNS = [0, 40, 40, 40, 80, 120, 120, 160, 200, 200, 200, 200, 240]
+RUNS_CLIP = grey_clip(RUNS)
+FIRST = dd.analyse(RUNS_CLIP, THRESHOLD, 8, dd.TIMING_FIRST)
+LAST = dd.analyse(RUNS_CLIP, THRESHOLD, 8, dd.TIMING_LAST)
+
+# 40 runs over 1..3, 120 over 5..6, 200 over 8..11
+for run_start, run_end in ((1, 3), (5, 6), (8, 11)):
+    check(
+        f"first anchors run {run_start}-{run_end}", read(FIRST, run_start)[0], run_start
+    )
+    check(f"last anchors run {run_start}-{run_end}", read(LAST, run_end)[0], run_end)
+
+# frame 4 stands alone, so both agree it's real and it anchors itself
+check("first agrees on a lone frame", read(FIRST, 4)[0], 4)
+check("last agrees on a lone frame", read(LAST, 4)[0], 4)
 
 DEDUPE = dd.analyse(VIDEO, threshold=THRESHOLD, max_gap=5)
+
+for timing in dd.TIMINGS:
+    checked = dd.analyse(VIDEO, threshold=THRESHOLD, max_gap=5, timing=timing)
+
+    for n in range(LENGTH):
+        left, right, hold = read(checked, n)
+
+        if hold:
+            continue
+
+        if not left <= n < right:
+            fail(f"[{timing}] frame {n} isn't inside its own pair ({left}, {right})")
+
+        if right - left > 5:
+            fail(
+                f"[{timing}] pair ({left}, {right}) for frame {n} is wider than the range"
+            )
+
+        # the interpolator is handed each pair once, indexed by the frame it starts from, so a pair's own
+        # start frame has to work out that same pair - otherwise the wrong frames get interpolated
+        check(
+            f"[{timing}] pair is self-consistent at {left} (from {n})",
+            read(checked, left),
+            (left, right, False),
+        )
 
 for n in range(LENGTH):
     left, right, hold = read(DEDUPE, n)
@@ -330,9 +378,7 @@ for target in (Fraction(300), Fraction(60)):
 MOVING_ALL = grey_clip([(n * 20) % 256 for n in range(30)])
 MOVING_ALL_DEDUPE = dd.analyse(MOVING_ALL, THRESHOLD, 5)
 marked = sum(
-    dd.involved(
-        dd.bracket(MOVING_ALL_DEDUPE.decisions.get_frame(n).props, Fraction(n))
-    )
+    dd.involved(dd.bracket(MOVING_ALL_DEDUPE.decisions.get_frame(n).props, Fraction(n)))
     for n in range(30)
 )
 # only the last frame, which has nothing after it to move towards

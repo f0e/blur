@@ -174,6 +174,7 @@ try:
             video,
             threshold=deduplicate_threshold,
             max_gap=deduplicate_range,
+            timing=settings["duplicate_timing"],
         )
 
         if settings["debug"]:

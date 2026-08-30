@@ -30,6 +30,7 @@ from vapoursynth import core
 from dataclasses import dataclass
 from fractions import Fraction
 
+import blur.utils as u
 from blur import log
 
 # how far apart two frames are allowed to be and still have frames generated between them, and equally how
@@ -37,6 +38,26 @@ from blur import log
 # past a point the guess is worse than the stutter it replaces. this is what the 'deduplicate range' setting
 # sets, and what its 'infinite' option lands on
 MAX_GAP_LIMIT = 30
+
+# Which frame of a run of repeats is the real one.
+#
+# When a recording drops a frame it repeats one to fill the slot, and nothing in the file says which of the
+# repeats is the picture that was really drawn and which are padding. The picture can't tell you either: a run
+# of k identical frames is consistent with the content arriving at any of them. It isn't even decidable in
+# principle - anchoring every run at its first frame and anchoring every run at its last frame produce the same
+# sequence of intervals, one shifted along by a run, so no measurement of the frames can separate them.
+#
+# What it changes is which interval each picture is given. FIRST hands a picture the length of the run it
+# starts; LAST hands it the length of the run before it. So it only matters where run lengths vary, and there
+# it's the difference between motion at a steady rate and motion that speeds up and slows down.
+#
+# FIRST is what a live capture does, and it's what a capture *can* do: the picture is drawn, then held until
+# the next one is ready, and nothing can show a frame before it was drawn. LAST is for footage that's been
+# through something since - a variable rate recording resampled to a fixed one can land its frames a slot
+# later, and that reads as the run ending on the real frame.
+TIMING_FIRST = "first"
+TIMING_LAST = "last"
+TIMINGS = [TIMING_FIRST, TIMING_LAST]
 
 # what a decision frame carries. one per source frame: the two frames that bracket it, whether the picture
 # is standing still (so there's nothing to interpolate towards), and the difference that was measured at it
@@ -90,12 +111,14 @@ def _shifted(clip: vs.VideoNode, offset: int) -> vs.VideoNode:
     return clip
 
 
-def _decisions(clip: vs.VideoNode, threshold: float, max_gap: int) -> vs.VideoNode:
+def _decisions(
+    clip: vs.VideoNode, threshold: float, max_gap: int, timing: str
+) -> vs.VideoNode:
     """Work out, for every frame of `clip`, which two real frames it sits between.
 
-    A frame is *real* (rather than a repeat of the one before it) when it differs from its predecessor by at
-    least `threshold`. Frame n's pair is then the nearest real frame at or before it and the nearest one after
-    it, each looked for within `max_gap` frames:
+    Which frames count as *real* is `timing`'s business - the first of each run of repeats, or the last of it.
+    Everything below is the same either way. Frame n's pair is the nearest real frame at or before it and the
+    nearest one after it, each looked for within `max_gap` frames:
 
       - nothing real within reach ahead, and the picture is standing still for as far as this frame can see.
         There's nothing to interpolate towards, so the frame is its own answer and gets held.
@@ -111,8 +134,9 @@ def _decisions(clip: vs.VideoNode, threshold: float, max_gap: int) -> vs.VideoNo
     """
     diffs = core.std.PlaneStats(clip, clip[0] + clip)
 
-    # a decision at frame n reads max_gap either side of itself and no further
-    offsets = list(range(-max_gap, max_gap + 1))
+    # a decision at frame n reads max_gap either side of itself and no further - plus one more on the way out,
+    # because spotting the last frame of a run means looking at the frame after it
+    offsets = list(range(-max_gap, max_gap + 2))
     window = [_shifted(diffs, offset) for offset in offsets]
 
     length = clip.num_frames
@@ -131,8 +155,15 @@ def _decisions(clip: vs.VideoNode, threshold: float, max_gap: int) -> vs.VideoNo
             return f[base + index - n].props["PlaneStatsDiff"]  # type: ignore[return-value]
 
         def real(index: int) -> bool:
-            # the first frame has nothing before it to repeat, so it always counts
-            return index == 0 or diff(index) >= threshold
+            # whichever end of a run is being anchored, the clip's own ends are anchors too: there's nothing
+            # before the first frame for it to be a repeat of, and nothing after the last one to wait for
+            if index == 0:
+                return True
+
+            if timing == TIMING_LAST:
+                return index == last or diff(index + 1) >= threshold
+
+            return diff(index) >= threshold
 
         back = None
         for index in range(n, max(n - max_gap, 0) - 1, -1):
@@ -165,18 +196,31 @@ def _decisions(clip: vs.VideoNode, threshold: float, max_gap: int) -> vs.VideoNo
     return core.std.ModifyFrame(holder, [holder, *window], decide)
 
 
-def analyse(clip: vs.VideoNode, threshold: float, max_gap: int | None) -> Dedupe:
+def analyse(
+    clip: vs.VideoNode,
+    threshold: float,
+    max_gap: int | None,
+    timing: str = TIMING_FIRST,
+) -> Dedupe:
     """Set up deduplication for `clip`, without reading any of it yet."""
+    if timing not in TIMINGS:
+        raise u.BlurException(
+            f"Deduplicate real frame must be one of: {', '.join(TIMINGS)}"
+        )
+
     if max_gap is None:
         log.info(f"deduplication: unlimited range, capped at {MAX_GAP_LIMIT} frames")
         max_gap = MAX_GAP_LIMIT
     else:
         max_gap = max(1, min(int(max_gap), MAX_GAP_LIMIT))
 
-    log.info(f"deduplicating (threshold {threshold}, up to {max_gap} frames apart)")
+    log.info(
+        f"deduplicating (threshold {threshold}, up to {max_gap} frames apart, "
+        f"{timing} frame of a run is the real one)"
+    )
 
     return Dedupe(
-        decisions=_decisions(clip, threshold, max_gap),
+        decisions=_decisions(clip, threshold, max_gap, timing),
         length=clip.num_frames,
         max_gap=max_gap,
     )
