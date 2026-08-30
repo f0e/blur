@@ -946,7 +946,8 @@ namespace ui {
 		const std::string& label,
 		bool& checked,
 		const render::Font& font,
-		std::optional<std::function<void(bool)>> on_change = {}
+		std::optional<std::function<void(bool)>> on_change = {},
+		bool inline_element = false
 	);
 
 	AnimatedElement* add_dropdown(

@@ -80,9 +80,11 @@ ui::AnimatedElement* ui::add_checkbox(
 	const std::string& label,
 	bool& checked,
 	const render::Font& font,
-	std::optional<std::function<void(bool)>> on_change
+	std::optional<std::function<void(bool)>> on_change,
+	bool inline_element
 ) {
-	gfx::Size total_size(200, std::max(CHECKBOX_SIZE, font.height()));
+	int width = inline_element ? CHECKBOX_SIZE + LABEL_GAP + font.calc_size(label).w : 200;
+	gfx::Size total_size(width, std::max(CHECKBOX_SIZE, font.height()));
 
 	Element element(
 		id,
