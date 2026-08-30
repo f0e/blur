@@ -47,22 +47,35 @@ def load(path: Path) -> vs.VideoNode:
 # rather than asking for a png, `generate` samples frames from across the video and looks for the pixels that
 # stayed put in nearly all of them, in two ways:
 #
-#  - `_held_still`: the pixel is the same colour every time. this is what an opaque overlay looks like - the
-#    money counter, weapon icons, panel backgrounds.
-#  - `_stands_out`: the pixel always sits on the same side of the pixels around it. an overlay drawn with any
-#    transparency changes colour with whatever is behind it, so it never holds still, but a white crosshair is
-#    still a light mark on its surroundings in every frame. scene content moves, so the pixel it happens to sit
-#    on doesn't keep landing on the same side of its neighbours.
+#  - held still (`_held_still`): the pixel is the same colour every time. this is what an opaque overlay looks
+#    like - the money counter, weapon icons, panel backgrounds.
+#  - stands out (`_local_contrast`): the pixel always sits on the same side of the pixels around it. an overlay
+#    drawn with any transparency changes colour with whatever is behind it, so it never holds still, but a
+#    white crosshair is still a light mark on its surroundings in every frame. scene content moves, so the
+#    pixel it happens to sit on doesn't keep landing on the same side of its neighbours.
 #
 # A pixel counts as static if either test says so, which is what gets both the solid parts of a HUD and the
-# translucent ones. `_stands_out` looks at colour as well as brightness - a green crosshair reads as brighter
-# than a dark wall and darker than bright sand, so brightness alone never settles on an answer for it, while it
-# stays the same green against both.
+# translucent ones. Standing out is measured on colour as well as brightness - a green crosshair reads as
+# brighter than a dark wall and darker than bright sand, so brightness alone never settles on an answer for it,
+# while it stays the same green against both.
 #
-# Both tests answer for the pixel itself and nothing further, which is what keeps the mask on the overlay
-# rather than around it. That matters more than it sounds: a masked pixel shows the un-interpolated frame, so
-# any part of the mask that lands on scene content freezes a halo of background that stutters while everything
-# around it stays smooth. Overshooting is more visible than the artifact it covers up.
+# Neither test is enough on its own, because a pixel with nothing drawn on it at all can pass them: an empty
+# stretch of night sky is the same black in every frame, so it holds just as still as an opaque overlay. So
+# there's a third thing every pixel has to satisfy, out of the same measurement standing out comes from:
+#
+#  - has detail (`_local_contrast`): the pixel differs from its surroundings at all, in either direction. an
+#    overlay is something drawn onto the frame, so it does. flat sky doesn't. this one is asked of far fewer
+#    of the samples than the other two - see MIN_DETAIL.
+#
+# That last one earns its keep well beyond tidying up the mask. A masked pixel shows the un-interpolated frame,
+# so masked sky is sky that stops being interpolated - and the moment anything crosses it, a lantern drifting
+# past or a tracer or a bird, that thing judders along its whole path while the rest of the frame stays smooth.
+# The sky only ever read as static because nothing had happened there yet in the frames that got sampled.
+#
+# All three answer for the pixel itself and nothing further, which is what keeps the mask on the overlay rather
+# than around it. That matters more than it sounds: a masked pixel shows the un-interpolated frame, so any part
+# of the mask that lands on scene content freezes a halo of background that stutters while everything around it
+# stays smooth. Overshooting is more visible than the artifact it covers up.
 
 # frames pulled from across the clip to compare. each one is a seek and a decode, so this trades analysis time
 # for confidence that what looks static really is
@@ -108,6 +121,22 @@ SAME_PIXEL_THRESHOLD = 0.03
 LOCAL_CONTRAST = 0.01
 LOCAL_RADIUS_PX_1080P = 3
 
+# how much of the time a pixel has to differ from its surroundings to count as having something drawn on it.
+# far below MIN_CONSISTENCY, because this is a different question: being still is what an overlay does the
+# whole time, but being visible is only ever against the backgrounds it happens to sit on, and an opaque
+# overlay disappears into any scene the same colour as itself. anything drawn clears this easily and an empty
+# stretch of sky can't clear it at all, so there's a wide gap to sit in - the answer barely moves anywhere
+# between a quarter and three quarters
+MIN_DETAIL = 0.25
+
+# how far the mask reaches into a flat region from the drawn detail around it, in pixels at 1080p. a flat patch
+# enclosed by detail belongs to whatever is drawn around it - the middle of a solid panel, the gap between a
+# counter's digits - so static pixels that failed the detail test are kept when they're this close to ones that
+# passed. an expanse of sky is nowhere near anything drawn, so nothing reaches it; an overlay wider than twice
+# this keeps an unmasked middle, which costs nothing, since a flat unchanging middle is the one thing
+# interpolation can't get wrong
+FILL_PX_1080P = 24
+
 # a static pixel is thrown away unless this much of the box of radius CLUSTER_RADIUS around it is static too,
 # which drops pixels that came back static entirely on their own - flat or dark scene that happened not to
 # move. set so that a lone pixel goes and a pair stays, since the smallest real thing to find is a dot
@@ -134,10 +163,15 @@ CACHE_LIMIT = 256
 MASK_SUFFIX = ".png"
 NOTHING_SUFFIX = ".nothing"
 
-# below this fraction of the frame there's nothing worth protecting. above it, whatever was found is far bigger
-# than a HUD - a locked-off shot, or a video that barely moves - and masking it would leave interpolation with
-# nothing left to do, so the detection is treated as a miss either way
-MIN_STATIC_FRACTION = 0.0001
+# under this much found, in pixels at 1080p, there's nothing worth protecting. an area rather than a share of
+# the frame, because the smallest thing worth finding is a fixed size on screen - a dot crosshair - and not
+# something that ought to shrink because the video is ultrawide. set below one of those: a dot crosshair is
+# the smallest overlay there is and the one interpolation mangles worst, so it's what must not be missed
+MIN_STATIC_PX_1080P = 16
+
+# above this share of the frame, whatever was found is far bigger than a HUD - a locked-off shot, or a video
+# that barely moves - and masking it would leave interpolation with nothing left to do, so the detection is
+# treated as a miss
 MAX_STATIC_FRACTION = 0.5
 
 
@@ -269,11 +303,16 @@ def _held_still(samples: list[vs.VideoNode]) -> vs.VideoNode:
     return core.std.Expr(counted, f"x {len(samples) - 1} /")
 
 
-def _stands_out(samples: list[vs.VideoNode], radius: int) -> vs.VideoNode:
-    """How much of the time each pixel sat on the same side of its neighbours, 0-1.
+def _local_contrast(
+    samples: list[vs.VideoNode], radius: int
+) -> tuple[vs.VideoNode, vs.VideoNode]:
+    """Both measurements of how each pixel compares to its neighbours, as fractions of the samples, 0-1.
 
-    Above and below are counted separately and the better of the two is taken, so an overlay only has to be
-    consistently one or the other. A pixel in a flat area sits on neither side and scores nothing.
+    Standing out is how much of the time the pixel sat on the *same* side of them. Above and below are counted
+    separately and the better of the two is taken, so an overlay only has to be consistently one or the other.
+
+    Having detail is how much of the time it sat on *either* side, which is to say how much of the time there
+    was anything there to see at all. A pixel in a flat area sits on neither side and scores nothing in both.
 
     Each plane is measured on its own and the most convinced one wins the pixel, so an overlay is found by
     whichever of brightness or colour it actually differs from the scene in.
@@ -293,7 +332,13 @@ def _stands_out(samples: list[vs.VideoNode], radius: int) -> vs.VideoNode:
             [below, sample, local], f"y z - -{LOCAL_CONTRAST} < x 1 + x ?"
         )
 
-    return _best_plane(core.std.Expr([above, below], f"x y max {len(samples)} /"))
+    count = len(samples)
+
+    # a pixel can't be on both sides in the same sample, so the sum is a count of samples like the max is
+    stands_out = _best_plane(core.std.Expr([above, below], f"x y max {count} /"))
+    has_detail = _best_plane(core.std.Expr([above, below], f"x y + {count} /"))
+
+    return stands_out, has_detail
 
 
 def generate(clip: vs.VideoNode) -> vs.VideoNode | None:
@@ -330,14 +375,26 @@ def generate(clip: vs.VideoNode) -> vs.VideoNode | None:
     # stretches of a scene sit at the same chroma frame after frame and would come back as unchanged
     brightness = [_plane(sample, 0) for sample in samples]
 
-    # a pixel is static if any of the tests is convinced
+    stands_out, has_detail = _local_contrast(samples, scaled(LOCAL_RADIUS_PX_1080P))
+
+    # a pixel is static if either stillness test is convinced
     static = core.std.Expr(
-        [
-            _held_still(brightness),
-            _stands_out(samples, scaled(LOCAL_RADIUS_PX_1080P)),
-        ],
+        [_held_still(brightness), stands_out],
         f"x y max {MIN_CONSISTENCY} >= 1 0 ?",
     )
+
+    # but it only counts where something was drawn to be still in the first place. an empty stretch of sky
+    # holds perfectly still without being an overlay, and masking it is what stops anything that crosses it
+    # later - a lantern, a tracer - from being interpolated at all
+    drawn = core.std.Expr(has_detail, f"x {MIN_DETAIL} >= 1 0 ?")
+
+    # a flat patch is kept anyway when there's detail within reach of it: the middle of a solid panel is as
+    # flat as sky, but unlike sky it has the panel's own edges and text around it
+    reach = scaled(FILL_PX_1080P)
+    near_drawn = core.std.BoxBlur(
+        core.std.Expr([static, drawn], "x y min"), hradius=reach, vradius=reach
+    )
+    static = core.std.Expr([static, near_drawn], "y 0 > x 0 ?")
 
     # throw away static pixels that are on their own, judged by how much of the box around each one is static
     density = core.std.BoxBlur(static, hradius=CLUSTER_RADIUS, vradius=CLUSTER_RADIUS)
@@ -346,10 +403,12 @@ def generate(clip: vs.VideoNode) -> vs.VideoNode | None:
     # the values are 0 or 1, so the average over the plane is the share of the frame that's static. this is the
     # point everything above actually gets decoded and run
     fraction = core.std.PlaneStats(static).get_frame(0).props["PlaneStatsAverage"]
+    found = fraction * static.width * static.height
 
-    if fraction < MIN_STATIC_FRACTION:
+    # an area scales with the square of the linear scale the other sizes use
+    if found < max(1, round(MIN_STATIC_PX_1080P * scale * scale)):
         log.info(
-            f"Mask: nothing static found ({fraction:.4%} of the frame). Rendering unmasked"
+            f"Mask: nothing static found ({found:.0f} pixels). Rendering unmasked"
         )
         return None
 
