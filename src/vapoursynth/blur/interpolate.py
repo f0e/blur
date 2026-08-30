@@ -87,34 +87,42 @@ def _retimed(
     at 1fps - so `fps` is a straight multiplier, and choosing it is this function's business rather than the
     caller's.
 
-    What gets interpolated is a clip of *pairs*: frame 2n is source frame n, and frame 2n + 1 is the next
-    frame after it that isn't a repeat of it. Interpolating that by `steps` puts `steps` frames between each
-    pair, evenly spread across however long the gap between them really lasted - so the frame an output frame
-    wants is the step nearest its own time, and picking it is all that's left to do. The odd numbered gaps in
-    the pairs clip join frames that have nothing to do with each other, but nothing ever asks for a frame
-    inside one, and vapoursynth doesn't render what nothing asks for.
+    What gets interpolated is a clip of *pairs*: for each of deduplication's decisions, frame 2j is the real
+    frame before it and frame 2j + 1 is the real frame after. Interpolating that by `steps` puts `steps`
+    frames between each pair, evenly spread across however long the gap between them really lasted - so the
+    frame an output frame wants is the step nearest its own time, and picking it is all that's left to do.
+    The odd numbered gaps in the pairs clip join frames that have nothing to do with each other, but nothing
+    ever asks for a frame inside one, and vapoursynth doesn't render what nothing asks for.
 
-    Pairs are indexed by the real frame they start from rather than by output frame, which is what stops a
-    pair being interpolated again for every output frame that happens to fall inside it.
+    Pairs are indexed by decision - one or two a source frame - rather than by output frame, so a pair every
+    output frame in a gap shares is only interpolated once. Indexing them by the frame the pair starts from
+    would share more of them still, but only some of the timings hand every frame of a gap the same starting
+    frame, and one indexing that always holds is worth more than a shorter clip for the ones that would.
     """
     ratio = dst_fps / video.fps
     dst_frames = deduplicate.output_frames(dedupe.length, ratio)
     steps = _steps(ratio, dedupe.max_gap)
 
-    following = core.std.FrameEval(
-        video,
-        lambda n, f: video[int(f.props[deduplicate.PROP_RIGHT])],
-        prop_src=dedupe.decisions,
-    )
+    decisions = dedupe.decisions
+    sides = core.std.BlankClip(video, length=decisions.num_frames, keep=True)
+
+    def side(prop: str) -> vs.VideoNode:
+        return core.std.FrameEval(
+            sides, lambda n, f: video[int(f.props[prop])], prop_src=decisions
+        )
 
     pairs = core.std.AssumeFPS(
-        core.std.Interleave([video, following]), fpsnum=1, fpsden=1
+        core.std.Interleave(
+            [side(deduplicate.PROP_LEFT), side(deduplicate.PROP_RIGHT)]
+        ),
+        fpsnum=1,
+        fpsden=1,
     )
 
     generated = build(pairs, steps)
     last_generated = generated.num_frames - 1
 
-    decisions = deduplicate.over_output(dedupe, dst_frames, ratio)
+    over_output = deduplicate.over_output(dedupe, dst_frames, ratio)
 
     def pick(n: int, f: vs.VideoFrame) -> vs.VideoNode:
         at = deduplicate.bracket(f.props, deduplicate.source_time(n, ratio))
@@ -123,13 +131,14 @@ def _retimed(
             return video[at.left]
 
         step = min(round(at.timepoint * steps), steps)
+        pair = deduplicate.decision_index(dedupe, n, ratio)
 
-        return generated[min((2 * at.left) * steps + step, last_generated)]
+        return generated[min((2 * pair) * steps + step, last_generated)]
 
     out = core.std.FrameEval(
         core.std.BlankClip(video, length=dst_frames, keep=True),
         pick,
-        prop_src=decisions,
+        prop_src=over_output,
     )
 
     return core.std.AssumeFPS(out, fpsnum=dst_fps.numerator, fpsden=dst_fps.denominator)
