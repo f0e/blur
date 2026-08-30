@@ -329,8 +329,10 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 		static std::string selected_mask;
 		selected_mask = pending_video->mask.empty() ? masks::NONE_OPTION : pending_video->mask;
 
+		// The retained element owns the callback below, so each video needs its own id. Reusing one id would leave
+		// the callback pointing at whichever video first created the dropdown.
 		ui::add_dropdown(
-			"mask dropdown",
+			std::format("mask dropdown {}", pending_video->video_id),
 			container,
 			"mask",
 			masks::options(pending_video->mask),
