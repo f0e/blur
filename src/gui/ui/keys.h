@@ -16,10 +16,14 @@ namespace keys {
 	// consecutive click count for the last mouse press (2 = double click, 3 = triple, ...), straight from SDL so
 	// it uses the OS double-click interval. only meaningful while the button is down.
 	inline std::unordered_map<std::uint8_t, int> mouse_click_counts;
+	// Monotonically increasing per-button press ids. Unlike SDL's click count, these let a control tell whether
+	// it handled the immediately preceding press or whether that press landed somewhere else.
+	inline std::unordered_map<std::uint8_t, std::uint64_t> mouse_press_ids;
 
 	bool process_event(const SDL_Event& event);
 
 	int get_click_count(std::uint8_t button = SDL_BUTTON_LEFT);
+	std::uint64_t get_mouse_press_id(std::uint8_t button = SDL_BUTTON_LEFT);
 
 	void set_mouse_capture(bool capture);
 

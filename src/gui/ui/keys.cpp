@@ -54,6 +54,7 @@ bool keys::process_event(const SDL_Event& event) {
 			// mouse_pos = position; // TODO: assuming this is inaccurate too
 			pressed_mouse_keys.insert(event.button.button);
 			mouse_click_counts[event.button.button] = event.button.clicks;
+			mouse_press_ids[event.button.button]++;
 			return true;
 		}
 
@@ -138,6 +139,11 @@ bool keys::is_rect_pressed(const gfx::Rect& rect, std::uint8_t button) {
 int keys::get_click_count(std::uint8_t button) {
 	auto it = mouse_click_counts.find(button);
 	return it == mouse_click_counts.end() ? 0 : it->second;
+}
+
+std::uint64_t keys::get_mouse_press_id(std::uint8_t button) {
+	auto it = mouse_press_ids.find(button);
+	return it == mouse_press_ids.end() ? 0 : it->second;
 }
 
 bool keys::is_mouse_down(std::uint8_t button) {
