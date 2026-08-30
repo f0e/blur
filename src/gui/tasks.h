@@ -11,9 +11,11 @@ namespace tasks {
 		float end = 1.f;
 		bool start_immediately = false;
 
-		// filename of a mask in the masks folder, or empty for none. seeded from the config this video
-		// resolves to, then overridable per video from the queue screen
+		// the masks this video renders with: a filename in the masks folder (empty for none), and whether one
+		// is also worked out from the video itself and applied over it. both are seeded from the config this
+		// video resolves to, then overridable per video from the queue screen
 		std::string mask;
+		bool auto_mask = false;
 	};
 
 	void run(const std::vector<std::string>& arguments);

@@ -322,15 +322,15 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 		}
 	);
 
-	// which mask this clip renders with. seeded from its config when it was added, so this starts on the
-	// configured default. applies to the selected clip, same as the trim controls above
+	// which masks this clip renders with. seeded from its config when it was added, so these start on the
+	// configured defaults. applies to the selected clip, same as the trim controls above
 	{
 		// the dropdown holds onto a pointer to this, so it has to outlive the frame
 		static std::string selected_mask;
 		selected_mask = pending_video->mask.empty() ? masks::NONE_OPTION : pending_video->mask;
 
-		// The retained element owns the callback below, so each video needs its own id. Reusing one id would leave
-		// the callback pointing at whichever video first created the dropdown.
+		// The retained elements own the callbacks below, so each video needs its own ids. Reusing one id would
+		// leave the callback pointing at whichever video first created the element.
 		ui::add_dropdown(
 			std::format("mask dropdown {}", pending_video->video_id),
 			container,
@@ -342,6 +342,23 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 				pending_video->mask = *new_value == masks::NONE_OPTION ? "" : *new_value;
 			},
 			{ masks::NONE_OPTION }
+		);
+
+		// the checkbox writes through this rather than straight into the clip, since the element outlives the
+		// frame and the clip it belongs to is picked out again each one
+		static bool auto_mask;
+		auto_mask = pending_video->auto_mask;
+
+		// stacks on top of the mask above rather than replacing it
+		ui::add_checkbox(
+			std::format("auto mask checkbox {}", pending_video->video_id),
+			container,
+			"auto mask",
+			auto_mask,
+			fonts::dejavu,
+			[pending_video](bool new_value) {
+				pending_video->auto_mask = new_value;
+			}
 		);
 	}
 
