@@ -154,6 +154,10 @@ try:
         if settings["input_timescale"] != 1:
             video = u.assume_scaled_fps(video, 1 / input_timescale)
 
+    # deduplication doesn't render anything here - it works out which frames are repeats, and interpolation
+    # renders onto the timeline that describes. see blur/deduplicate.py
+    dedupe = None
+    debug_dedupe = None
     if deduplicating:
         deduplicate_range: int | None = int(settings["deduplicate_range"])
         if deduplicate_range == -1:  # -1 = infinite
@@ -166,67 +170,87 @@ try:
                 f"Deduplicate threshold is not a number: '{settings['deduplicate_threshold']}'"
             )
 
-        match settings["deduplicate_method"]:
-            case "old":
-                video = blur.deduplicate.fill_drops_old(
+        dedupe = blur.deduplicate.analyse(
+            video,
+            threshold=deduplicate_threshold,
+            max_gap=deduplicate_range,
+        )
+
+        if settings["debug"]:
+            # `dedupe` is cleared as soon as an interpolation pass takes it, so the debug overlay - which is
+            # drawn right at the end, on frames that are finished and in a format text can go on - keeps its
+            # own handle on it, and on the framerate its frame numbers are counted in
+            debug_dedupe = dedupe
+            debug_source_fps = video.fps
+
+    def interpolate_to(method: str, video: vs.VideoNode, new_fps, dedupe=None):
+        """Interpolate `video` up to `new_fps`, filling `dedupe`'s gaps on the way if it was given any."""
+        match method:
+            case "svp":
+                if settings["manual_svp"]:
+                    # the framerate goes in unless the hand written string already says one. (retiming
+                    # replaces it either way - it interpolates at a rate of its own choosing)
+                    smooth_json = json.loads(settings["smooth_string"])
+                    if "rate" not in smooth_json:
+                        smooth_json["rate"] = {"num": int(new_fps), "abs": True}
+
+                    return blur.interpolate.svp(
+                        video,
+                        video_info=video_info,
+                        super_string=settings["super_string"],
+                        vectors_string=settings["vectors_string"],
+                        smooth_str=json.dumps(smooth_json),
+                        dedupe=dedupe,
+                        new_fps=new_fps,
+                    )
+
+                return blur.interpolate.interpolate_svp(
                     video,
-                    threshold=deduplicate_threshold,
-                    debug=settings["debug"],
+                    video_info=video_info,
+                    new_fps=new_fps,
+                    preset=settings["svp_interpolation_preset"],
+                    algorithm=svp_interpolation_algorithm,
+                    blocksize=interpolation_blocksize,
+                    overlap=0,
+                    masking=interpolation_mask_area,
+                    gpu=settings["gpu_interpolation"],
+                    dedupe=dedupe,
                 )
 
             case "rife":
-                video = blur.deduplicate.fill_drops_rife(
+                return blur.interpolate.interpolate_rife(
                     video,
                     video_info=video_info,
+                    new_fps=new_fps,
                     model_path=settings["rife_model"],
                     device_index=rife_device_index,
-                    threshold=deduplicate_threshold,
-                    max_frames=deduplicate_range,
-                    duplicate_mode=settings["duplicate_mode"],
-                    max_future_checks=settings["max_future_checks"],
-                    debug=settings["debug"],
+                    dedupe=dedupe,
                 )
 
             case "rife (tensorrt)":
-                video = blur.deduplicate.fill_drops_rife_vsmlrt(
+                return blur.interpolate.interpolate_rife_vsmlrt(
                     video,
                     video_info=video_info,
+                    new_fps=new_fps,
                     model=settings["rife_trt_model"],
                     device_index=tensorrt_device_index,
-                    threshold=deduplicate_threshold,
-                    max_frames=deduplicate_range,
-                    duplicate_mode=settings["duplicate_mode"],
-                    max_future_checks=settings["max_future_checks"],
                     settings_path=settings_path,
-                    debug=settings["debug"],
+                    dedupe=dedupe,
                 )
 
             case "mvtools":
-                video = blur.deduplicate.fill_drops_mvtools(
+                return blur.interpolate.interpolate_mvtools(
                     video,
-                    threshold=deduplicate_threshold,
-                    max_frames=deduplicate_range,
+                    new_fps,
                     blocksize=interpolation_blocksize,
                     masking=interpolation_mask_area,
-                    duplicate_mode=settings["duplicate_mode"],
-                    max_future_checks=settings["max_future_checks"],
-                    debug=settings["debug"],
+                    dedupe=dedupe,
                 )
 
             case _:
-                video = blur.deduplicate.fill_drops_svp(
-                    video,
-                    video_info=video_info,
-                    threshold=deduplicate_threshold,
-                    max_frames=deduplicate_range,
-                    duplicate_mode=settings["duplicate_mode"],
-                    max_future_checks=settings["max_future_checks"],
-                    debug=settings["debug"],
-                    svp_preset=settings["svp_interpolation_preset"],
-                    svp_algorithm=svp_interpolation_algorithm,
-                    svp_blocksize=interpolation_blocksize,
-                    svp_masking=interpolation_mask_area,
-                    svp_gpu=settings["gpu_interpolation"],
+                raise u.BlurException(
+                    f"Invalid interpolation method: '{method}'. Should be one of: 'svp', 'rife', "
+                    "'rife (tensorrt)', 'mvtools'"
                 )
 
     # interpolation
@@ -278,30 +302,23 @@ try:
 
                 log.info(f"pre-interpolating to {pre_interpolated_fps}")
 
-                match settings["pre_interpolation_method"]:
-                    case "rife":
-                        video = blur.interpolate.interpolate_rife(
-                            video,
-                            video_info=video_info,
-                            new_fps=pre_interpolated_fps,
-                            model_path=settings["rife_model"],
-                            device_index=rife_device_index,
-                        )
+                if settings["pre_interpolation_method"] not in [
+                    "rife",
+                    "rife (tensorrt)",
+                ]:
+                    raise u.BlurException(
+                        f"Invalid pre-interpolation method: '{settings['pre_interpolation_method']}'. Should be one of: 'rife', 'rife (tensorrt)'"
+                    )
 
-                    case "rife (tensorrt)":
-                        video = blur.interpolate.interpolate_rife_vsmlrt(
-                            video,
-                            video_info=video_info,
-                            new_fps=pre_interpolated_fps,
-                            model=settings["rife_trt_model"],
-                            device_index=tensorrt_device_index,
-                            settings_path=settings_path,
-                        )
-
-                    case _:
-                        raise u.BlurException(
-                            f"Invalid pre-interpolation method: '{settings['pre_interpolation_method']}'. Should be one of: 'rife', '(tensorrt)'"
-                        )
+                # whichever interpolation runs first is the one that fills deduplication's gaps, since after
+                # it there's nothing left of the source timeline to fill them on
+                video = interpolate_to(
+                    settings["pre_interpolation_method"],
+                    video,
+                    pre_interpolated_fps,
+                    dedupe=dedupe,
+                )
+                dedupe = None
 
                 fps_added = video.fps - old_fps
                 log.info(
@@ -314,66 +331,10 @@ try:
             )
             old_fps = video.fps
 
-            match settings["interpolation_method"]:
-                case "svp":
-                    if not settings["manual_svp"]:
-                        video = blur.interpolate.interpolate_svp(
-                            video,
-                            video_info=video_info,
-                            new_fps=interpolated_fps,
-                            preset=settings["svp_interpolation_preset"],
-                            algorithm=svp_interpolation_algorithm,
-                            blocksize=interpolation_blocksize,
-                            overlap=0,
-                            masking=interpolation_mask_area,
-                            gpu=settings["gpu_interpolation"],
-                        )
-                    else:
-                        # insert interpolated fps
-                        smooth_json = json.loads(settings["smooth_string"])
-                        if "rate" not in smooth_json:
-                            smooth_json["rate"] = {"num": interpolated_fps, "abs": True}
-                        smooth_str = json.dumps(smooth_json)
-
-                        video = blur.interpolate.svp(
-                            video,
-                            video_info=video_info,
-                            super_string=settings["super_string"],
-                            vectors_string=settings["vectors_string"],
-                            smooth_str=smooth_str,
-                        )
-
-                case "rife":
-                    video = blur.interpolate.interpolate_rife(
-                        video,
-                        video_info=video_info,
-                        new_fps=interpolated_fps,
-                        model_path=settings["rife_model"],
-                        device_index=rife_device_index,
-                    )
-
-                case "rife (tensorrt)":
-                    video = blur.interpolate.interpolate_rife_vsmlrt(
-                        video,
-                        video_info=video_info,
-                        new_fps=interpolated_fps,
-                        model=settings["rife_trt_model"],
-                        device_index=tensorrt_device_index,
-                        settings_path=settings_path,
-                    )
-
-                case "mvtools":
-                    video = blur.interpolate.interpolate_mvtools(
-                        video,
-                        interpolated_fps,
-                        blocksize=int(settings["interpolation_blocksize"]),
-                        masking=int(settings["interpolation_mask_area"]),
-                    )
-
-                case _:
-                    raise u.BlurException(
-                        f"Invalid interpolation method: '{settings['interpolation_method']}'. Should be one of: 'svp', 'rife', '(tensorrt)', 'mvtools'"
-                    )
+            video = interpolate_to(
+                settings["interpolation_method"], video, interpolated_fps, dedupe=dedupe
+            )
+            dedupe = None
 
             fps_added = video.fps - old_fps
             log.info(
@@ -381,6 +342,24 @@ try:
             )
 
         interpolated = video.num_frames != frames_before_interpolation
+
+    if dedupe is not None:
+        # nothing interpolated, so deduplication fills its own gaps, at the framerate the video already has.
+        # this is the only place 'deduplicate method' is read - when interpolation runs it takes the timeline
+        # instead, and fills the gaps with whatever method it was already going to use
+        method = settings["deduplicate_method"]
+        log.info(f"filling duplicate frames with {method}")
+
+        if method == "old":
+            # the one method that doesn't retime - it patches a blend over each duplicate instead, so it has
+            # no use for the timeline
+            video = blur.deduplicate.fill_drops_old(
+                video,
+                threshold=deduplicate_threshold,
+                debug=settings["debug"],
+            )
+        else:
+            video = interpolate_to(method, video, video.fps, dedupe=dedupe)
 
     # masking. deduplication is included because filling a dropped frame means interpolating one, and it's
     # interpolation that warps an overlay - but if neither actually ran there are no artifacts to put back
@@ -401,6 +380,14 @@ try:
         # nothing sensible to mask and the video is left as it is
         if mask_clip is not None:
             video = blur.mask.protect(video, original, mask_clip)
+
+    # debug: write over the frames deduplication had a hand in, and only those. drawn after masking so the
+    # text can't be masked away, and before blending - which averages frames together, and will smear this
+    # along with everything else, so turn blur off to read it
+    if debug_dedupe is not None:
+        video = blur.deduplicate.annotate(
+            video, debug_dedupe, video.fps / debug_source_fps
+        )
 
     # output timescale
     if settings["timescale"]:

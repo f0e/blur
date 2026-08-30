@@ -196,11 +196,15 @@ int gui::run() {
 
 			double time_to_sleep = sdl::vsync_frame_time_ms - elapsed_ms;
 			if (time_to_sleep > 0.f)
-				SDL_Delay(time_to_sleep);
+				SDL_WaitEventTimeout(nullptr, time_to_sleep);
 		}
 		else {
 			rendered_last = false;
-			SDL_Delay(sdl::TICKRATE_MS);
+
+			// // nothing to draw, so idle until something happens rather than blindly sleeping a whole tick -
+			// // video frame updates arrive as pushed sdl events, and sleeping through them capped playback at
+			// // the tickrate (choppy preview). passing null leaves the event queued for the poll above
+			SDL_WaitEventTimeout(nullptr, (int)sdl::TICKRATE_MS);
 		}
 	}
 }
