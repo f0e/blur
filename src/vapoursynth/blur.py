@@ -175,6 +175,7 @@ try:
             threshold=deduplicate_threshold,
             max_gap=deduplicate_range,
             timing=settings["duplicate_timing"],
+            future_checks=settings["max_future_checks"],
         )
 
         if settings["debug"]:

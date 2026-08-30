@@ -136,6 +136,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "deduplicate range: " << settings.advanced.deduplicate_range << "\n";
 			output << "deduplicate threshold: " << settings.advanced.deduplicate_threshold << "\n";
 			output << "deduplicate real frame: " << settings.advanced.duplicate_timing << "\n";
+			output << "deduplicate max future checks: " << settings.advanced.max_future_checks << "\n";
 
 			output << "\n";
 			output << "- advanced rendering" << "\n";
@@ -348,6 +349,9 @@ BlurSettings config_blur::parse_from_map(const std::map<std::string, std::string
 		config_base::extract_config_value(config_map, "deduplicate range", settings.advanced.deduplicate_range);
 		config_base::extract_config_value(config_map, "deduplicate threshold", settings.advanced.deduplicate_threshold);
 		config_base::extract_config_value(config_map, "deduplicate real frame", settings.advanced.duplicate_timing);
+		config_base::extract_config_value(
+			config_map, "deduplicate max future checks", settings.advanced.max_future_checks
+		);
 
 		// 'deduplicate frames to interpolate' is what this used to be called, back when it named the frames to
 		// interpolate between rather than the frame in a run that's real. the two it described that still exist
@@ -360,6 +364,8 @@ BlurSettings config_blur::parse_from_map(const std::map<std::string, std::string
 				settings.advanced.duplicate_timing = "last";
 			else if (legacy == "previous to duplicate")
 				settings.advanced.duplicate_timing = "first";
+			else if (legacy.starts_with("surrounding frames"))
+				settings.advanced.duplicate_timing = "surrounding";
 		}
 
 		config_base::extract_config_value(config_map, "video container", settings.advanced.video_container);
@@ -505,6 +511,7 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 	j["deduplicate_range"] = this->advanced.deduplicate_range;
 	j["deduplicate_threshold"] = this->advanced.deduplicate_threshold;
 	j["duplicate_timing"] = this->advanced.duplicate_timing;
+	j["max_future_checks"] = this->advanced.max_future_checks;
 
 	// j["video_container"] = this->advanced.video_container;
 	// j["ffmpeg_override"] = this->advanced.ffmpeg_override;

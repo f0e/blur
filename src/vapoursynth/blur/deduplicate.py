@@ -42,27 +42,41 @@ MAX_GAP_LIMIT = 30
 # Which frame of a run of repeats is the real one.
 #
 # When a recording drops a frame it repeats one to fill the slot, and nothing in the file says which of the
-# repeats is the picture that was really drawn and which are padding. The picture can't tell you either: a run
-# of k identical frames is consistent with the content arriving at any of them. It isn't even decidable in
-# principle - anchoring every run at its first frame and anchoring every run at its last frame produce the same
+# repeats is the picture that was really drawn. The picture can't tell you either, and it isn't decidable in
+# principle: anchoring every run at its first frame and anchoring every run at its last frame produce the same
 # sequence of intervals, one shifted along by a run, so no measurement of the frames can separate them.
 #
 # What it changes is which interval each picture is given. FIRST hands a picture the length of the run it
 # starts; LAST hands it the length of the run before it. So it only matters where run lengths vary, and there
 # it's the difference between motion at a steady rate and motion that speeds up and slows down.
 #
-# FIRST is what a live capture does, and it's what a capture *can* do: the picture is drawn, then held until
-# the next one is ready, and nothing can show a frame before it was drawn. LAST is for footage that's been
-# through something since - a variable rate recording resampled to a fixed one can land its frames a slot
-# later, and that reads as the run ending on the real frame.
+#   FIRST        the picture arrived at the start of the run and was repeated after it. this is what a live
+#                recording does, and all it can do - nothing shows a frame before it was drawn.
+#   LAST         the run ends on the real frame. a variable rate recording resampled to a fixed one can land
+#                its frames a slot later, and that reads this way.
+#   CENTER       split the difference and put the picture in the middle of its run. can't be more than half a
+#                run out whichever way the footage leans, where guessing an end can be a whole run out.
+#   SURROUNDING  don't believe the run at all - work from the frames either side of it. that's exact under
+#                both of the above rather than a compromise between them, because the frames outside a run
+#                aren't the ones in question. it pays for that by generating across a longer gap, which is
+#                more for the interpolator to get wrong, and by needing `deduplicate range` wide enough to
+#                fit the run plus a frame each side.
 TIMING_FIRST = "first"
 TIMING_LAST = "last"
-TIMINGS = [TIMING_FIRST, TIMING_LAST]
+TIMING_CENTER = "center"
+TIMING_SURROUNDING = "surrounding"
+TIMINGS = [TIMING_FIRST, TIMING_LAST, TIMING_CENTER, TIMING_SURROUNDING]
 
-# what a decision frame carries. one per source frame: the two frames that bracket it, whether the picture
-# is standing still (so there's nothing to interpolate towards), and the difference that was measured at it
+# anchor times are counted in half frames. CENTER puts a run's anchor halfway along it, which for an even
+# length run is halfway through a frame - counting in halves keeps every time an exact whole number
+HALF = 2
+
+# what a decision frame carries: the two frames that bracket this one, when each of them belongs on the
+# timeline, whether the picture is standing still, and the difference that was measured here
 PROP_LEFT = "BlurDedupeLeft"
 PROP_RIGHT = "BlurDedupeRight"
+PROP_LEFT_TIME = "BlurDedupeLeftTime"
+PROP_RIGHT_TIME = "BlurDedupeRightTime"
 PROP_HOLD = "BlurDedupeHold"
 PROP_DIFF = "BlurDedupeDiff"
 
@@ -71,25 +85,29 @@ PROP_DIFF = "BlurDedupeDiff"
 class Dedupe:
     """Everything the interpolator needs to render a video as if it had never dropped a frame.
 
-    `decisions` holds one frame per frame of the source, carrying the props above. It's a 1x1 clip - only the
-    props matter - and it's built so that reading frame n only reads the source around n.
+    `decisions` holds `resolution` frames per frame of the source, carrying the props above. It's a 1x1 clip -
+    only the props matter - and it's built so that reading one of its frames only reads the source around it.
     """
 
     decisions: vs.VideoNode
     length: int
     max_gap: int
+    timing: str
+    resolution: int
 
 
 @dataclass(frozen=True)
 class Bracket:
-    """The two real frames an output frame sits between, and where between them it sits.
+    """The two real frames an output frame sits between, when they belong, and where between them it sits.
 
-    `timepoint` is None when there's nothing to generate - the output frame lands exactly on `left`, or the
-    picture isn't changing - and `left` should be used as it is.
+    `timepoint` is None when there's nothing to generate - the output frame lands on `left` or before it, or
+    the picture isn't changing - and `left` should be used as it is.
     """
 
     left: int
     right: int
+    left_time: Fraction
+    right_time: Fraction
     timepoint: Fraction | None
 
 
@@ -111,85 +129,212 @@ def _shifted(clip: vs.VideoNode, offset: int) -> vs.VideoNode:
     return clip
 
 
+def _resolution(timing: str) -> int:
+    """How many decisions a source frame needs.
+
+    An anchor that lands halfway through a frame splits it in two - the frames before it belong to one pair
+    and the frames after it to the next - so CENTER decides twice a frame and no anchor ever falls inside a
+    decision. Every other timing anchors on whole frames and needs one.
+    """
+    return HALF if timing == TIMING_CENTER else 1
+
+
+def _reach(timing: str, max_gap: int) -> int:
+    """How far either side of itself a decision has to read.
+
+    CENTER is the only timing that needs a neighbouring run measured end to end rather than just found, so
+    it's the only one that reaches past its own run.
+    """
+    return (2 * max_gap if timing == TIMING_CENTER else max_gap) + 2
+
+
 def _decisions(
-    clip: vs.VideoNode, threshold: float, max_gap: int, timing: str
+    clip: vs.VideoNode,
+    threshold: float,
+    max_gap: int,
+    timing: str,
+    future_checks: int,
 ) -> vs.VideoNode:
-    """Work out, for every frame of `clip`, which two real frames it sits between.
+    """Work out, for every frame of `clip`, which two real frames it sits between and when they belong.
 
-    Which frames count as *real* is `timing`'s business - the first of each run of repeats, or the last of it.
-    Everything below is the same either way. Frame n's pair is the nearest real frame at or before it and the
-    nearest one after it, each looked for within `max_gap` frames:
-
-      - nothing real within reach ahead, and the picture is standing still for as far as this frame can see.
-        There's nothing to interpolate towards, so the frame is its own answer and gets held.
-      - otherwise the pair is (`back`, `forward`), pulled in to at most `max_gap` apart. Pulling it in matters
-        after a long still stretch: rather than crossfading the whole stretch into whatever comes next, the
-        picture holds and then moves over the last `max_gap` frames before the change.
-
-    Every frame in a gap works out the same pair, which is what makes this safe to decide a frame at a time -
-    and a pair's own start frame works out that same pair too, which is what lets the interpolator be handed
-    each pair once rather than once per frame that falls inside it. (`left` is either `back`, which is real and
-    so answers with itself, or `forward - max_gap`, which is exactly `max_gap` from a `forward` that nothing
-    real sits in front of - so it answers with itself either way.)
+    A frame is a *repeat* when it differs from its predecessor by less than `threshold`, which divides the
+    video into runs of identical frames. `timing` decides where on the timeline each run's picture goes, and
+    everything below follows from that: the pair for a frame is the anchor at or before it and the next one
+    after, and a pair is never allowed to span more than `max_gap` frames - past that the picture holds and
+    then moves over the last `max_gap` frames before the change.
     """
     diffs = core.std.PlaneStats(clip, clip[0] + clip)
 
-    # a decision at frame n reads max_gap either side of itself and no further - plus one more on the way out,
-    # because spotting the last frame of a run means looking at the frame after it
-    offsets = list(range(-max_gap, max_gap + 2))
+    reach = _reach(timing, max_gap)
+    offsets = list(range(-reach, reach + 1))
     window = [_shifted(diffs, offset) for offset in offsets]
+
+    resolution = _resolution(timing)
+    if resolution != 1:
+        window = [core.std.Interleave([shifted] * resolution) for shifted in window]
 
     length = clip.num_frames
     last = length - 1
 
     # the props are the whole point of this clip, so its frames are as small as a frame gets
     holder = core.std.BlankClip(
-        width=1, height=1, format=vs.GRAY8, length=length, keep=True
+        width=1, height=1, format=vs.GRAY8, length=length * resolution, keep=True
     )
 
     # window frames come after `holder` in the list handed to the selector
     base = 1 + offsets.index(0)
 
     def decide(n: int, f: list[vs.VideoFrame]) -> vs.VideoFrame:
+        # `n` indexes the decisions, which for CENTER run two to a source frame
+        source = n // resolution
+        time = n * (HALF // resolution)
+
         def diff(index: int) -> float:
-            return f[base + index - n].props["PlaneStatsDiff"]  # type: ignore[return-value]
+            return f[base + index - source].props["PlaneStatsDiff"]  # type: ignore[return-value]
 
-        def real(index: int) -> bool:
-            # whichever end of a run is being anchored, the clip's own ends are anchors too: there's nothing
-            # before the first frame for it to be a repeat of, and nothing after the last one to wait for
-            if index == 0:
-                return True
+        def run(index: int, back: int, on: int) -> tuple[int, int, bool, bool]:
+            """The stretch of identical frames `index` is in, looking no further than it's allowed to.
 
-            if timing == TIMING_LAST:
-                return index == last or diff(index + 1) >= threshold
+            The two flags say the stretch carried on past where the scan could look, so the frame that really
+            begins or ends it isn't known and nothing should be anchored to it.
+            """
+            low = max(0, index - back)
+            high = min(last, index + on)
 
-            return diff(index) >= threshold
+            start = index
+            while start > low and diff(start) < threshold:
+                start -= 1
 
-        back = None
-        for index in range(n, max(n - max_gap, 0) - 1, -1):
-            if real(index):
-                back = index
-                break
+            end = index
+            while end < high and diff(end + 1) < threshold:
+                end += 1
 
-        forward = None
-        for index in range(n + 1, min(n + max_gap, last) + 1):
-            if real(index):
-                forward = index
-                break
+            return (
+                start,
+                end,
+                start > 0 and diff(start) < threshold,
+                end < last and diff(end + 1) < threshold,
+            )
+
+        def held() -> tuple[int, int, int, int, int]:
+            """Nothing to move towards, so this frame's own picture is the answer for its whole slot."""
+            return source, HALF * source, source, HALF * source, 1
+
+        def pair(
+            left: int, left_time: int, right: int, right_time: int
+        ) -> tuple[int, int, int, int, int]:
+            # never generate across more than the range allows. clamping the time rather than the frame is
+            # what keeps this right: `left`'s picture is the one that belongs for every moment up to where
+            # the move starts, so holding it for longer and moving over the last `max_gap` frames is exactly
+            # what the setting asks for
+            return (
+                left,
+                max(left_time, right_time - HALF * max_gap),
+                right,
+                right_time,
+                0,
+            )
+
+        start, end, open_start, open_end = run(source, max_gap, max_gap)
+
+        if timing == TIMING_FIRST:
+            # the picture arrived when the run started, and the next one when the next run started
+            answer = (
+                held()
+                if open_end or end >= last
+                else pair(start, HALF * start, end + 1, HALF * (end + 1))
+            )
+
+        elif timing == TIMING_LAST:
+            # the picture arrives as the run ends, so before that we're still moving towards it
+            if source < end:
+                # the picture before this run is the one that belongs here, so its run has to be in
+                # reach - `open_start` means it isn't, and the frame before `start` would then be this
+                # run's own picture rather than the one it's still moving away from
+                answer = (
+                    held()
+                    if open_end or open_start
+                    else pair(
+                        max(start - 1, 0), HALF * max(start - 1, 0), end, HALF * end
+                    )
+                )
+            elif end >= last:
+                answer = held()
+            else:
+                _, next_end, _, next_open = run(end + 1, 0, max_gap)
+                answer = (
+                    held()
+                    if next_open
+                    else pair(end, HALF * end, next_end, HALF * next_end)
+                )
+
+        elif timing == TIMING_CENTER:
+            # halfway along the run, which needs both of its ends known
+            if open_start or open_end:
+                answer = held()
+            elif time >= start + end:
+                if end >= last:
+                    answer = held()
+                else:
+                    next_start, next_end, _, next_open = run(end + 1, 0, max_gap)
+                    answer = (
+                        held()
+                        if next_open
+                        else pair(start, start + end, next_start, next_start + next_end)
+                    )
+            elif start <= 0:
+                answer = held()
+            else:
+                prev_start, prev_end, prev_open, _ = run(start - 1, max_gap, 0)
+                answer = (
+                    held()
+                    if prev_open
+                    else pair(prev_start, prev_start + prev_end, start, start + end)
+                )
+
+        else:  # TIMING_SURROUNDING
+            # a run of one frame isn't in question - both readings put its picture at its own index - so
+            # it anchors itself. A longer one is stepped over, and the frames either side carry the gap.
+            lone = start == end
+            unreachable = (
+                open_end or end >= last or (not lone and (open_start or start <= 0))
+            )
+
+            if unreachable:
+                answer = held()
+            else:
+                left = source if lone else start - 1
+                right = end + 1
+
+                # ...and a run the search lands on is in question the same way, so step over that too,
+                # as many times as allowed and as far as the range has room for. this is what makes the
+                # timing come out right whichever end of a run the picture really belongs to: every
+                # frame it ends up working from is one that both readings agree about
+                for _ in range(future_checks):
+                    if right >= last:
+                        break
+
+                    _, next_end, _, next_open = run(right, 0, max_gap)
+                    if next_end == right or next_open or next_end + 1 - left > max_gap:
+                        break
+
+                    right = next_end + 1
+
+                answer = (
+                    held()
+                    if right - left > max_gap
+                    else pair(left, HALF * left, right, HALF * right)
+                )
+
+        left, left_time, right, right_time, hold = answer
 
         out = f[0].copy()
-
-        if forward is None:
-            out.props[PROP_LEFT] = n
-            out.props[PROP_RIGHT] = n
-            out.props[PROP_HOLD] = 1
-        else:
-            start = forward - max_gap
-            out.props[PROP_LEFT] = start if back is None else max(back, start)
-            out.props[PROP_RIGHT] = forward
-            out.props[PROP_HOLD] = 0
-
-        out.props[PROP_DIFF] = diff(n)
+        out.props[PROP_LEFT] = left
+        out.props[PROP_RIGHT] = right
+        out.props[PROP_LEFT_TIME] = left_time
+        out.props[PROP_RIGHT_TIME] = right_time
+        out.props[PROP_HOLD] = hold
+        out.props[PROP_DIFF] = diff(source)
 
         return out
 
@@ -201,6 +346,7 @@ def analyse(
     threshold: float,
     max_gap: int | None,
     timing: str = TIMING_FIRST,
+    future_checks: int = 0,
 ) -> Dedupe:
     """Set up deduplication for `clip`, without reading any of it yet."""
     if timing not in TIMINGS:
@@ -208,21 +354,29 @@ def analyse(
             f"Deduplicate real frame must be one of: {', '.join(TIMINGS)}"
         )
 
+    future_checks = max(0, int(future_checks))
+
     if max_gap is None:
         log.info(f"deduplication: unlimited range, capped at {MAX_GAP_LIMIT} frames")
         max_gap = MAX_GAP_LIMIT
     else:
         max_gap = max(1, min(int(max_gap), MAX_GAP_LIMIT))
 
+    where = (
+        "working from the frames either side of a run"
+        if timing == TIMING_SURROUNDING
+        else f"{timing} frame of a run is the real one"
+    )
     log.info(
-        f"deduplicating (threshold {threshold}, up to {max_gap} frames apart, "
-        f"{timing} frame of a run is the real one)"
+        f"deduplicating (threshold {threshold}, up to {max_gap} frames apart, {where})"
     )
 
     return Dedupe(
-        decisions=_decisions(clip, threshold, max_gap, timing),
+        decisions=_decisions(clip, threshold, max_gap, timing, future_checks),
         length=clip.num_frames,
         max_gap=max_gap,
+        timing=timing,
+        resolution=_resolution(timing),
     )
 
 
@@ -240,14 +394,21 @@ def output_frames(length: int, ratio: Fraction) -> int:
     return max(1, int(length * ratio))
 
 
+def decision_index(dedupe: Dedupe, n: int, ratio: Fraction) -> int:
+    """Which of `dedupe.decisions`' frames covers output frame `n`."""
+    return min(
+        int(source_time(n, ratio) * dedupe.resolution),
+        dedupe.decisions.num_frames - 1,
+    )
+
+
 def over_output(dedupe: Dedupe, dst_frames: int, ratio: Fraction) -> vs.VideoNode:
     """`dedupe.decisions` re-indexed onto the output timeline, for use as a FrameEval prop_src."""
     decisions = dedupe.decisions
-    last = dedupe.length - 1
 
     return core.std.FrameEval(
         core.std.BlankClip(decisions, length=dst_frames, keep=True),
-        lambda n: decisions[min(int(source_time(n, ratio)), last)],
+        lambda n: decisions[decision_index(dedupe, n, ratio)],
     )
 
 
@@ -255,11 +416,19 @@ def bracket(props, time: Fraction) -> Bracket:
     """Read a decision frame's props back out for an output frame at `time`."""
     left = int(props[PROP_LEFT])
     right = int(props[PROP_RIGHT])
+    left_time = Fraction(int(props[PROP_LEFT_TIME]), HALF)
+    right_time = Fraction(int(props[PROP_RIGHT_TIME]), HALF)
 
-    if props[PROP_HOLD] or right <= left or time <= left:
-        return Bracket(left, right, None)
+    if props[PROP_HOLD] or right_time <= left_time or time <= left_time:
+        return Bracket(left, right, left_time, right_time, None)
 
-    return Bracket(left, right, Fraction(time - left, right - left))
+    return Bracket(
+        left,
+        right,
+        left_time,
+        right_time,
+        (time - left_time) / (right_time - left_time),
+    )
 
 
 def involved(at: Bracket) -> bool:
@@ -270,7 +439,7 @@ def involved(at: Bracket) -> bool:
     frames that were dropped, and a pair of no width at all is the picture being held because nothing new
     turned up within range.
     """
-    return at.right - at.left != 1
+    return at.right_time - at.left_time != 1
 
 
 def describe(n: int, time: Fraction, props, at: Bracket) -> str:
@@ -278,7 +447,10 @@ def describe(n: int, time: Fraction, props, at: Bracket) -> str:
     if at.timepoint is None:
         where = f"held on {at.left}" if at.left == at.right else f"on {at.left}"
     else:
-        where = f"{at.left}->{at.right} @ {float(at.timepoint):.3f}"
+        where = (
+            f"{at.left}->{at.right} ({float(at.left_time):g}->{float(at.right_time):g})"
+            f" @ {float(at.timepoint):.3f}"
+        )
 
     return f"{n} | src {float(time):.3f} | diff {float(props[PROP_DIFF]):.6f} | {where}"
 

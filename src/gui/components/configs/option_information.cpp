@@ -186,8 +186,26 @@ void configs::option_information(ui::Container& container) {
 				"'last' suits footage where the run ends on the real frame instead, which is what a variable "
 				"framerate recording resampled to a fixed one can look like.",
 
-				"It only makes a difference where runs of duplicates vary in length. Getting it wrong there shows up "
-				"as motion that speeds up and slows down rather than running at a steady rate.",
+				"'center' splits the difference and puts the picture in the middle of its run. It can't be more "
+				"than half a run out whichever way the footage leans, where picking the wrong end can be a whole "
+				"run out.",
+
+				"'surrounding' doesn't believe the run at all and works from the frames either side of it, which "
+				"comes out right whichever way the footage leans. It needs runs of one frame to work from, so it "
+				"suits stuttery footage rather than a game running at a clean half of the recording framerate, and "
+				"it generates across a longer gap - more for the interpolator to get wrong. Raise 'deduplicate "
+				"range' to give it room.",
+
+				"This only makes a difference where runs of duplicates vary in length. Getting it wrong there shows "
+				"up as motion that speeds up and slows down rather than running at a steady rate.",
+			},
+		},
+		{
+			"max future checks slider",
+			{
+				"How many times 'surrounding' may step over a run of duplicates that is itself in question, "
+				"looking for a frame whose timing isn't.",
+				"Each step widens the gap it generates across, and the search still stops at 'deduplicate range'.",
 			},
 		},
 		{
