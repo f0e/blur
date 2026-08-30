@@ -252,22 +252,35 @@ void configs::options(ui::Container& container) {
 	ui::add_checkbox("deduplicate checkbox", container, "deduplicate", settings.deduplicate, fonts::dejavu);
 
 	if (settings.deduplicate) {
-		ui::add_dropdown(
-			"deduplicate method dropdown",
-			container,
-			"deduplicate method",
-			{
-				"svp",
-				"rife",
+		// deduplication generates its frames as part of the interpolation pass, so when that's running there's
+		// no second method to pick - see blur/deduplicate.py
+		if (settings.interpolate) {
+			ui::add_text(
+				"deduplicate method interpolation note",
+				container,
+				"filled by the interpolation method",
+				WARNING_COLOR,
+				fonts::dejavu
+			);
+		}
+		else {
+			ui::add_dropdown(
+				"deduplicate method dropdown",
+				container,
+				"deduplicate method",
+				{
+					"svp",
+					"rife",
 #ifdef TENSORRT
-				"rife (tensorrt)",
+					"rife (tensorrt)",
 #endif
-				"mvtools",
-				"old",
-			},
-			settings.deduplicate_method,
-			fonts::dejavu
-		);
+					"mvtools",
+					"old",
+				},
+				settings.deduplicate_method,
+				fonts::dejavu
+			);
+		}
 	}
 
 	/*
@@ -573,32 +586,6 @@ void configs::options(ui::Container& container) {
 				fonts::dejavu
 			);
 		});
-
-		ui::add_dropdown(
-			"deduplicate frames to interpolate input",
-			container,
-			"deduplicate frames to interpolate",
-			{
-				"surrounding frames + future check",
-				"surrounding frames",
-				"previous to duplicate",
-				"duplicate to next",
-			},
-			settings.advanced.duplicate_mode,
-			fonts::dejavu
-		);
-
-		if (settings.advanced.duplicate_mode == "surrounding frames + future check") {
-			ui::add_slider(
-				"max future checks slider",
-				container,
-				0,
-				10,
-				&settings.advanced.max_future_checks,
-				"max future checks: {}",
-				fonts::dejavu
-			);
-		}
 
 		/*
 		    Advanced Rendering

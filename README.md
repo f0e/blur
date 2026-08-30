@@ -87,6 +87,8 @@ Using blur on 60fps footage results in clean motion blur, but occasionally leave
 
 If your footage contains duplicate frames then occasionally blurred frames will look out of place, making the video seem unsmooth at points. The 'deduplicate' option will automatically fill in duplicated frames with interpolated frames to prevent this from happening.
 
+When interpolation is on it does both jobs in one pass: every frame it generates comes from the two nearest frames that were really captured, rather than from frames that were themselves generated to patch a gap.
+
 ### Masks
 
 Interpolation has no idea that a HUD isn't part of the scene, so it warps static overlays - crosshairs, killfeeds, timers - along with the world behind them. A mask marks those regions so they keep their original pixels instead. It applies to deduplication as well, since filling in a dropped frame means interpolating one, and that warps an overlay the same way.
@@ -159,10 +161,10 @@ Blur supports rendering from frameservers. This means you can avoid having to ru
 ### rendering
 
 - quality - [crf](https://trac.ffmpeg.org/wiki/Encode/H.264#crf) of the output video (may be different if using GPU encoding) - (0 = lossless quality, 51 = really bad)
-- deduplicate - removes duplicate frames and generates new interpolated frames to take their place. fixes 'unsmooth' looking output caused by stuttering in recordings
-- deduplicate range - amount of frames beyond the current frame to look for unique frames when deduplicating. make it higher if your footage is at a lower FPS than it should be (e.g. choppy 120fps gameplay recorded at 240fps), lower it if your blurred footage starts blurring static elements such as menu screens
-- deduplicate threshold - threshold of movement that triggers deduplication. turn on debug in advanced and render a video to embed text showing the movement in each frame
-- deduplicate method - method used for deduplication:
+- deduplicate - ignores duplicate frames and generates what should have been there instead, from the nearest frames that aren't repeats. fixes 'unsmooth' looking output caused by stuttering in recordings
+- deduplicate range - how far apart two frames can be and still have frames generated between them. make it higher if your footage is at a lower FPS than it should be (e.g. choppy 120fps gameplay recorded at 240fps), lower it if your blurred footage starts blurring static elements such as menu screens
+- deduplicate threshold - threshold of movement that triggers deduplication. turn on debug in advanced and render a video to label every frame deduplication had a hand in with the movement it measured and the frames it worked from (turn blur off to read it - blending averages the text away along with everything else)
+- deduplicate method - what generates the frames that go in place of duplicates. only needed with interpolation off - with it on, the interpolation method generates them as part of its own pass, from the same model. options:
   - Quality: RIFE > svp
   - Speed: old > svp > RIFE
 - preview - opens a render preview window
