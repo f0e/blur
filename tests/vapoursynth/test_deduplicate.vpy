@@ -80,7 +80,17 @@ def duplicated(unique, holds):
     return values
 
 
-VALUES = [0, 40] + duplicated(10, [2, 2, 3, 1, 2, 4]) + [7] * 12 + [90, 130]
+# the long still stretch is reached over a run of two, so a search that steps over that run lands
+# on a stretch far longer than it - which is the shape that used to read past the window
+# ...and it ends inside a run rather than on a lone frame, which is what a recording trimmed at an
+# arbitrary point looks like, and what a search stepping forward can run off the end of
+VALUES = (
+    [0, 40]
+    + duplicated(10, [2, 2, 3, 1, 2, 4])
+    + [144]
+    + [7] * 12
+    + [90, 130, 130, 130]
+)
 LENGTH = len(VALUES)
 VIDEO = grey_clip(VALUES)
 
@@ -651,6 +661,106 @@ for timing in dd.TIMINGS:
                 f"[{timing}] frame {n} of a clip with no duplicates got "
                 f"({at.left}, {at.right}, {at.left_time}, {at.right_time})"
             )
+
+
+# ------------------------------------------ 6. the scans stay inside their window
+
+# every scan above ran against sources with runs of one, two, three, four and twelve frames, across
+# every timing and a spread of ranges. if any of them reached for a difference the window doesn't
+# hold, the reach analysis in `_reach` is wrong for that path - which reads as frames quietly being
+# held rather than as anything failing, so nothing else here would notice
+CHECKS += 1
+if dd.WINDOW_CLAMPED:
+    FAILURES.append(
+        "a scan read past its window - `_reach` is too small for one of the timings"
+    )
+
+# and once more with settings chosen to stretch the scans as far as they go
+for timing in dd.TIMINGS:
+    for max_gap in (1, 2, 4, 7, 12, 30):
+        stretched = dd.analyse(VIDEO, THRESHOLD, max_gap, timing, future_checks=10)
+        for j in range(stretched.decisions.num_frames):
+            read(stretched, j)
+
+CHECKS += 1
+if dd.WINDOW_CLAMPED:
+    FAILURES.append(
+        "a scan read past its window once the range and future checks were opened up"
+    )
+
+# and a pair has to name frames that exist, whatever the settings and wherever in the clip it falls -
+# a search that walks off either end shows up here rather than as a failed render
+for timing in dd.TIMINGS:
+    for max_gap in (1, 2, 4, 7, 12, 30):
+        for checks in (0, 1, 4, 10):
+            bounded = dd.analyse(VIDEO, THRESHOLD, max_gap, timing, checks)
+            for j in range(bounded.decisions.num_frames):
+                at = read(bounded, j)
+                if not (0 <= at.left < LENGTH and 0 <= at.right < LENGTH):
+                    fail(
+                        f"[{timing}][gap={max_gap}][checks={checks}] decision {j} names frames "
+                        f"({at.left}, {at.right}) outside a clip of {LENGTH}"
+                    )
+
+
+# ------------------------------------------------- 7. clips shorter than the window
+
+# trimming a render to a short region leaves a clip shorter than the range wants to look at, so the
+# shifted clips the window is built from collapse onto each other at the edges. every scan has to stay
+# inside the clip for that to stay harmless.
+SHORT_SHAPES = [
+    [10],
+    [10, 10],
+    [10, 90],
+    [10, 10, 10],
+    [10, 90, 90],
+    [10, 90, 90, 170],
+    [10, 10, 90, 90, 90],
+    [10, 90, 90, 170, 170, 170, 250, 250],
+    [10, 10, 90, 170, 170, 250, 250, 250, 10, 10, 10, 90, 90, 170, 250, 250, 250],
+]
+
+for shape in SHORT_SHAPES:
+    short = grey_clip(shape)
+
+    for timing in dd.TIMINGS:
+        for max_gap in (1, 3, 8, 30):
+            for checks in (0, 3, 10):
+                try:
+                    tiny = dd.analyse(short, THRESHOLD, max_gap, timing, checks)
+                    for j in range(tiny.decisions.num_frames):
+                        at = read(tiny, j)
+                        CHECKS += 1
+                        if not (
+                            0 <= at.left < len(shape) and 0 <= at.right < len(shape)
+                        ):
+                            FAILURES.append(
+                                f"[{timing}][len={len(shape)}][gap={max_gap}][checks={checks}] "
+                                f"decision {j} names ({at.left}, {at.right})"
+                            )
+                except Exception as e:
+                    fail(
+                        f"[{timing}][len={len(shape)}][gap={max_gap}][checks={checks}] "
+                        f"raised {type(e).__name__}: {e}"
+                    )
+
+CHECKS += 1
+if dd.WINDOW_CLAMPED:
+    FAILURES.append("a scan read past its window on a clip shorter than the window")
+
+# and a short clip still renders end to end
+for timing in dd.TIMINGS:
+    short = grey_clip(SHORT_SHAPES[-1])
+    tiny = dd.analyse(short, THRESHOLD, 8, timing, 4)
+    rendered = it._retimed(short, tiny, Fraction(300), counting_interpolator)
+    CHECKS += 1
+    try:
+        for _ in rendered.frames(close=True):
+            pass
+    except Exception as e:
+        FAILURES.append(
+            f"[{timing}] a short clip failed to render: {type(e).__name__}: {e}"
+        )
 
 
 # --------------------------------------------------------------- report

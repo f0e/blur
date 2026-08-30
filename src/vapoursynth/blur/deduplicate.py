@@ -67,6 +67,11 @@ TIMING_CENTER = "center"
 TIMING_SURROUNDING = "surrounding"
 TIMINGS = [TIMING_FIRST, TIMING_LAST, TIMING_CENTER, TIMING_SURROUNDING]
 
+# set if a scan ever asked for a difference further out than its timing's window holds. `_reach` is
+# meant to make that impossible, and reading the edge instead costs a held frame rather than a failed
+# render - but it means a scan went somewhere the reach analysis didn't account for, so the tests watch it
+WINDOW_CLAMPED = False
+
 # anchor times are counted in half frames. CENTER puts a run's anchor halfway along it, which for an even
 # length run is halfway through a frame - counting in halves keeps every time an exact whole number
 HALF = 2
@@ -190,7 +195,14 @@ def _decisions(
         time = n * (HALF // resolution)
 
         def diff(index: int) -> float:
-            return f[base + index - source].props["PlaneStatsDiff"]  # type: ignore[return-value]
+            wanted = base + index - source
+            edge = min(max(wanted, 1), len(f) - 1)
+
+            if edge != wanted:
+                global WINDOW_CLAMPED
+                WINDOW_CLAMPED = True
+
+            return f[edge].props["PlaneStatsDiff"]  # type: ignore[return-value]
 
         def run(index: int, back: int, on: int) -> tuple[int, int, bool, bool]:
             """The stretch of identical frames `index` is in, looking no further than it's allowed to.
@@ -314,8 +326,21 @@ def _decisions(
                     if right >= last:
                         break
 
-                    _, next_end, _, next_open = run(right, 0, max_gap)
-                    if next_end == right or next_open or next_end + 1 - left > max_gap:
+                    # a run can only be stepped over if what's on the far side of it still fits the
+                    # range, so there's no reason to measure it any further than that - and, since the
+                    # window is sized for the range, no room to
+                    room = max(0, left + max_gap - 1 - right)
+
+                    _, next_end, _, next_open = run(right, 0, room)
+
+                    # stop on a run of one - its timing isn't in question, so it's what the search was
+                    # looking for - and on one there's no room to step over, or nothing to step onto
+                    if (
+                        next_end == right
+                        or next_open
+                        or next_end >= last
+                        or next_end + 1 - left > max_gap
+                    ):
                         break
 
                     right = next_end + 1
