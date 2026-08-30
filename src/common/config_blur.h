@@ -49,10 +49,13 @@ struct BlurSettings {
 	std::string interpolation_method = "svp";
 #endif
 
-	// filename of an image in <settings path>/masks, "auto" to work one out from the video, or empty for
-	// none. masks protect regions from being interpolated, so this does nothing unless interpolation or
-	// deduplication is running
+	// the base mask: filename of an image in <settings path>/masks, or empty for none. this is the mask that's
+	// the same for every video - a game's HUD, say
 	std::string mask;
+
+	// work a second mask out from each video by finding the parts of its frame that never move, and apply it
+	// over the base mask. catches whatever a particular video has that the base mask doesn't cover
+	bool auto_mask = false;
 
 	bool pre_interpolate = false;
 	std::string pre_interpolated_fps = "360";

@@ -6,8 +6,10 @@ warped, while still going through frame blending like everything else. Deduplica
 interpolating one, so it warps an overlay the same way and a mask covers it too.
 
 A mask is an image in <settings path>/masks: white where the frame should be interpolated as normal, black
-where it should be left alone. The "auto" setting skips the file and works one out from the video itself - see
-`generate`.
+where it should be left alone. That's the base mask - the one that's the same for every video, a game's HUD
+say. The "auto mask" setting works a second one out from the video itself (see `generate`) and stacks it over
+the base, catching whatever that particular video has that the base doesn't cover. Either can be used on its
+own; with both, a pixel is protected if either of them protects it - see `combine`.
 """
 
 from vapoursynth import core
@@ -61,9 +63,6 @@ def load(path: Path) -> vs.VideoNode:
 # rather than around it. That matters more than it sounds: a masked pixel shows the un-interpolated frame, so
 # any part of the mask that lands on scene content freezes a halo of background that stutters while everything
 # around it stays smooth. Overshooting is more visible than the artifact it covers up.
-
-# what the `mask` setting is set to to ask for this instead of a file
-AUTO = "auto"
 
 # frames pulled from across the clip to compare. each one is a seek and a decode, so this trades analysis time
 # for confidence that what looks static really is
@@ -574,6 +573,39 @@ def match_length(src: vs.VideoNode, target: vs.VideoNode) -> vs.VideoNode:
     return core.std.FrameEval(
         core.std.BlankClip(target), lambda n: src[min(round(n / factor), last)]
     )
+
+
+def combine(grays: list[vs.VideoNode]) -> vs.VideoNode:
+    """Stack GRAY masks: a pixel is protected if any of them protects it.
+
+    They won't be the same size - a base mask is whatever resolution it was drawn at, and a generated one comes
+    back at the analysis height - so everything is brought up to the largest of them first. Up rather than down
+    because a mask is applied at the video's own resolution anyway, and shrinking one here would throw away
+    detail that `match` is about to ask for again.
+    """
+    if len(grays) == 1:
+        return grays[0]
+
+    width = max(gray.width for gray in grays)
+    height = max(gray.height for gray in grays)
+
+    def sized(gray: vs.VideoNode) -> vs.VideoNode:
+        # full range both sides - these are coverage values, not video levels
+        return core.resize.Bilinear(
+            gray,
+            width=width,
+            height=height,
+            format=vs.GRAYS,
+            range_in_s="full",
+            range_s="full",
+        )
+
+    combined = sized(grays[0])
+    for gray in grays[1:]:
+        # black is what protects, so the darker of the two wins the pixel
+        combined = core.std.Expr([combined, sized(gray)], "x y min")
+
+    return combined
 
 
 def protect(

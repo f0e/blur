@@ -307,6 +307,12 @@ void configs::options(ui::Container& container) {
 			},
 			{ masks::NONE_OPTION }
 		);
+
+		// stacks on top of the mask above rather than replacing it, so a game's HUD can be covered by a mask
+		// picked once while this catches whatever else a particular video turns out to have
+		ui::add_checkbox(
+			"default auto mask checkbox", container, "default auto mask", settings.auto_mask, fonts::dejavu
+		);
 	}
 
 	/*

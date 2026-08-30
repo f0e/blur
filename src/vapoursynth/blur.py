@@ -81,7 +81,9 @@ try:
 
     # masks protect against interpolation, and deduplication fills the gaps it finds by interpolating too, so
     # a mask is worth applying whenever either of them runs
-    mask_name = settings["mask"] if settings["interpolate"] or deduplicating else ""
+    apply_masks = settings["interpolate"] or deduplicating
+    mask_name = settings["mask"] if apply_masks else ""
+    auto_mask = settings["auto_mask"] if apply_masks else False
 
     resize_chromaloc = settings["resize_chromaloc"]
     if resize_chromaloc == "default":
@@ -365,23 +367,28 @@ try:
 
     # masking. deduplication is included because filling a dropped frame means interpolating one, and it's
     # interpolation that warps an overlay - but if neither actually ran there are no artifacts to put back
-    if mask_name and (deduplicating or interpolated):
-        log.info(f"applying mask {mask_name}")
+    if (mask_name or auto_mask) and (deduplicating or interpolated):
+        mask_clips = []
 
-        if mask_name == blur.mask.AUTO:
-            mask_clip = blur.mask.cached(
+        if mask_name:
+            log.info(f"applying mask {mask_name}")
+            mask_clips.append(blur.mask.load(settings_path / "masks" / mask_name))
+
+        if auto_mask:
+            generated = blur.mask.cached(
                 mask_source,
                 video_path,
                 settings_path / blur.mask.CACHE_FOLDER,
                 (mask_start, mask_end),
             )
-        else:
-            mask_clip = blur.mask.load(settings_path / "masks" / mask_name)
 
-        # generate returns None when it couldn't find an overlay worth protecting, in which case there's
-        # nothing sensible to mask and the video is left as it is
-        if mask_clip is not None:
-            video = blur.mask.protect(video, original, mask_clip)
+            # None when there was no overlay worth protecting in this video. the base mask, if there is one,
+            # still applies - it's about the game rather than about this particular video
+            if generated is not None:
+                mask_clips.append(generated)
+
+        if mask_clips:
+            video = blur.mask.protect(video, original, blur.mask.combine(mask_clips))
 
     # debug: write over the frames deduplication had a hand in, and only those. drawn after masking so the
     # text can't be masked away, and before blending - which averages frames together, and will smear this

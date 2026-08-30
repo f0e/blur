@@ -64,10 +64,11 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 	}
 
 	// Masking section - after the two things it protects against, since it applies to both
-	if (!concise || !settings.mask.empty()) {
+	if (!concise || !settings.mask.empty() || settings.auto_mask) {
 		output << "\n";
 		output << "- masking" << "\n";
 		output << "mask: " << settings.mask << "\n";
+		output << "auto mask: " << (settings.auto_mask ? "true" : "false") << "\n";
 	}
 
 	// Rendering section (always included)
@@ -310,8 +311,9 @@ BlurSettings config_blur::parse_from_map(const std::map<std::string, std::string
 	config_base::extract_config_value(config_map, "interpolated fps", settings.interpolated_fps);
 	config_base::extract_config_value(config_map, "interpolation method", settings.interpolation_method);
 	config_base::extract_config_value(config_map, "mask", settings.mask);
-	if (settings.mask == masks::NONE_OPTION) // what the dropdowns show for no mask; it isn't a filename
+	if (settings.mask == masks::NONE_OPTION) // what the dropdown shows for no mask; it isn't a filename
 		settings.mask.clear();
+	config_base::extract_config_value(config_map, "auto mask", settings.auto_mask);
 
 	config_base::extract_config_value(config_map, "pre-interpolate", settings.pre_interpolate);
 	config_base::extract_config_value(config_map, "pre-interpolated fps", settings.pre_interpolated_fps);
@@ -473,6 +475,7 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 	j["interpolated_fps"] = this->interpolated_fps;
 	j["interpolation_method"] = this->interpolation_method;
 	j["mask"] = this->mask;
+	j["auto_mask"] = this->auto_mask;
 
 	j["pre_interpolate"] = this->pre_interpolate;
 	j["pre_interpolated_fps"] = this->pre_interpolated_fps;
