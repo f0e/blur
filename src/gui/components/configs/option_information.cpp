@@ -149,14 +149,17 @@ void configs::option_information(ui::Container& container) {
 		{
 			"deduplicate checkbox",
 			{
-				"Removes duplicate frames and replaces them with interpolated frames",
+				"Ignores duplicate frames and generates what should have been there instead, from the nearest frames "
+				"that aren't repeats",
 				"(fixes 'unsmooth' looking output caused by stuttering in recordings)",
+				"With interpolation on this happens in the same pass, so every generated frame comes from frames "
+				"that were really captured",
 			},
 		},
 		{
 			"deduplicate range",
 			{
-				"Amount of frames beyond the current frame to look for unique frames when deduplicating",
+				"How far apart two frames can be and still have frames generated between them",
 				"Make it higher if your footage is at a lower FPS than it should be, e.g. choppy 120fps gameplay "
 				"recorded at 240fps",
 				"Lower it if your blurred footage starts blurring static elements such as menu screens",
@@ -166,43 +169,27 @@ void configs::option_information(ui::Container& container) {
 			"deduplicate threshold input",
 			{
 				"Threshold of movement that triggers deduplication",
-				"Turn on debug in advanced and render a video to embed text showing the movement in each frame",
-			},
-		},
-		{
-			"deduplicate frames to interpolate input",
-			{
-				"If 'previous to duplicate', duplicate frames after the first will be interpolated to the next unique "
-				"frame. Since we don't know if duplicate frames are early or late, this may result in output not being "
-				"as smooth as it can be. This is the default behaviour.",
-
-				"If 'surrounding frames', the duplicate frame will be ignored, and the frames surrounding it will "
-				"be interpolated. This will result in more interpolation artifacts, but smoother output.",
-
-				"'surrounding frames + future check' is the same as above, but if the next frame (not of this "
-				"duplicate set) is also a duplicate, it'll continue searching until it finds a truly non-duplicate "
-				"frame. This will provide the smoothest output, but will produce a lot of artifacts if footage has a "
-				"lot of duplicate frames.",
-
-				"If 'duplicate to next', duplicate frames up to the last will be interpolated with the previous unique "
-				"frame. This is similar to 'previous to duplicate', and the same drawbacks apply.",
-			},
-		},
-		{
-			"max future checks slider",
-			{
-				"Maximum amount of times future duplicate frames can be skipped when using 'surrounding frames + "
-				"future check' for 'deduplicate frames to interpolate'. If this limit is passed, the first future "
-				"duplicate is used for interpolation.",
+				"Turn on debug in advanced and render a video to label every frame deduplication had a hand in with "
+				"the movement it measured and the frames it worked from",
+				"Turn blur off to read it - blending averages the text away along with everything else",
 			},
 		},
 		{
 			"deduplicate method dropdown",
 			{
+				"What generates the frames that go in place of duplicates. Only needed with interpolation off - "
+				"with it on, the interpolation method generates them as part of its own pass.",
 				// todo: update with mvtools
 				"Quality: rife = rife (tensorrt) > svp",
 				"Speed: old > svp >>> rife",
 				"rife (tensorrt) is probably slower than rife here, but it'll depend on your gpu.",
+			},
+		},
+		{
+			"deduplicate method interpolation note",
+			{
+				"Duplicates are filled by the interpolation pass, from the same model, in one go - so there's no "
+				"separate method to choose while interpolation is on.",
 			},
 		},
 		{
