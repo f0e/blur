@@ -78,10 +78,18 @@ void configs::option_information(ui::Container& container) {
 				"Mask applied to videos you add, protecting parts of the frame from interpolation",
 				"Useful for static overlays like a HUD, which interpolation tends to warp",
 				"Also covers deduplication, which fills dropped frames by interpolating them",
-				"'auto' builds a mask per video by finding the parts of the frame that never move",
-				"Otherwise, masks are image files in the masks folder of your config folder",
+				"Masks are image files in the masks folder of your config folder",
 				"White where the video should be interpolated as normal, black where it should be left alone",
 				"Masked areas still get motion blur - only interpolation skips them",
+			},
+		},
+		{
+			"default auto mask checkbox",
+			{
+				"Builds an extra mask per video by finding the parts of its frame that never move",
+				"Applied on top of the mask above, so a HUD you've already masked stays masked either way",
+				"Use the mask above for what's the same in every video, and this for whatever each one adds",
+				"Analysing a video takes a moment, but the result is cached and reused",
 			},
 		},
 		{

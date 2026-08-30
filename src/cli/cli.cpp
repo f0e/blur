@@ -9,7 +9,8 @@ bool cli::run(
 	bool preview,
 	bool verbose,
 	bool disable_update_check,
-	const std::string& mask
+	const std::string& mask,
+	const std::optional<bool>& auto_mask
 ) {
 	auto init_res = blur.initialise(verbose, preview);
 	if (!init_res) { // todo: preview in cli
@@ -97,7 +98,8 @@ bool cli::run(
 			1.f,
 			{},
 			{},
-			mask_override
+			mask_override,
+			auto_mask
 		);
 
 		if (add_res.error) {

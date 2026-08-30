@@ -9,7 +9,8 @@ namespace cli {
 		bool verbose,
 		bool disable_update_check = false,
 
-		// mask filename to render every input with. empty leaves each config's own mask alone
-		const std::string& mask = ""
+		// masks to render every input with. left unset, each config's own masks apply
+		const std::string& mask = "",
+		const std::optional<bool>& auto_mask = {}
 	);
 }
