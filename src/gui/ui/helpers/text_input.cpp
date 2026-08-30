@@ -467,13 +467,42 @@ void ui::helpers::text_input::handle_mouse(
 	auto x = static_cast<float>(text_relative_pos.x);
 	auto y = static_cast<float>(text_relative_pos.y);
 
-	// the click count stays set until the next press, so gate on a fresh press or we'd re-select the word on
-	// every frame the mouse merely hovers after a double click
-	if (pressed && hovered && click_count >= 2 && !shift) {
+	int local_click_count = 0;
+	if (pressed && hovered && !shift) {
+		// Hit-test first so continuing the sequence can require the same character position. SDL's count is
+		// window-wide, so it is only a timing signal here; the press id proves the previous left press was also
+		// handled by this input rather than by another control or empty space. Use a copy because slider/color
+		// inputs start by selecting all and lock that selection against this activation press.
+		auto hit_test_state = state.edit_state;
+		input_data.Stb = &hit_test_state;
+		stb_textedit_click(&input_data, &hit_test_state, x, y);
+		input_data.Stb = &state.edit_state;
+		int clicked_cursor = hit_test_state.cursor;
+
+		auto press_id = keys::get_mouse_press_id();
+		bool continues_local_sequence = click_count >= 2 && state.last_mouse_press_id != 0 &&
+		                                state.last_mouse_press_id + 1 == press_id &&
+		                                state.last_mouse_click_cursor == clicked_cursor;
+		local_click_count = continues_local_sequence ? state.local_mouse_click_count + 1 : 1;
+
+		state.last_mouse_press_id = press_id;
+		state.last_mouse_click_cursor = clicked_cursor;
+		state.local_mouse_click_count = local_click_count;
+	}
+	else if (pressed && hovered) {
+		// A modified click is a selection extension, not part of a double-click sequence.
+		state.last_mouse_press_id = keys::get_mouse_press_id();
+		state.last_mouse_click_cursor = -1;
+		state.local_mouse_click_count = 0;
+	}
+
+	// Gate on a fresh press or we'd re-select the word on every frame the mouse merely hovers after a double
+	// click. Use the local count so only consecutive clicks in this input at this character qualify.
+	if (local_click_count >= 2) {
 		stb_textedit_click(&input_data, &state.edit_state, x, y);
 
 		// alternate word / line selection as the click count keeps going up, matching imgui
-		if ((click_count - 2) % 2 == 0) {
+		if ((local_click_count - 2) % 2 == 0) {
 			// double click: select the word under the cursor. always uses the mac-style word advance, since
 			// selecting up to the end of the word is what every platform does on double click
 			bool at_line_start =
