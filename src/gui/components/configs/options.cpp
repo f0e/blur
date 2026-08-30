@@ -591,10 +591,22 @@ void configs::options(ui::Container& container) {
 			"deduplicate real frame dropdown",
 			container,
 			"deduplicate real frame",
-			{ "first", "last" },
+			{ "first", "last", "center", "surrounding" },
 			settings.advanced.duplicate_timing,
 			fonts::dejavu
 		);
+
+		if (settings.advanced.duplicate_timing == "surrounding") {
+			ui::add_slider(
+				"max future checks slider",
+				container,
+				0,
+				10,
+				&settings.advanced.max_future_checks,
+				"max future checks: {}",
+				fonts::dejavu
+			);
+		}
 
 		/*
 		    Advanced Rendering

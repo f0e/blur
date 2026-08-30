@@ -71,146 +71,279 @@ def grey_clip(values):
 
 
 def duplicated(unique, holds):
-    """`unique` distinct values, each repeated as many times as `holds` says (cycling)."""
-    values, positions, index = [], [], 0
+    values, index = [], 0
     for i in range(unique):
         hold = holds[i % len(holds)]
-        positions.append(index)
         values += [(i + 1) * 40 % 256] * hold
         index += hold
 
-    return values, positions
+    return values
 
 
-VALUES, _ = duplicated(10, [2, 2, 3, 1, 2, 4])
-VALUES = [0, 40] + VALUES + [7] * 12 + [90, 130]  # a long still stretch in the middle
+VALUES = [0, 40] + duplicated(10, [2, 2, 3, 1, 2, 4]) + [7] * 12 + [90, 130]
 LENGTH = len(VALUES)
 VIDEO = grey_clip(VALUES)
 
 
-# ---------------------------------------------------- the rule, in plain python
+# ------------------------------------------- the timeline, worked out the slow way
 
 
 def ref_diffs(values):
     return [0.0] + [abs(values[n] - values[n - 1]) / 255 for n in range(1, len(values))]
 
 
-def ref_decisions(values, threshold, max_gap, timing=dd.TIMING_FIRST):
+def ref_runs(values, threshold):
+    """The stretches of identical frames, in one pass over the whole clip."""
     diffs = ref_diffs(values)
+    runs, start = [], 0
+    for i in range(1, len(values) + 1):
+        if i == len(values) or diffs[i] >= threshold:
+            runs.append((start, i - 1))
+            start = i
+
+    return runs
+
+
+def ref_anchors(values, threshold, timing):
+    """Where each run's picture belongs on the timeline, in half frames, and the frame that shows it.
+
+    Worked out from the whole clip at once, which is what makes this worth checking against: the decisions
+    only ever look a few frames either side of themselves and have to reach the same answer.
+    """
+    anchors = []
+    for start, end in ref_runs(values, threshold):
+        if timing == dd.TIMING_FIRST:
+            anchors.append((start, dd.HALF * start))
+        elif timing == dd.TIMING_LAST:
+            anchors.append((end, dd.HALF * end))
+        elif timing == dd.TIMING_CENTER:
+            anchors.append((start, start + end))
+
+    return anchors
+
+
+def ref_run_at(values, threshold, frame):
+    return next(r for r in ref_runs(values, threshold) if r[0] <= frame <= r[1])
+
+
+def ref_surrounding(values, threshold, max_gap, time, future_checks):
+    """`surrounding`'s pair for `time`: the frames either side of the run it lands in."""
+    runs = ref_runs(values, threshold)
     last = len(values) - 1
+    start, end = ref_run_at(values, threshold, int(time))
 
-    def real(i):
-        if i == 0:
-            return True
-        if timing == dd.TIMING_LAST:
-            return i == last or diffs[i + 1] >= threshold
-        return diffs[i] >= threshold
+    if end >= last:
+        return None
 
-    out = []
-    for n in range(len(values)):
-        back = next((i for i in range(n, max(n - max_gap, 0) - 1, -1) if real(i)), None)
-        forward = next(
-            (i for i in range(n + 1, min(n + max_gap, last) + 1) if real(i)), None
-        )
+    if not (start == end) and start <= 0:
+        return None
 
-        if forward is None:
-            out.append((n, n, True))
-        else:
-            start = forward - max_gap
-            out.append((start if back is None else max(back, start), forward, False))
+    left = start if start == end else start - 1
+    right = end + 1
 
-    return out
+    for _ in range(future_checks):
+        if right >= last:
+            break
+
+        following = next(r for r in runs if r[0] <= right <= r[1])
+        if following[0] == following[1] or following[1] - right > max_gap:
+            break
+        if following[1] + 1 - left > max_gap:
+            break
+
+        right = following[1] + 1
+
+    if right - left > max_gap:
+        return None
+
+    return left, right, Fraction(max(left, right - max_gap)), Fraction(right)
 
 
-def read(dedupe, n):
-    props = dedupe.decisions.get_frame(n).props
-    return (
-        int(props[dd.PROP_LEFT]),
-        int(props[dd.PROP_RIGHT]),
-        bool(props[dd.PROP_HOLD]),
-    )
+def ref_bracket(values, threshold, timing, max_gap, time, future_checks=0):
+    """The pair the reference timeline puts around `time`, or None where it can't say."""
+    if timing == dd.TIMING_SURROUNDING:
+        return ref_surrounding(values, threshold, max_gap, time, future_checks)
+
+    anchors = ref_anchors(values, threshold, timing)
+    half = time * dd.HALF
+
+    before = [a for a in anchors if a[1] <= half]
+    after = [a for a in anchors if a[1] > half]
+    if not before or not after:
+        return None
+
+    (left, left_time), (right, right_time) = before[-1], after[0]
+    left_time = max(left_time, right_time - dd.HALF * max_gap)
+
+    return left, right, Fraction(left_time, dd.HALF), Fraction(right_time, dd.HALF)
+
+
+def read(dedupe, j, time=None):
+    """The bracket decision `j` gives, for the moment that decision starts at unless told otherwise."""
+    props = dedupe.decisions.get_frame(j).props
+
+    return dd.bracket(props, Fraction(j, dedupe.resolution) if time is None else time)
 
 
 # --------------------------------------------------------------- 1. decisions
 
+# wherever the whole-clip reference can answer, the windowed decisions must reach the same pair
 for timing in dd.TIMINGS:
-    for max_gap in (1, 2, 3, 5, 8, 13):
+    for max_gap in (3, 5, 8):
         dedupe = dd.analyse(VIDEO, threshold=THRESHOLD, max_gap=max_gap, timing=timing)
-        want = ref_decisions(VALUES, THRESHOLD, max_gap, timing)
 
-        for n in range(LENGTH):
-            check(f"decision[{timing}][gap={max_gap}][{n}]", read(dedupe, n), want[n])
+        for j in range(dedupe.decisions.num_frames):
+            time = Fraction(j, dedupe.resolution)
+            at = read(dedupe, j)
+            want = ref_bracket(VALUES, THRESHOLD, timing, max_gap, time)
 
-# the two timings must anchor a run at opposite ends, and agree everywhere there's nothing to
-# disagree about - a run of one frame is unambiguous
+            if want is None or at.timepoint is None:
+                continue
+
+            # the frames only have to be the same picture: inside a run longer than the decision can
+            # see, it names one further along than the run really starts, which shows the same thing
+            check(
+                f"bracket[{timing}][gap={max_gap}][{j}]",
+                (
+                    ref_run_at(VALUES, THRESHOLD, at.left),
+                    ref_run_at(VALUES, THRESHOLD, at.right),
+                    at.left_time,
+                    at.right_time,
+                ),
+                (
+                    ref_run_at(VALUES, THRESHOLD, want[0]),
+                    ref_run_at(VALUES, THRESHOLD, want[1]),
+                    want[2],
+                    want[3],
+                ),
+            )
+
+# stepping over runs that are themselves in question
+for future_checks in (0, 1, 2, 5):
+    dedupe = dd.analyse(
+        VIDEO,
+        threshold=THRESHOLD,
+        max_gap=8,
+        timing=dd.TIMING_SURROUNDING,
+        future_checks=future_checks,
+    )
+
+    for j in range(dedupe.decisions.num_frames):
+        time = Fraction(j)
+        at = read(dedupe, j)
+        want = ref_bracket(
+            VALUES, THRESHOLD, dd.TIMING_SURROUNDING, 8, time, future_checks
+        )
+
+        if want is None or at.timepoint is None:
+            continue
+
+        check(
+            f"surrounding[checks={future_checks}][{j}]",
+            (at.left, at.right, at.left_time, at.right_time),
+            want,
+        )
+
+# more checks can only ever reach the same pair or a wider one
+WIDTHS = []
+for future_checks in (0, 3):
+    dedupe = dd.analyse(
+        VIDEO,
+        threshold=THRESHOLD,
+        max_gap=8,
+        timing=dd.TIMING_SURROUNDING,
+        future_checks=future_checks,
+    )
+    WIDTHS.append(
+        [read(dedupe, j).right_time - read(dedupe, j).left_time for j in range(LENGTH)]
+    )
+
+if not all(b >= a for a, b in zip(*WIDTHS)):
+    fail("future checks narrowed a pair instead of widening it")
+if WIDTHS[0] == WIDTHS[1]:
+    fail(
+        "future checks made no difference at all - the test source has nothing to step over"
+    )
+
+
+# each timing must place a run's picture where it says it does
 RUNS = [0, 40, 40, 40, 80, 120, 120, 160, 200, 200, 200, 200, 240]
 RUNS_CLIP = grey_clip(RUNS)
-FIRST = dd.analyse(RUNS_CLIP, THRESHOLD, 8, dd.TIMING_FIRST)
-LAST = dd.analyse(RUNS_CLIP, THRESHOLD, 8, dd.TIMING_LAST)
+PLACED = {timing: dd.analyse(RUNS_CLIP, THRESHOLD, 8, timing) for timing in dd.TIMINGS}
 
-# 40 runs over 1..3, 120 over 5..6, 200 over 8..11
+# 40 runs over 1..3, 120 over 5..6, 200 over 8..11; 0, 4, 7 and 12 stand alone
 for run_start, run_end in ((1, 3), (5, 6), (8, 11)):
     check(
-        f"first anchors run {run_start}-{run_end}", read(FIRST, run_start)[0], run_start
+        f"first anchors {run_start}-{run_end} at its start",
+        read(PLACED[dd.TIMING_FIRST], run_start).left_time,
+        run_start,
     )
-    check(f"last anchors run {run_start}-{run_end}", read(LAST, run_end)[0], run_end)
+    check(
+        f"last anchors {run_start}-{run_end} at its end",
+        read(PLACED[dd.TIMING_LAST], run_end).left_time,
+        run_end,
+    )
 
-# frame 4 stands alone, so both agree it's real and it anchors itself
-check("first agrees on a lone frame", read(FIRST, 4)[0], 4)
-check("last agrees on a lone frame", read(LAST, 4)[0], 4)
+    # center puts it halfway along, which for an even length run is halfway through a frame
+    middle = Fraction(run_start + run_end, 2)
+    centered = PLACED[dd.TIMING_CENTER]
+    check(
+        f"center anchors {run_start}-{run_end} halfway",
+        read(centered, int(middle * centered.resolution), middle).left_time,
+        middle,
+    )
 
+    # surrounding skips the run and works from the frames either side of it
+    at = read(PLACED[dd.TIMING_SURROUNDING], run_start)
+    check(
+        f"surrounding brackets {run_start}-{run_end} from outside",
+        (at.left, at.right),
+        (run_start - 1, run_end + 1),
+    )
+
+# a run of one frame isn't in question, so every timing anchors it on itself
+for lone in (4, 7):
+    for timing, dedupe in PLACED.items():
+        at = read(dedupe, lone * dedupe.resolution, Fraction(lone))
+        check(f"{timing} anchors the lone frame {lone}", at.left_time, lone)
+
+# invariants that have to hold whatever the timing
 DEDUPE = dd.analyse(VIDEO, threshold=THRESHOLD, max_gap=5)
+REF_RUNS = ref_runs(VALUES, THRESHOLD)
+
+
+def containing_run(frame):
+    return next(r for r in REF_RUNS if r[0] <= frame <= r[1])
+
 
 for timing in dd.TIMINGS:
     checked = dd.analyse(VIDEO, threshold=THRESHOLD, max_gap=5, timing=timing)
 
-    for n in range(LENGTH):
-        left, right, hold = read(checked, n)
+    for j in range(checked.decisions.num_frames):
+        time = Fraction(j, checked.resolution)
+        at = read(checked, j)
 
-        if hold:
+        if at.timepoint is None:
             continue
 
-        if not left <= n < right:
-            fail(f"[{timing}] frame {n} isn't inside its own pair ({left}, {right})")
-
-        if right - left > 5:
+        if not at.left_time <= time < at.right_time:
             fail(
-                f"[{timing}] pair ({left}, {right}) for frame {n} is wider than the range"
+                f"[{timing}] {time} sits outside its own pair {at.left_time}-{at.right_time}"
             )
 
-        # the interpolator is handed each pair once, indexed by the frame it starts from, so a pair's own
-        # start frame has to work out that same pair - otherwise the wrong frames get interpolated
-        check(
-            f"[{timing}] pair is self-consistent at {left} (from {n})",
-            read(checked, left),
-            (left, right, False),
-        )
+        if at.right_time - at.left_time > checked.max_gap:
+            fail(f"[{timing}] the pair at {time} spans more than the range")
 
-for n in range(LENGTH):
-    left, right, hold = read(DEDUPE, n)
+        if not 0 < at.timepoint < 1:
+            fail(f"[{timing}] time point {at.timepoint} at {time} is outside the pair")
 
-    if hold:
-        if (left, right) != (n, n):
-            fail(f"held frame {n} points at ({left}, {right}) instead of itself")
-        continue
-
-    if not left <= n < right:
-        fail(f"frame {n} isn't inside its own pair ({left}, {right})")
-
-    if right - left > DEDUPE.max_gap:
-        fail(f"pair ({left}, {right}) for frame {n} is wider than the range")
-
-    # the interpolator is handed each pair once, indexed by the frame it starts from, so a pair's own
-    # start frame has to work out that same pair - otherwise the wrong frames get interpolated
-    check(
-        f"pair is self-consistent at {left} (from {n})",
-        read(DEDUPE, left),
-        (left, right, False),
-    )
-
-    # a pair must end on a frame that really is new, or there'd be nothing to move towards
-    if ref_diffs(VALUES)[right] < THRESHOLD:
-        fail(f"pair ({left}, {right}) for frame {n} ends on a duplicate")
+        # a pair has to span a real change - two frames out of the same run are the same picture,
+        # and generating between them would be generating nothing
+        if containing_run(at.left) == containing_run(at.right):
+            fail(
+                f"[{timing}] the pair at {time} takes both frames from the run "
+                f"{containing_run(at.left)}"
+            )
 
 
 # ------------------------------------------------------- 2. retiming indices
@@ -229,30 +362,36 @@ def counting_interpolator(pairs, steps):
     return core.std.ModifyFrame(out, out, mark)
 
 
-for target in (Fraction(300), Fraction(60), Fraction(1200), Fraction(150)):
-    ratio = target / SRC_FPS
-    retimed = it._retimed(VIDEO, DEDUPE, target, counting_interpolator)
-    steps = it._steps(ratio, DEDUPE.max_gap)
+for timing in dd.TIMINGS:
+    dedupe = dd.analyse(VIDEO, threshold=THRESHOLD, max_gap=5, timing=timing)
 
-    check(f"output length @{target}", retimed.num_frames, int(LENGTH * ratio))
-    check(f"output fps @{target}", retimed.fps, target)
+    for target in (Fraction(300), Fraction(60), Fraction(1200), Fraction(150)):
+        ratio = target / SRC_FPS
+        retimed = it._retimed(VIDEO, dedupe, target, counting_interpolator)
+        steps = it._steps(ratio, dedupe.max_gap)
 
-    for n, frame in enumerate(retimed.frames(close=True)):
-        time = Fraction(n) / ratio
-        at = dd.bracket(
-            DEDUPE.decisions.get_frame(min(int(time), LENGTH - 1)).props, time
+        check(
+            f"[{timing}] output length @{target}",
+            retimed.num_frames,
+            int(LENGTH * ratio),
         )
-        got = dict(frame.props)
+        check(f"[{timing}] output fps @{target}", retimed.fps, target)
 
-        if at.timepoint is None:
-            check(f"held @{target}[{n}]", got.get("SrcIndex"), at.left)
-        else:
-            check(f"pair @{target}[{n}]", got.get("PairIndex"), 2 * at.left)
-            check(
-                f"step @{target}[{n}]",
-                got.get("Step"),
-                min(round(at.timepoint * steps), steps),
-            )
+        for n, frame in enumerate(retimed.frames(close=True)):
+            time = Fraction(n) / ratio
+            j = dd.decision_index(dedupe, n, ratio)
+            at = read(dedupe, j, time)
+            got = dict(frame.props)
+
+            if at.timepoint is None:
+                check(f"[{timing}] held @{target}[{n}]", got.get("SrcIndex"), at.left)
+            else:
+                check(f"[{timing}] pair @{target}[{n}]", got.get("PairIndex"), 2 * j)
+                check(
+                    f"[{timing}] step @{target}[{n}]",
+                    got.get("Step"),
+                    min(round(at.timepoint * steps), steps),
+                )
 
 # output frames are spread evenly over real time however the duplicates fell, so no stretch of the
 # video ends up with fewer frames - and so no stretch gets fewer blur samples than another
@@ -271,7 +410,7 @@ check("output frames per source frame", set(density), {int(ratio)})
 # retiming shows up as an error in brightness.
 
 TRUTH_HOLDS = [2, 3, 1, 4]
-TRUTH_MAX_GAP = 5
+TRUTH_MAX_GAP = 6
 
 
 def truth_clip():
@@ -319,6 +458,8 @@ def brightness(frame):
     return struct.unpack("f", frame[0].tobytes()[:4])[0]
 
 
+# `first` is the timing this source was built to match: every run holds the picture that started it,
+# so it's the one that should land every frame exactly where its timestamp says
 for target in (Fraction(300), Fraction(240), Fraction(60), Fraction(1200)):
     dedupe = dd.analyse(TRUTH, threshold=0.0005, max_gap=TRUTH_MAX_GAP)
     ratio = target / SRC_FPS
@@ -352,35 +493,129 @@ for target in (Fraction(300), Fraction(240), Fraction(60), Fraction(1200)):
             f"timing @{target}: worst error {worst:.5f} source frames, budget {budget:.5f}"
         )
 
+# The point of `surrounding` and `center` is what they do when the footage doesn't match the reading
+# you picked, so both get built twice: the same motion recorded once with each picture held forward
+# from the frame that started its run, and once held back to the frame that ends it.
+
+SHAPE = [2, 1, 3, 1, 4, 1, 2, 1, 3, 1, 2, 1]
+SHAPE_GAP = 8
+SHAPE_CHECKS = 4
+
+
+def hypothesis_clip(holds, held_late):
+    """Content moving at a steady rate, recorded with drops. Brightness is the time it belongs at."""
+    values, position = [], 0
+    for hold in holds:
+        values += [position + hold - 1 if held_late else position] * hold
+        position += hold
+
+    frames = [
+        core.std.BlankClip(
+            width=8, height=8, format=vs.GRAYS, length=1, color=value / 1000, keep=True
+        )
+        for value in values
+    ]
+
+    return core.std.AssumeFPS(
+        core.std.Splice(frames), fpsnum=SRC_FPS.numerator, fpsden=SRC_FPS.denominator
+    ), len(values)
+
+
+def worst_error(clip, dedupe, target, window):
+    """How far the retimed output lands from where each frame's timestamp says it should, in frames.
+
+    `window` cuts off the first and last run: there's nothing before the one and nothing after the
+    other, so no reading can place them and every timing has to hold.
+    """
+    ratio = target / SRC_FPS
+    out = it._retimed(clip, dedupe, target, blending_interpolator)
+    low, high = window
+
+    worst = 0.0
+    for n, frame in enumerate(out.frames(close=True)):
+        time = Fraction(n) / ratio
+        if not low <= time <= high:
+            continue
+
+        at = read(dedupe, dd.decision_index(dedupe, n, ratio), time)
+
+        # only where it committed to a pair; a held stretch isn't claiming to be anywhere
+        if at.timepoint is None:
+            continue
+
+        worst = max(worst, abs(brightness(frame) - float(time) / 1000) * 1000)
+
+    return worst
+
+
+TARGET = Fraction(300)
+BUDGET = float(SRC_FPS / TARGET) / it.STEPS_PER_OUTPUT_FRAME * 1.01
+
+for held_late in (False, True):
+    clip, total = hypothesis_clip(SHAPE, held_late)
+    reading = "held late" if held_late else "held early"
+    window = (Fraction(SHAPE[0]), Fraction(total - 1 - SHAPE[-1]))
+
+    errors = {}
+    for timing in dd.TIMINGS:
+        dedupe = dd.analyse(
+            clip,
+            threshold=0.0005,
+            max_gap=SHAPE_GAP,
+            timing=timing,
+            future_checks=SHAPE_CHECKS,
+        )
+        errors[timing] = worst_error(clip, dedupe, TARGET, window)
+
+    # the reading that matches the footage is exact, and `surrounding` is exact either way - it only
+    # ever works from frames both readings agree about
+    matching = dd.TIMING_LAST if held_late else dd.TIMING_FIRST
+    for timing in (matching, dd.TIMING_SURROUNDING):
+        CHECKS += 1
+        if errors[timing] > BUDGET:
+            FAILURES.append(
+                f"[{reading}] {timing} was out by {errors[timing]:.4f} frames, budget {BUDGET:.4f}"
+            )
+
+    # and `center` splits the difference: never worse than half of what picking the wrong end costs
+    wrong = dd.TIMING_FIRST if held_late else dd.TIMING_LAST
+    CHECKS += 1
+    if not errors[dd.TIMING_CENTER] <= errors[wrong] / 2 + BUDGET:
+        FAILURES.append(
+            f"[{reading}] center was out by {errors[dd.TIMING_CENTER]:.4f} frames, "
+            f"more than half of {wrong}'s {errors[wrong]:.4f}"
+        )
+
+    CHECKS += 1
+    if errors[wrong] <= BUDGET:
+        FAILURES.append(
+            f"[{reading}] {wrong} should have been wrong here but wasn't - the source shape "
+            "isn't telling the readings apart"
+        )
+
 
 # ------------------------------- 4. the debug overlay marks the right frames
 
 # only frames deduplication had a hand in should get written on: not the ones between two frames that
 # were both really captured, which are just ordinary interpolation
+DIFFS = ref_diffs(VALUES)
 for target in (Fraction(300), Fraction(60)):
     ratio = target / SRC_FPS
-    diffs = ref_diffs(VALUES)
 
     for n in range(int(LENGTH * ratio)):
         time = Fraction(n) / ratio
-        source = min(int(time), LENGTH - 1)
-        at = dd.bracket(DEDUPE.decisions.get_frame(source).props, time)
+        at = read(DEDUPE, dd.decision_index(DEDUPE, n, ratio), time)
 
-        # a frame is deduplication's doing when the picture is being held, or when its pair spans frames
-        # that were dropped - which is exactly when the frame it sits on is a repeat, or the next one is
         held = at.left == at.right
         spans_duplicates = not held and any(
-            diffs[i] < THRESHOLD for i in range(at.left + 1, at.right + 1)
+            DIFFS[i] < THRESHOLD for i in range(at.left + 1, at.right + 1)
         )
 
         check(f"marked @{target}[{n}]", dd.involved(at), held or spans_duplicates)
 
 MOVING_ALL = grey_clip([(n * 20) % 256 for n in range(30)])
 MOVING_ALL_DEDUPE = dd.analyse(MOVING_ALL, THRESHOLD, 5)
-marked = sum(
-    dd.involved(dd.bracket(MOVING_ALL_DEDUPE.decisions.get_frame(n).props, Fraction(n)))
-    for n in range(30)
-)
+marked = sum(dd.involved(read(MOVING_ALL_DEDUPE, n)) for n in range(30))
 # only the last frame, which has nothing after it to move towards
 check("frames marked in a clip with no duplicates", marked, 1)
 
@@ -392,24 +627,30 @@ check(
 )
 
 STATIC = grey_clip([100] * 20)
-STATIC_DEDUPE = dd.analyse(STATIC, THRESHOLD, 5)
-for n in range(20):
-    if not STATIC_DEDUPE.decisions.get_frame(n).props[dd.PROP_HOLD]:
-        fail(f"static frame {n} isn't held")
+for timing in dd.TIMINGS:
+    static_dedupe = dd.analyse(STATIC, THRESHOLD, 5, timing)
+    for j in range(static_dedupe.decisions.num_frames):
+        if not static_dedupe.decisions.get_frame(j).props[dd.PROP_HOLD]:
+            fail(f"[{timing}] static decision {j} isn't held")
 
-static_out = it._retimed(STATIC, STATIC_DEDUPE, Fraction(300), counting_interpolator)
-for n, frame in enumerate(static_out.frames(close=True)):
-    if "SrcIndex" not in frame.props:
-        fail(f"static output frame {n} was interpolated instead of held")
+    static_out = it._retimed(
+        STATIC, static_dedupe, Fraction(300), counting_interpolator
+    )
+    for n, frame in enumerate(static_out.frames(close=True)):
+        if "SrcIndex" not in frame.props:
+            fail(f"[{timing}] static output frame {n} was interpolated instead of held")
 
+# with no duplicates at all every timing should agree: each frame pairs with the next
 MOVING = grey_clip([(n * 20) % 256 for n in range(20)])
-MOVING_DEDUPE = dd.analyse(MOVING, THRESHOLD, 5)
-for n in range(19):  # the last frame has nothing after it, so it holds
-    left, right, hold = read(MOVING_DEDUPE, n)
-    if hold or (left, right) != (n, n + 1):
-        fail(
-            f"frame {n} of a clip with no duplicates got ({left}, {right}, hold={hold})"
-        )
+for timing in dd.TIMINGS:
+    moving = dd.analyse(MOVING, THRESHOLD, 5, timing)
+    for n in range(19):  # the last frame has nothing after it, so it holds
+        at = read(moving, n * moving.resolution, Fraction(n))
+        if (at.left, at.right, at.left_time, at.right_time) != (n, n + 1, n, n + 1):
+            fail(
+                f"[{timing}] frame {n} of a clip with no duplicates got "
+                f"({at.left}, {at.right}, {at.left_time}, {at.right_time})"
+            )
 
 
 # --------------------------------------------------------------- report
