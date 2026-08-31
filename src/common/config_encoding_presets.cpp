@@ -1,4 +1,4 @@
-#include "config_presets.h"
+#include "config_encoding_presets.h"
 #include "config_base.h"
 
 namespace {
@@ -9,7 +9,9 @@ namespace {
 		return u::ffmpeg_string_to_args(params_str);
 	}
 
-	std::optional<std::string> get_preset_error(const std::vector<PresetSettings::Preset>& presets, size_t index) {
+	std::optional<std::string> get_preset_error(
+		const std::vector<EncodingPresetSettings::Preset>& presets, size_t index
+	) {
 		const auto& preset = presets[index];
 
 		std::string name = u::trim(preset.name);
@@ -41,10 +43,10 @@ namespace {
 		return {};
 	}
 
-	std::optional<std::string> get_preset_warning(const PresetSettings::Preset& preset) {
+	std::optional<std::string> get_preset_warning(const EncodingPresetSettings::Preset& preset) {
 		auto args = u::ffmpeg_string_to_args(preset.args);
 
-		if (args.size() < 2 || !config_presets::extract_codec_from_args(args))
+		if (args.size() < 2 || !config_encoding_presets::extract_codec_from_args(args))
 			return "no video codec (-c:v), this won't show up as an encode preset";
 
 		if (!u::contains(preset.args, "{quality}"))
@@ -54,8 +56,8 @@ namespace {
 	}
 }
 
-std::optional<config_presets::ValidationMessage> config_presets::validate(
-	const std::vector<PresetSettings::Preset>& presets, size_t index
+std::optional<config_encoding_presets::ValidationMessage> config_encoding_presets::validate(
+	const std::vector<EncodingPresetSettings::Preset>& presets, size_t index
 ) {
 	if (auto error = get_preset_error(presets, index))
 		return ValidationMessage{ .message = *error, .is_error = true };
@@ -66,7 +68,9 @@ std::optional<config_presets::ValidationMessage> config_presets::validate(
 	return {};
 }
 
-std::optional<config_presets::PresetError> config_presets::validate(const PresetSettings& settings) {
+std::optional<config_encoding_presets::PresetError> config_encoding_presets::validate(
+	const EncodingPresetSettings& settings
+) {
 	for (const auto& gpu_presets : settings.all_gpu_presets) {
 		for (size_t i = 0; i < gpu_presets.presets.size(); i++) {
 			if (gpu_presets.presets[i].is_default)
@@ -80,7 +84,7 @@ std::optional<config_presets::PresetError> config_presets::validate(const Preset
 	return {};
 }
 
-std::string config_presets::generate_config_string(const PresetSettings& settings) {
+std::string config_encoding_presets::generate_config_string(const EncodingPresetSettings& settings) {
 	std::ostringstream output;
 
 	output << "[blur v" << BLUR_VERSION << "]" << "\n";
@@ -101,11 +105,13 @@ std::string config_presets::generate_config_string(const PresetSettings& setting
 	return output.str();
 }
 
-void config_presets::create(const std::filesystem::path& filepath, const PresetSettings& current_settings) {
+void config_encoding_presets::create(
+	const std::filesystem::path& filepath, const EncodingPresetSettings& current_settings
+) {
 	config_base::write_config_string(filepath, generate_config_string(current_settings));
 }
 
-PresetSettings config_presets::parse(const std::filesystem::path& config_filepath) {
+EncodingPresetSettings config_encoding_presets::parse(const std::filesystem::path& config_filepath) {
 	auto content = config_base::read_config_file(config_filepath);
 	if (!content)
 		return DEFAULT_CONFIG; // defaults if file couldn't be opened
@@ -118,14 +124,14 @@ PresetSettings config_presets::parse(const std::filesystem::path& config_filepat
 	return settings;
 }
 
-PresetSettings config_presets::parse(const std::string& config_content) {
-	PresetSettings settings = DEFAULT_CONFIG;
+EncodingPresetSettings config_encoding_presets::parse(const std::string& config_content) {
+	EncodingPresetSettings settings = DEFAULT_CONFIG;
 
 	std::istringstream stream(config_content);
 	std::string line;
 
 	std::string current_gpu_type;
-	std::vector<PresetSettings::Preset>* current_presets = nullptr;
+	std::vector<EncodingPresetSettings::Preset>* current_presets = nullptr;
 
 	while (std::getline(stream, line)) {
 		line = u::trim(line);
@@ -184,7 +190,7 @@ PresetSettings config_presets::parse(const std::string& config_content) {
 			// new preset
 			if (!found) {
 				current_presets->emplace_back(
-					PresetSettings::Preset{
+					EncodingPresetSettings::Preset{
 						.name = preset_name,
 						.args = preset_params,
 					}
@@ -196,26 +202,26 @@ PresetSettings config_presets::parse(const std::string& config_content) {
 	return settings;
 }
 
-std::filesystem::path config_presets::get_preset_config_path() {
-	return blur.settings_path / PRESET_CONFIG_FILENAME;
+std::filesystem::path config_encoding_presets::get_config_path() {
+	return blur.settings_path / CONFIG_FILENAME;
 }
 
-PresetSettings config_presets::get_preset_config() {
-	return config_base::load_config<PresetSettings>(get_preset_config_path(), create, parse);
+EncodingPresetSettings config_encoding_presets::get_config() {
+	return config_base::load_config<EncodingPresetSettings>(get_config_path(), create, parse);
 }
 
-void config_presets::save(const PresetSettings& settings) {
-	create(get_preset_config_path(), settings);
+void config_encoding_presets::save(const EncodingPresetSettings& settings) {
+	create(get_config_path(), settings);
 }
 
-std::vector<config_presets::PresetDetails> config_presets::get_available_presets(
+std::vector<config_encoding_presets::PresetDetails> config_encoding_presets::get_available_presets(
 	bool gpu_encoding, const std::string& gpu_type
 ) {
-	return get_available_presets(get_preset_config(), gpu_encoding, gpu_type);
+	return get_available_presets(get_config(), gpu_encoding, gpu_type);
 }
 
-std::vector<config_presets::PresetDetails> config_presets::get_available_presets(
-	const PresetSettings& config, bool gpu_encoding, const std::string& gpu_type
+std::vector<config_encoding_presets::PresetDetails> config_encoding_presets::get_available_presets(
+	const EncodingPresetSettings& config, bool gpu_encoding, const std::string& gpu_type
 ) {
 	std::vector<PresetDetails> available_presets;
 
@@ -248,15 +254,15 @@ std::vector<config_presets::PresetDetails> config_presets::get_available_presets
 	return available_presets;
 }
 
-std::vector<std::string> config_presets::get_preset_params(
+std::vector<std::string> config_encoding_presets::get_preset_params(
 	const std::string& gpu_type, const std::string& preset, int quality
 ) {
-	return get_preset_params(get_preset_config(), gpu_type, preset, quality);
+	return get_preset_params(get_config(), gpu_type, preset, quality);
 }
 
 // NOLINTBEGIN(misc-no-recursion) trust me bro
-std::vector<std::string> config_presets::get_preset_params(
-	const PresetSettings& config, const std::string& gpu_type, const std::string& preset, int quality
+std::vector<std::string> config_encoding_presets::get_preset_params(
+	const EncodingPresetSettings& config, const std::string& gpu_type, const std::string& preset, int quality
 ) {
 	const std::string* params_ptr = config.find_preset_params(gpu_type, preset);
 
@@ -273,7 +279,7 @@ std::vector<std::string> config_presets::get_preset_params(
 
 // NOLINTEND(misc-no-recursion)
 
-tl::expected<std::string, std::string> config_presets::extract_codec_from_args(
+tl::expected<std::string, std::string> config_encoding_presets::extract_codec_from_args(
 	const std::vector<std::string>& ffmpeg_args
 ) {
 	const std::vector<std::string> codec_flags = { "-c:v", "-codec:v", "-vcodec", "-c:video", "-codec:video" };
@@ -289,7 +295,7 @@ tl::expected<std::string, std::string> config_presets::extract_codec_from_args(
 	return tl::unexpected("no codec found");
 }
 
-config_presets::QualityConfig config_presets::get_quality_config(const std::string& codec) {
+config_encoding_presets::QualityConfig config_encoding_presets::get_quality_config(const std::string& codec) {
 	QualityConfig config;
 
 	// Detect codec type and set appropriate ranges

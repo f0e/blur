@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/config_app.h"
-#include "common/config_presets.h"
+#include "common/config_encoding_presets.h"
 #include "common/rendering.h"
 #include "../../fonts/icons.h"
 #include "../../ui/ui.h"
@@ -23,7 +23,7 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 		const std::function<void()>& add_element
 	);
 
-	inline const std::vector<std::string> CONFIG_TABS = { "blur", "app", "presets" };
+	inline const std::vector<std::string> CONFIG_TABS = { "blur", "app", "encoding presets" };
 	inline std::string selected_config_tab = CONFIG_TABS[0];
 	inline constexpr int CONFIG_HEADER_NAV_GAP = 6;
 
@@ -39,9 +39,9 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	inline GlobalAppSettings app_settings;
 	inline GlobalAppSettings current_app_settings;
 
-	inline PresetSettings preset_settings;
-	inline PresetSettings current_preset_settings;
-	inline std::string selected_preset_gpu_type; // which device's presets the presets tab is showing
+	inline EncodingPresetSettings encoding_preset_settings;
+	inline EncodingPresetSettings current_encoding_preset_settings;
+	inline std::string selected_encoding_preset_gpu_type; // which device's presets the encoding presets tab is showing
 
 	inline bool show_mask_preview = false;
 
@@ -76,7 +76,7 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	void options(ui::Container& container);
 	void app_options(ui::Container& container);
-	void preset_options(ui::Container& container);
+	void encoding_preset_options(ui::Container& container);
 
 	void about(ui::Container& container);
 

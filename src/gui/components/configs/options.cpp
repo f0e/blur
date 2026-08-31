@@ -3,7 +3,7 @@
 #include "../../ui/ui.h"
 #include "../../render/render.h"
 
-#include "common/config_presets.h"
+#include "common/config_encoding_presets.h"
 #include "common/config_app.h"
 #include "common/masks.h"
 
@@ -41,7 +41,7 @@ void configs::options(ui::Container& container) {
 	hovered_weighting.clear();
 	hovered_mask.clear();
 
-	auto validation = config_blur::validate(settings, app_settings, preset_settings, false);
+	auto validation = config_blur::validate(settings, app_settings, encoding_preset_settings, false);
 
 	auto validated_element = [&](config_blur::ValidationField field,
 	                             const std::string& error_id,
@@ -326,7 +326,8 @@ void configs::options(ui::Container& container) {
 	*/
 	section_component("rendering");
 
-	auto presets = u::get_supported_presets(preset_settings, settings.gpu_encoding, app_settings.gpu_type);
+	auto presets =
+		u::get_supported_encoding_presets(encoding_preset_settings, settings.gpu_encoding, app_settings.gpu_type);
 
 	if (!presets.empty() && !u::contains(presets, settings.encode_preset)) {
 		settings.encode_preset = presets[0];
@@ -355,15 +356,15 @@ void configs::options(ui::Container& container) {
 	}
 
 	if (settings.advanced.ffmpeg_override.empty()) {
-		std::vector<std::string> preset_args = config_presets::get_preset_params(
-			preset_settings,
+		std::vector<std::string> preset_args = config_encoding_presets::get_preset_params(
+			encoding_preset_settings,
 			settings.gpu_encoding ? app_settings.gpu_type : "cpu",
 			u::to_lower(settings.encode_preset.empty() ? "h264" : settings.encode_preset),
 			settings.quality
 		);
 
-		auto codec = config_presets::extract_codec_from_args(preset_args);
-		auto quality_config = config_presets::get_quality_config(codec ? *codec : "");
+		auto codec = config_encoding_presets::extract_codec_from_args(preset_args);
+		auto quality_config = config_encoding_presets::get_quality_config(codec ? *codec : "");
 
 		// // clamp current quality to new range
 		// settings.quality = std::clamp(settings.quality, quality_config.min_quality, quality_config.max_quality);
@@ -865,7 +866,7 @@ void configs::save_config() {
 	current_app_settings = app_settings;
 
 	// the preset file is parsed back trimmed, so trim now to keep what's shown the same as what's saved
-	for (auto& gpu_presets : preset_settings.all_gpu_presets) {
+	for (auto& gpu_presets : encoding_preset_settings.all_gpu_presets) {
 		for (auto& preset : gpu_presets.presets) {
 			if (preset.is_default)
 				continue;
@@ -875,8 +876,8 @@ void configs::save_config() {
 		}
 	}
 
-	config_presets::save(preset_settings);
-	current_preset_settings = preset_settings;
+	config_encoding_presets::save(encoding_preset_settings);
+	current_encoding_preset_settings = encoding_preset_settings;
 };
 
 void configs::on_load() {
@@ -885,5 +886,5 @@ void configs::on_load() {
 
 	current_app_settings = app_settings;
 
-	current_preset_settings = preset_settings;
+	current_encoding_preset_settings = encoding_preset_settings;
 };

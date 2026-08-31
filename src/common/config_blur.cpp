@@ -231,7 +231,7 @@ std::string config_blur::ValidationResult::message(bool fixable_only) const {
 }
 
 config_blur::ValidationResult config_blur::validate(
-	BlurSettings& config, const GlobalAppSettings& app_settings, const PresetSettings& presets, bool fix
+	BlurSettings& config, const GlobalAppSettings& app_settings, const EncodingPresetSettings& presets, bool fix
 ) {
 	ValidationResult result;
 
