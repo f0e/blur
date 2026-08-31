@@ -8,9 +8,11 @@ static const float ENTRY_ROUNDING = 6.f;
 static const int THUMBNAIL_W = 71; // 16:9, matching the height below
 static const int THUMBNAIL_H = 40;
 static const int THUMBNAIL_GAP = 9;
+static const float THUMBNAIL_ROUNDING = 4.f;
 
 static const int ACTION_SIZE = ui::RENDER_HISTORY_ACTION_SIZE;
 static const int ACTION_GAP = 2;
+static const int ACTION_LABEL_PADDING = 7;
 
 static const int TITLE_DETAIL_GAP = 3;
 static const int MAX_DETAIL_LINES = 2;
@@ -34,35 +36,62 @@ namespace {
 		};
 	}
 
-	int get_actions_width(size_t action_count) {
-		if (action_count == 0)
+	int get_action_width(const ui::RenderHistoryAction& action, const render::Font& font) {
+		if (action.label.empty())
+			return ACTION_SIZE;
+
+		return font.calc_size(action.label).w + (ACTION_LABEL_PADDING * 2);
+	}
+
+	int get_actions_width(const std::vector<ui::RenderHistoryAction>& actions, const render::Font& font) {
+		if (actions.empty())
 			return 0;
 
-		int count = static_cast<int>(action_count);
-		return (count * ACTION_SIZE) + ((count - 1) * ACTION_GAP);
+		int width = (static_cast<int>(actions.size()) - 1) * ACTION_GAP;
+		for (const auto& action : actions)
+			width += get_action_width(action, font);
+
+		return width;
 	}
 
 	// action buttons sit in a row against the right edge, centered vertically
-	gfx::Rect get_action_rect(const gfx::Rect& entry_rect, size_t index, size_t action_count) {
+	std::vector<gfx::Rect> get_action_rects(
+		const gfx::Rect& entry_rect, const std::vector<ui::RenderHistoryAction>& actions, const render::Font& font
+	) {
 		gfx::Rect inner = get_inner_rect(entry_rect);
-		int offset = static_cast<int>(index) * (ACTION_SIZE + ACTION_GAP);
+		int x = inner.x2() - get_actions_width(actions, font);
 
-		return {
-			inner.x2() - get_actions_width(action_count) + offset,
-			inner.y + ((inner.h - ACTION_SIZE) / 2),
-			ACTION_SIZE,
-			ACTION_SIZE,
-		};
+		std::vector<gfx::Rect> rects;
+		rects.reserve(actions.size());
+
+		for (const auto& action : actions) {
+			int width = get_action_width(action, font);
+
+			rects.emplace_back(x, inner.y + ((inner.h - ACTION_SIZE) / 2), width, ACTION_SIZE);
+			x += width + ACTION_GAP;
+		}
+
+		return rects;
 	}
 
 	// the space the title and detail lines get, between the thumbnail and the actions
-	int get_text_width(int entry_width, size_t action_count) {
+	int get_text_width(int entry_width, const std::vector<ui::RenderHistoryAction>& actions, const render::Font& font) {
 		int width = entry_width - (ENTRY_PADDING * 2) - THUMBNAIL_W - THUMBNAIL_GAP;
 
-		if (action_count > 0)
-			width -= get_actions_width(action_count) + THUMBNAIL_GAP;
+		if (!actions.empty())
+			width -= get_actions_width(actions, font) + THUMBNAIL_GAP;
 
 		return std::max(width, 0);
+	}
+
+	// the title's line, with the detail lines stacked under it
+	int get_text_height(const std::vector<std::string>& detail_lines, const render::Font& font, int line_height) {
+		int height = font.height();
+
+		if (!detail_lines.empty())
+			height += TITLE_DETAIL_GAP + (static_cast<int>(detail_lines.size()) * line_height);
+
+		return height;
 	}
 
 	size_t action_animation_key(size_t index) {
@@ -74,18 +103,7 @@ namespace {
 		if (!data.collapse_rect || anim >= 1.f)
 			return rect;
 
-		const auto& target = *data.collapse_rect;
-
-		auto lerp_edge = [anim](int from, int to) {
-			return static_cast<int>(std::lround(std::lerp(static_cast<float>(to), static_cast<float>(from), anim)));
-		};
-
-		return {
-			lerp_edge(rect.x, target.x),
-			lerp_edge(rect.y, target.y),
-			lerp_edge(rect.w, target.w),
-			lerp_edge(rect.h, target.h),
-		};
+		return gfx::Rect::lerp(*data.collapse_rect, rect, anim);
 	}
 }
 
@@ -95,30 +113,25 @@ void ui::render_render_history_entry(const Container& container, const AnimatedE
 	float anim = element.animations.at(hasher("main")).current;
 	float hover_anim = element.animations.at(hasher("hover")).current;
 
-	gfx::Rect rect = get_animated_rect(entry_data, element.element->rect, anim);
+	if (anim <= 0.01f)
+		return;
 
-	// the contents go before the box does, so it reads as the row folding away into the button
-	float content_anim = anim * anim;
+	const gfx::Rect& rect = element.element->rect;
+	gfx::Rect animated_rect = get_animated_rect(entry_data, rect, anim);
+	size_t first_vertex = render::draw_vertex_count();
 
 	gfx::Color fill_color = entry_data.error
 	                            ? gfx::Color::lerp(gfx::Color(38, 20, 20), gfx::Color(48, 26, 26), hover_anim)
 	                            : gfx::Color::lerp(gfx::Color(20, 20, 20), gfx::Color(28, 28, 28), hover_anim);
 	gfx::Color stroke_color = entry_data.error ? gfx::Color(120, 60, 60, 110) : gfx::Color::white(45);
 
-	render::rounded_rect_filled(rect, fill_color.adjust_alpha(anim), ENTRY_ROUNDING);
-	render::rounded_rect_stroke(rect, stroke_color.adjust_alpha(anim), ENTRY_ROUNDING);
-
-	if (content_anim <= 0.01f)
-		return;
-
-	// the contents are laid out for the row's full size, so keep them inside it while it's shrinking away
-	render::push_clip_rect(rect, true);
+	render::rounded_rect_filled(rect, fill_color, ENTRY_ROUNDING);
+	render::rounded_rect_stroke(rect, stroke_color, ENTRY_ROUNDING);
 
 	// thumbnail, or a placeholder while one's still being generated
 	gfx::Rect thumbnail_rect = get_thumbnail_rect(rect);
 
-	gfx::Color thumbnail_border = gfx::Color::white(45).adjust_alpha(content_anim);
-	gfx::Color thumbnail_inner_border = gfx::Color::white(20).adjust_alpha(content_anim);
+	render::rounded_rect_filled(thumbnail_rect, gfx::Color::white(10), THUMBNAIL_ROUNDING);
 
 	if (entry_data.thumbnail && entry_data.thumbnail->is_valid()) {
 		// videos that aren't 16:9 keep their shape inside the thumbnail box
@@ -135,54 +148,57 @@ void ui::render_render_history_entry(const Container& container, const AnimatedE
 		image_rect.x += (thumbnail_rect.w - image_rect.w) / 2;
 		image_rect.y += (thumbnail_rect.h - image_rect.h) / 2;
 
-		render::image(image_rect, texture, gfx::Color::white().adjust_alpha(content_anim));
-		render::borders(image_rect, thumbnail_border, thumbnail_inner_border);
+		render::image_rounded(image_rect, texture, THUMBNAIL_ROUNDING);
 	}
-	else {
-		render::rect_filled(thumbnail_rect, gfx::Color::white(12).adjust_alpha(content_anim));
-		render::borders(thumbnail_rect, thumbnail_border, thumbnail_inner_border);
-	}
+
+	render::rounded_rect_stroke(thumbnail_rect, gfx::Color::white(45), THUMBNAIL_ROUNDING);
 
 	// title above the detail lines, the block centered against the thumbnail
-	int text_width = get_text_width(rect.w, entry_data.actions.size());
-
-	int text_height = entry_data.font.height();
-	if (!entry_data.detail_lines.empty())
-		text_height += TITLE_DETAIL_GAP + (static_cast<int>(entry_data.detail_lines.size()) * entry_data.line_height);
+	int text_height = get_text_height(entry_data.detail_lines, entry_data.font, entry_data.line_height);
 
 	gfx::Rect inner = get_inner_rect(rect);
 	gfx::Point text_pos(thumbnail_rect.x2() + THUMBNAIL_GAP, inner.y + ((inner.h - text_height) / 2));
 
-	std::string title = entry_data.title;
-	render::clip_string(title, entry_data.font, text_width);
-
-	render::text(text_pos, gfx::Color::white().adjust_alpha(content_anim), title, entry_data.font);
+	// the title and the detail lines were clipped to fit when the row was added
+	render::text(text_pos, gfx::Color::white(), entry_data.title, entry_data.font);
 
 	text_pos.y += entry_data.font.height() + TITLE_DETAIL_GAP;
 
 	gfx::Color detail_color = entry_data.error ? ERROR_DETAIL_COLOR : DETAIL_COLOR;
 
 	for (const auto& line : entry_data.detail_lines) {
-		render::text(text_pos, detail_color.adjust_alpha(content_anim), line, entry_data.font);
+		render::text(text_pos, detail_color, line, entry_data.font);
 		text_pos.y += entry_data.line_height;
 	}
 
+	std::vector<gfx::Rect> action_rects = get_action_rects(rect, entry_data.actions, entry_data.font);
+
 	for (const auto [i, action] : u::enumerate(entry_data.actions)) {
 		float action_hover_anim = element.animations.at(action_animation_key(i)).current;
+		const gfx::Rect& action_rect = action_rects[i];
 
-		gfx::Color action_color = gfx::Color::white(static_cast<uint8_t>(u::lerp(130.f, 255.f, action_hover_anim)))
-		                              .adjust_alpha(content_anim);
+		gfx::Color action_color = gfx::Color::white(static_cast<uint8_t>(u::lerp(130.f, 255.f, action_hover_anim)));
 
-		render::text(
-			get_action_rect(rect, i, entry_data.actions.size()).center(),
-			action_color,
-			action.icon,
-			fonts::icons,
-			FONT_CENTERED_X | FONT_CENTERED_Y
-		);
+		if (!action.label.empty()) {
+			render::rounded_rect_filled(
+				action_rect, gfx::Color::white(static_cast<uint8_t>(u::lerp(8.f, 22.f, action_hover_anim))), 4.f
+			);
+			render::rounded_rect_stroke(
+				action_rect, gfx::Color::white(static_cast<uint8_t>(u::lerp(38.f, 70.f, action_hover_anim))), 4.f
+			);
+			render::text(
+				action_rect.center(), action_color, action.label, entry_data.font, FONT_CENTERED_X | FONT_CENTERED_Y
+			);
+		}
+		else {
+			render::text(
+				action_rect.center(), action_color, action.icon, fonts::icons, FONT_CENTERED_X | FONT_CENTERED_Y
+			);
+		}
 	}
 
-	render::pop_clip_rect();
+	// Scale everything submitted for the row together, including its text and thumbnail.
+	render::transform_draw_vertices(first_vertex, rect, animated_rect, anim);
 }
 
 bool ui::update_render_history_entry(const Container& container, AnimatedElement& element) {
@@ -190,10 +206,10 @@ bool ui::update_render_history_entry(const Container& container, AnimatedElement
 
 	bool over_action = false;
 
-	for (const auto [i, action] : u::enumerate(entry_data.actions)) {
-		gfx::Rect action_rect = get_action_rect(element.element->rect, i, entry_data.actions.size());
+	std::vector<gfx::Rect> action_rects = get_action_rects(element.element->rect, entry_data.actions, entry_data.font);
 
-		bool action_hovered = action_rect.contains(keys::mouse_pos) && set_hovered_element(element);
+	for (const auto [i, action] : u::enumerate(entry_data.actions)) {
+		bool action_hovered = action_rects[i].contains(keys::mouse_pos) && set_hovered_element(element);
 		over_action |= action_hovered;
 
 		element.animations.at(action_animation_key(i)).set_goal(action_hovered ? 1.f : 0.f);
@@ -246,39 +262,34 @@ ui::AnimatedElement* ui::add_render_history_entry(
 	gfx::Size size(container.get_usable_rect().w, 0);
 
 	const int line_height = font.height() + 3;
-	const int text_width = get_text_width(size.w, actions.size());
+	const int text_width = get_text_width(size.w, actions, font);
 
+	// errors get the room to wrap, anything else is a filename and just gets clipped
 	std::vector<std::string> detail_lines;
 	if (!detail.empty()) {
-		if (error) {
-			// errors get the room to wrap, anything else is a filename and just gets clipped
-			detail_lines = render::wrap_text(detail, gfx::Size(text_width, 0), font, line_height);
+		detail_lines = error ? render::wrap_text(detail, gfx::Size(text_width, 0), font, line_height)
+		                     : std::vector<std::string>{ detail };
 
-			if (detail_lines.size() > MAX_DETAIL_LINES) {
-				detail_lines.resize(MAX_DETAIL_LINES);
-				detail_lines.back() += "...";
-				render::clip_string(detail_lines.back(), font, text_width);
-			}
+		if (detail_lines.size() > MAX_DETAIL_LINES) {
+			detail_lines.resize(MAX_DETAIL_LINES);
+			detail_lines.back() += "...";
 		}
-		else {
-			detail_lines = { detail };
-			render::clip_string(detail_lines.back(), font, text_width);
-		}
+
+		render::clip_string(detail_lines.back(), font, text_width);
 	}
 
-	int text_height = font.height();
-	if (!detail_lines.empty())
-		text_height += TITLE_DETAIL_GAP + (static_cast<int>(detail_lines.size()) * line_height);
+	std::string clipped_title = title;
+	render::clip_string(clipped_title, font, text_width);
 
-	size.h = std::max(THUMBNAIL_H, text_height) + (ENTRY_PADDING * 2);
+	size.h = std::max(THUMBNAIL_H, get_text_height(detail_lines, font, line_height)) + (ENTRY_PADDING * 2);
 
 	Element element(
 		id,
 		ElementType::RENDER_HISTORY_ENTRY,
 		gfx::Rect(container.current_position, size),
 		RenderHistoryEntryElementData{
-			.title = title,
-			.detail_lines = detail_lines,
+			.title = std::move(clipped_title),
+			.detail_lines = std::move(detail_lines),
 			.error = error,
 			.thumbnail = thumbnail,
 			.actions = actions,
