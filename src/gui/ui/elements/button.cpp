@@ -101,6 +101,17 @@ int ui::button_height(const render::Font& font) {
 	return font.height() + (BUTTON_PADDING.h * 2);
 }
 
+int ui::button_width(const std::string& text, const render::Font& font, const std::optional<std::string>& icon) {
+	const gfx::Size text_size = font.calc_size(text);
+	const gfx::Size icon_size = icon ? fonts::icons.calc_size(*icon) : gfx::Size{};
+	const int icon_and_gap_width = icon ? icon_size.w + (text.empty() ? 0 : BUTTON_ICON_GAP) : 0;
+
+	if (text.empty() && icon)
+		return button_height(font);
+
+	return text_size.w + icon_and_gap_width + (BUTTON_PADDING.w * 2);
+}
+
 ui::AnimatedElement* ui::add_button(
 	const std::string& id,
 	Container& container,
@@ -110,13 +121,7 @@ ui::AnimatedElement* ui::add_button(
 	std::optional<gfx::Color> accent_color,
 	std::optional<std::string> icon
 ) {
-	const gfx::Size text_size = font.calc_size(text);
-	const gfx::Size icon_size = icon ? fonts::icons.calc_size(*icon) : gfx::Size{};
-	const int icon_and_gap_width = icon ? icon_size.w + (text.empty() ? 0 : BUTTON_ICON_GAP) : 0;
-	const int height = button_height(font);
-	const int button_width = text.empty() && icon ? height : text_size.w + icon_and_gap_width + (BUTTON_PADDING.w * 2);
-
-	gfx::Rect rect(container.current_position, gfx::Size(button_width, height));
+	gfx::Rect rect(container.current_position, gfx::Size(button_width(text, font, icon), button_height(font)));
 
 	Element element(
 		id,
