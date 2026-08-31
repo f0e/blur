@@ -40,7 +40,8 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 	const BlurSettings& settings,
 	const GlobalAppSettings& app_settings,
 	const std::shared_ptr<RenderState>& state,
-	float seek
+	float seek,
+	bool preview_mask
 ) {
 	if (!blur.initialised)
 		return tl::unexpected("Blur not initialised");
@@ -55,7 +56,7 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 	auto video_info = u::get_video_info(input_path);
 
 	auto vspipe_args = detail::build_vspipe_video_args(
-		input_path, *merged_settings, video_info, get_seek_start_frame(settings, video_info, seek)
+		input_path, *merged_settings, video_info, get_seek_start_frame(settings, video_info, seek), {}, {}, preview_mask
 	);
 
 	RenderCommands commands = {

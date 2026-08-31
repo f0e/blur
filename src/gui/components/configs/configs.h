@@ -13,6 +13,7 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	const gfx::Color DELETE_ICON_COLOR = gfx::Color::white(120);
 	const gfx::Color DELETE_ICON_HOVER_COLOR(255, 80, 80, 255);
 	const int DELETE_ICON_GAP = 6;
+	const int SEEK_BAR_BOTTOM_GAP = 9;
 
 	void add_with_message(
 		ui::Container& container,
@@ -30,6 +31,7 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	inline std::string selected_tab = TABS[0];
 	inline std::string old_tab;
 	inline std::string hovered_weighting;
+	inline std::string hovered_mask;
 
 	inline BlurSettings settings;
 	inline BlurSettings current_global_settings;
@@ -40,6 +42,8 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	inline PresetSettings preset_settings;
 	inline PresetSettings current_preset_settings;
 	inline std::string selected_preset_gpu_type; // which device's presets the presets tab is showing
+
+	inline bool show_mask_preview = false;
 
 	inline bool loaded_config = false;
 	inline bool should_load_config = true;

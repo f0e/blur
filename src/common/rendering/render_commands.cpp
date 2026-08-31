@@ -200,7 +200,8 @@ std::vector<std::string> rendering::detail::build_vspipe_video_args(
 	const u::VideoInfo& video_info,
 	std::optional<size_t> start_frame,
 	std::optional<size_t> end_frame,
-	std::optional<std::pair<size_t, size_t>> mask_range
+	std::optional<std::pair<size_t, size_t>> mask_range,
+	bool preview_mask
 ) {
 	auto args = build_vspipe_base_args(input_path, merged_settings);
 	args.insert(
@@ -227,6 +228,9 @@ std::vector<std::string> rendering::detail::build_vspipe_video_args(
 		args.insert(args.end(), { "-a", std::format("mask_start={}", mask_range->first) });
 		args.insert(args.end(), { "-a", std::format("mask_end={}", mask_range->second) });
 	}
+
+	if (preview_mask)
+		args.insert(args.end(), { "-a", "preview_mask=true" });
 
 	return args;
 }

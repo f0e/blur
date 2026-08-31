@@ -542,6 +542,7 @@ namespace ui {
 		std::optional<std::function<void(AnimatedElement&)>> stale_fn;
 		bool fixed = false;
 		bool always_render = false;
+		bool auto_center_horizontal = true;
 		gfx::Rect orig_rect;
 
 		Element(
@@ -570,6 +571,7 @@ namespace ui {
 			this->stale_fn = other.stale_fn;
 			this->fixed = other.fixed;
 			this->always_render = other.always_render;
+			this->auto_center_horizontal = other.auto_center_horizontal;
 			this->orig_rect = other.orig_rect;
 
 			bool updated = this->data != other.data;
@@ -1046,6 +1048,7 @@ namespace ui {
 
 	void center_element(Container& container, AnimatedElement* animated_element);
 	void center_elements(Container& container, const std::vector<AnimatedElement*>& animated_elements);
+	void shrink_element_to_fit_container_height(Container& container, const std::string& element_id);
 
 	void right_align_element(Container& container, AnimatedElement* animated_element);
 
