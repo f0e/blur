@@ -47,6 +47,11 @@ namespace rendering {
 				const tl::expected<rendering::RenderResult, std::variant<std::string, RenderError>>& result
 			)>& finish_callback = {},
 
+			// which named config to render with. left off, the video gets whichever config it resolves to
+		    // on its own - today that's the default one. ignored if config_path is given, since that
+		    // names a config file outright
+			const std::optional<std::string>& config_name = {},
+
 			// replace whatever masks the resolved config asks for. the queue lets each video pick its own
 			const std::optional<std::string>& mask_override = {},
 			const std::optional<bool>& auto_mask_override = {}

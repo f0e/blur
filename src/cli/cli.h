@@ -11,6 +11,10 @@ namespace cli {
 
 		// masks to render every input with. left unset, each config's own masks apply
 		const std::string& mask = "",
-		const std::optional<bool>& auto_mask = {}
+		const std::optional<bool>& auto_mask = {},
+
+		// named config per input, matched to `inputs` positionally the way `config_paths` is. empty to
+	    // let each input resolve its own config, which today means the default one
+		const std::vector<std::string>& config_names = {}
 	);
 }

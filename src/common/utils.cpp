@@ -103,6 +103,25 @@ std::string u::truncate_with_ellipsis(const std::string& input, std::size_t max_
 	return input;
 }
 
+tl::expected<std::string, std::string> u::validate_filename(const std::string& entered_name) {
+	std::string name = u::trim(entered_name);
+	if (name.empty())
+		return tl::unexpected("Enter a name.");
+
+	// windows is the strict one here, so everything gets its rules - a name typed on one machine has to
+	// still work on another, configs and masks both being things people copy around
+	if (name == "." || name == ".." || name.ends_with(' ') || name.ends_with('.') ||
+	    name.find_first_of("<>:\"/\\|?*") != std::string::npos ||
+	    std::ranges::any_of(name, [](unsigned char character) {
+			return character < 32;
+		}))
+	{
+		return tl::unexpected("That name contains characters that cannot be used in a filename.");
+	}
+
+	return name;
+}
+
 std::optional<std::filesystem::path> u::get_program_path(const std::string& program_name) {
 	namespace bp = boost::process;
 	namespace fs = boost::filesystem;

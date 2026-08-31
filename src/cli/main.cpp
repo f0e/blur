@@ -30,6 +30,7 @@ int main(int argc, char* argv[]) {
 	std::vector<PathStr> input_strs;
 	std::vector<PathStr> output_strs;
 	std::vector<PathStr> config_path_strs;
+	std::vector<std::string> config_names;
 	bool preview = false;
 	bool verbose = false;
 	std::string mask;
@@ -38,6 +39,11 @@ int main(int argc, char* argv[]) {
 	app.add_option("-i,--input", input_strs, "Input file name(s)")->required();
 	app.add_option("-o,--output", output_strs, "Output file name(s) (optional)");
 	app.add_option("-c,--config-path", config_path_strs, "Manual configuration file path(s) (optional)");
+	app.add_option(
+		"--config-name",
+		config_names,
+		"Name(s) of a config in the configs folder, one per input. takes precedence over --config-path (optional)"
+	);
 	app.add_option(
 		"--mask", mask, "Mask image filename in the masks folder, or 'none' to disable one set in the config (optional)"
 	);
@@ -65,7 +71,8 @@ int main(int argc, char* argv[]) {
 		verbose,
 		false,
 		mask,
-		auto_mask_flag->count() > 0 ? std::optional{ auto_mask } : std::nullopt
+		auto_mask_flag->count() > 0 ? std::optional{ auto_mask } : std::nullopt,
+		config_names
 	);
 
 	return 0;

@@ -32,6 +32,7 @@ std::string config_app::generate_config_string(const GlobalAppSettings& settings
 	output << "dpi scale (0 = auto): " << settings.dpi_scale_override << "\n";
 	output << "blur amount tied to fps: " << (settings.blur_amount_tied_to_fps ? "true" : "false") << "\n";
 	output << "skip queue: " << (settings.skip_queue ? "true" : "false") << "\n";
+	output << "default config: " << settings.default_config << "\n";
 
 	output << "\n";
 	output << "- preview" << "\n";
@@ -129,6 +130,7 @@ GlobalAppSettings config_app::parse_from_map(const std::map<std::string, std::st
 	config_base::extract_config_value(config_map, "dpi scale (0 = auto)", settings.dpi_scale_override);
 	config_base::extract_config_value(config_map, "blur amount tied to fps", settings.blur_amount_tied_to_fps);
 	config_base::extract_config_value(config_map, "skip queue", settings.skip_queue);
+	config_base::extract_config_value(config_map, "default config", settings.default_config);
 
 	config_base::extract_config_value(config_map, "preview volume", settings.preview_volume);
 	config_base::extract_config_value(config_map, "hardware accelerated preview", settings.preview_hardware_decoding);
