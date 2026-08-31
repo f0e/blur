@@ -11,9 +11,13 @@ namespace tasks {
 		float end = 1.f;
 		bool start_immediately = false;
 
+		// which blur config this video renders with. seeded from whatever it resolves to when it's added -
+		// today the default config - then overridable per video from the queue screen
+		std::string config_name;
+
 		// the masks this video renders with: a filename in the masks folder (empty for none), and whether one
-		// is also worked out from the video itself and applied over it. both are seeded from the config this
-		// video resolves to, then overridable per video from the queue screen
+		// is also worked out from the video itself and applied over it. both are seeded from the config above,
+		// then overridable per video from the queue screen
 		std::string mask;
 		bool auto_mask = false;
 	};
