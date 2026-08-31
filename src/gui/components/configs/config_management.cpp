@@ -138,13 +138,18 @@ void configs::config_management(ui::Container& container) {
 		}
 	);
 
-	std::vector<ui::AnimatedElement*> buttons;
+	// collected first and laid out below: five buttons don't fit on one line at this panel width, and
+	// center_elements only shifts a row rather than wrapping it, so they'd hang off both edges
+	struct Action {
+		std::string id;
+		std::string label;
+		std::function<void()> on_press;
+	};
+
+	std::vector<Action> actions;
 
 	auto add_action = [&](const std::string& id, const std::string& label, std::function<void()> on_press) {
-		if (!buttons.empty())
-			ui::set_next_same_line(container);
-
-		buttons.push_back(ui::add_button(id, container, label, fonts::dejavu, std::move(on_press)));
+		actions.emplace_back(Action{ .id = id, .label = label, .on_press = std::move(on_press) });
 	};
 
 	add_action("new config button", "New", [] {
@@ -230,7 +235,36 @@ void configs::config_management(ui::Container& container) {
 		});
 	}
 
-	ui::center_elements(container, buttons);
+	// greedily pack into as many centred lines as it takes
+	const int usable_width = container.get_usable_rect().w;
+
+	std::vector<ui::AnimatedElement*> row;
+	int row_width = 0;
+
+	auto flush_row = [&] {
+		if (row.empty())
+			return;
+
+		ui::center_elements(container, row);
+		row.clear();
+		row_width = 0;
+	};
+
+	for (const auto& action : actions) {
+		int width = ui::button_width(action.label, fonts::dejavu);
+		int width_on_this_row = row.empty() ? width : row_width + container.element_gap + width;
+
+		if (!row.empty() && width_on_this_row > usable_width)
+			flush_row();
+
+		if (!row.empty())
+			ui::set_next_same_line(container);
+
+		row.push_back(ui::add_button(action.id, container, action.label, fonts::dejavu, action.on_press));
+		row_width = row.size() == 1 ? width : row_width + container.element_gap + width;
+	}
+
+	flush_row();
 
 	if (is_default) {
 		ui::add_text(
