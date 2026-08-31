@@ -151,14 +151,6 @@ void configs::app_options(ui::Container& container) {
 		fonts::dejavu
 	);
 
-	ui::add_checkbox(
-		"config override notification checkbox",
-		container,
-		"notify about config overrides",
-		app_settings.notify_about_config_override,
-		fonts::dejavu
-	);
-
 	/*
 	    Updates
 	*/

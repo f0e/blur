@@ -31,10 +31,9 @@ namespace {
 		if (!pending_video.video_info->audio_sample_rates.empty()) {
 			auto app_settings = config_app::get_app_config();
 
-			auto config_res =
-				config_blur::get_config(config_blur::get_config_filename(pending_video.video_path.parent_path()), true);
+			auto config = config_blur::get_global_config();
 
-			disabled = rendering::detail::copies_audio(config_res.config, app_settings);
+			disabled = rendering::detail::copies_audio(config, app_settings);
 		}
 
 		trim_disabled_cache.emplace(pending_video.video_id, disabled);

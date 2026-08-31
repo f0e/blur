@@ -35,8 +35,6 @@ struct GlobalAppSettings {
 	bool check_beta = false;
 	std::string dismissed_update_version;
 
-	bool notify_about_config_override = true;
-
 	bool skip_queue = false;
 
 #ifdef __linux__

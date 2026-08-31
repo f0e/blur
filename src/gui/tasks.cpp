@@ -37,14 +37,6 @@ namespace {
 			pending_video->auto_mask
 		);
 
-		// Show notification if config override is used
-		if (app_config.notify_about_config_override) {
-			if (!queue_config_res.is_global_config)
-				gui::components::notifications::add(
-					"Using override config from video folder", ui::NotificationType::INFO
-				);
-		}
-
 		if (queue_config_res.error) {
 			gui::components::notifications::add(
 				std::format(
@@ -129,15 +121,15 @@ void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
 
 		static size_t next_video_id = 0;
 
-		// start from whatever masks this video's config resolves to. the queue screen can change them after
-		auto config_res = config_blur::get_config(config_blur::get_config_filename(path.parent_path()), true);
+		// start from whatever masks the config says. the queue screen can change them after
+		auto config = config_blur::get_global_config();
 
 		pending_videos.push_back(
 			std::make_shared<PendingVideo>(PendingVideo{
 				.video_id = next_video_id++,
 				.video_path = path,
-				.mask = config_res.config.mask,
-				.auto_mask = config_res.config.auto_mask,
+				.mask = config.mask,
+				.auto_mask = config.auto_mask,
 			})
 		);
 	}
