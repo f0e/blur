@@ -14,6 +14,7 @@
 
 #include "components/main.h"
 #include "components/notifications.h"
+#include "components/render_history.h"
 #include "components/update_notice.h"
 #include "components/test.h"
 #include "components/configs/configs.h"
@@ -187,6 +188,28 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 	ui::reset_container(notification_container, sdl::window, notification_container_rect, 6, {});
 
+	// render history
+	const int history_button_size = components::render_history::BUTTON_SIZE;
+
+	const ui::Padding history_panel_padding{ HISTORY_PANEL_PAD, HISTORY_PANEL_PAD, HISTORY_PANEL_PAD, 12 };
+
+	gfx::Rect history_panel_container_rect = rect;
+	history_panel_container_rect.w = HISTORY_PANEL_W;
+	history_panel_container_rect.x = rect.x2() - PAD_X - HISTORY_PANEL_W;
+	history_panel_container_rect.y = rect.y + PAD_Y;
+	history_panel_container_rect.h = rect.y2() - PAD_Y - history_panel_container_rect.y;
+
+	ui::reset_container(history_panel_container, sdl::window, history_panel_container_rect, 6, history_panel_padding);
+
+	gfx::Rect history_button_container_rect = rect;
+	history_button_container_rect.w = history_button_size;
+	history_button_container_rect.h = history_button_size;
+	history_button_container_rect.x =
+		history_panel_container_rect.x2() - history_panel_padding.right - history_button_size;
+	history_button_container_rect.y = history_panel_container_rect.y + history_panel_padding.top;
+
+	ui::reset_container(history_button_container, sdl::window, history_button_container_rect, 0, {});
+
 	gfx::Rect update_container_rect = rect;
 	update_container_rect.w = ui::NOTIFICATION_DEFAULT_W;
 	update_container_rect.x = rect.x2() - update_container_rect.w - PAD_X;
@@ -224,6 +247,9 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 			}
 
 			auto main_screen = components::main::screen(main_container, delta_time);
+
+			components::render_history::render_button(history_button_container);
+			components::render_history::render_panel(history_panel_container, delta_time, true);
 
 			if (initialisation_res) {
 				switch (main_screen) {
@@ -320,6 +346,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		case Screens::CONFIG: {
 			components::configs::should_load_config = true;
 
+			components::render_history::render_panel(history_panel_container, delta_time, false);
+
 			components::configs::screen(
 				config_container,
 				nav_container,
@@ -386,6 +414,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 	ui::center_elements_in_container(nav_container);
 
+	want_to_render |= ui::update_container_frame(history_panel_container, delta_time);
+	want_to_render |= ui::update_container_frame(history_button_container, delta_time);
 	want_to_render |= ui::update_container_frame(notification_container, delta_time);
 	want_to_render |= ui::update_container_frame(update_container, delta_time);
 	want_to_render |= ui::update_container_frame(nav_container, delta_time);
@@ -455,7 +485,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		ui::render_container(navigation_button_container);
 		ui::render_container(update_container);
 		ui::render_container(notification_container);
-
+		components::render_history::draw_panel(history_panel_container);
+		ui::render_container(history_button_container);
 		ui::dialog::render();
 
 		ui::tooltip::render();
@@ -487,9 +518,7 @@ void gui::renderer::on_render_finished(
 	std::string video_name = u::path_to_string(render.input_path.stem());
 
 	if (!result) {
-		components::notifications::show_failure_notification(
-			std::format("Render '{}' failed.", video_name), result.error(), std::nullopt
-		);
+		components::render_history::add_failure(render, result.error());
 
 		auto app_config = config_app::get_app_config();
 		if (app_config.render_failure_notifications) {
@@ -504,16 +533,7 @@ void gui::renderer::on_render_finished(
 		return;
 	}
 
-	gui::components::notifications::add(
-		std::format("Render '{}' completed", video_name),
-		ui::NotificationType::SUCCESS,
-		[output_path = result->output_path](const std::string& id) {
-			std::string file_url = std::format("file://{}", u::path_to_string(output_path));
-			if (!SDL_OpenURL(file_url.c_str())) {
-				u::log_error("Failed to open output folder: {}", SDL_GetError());
-			}
-		}
-	);
+	components::render_history::add_success(render, *result);
 
 	auto app_config = config_app::get_app_config();
 	if (app_config.render_success_notifications) {

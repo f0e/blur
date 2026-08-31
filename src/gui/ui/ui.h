@@ -31,6 +31,7 @@ namespace ui {
 		BUTTON,
 		ICON_BUTTON,
 		NOTIFICATION,
+		RENDER_HISTORY_ENTRY,
 		SLIDER,
 		TEXT_INPUT,
 		CHECKBOX,
@@ -232,6 +233,33 @@ namespace ui {
 
 		bool operator==(const NotificationElementData& other) const {
 			return lines == other.lines && type == other.type && font == other.font && line_height == other.line_height;
+		}
+	};
+
+	struct RenderHistoryAction {
+		std::string icon;
+		std::string tooltip;
+		std::function<void()> on_press;
+
+		bool operator==(const RenderHistoryAction& other) const {
+			return icon == other.icon && tooltip == other.tooltip;
+		}
+	};
+
+	struct RenderHistoryEntryElementData {
+		std::string title;
+		std::vector<std::string> detail_lines;
+		bool error;
+		std::shared_ptr<render::Texture> thumbnail; // null until one has been generated
+		std::vector<RenderHistoryAction> actions;
+		std::optional<std::function<void()>> on_click;
+		std::optional<gfx::Rect> collapse_rect; // where the row grows out of and shrinks back into
+		render::Font font;
+		int line_height;
+
+		bool operator==(const RenderHistoryEntryElementData& other) const {
+			return title == other.title && detail_lines == other.detail_lines && error == other.error &&
+			       thumbnail == other.thumbnail && actions == other.actions && font == other.font;
 		}
 	};
 
@@ -451,6 +479,7 @@ namespace ui {
 		ButtonElementData,
 		IconButtonElementData,
 		NotificationElementData,
+		RenderHistoryEntryElementData,
 		SliderElementData,
 		SeekBarElementData,
 		TextInputElementData,
@@ -644,8 +673,14 @@ namespace ui {
 
 	inline const int NOTIFICATION_DEFAULT_W = 270;
 
+	inline constexpr int RENDER_HISTORY_ENTRY_PADDING = 8;
+	inline constexpr int RENDER_HISTORY_ACTION_SIZE = 20;
+
 	void render_notification(const Container& container, const AnimatedElement& element);
 	bool update_notification(const Container& container, AnimatedElement& element);
+
+	void render_render_history_entry(const Container& container, const AnimatedElement& element);
+	bool update_render_history_entry(const Container& container, AnimatedElement& element);
 
 	void render_slider(const Container& container, const AnimatedElement& element);
 	bool update_slider(const Container& container, AnimatedElement& element);
@@ -820,6 +855,19 @@ namespace ui {
 		const render::Font& font,
 		std::optional<std::function<void(const std::string& id)>> on_click = {},
 		std::optional<std::function<void(const std::string& id)>> on_close = {}
+	);
+
+	AnimatedElement* add_render_history_entry(
+		const std::string& id,
+		Container& container,
+		const std::string& title,
+		const std::string& detail,
+		bool error,
+		const std::shared_ptr<render::Texture>& thumbnail,
+		const std::vector<RenderHistoryAction>& actions,
+		std::optional<std::function<void()>> on_click,
+		const std::optional<gfx::Rect>& collapse_rect,
+		const render::Font& font
 	);
 
 	AnimatedElement* add_slider(
