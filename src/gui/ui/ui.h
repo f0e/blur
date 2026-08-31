@@ -696,6 +696,9 @@ namespace ui {
 	bool update_button(const Container& container, AnimatedElement& element);
 	int button_height(const render::Font& font);
 
+	// what add_button will size a button to, for working out how many fit on a line before adding them
+	int button_width(const std::string& text, const render::Font& font, const std::optional<std::string>& icon = {});
+
 	void render_icon_button(const Container& container, const AnimatedElement& element);
 	bool update_icon_button(const Container& container, AnimatedElement& element);
 
