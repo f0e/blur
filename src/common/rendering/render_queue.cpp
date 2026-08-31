@@ -62,34 +62,30 @@ rendering::QueueAddRes rendering::VideoRenderQueue::add(
 	const std::optional<std::string>& mask_override,
 	const std::optional<bool>& auto_mask_override
 ) {
-	// parse config file (do it now, not when rendering. nice for batch rendering the same file with different
-	// settings)
-	auto config_res = config_blur::get_config(
-		config_path.has_value() ? config_path.value() : config_blur::get_config_filename(input_path.parent_path()),
-		!config_path.has_value() // use global only if no config path is specified
-	);
+	// resolve the config now, not when rendering. nice for batch rendering the same file with different
+	// settings
+	BlurSettings settings =
+		config_path.has_value() ? config_blur::parse(*config_path) : config_blur::get_global_config();
 
 	if (mask_override)
-		config_res.config.mask = *mask_override;
+		settings.mask = *mask_override;
 
 	if (auto_mask_override)
-		config_res.config.auto_mask = *auto_mask_override;
+		settings.auto_mask = *auto_mask_override;
 
-	if (!video_info.audio_sample_rates.empty() && detail::copies_audio(config_res.config, app_settings)) {
-		if (auto conflict = detail::get_audio_copy_conflict(config_res.config, start != 0.f || end != 1.f)) {
+	if (!video_info.audio_sample_rates.empty() && detail::copies_audio(settings, app_settings)) {
+		if (auto conflict = detail::get_audio_copy_conflict(settings, start != 0.f || end != 1.f)) {
 			return {
-				.is_global_config = config_res.is_global,
 				.error = *conflict,
 			};
 		}
 	}
 
 	// check if preset is valid
-	auto valid_presets = u::get_supported_encoding_presets(config_res.config.gpu_encoding, app_settings.gpu_type);
-	if (!u::contains(valid_presets, config_res.config.encode_preset)) {
+	auto valid_presets = u::get_supported_encoding_presets(settings.gpu_encoding, app_settings.gpu_type);
+	if (!u::contains(valid_presets, settings.encode_preset)) {
 		return {
-			.is_global_config = config_res.is_global,
-			.error = std::format("preset '{}' is not valid", config_res.config.encode_preset),
+			.error = std::format("preset '{}' is not valid", settings.encode_preset),
 		};
 	}
 
@@ -98,7 +94,7 @@ rendering::QueueAddRes rendering::VideoRenderQueue::add(
 		VideoRenderDetails{
 			.input_path = input_path,
 			.video_info = video_info,
-			.settings = config_res.config,
+			.settings = settings,
 			.app_settings = app_settings,
 			.output_path_override = output_path_override,
 			.start = start,
@@ -109,7 +105,6 @@ rendering::QueueAddRes rendering::VideoRenderQueue::add(
 	);
 
 	return {
-		.is_global_config = config_res.is_global,
 		.state = added.state,
 	};
 }

@@ -58,10 +58,6 @@ std::string config_app::generate_config_string(const GlobalAppSettings& settings
 	if (!shareable_only)
 		output << "dismissed update version: " << settings.dismissed_update_version << "\n";
 
-	output << "\n";
-	output << "- misc" << "\n";
-	output << "notify about config overrides: " << (settings.notify_about_config_override ? "true" : "false") << "\n";
-
 #ifdef __linux__
 	if (!shareable_only) {
 		output << "\n";
@@ -152,10 +148,6 @@ GlobalAppSettings config_app::parse_from_map(const std::map<std::string, std::st
 	config_base::extract_config_value(config_map, "check for updates", settings.check_updates);
 	config_base::extract_config_value(config_map, "include beta updates", settings.check_beta);
 	config_base::extract_config_value(config_map, "dismissed update version", settings.dismissed_update_version);
-
-	config_base::extract_config_value(
-		config_map, "notify about config overrides", settings.notify_about_config_override
-	);
 
 #ifdef __linux__
 	config_base::extract_config_value(config_map, "vapoursynth lib path", settings.vapoursynth_lib_path);

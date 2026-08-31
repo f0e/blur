@@ -447,44 +447,8 @@ std::filesystem::path config_blur::get_global_config_path() {
 	return blur.settings_path / CONFIG_FILENAME;
 }
 
-std::filesystem::path config_blur::get_config_filename(const std::filesystem::path& video_folder) {
-	return video_folder / CONFIG_FILENAME;
-}
-
 BlurSettings config_blur::get_global_config() {
 	return config_base::load_config<BlurSettings>(get_global_config_path(), create, parse);
-}
-
-config_blur::ConfigRes config_blur::get_config(const std::filesystem::path& config_filepath, bool use_global) {
-	bool local_cfg_exists = std::filesystem::exists(config_filepath);
-
-	auto global_cfg_path = get_global_config_path();
-	bool global_cfg_exists = std::filesystem::exists(global_cfg_path);
-
-	ConfigRes res;
-	std::filesystem::path cfg_path;
-
-	if (use_global && !local_cfg_exists && global_cfg_exists) {
-		cfg_path = global_cfg_path;
-
-		if (blur.verbose)
-			u::log("Using global config");
-	}
-	else {
-		// check if the config file exists, if not, write the default values
-		if (!local_cfg_exists) {
-			create(config_filepath);
-
-			u::log("Configuration file not found, default config generated at {}", config_filepath);
-		}
-
-		cfg_path = config_filepath;
-	}
-
-	res.config = parse(cfg_path);
-	res.is_global = (cfg_path == global_cfg_path);
-
-	return res;
 }
 
 tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {

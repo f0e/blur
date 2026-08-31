@@ -27,7 +27,6 @@ namespace rendering {
 	};
 
 	struct QueueAddRes {
-		bool is_global_config;
 		std::optional<std::string> error;
 		std::shared_ptr<rendering::RenderState> state;
 	};
