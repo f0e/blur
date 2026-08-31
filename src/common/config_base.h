@@ -91,6 +91,24 @@ namespace config_base {
 		return true;
 	}
 
+	// config files get renamed from time to time. rename an old one into place as it's found, so an existing
+	// install keeps its settings instead of silently starting over on defaults. does nothing if the old file is
+	// gone, or if the new one is already there
+	inline void migrate_file(const std::filesystem::path& from, const std::filesystem::path& to) {
+		std::lock_guard lock(config_file_mutex);
+
+		std::error_code ec; // a failed migration just leaves the old file where it is, which is recoverable
+		if (!std::filesystem::exists(from, ec) || std::filesystem::exists(to, ec))
+			return;
+
+		std::filesystem::rename(from, to, ec);
+
+		if (ec)
+			u::log("failed to migrate config '{}' to '{}': {}", from, to, ec.message());
+		else
+			u::log("migrated config '{}' to '{}'", from, to);
+	}
+
 	template<typename ConfigType>
 	ConfigType load_config(
 		const std::filesystem::path& config_path,

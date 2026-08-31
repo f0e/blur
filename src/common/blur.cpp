@@ -3,14 +3,24 @@
 #include "utils.h"
 #include "rendering.h"
 #include "updates.h"
+#include "config_base.h"
 #include "config_blur.h"
 #include "config_app.h"
-#include "config_presets.h"
+#include "config_encoding_presets.h"
 #include "masks.h"
 
 tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_preview) {
 	resources_path = u::get_resources_path();
 	settings_path = u::get_settings_path();
+
+	// before anything below creates a default in its place
+	config_base::migrate_file(
+		settings_path / config_app::LEGACY_APP_CONFIG_FILENAME, settings_path / config_app::APP_CONFIG_FILENAME
+	);
+	config_base::migrate_file(
+		settings_path / config_encoding_presets::LEGACY_CONFIG_FILENAME,
+		settings_path / config_encoding_presets::CONFIG_FILENAME
+	);
 
 	auto global_blur_config_path = config_blur::get_global_config_path();
 	if (!std::filesystem::exists(global_blur_config_path))
@@ -20,9 +30,9 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 	if (!std::filesystem::exists(app_config_path))
 		config_app::create(app_config_path, GlobalAppSettings{});
 
-	auto preset_config_path = config_presets::get_preset_config_path();
-	if (!std::filesystem::exists(preset_config_path))
-		config_presets::create(preset_config_path, PresetSettings{});
+	auto encoding_preset_config_path = config_encoding_presets::get_config_path();
+	if (!std::filesystem::exists(encoding_preset_config_path))
+		config_encoding_presets::create(encoding_preset_config_path, EncodingPresetSettings{});
 
 	// so there's somewhere to drop mask images even before one's been used
 	std::error_code masks_ec;
