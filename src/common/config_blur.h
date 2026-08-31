@@ -3,6 +3,17 @@
 struct GlobalAppSettings;
 struct PresetSettings;
 
+struct AutoMaskSettings {
+	int samples = 48;
+
+	float stillness = 0.9f;
+	int fill = 24;
+	int padding = 1;
+	int feather = 1;
+
+	bool operator==(const AutoMaskSettings& other) const = default;
+};
+
 struct AdvancedSettings {
 	std::string video_container = "mp4";
 	int deduplicate_range = 5;
@@ -24,6 +35,8 @@ struct AdvancedSettings {
 	int interpolation_mask_area = 0;
 	std::string rife_model = "rife-v4.26_ensembleFalse";
 	std::string rife_trt_model = "v4.26";
+
+	AutoMaskSettings auto_mask;
 
 	bool manual_svp = false;
 	std::string super_string;
@@ -127,6 +140,8 @@ namespace config_blur {
 	const std::string CONFIG_FILENAME = ".blur-config.cfg";
 
 	std::string generate_config_string(const BlurSettings& settings, bool concise);
+
+	bool same_masking(const BlurSettings& a, const BlurSettings& b);
 
 	void create(const std::filesystem::path& filepath, const BlurSettings& current_settings = BlurSettings());
 

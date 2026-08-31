@@ -16,7 +16,9 @@
 // protected if either of them protects it.
 //
 // Automatic masks are written as pngs into <settings path>/auto-masks, so one can be copied over into the
-// masks folder, touched up and kept like any other - which is a reasonable way to author a base mask.
+// masks folder, touched up and kept like any other - which is a reasonable way to author a base mask. That
+// folder holds nothing else; the measurements they're worked out from are an intermediate, and live under
+// <settings path>/auto-mask-cache instead.
 namespace masks {
 	inline const std::string FOLDER_NAME = "masks";
 

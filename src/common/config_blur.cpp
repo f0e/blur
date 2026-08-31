@@ -152,6 +152,14 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "source plugin: " << settings.advanced.source_plugin << "\n";
 
 			output << "\n";
+			output << "- advanced masking" << "\n";
+			output << "auto mask samples: " << settings.advanced.auto_mask.samples << "\n";
+			output << "auto mask stillness: " << settings.advanced.auto_mask.stillness << "\n";
+			output << "auto mask fill: " << settings.advanced.auto_mask.fill << "\n";
+			output << "auto mask padding: " << settings.advanced.auto_mask.padding << "\n";
+			output << "auto mask feather: " << settings.advanced.auto_mask.feather << "\n";
+
+			output << "\n";
 			output << "- advanced blur" << "\n";
 			output << "blur weighting gaussian std dev: " << settings.advanced.blur_weighting_gaussian_std_dev << "\n";
 			output << "blur weighting gaussian mean: " << settings.advanced.blur_weighting_gaussian_mean << "\n";
@@ -192,6 +200,17 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 
 void config_blur::create(const std::filesystem::path& filepath, const BlurSettings& current_settings) {
 	config_base::write_config_string(filepath, generate_config_string(current_settings, false));
+}
+
+bool config_blur::same_masking(const BlurSettings& a, const BlurSettings& b) {
+	if (a.mask != b.mask || a.auto_mask != b.auto_mask || a.advanced.auto_mask != b.advanced.auto_mask)
+		return false;
+
+	if (a.interpolate != b.interpolate || a.deduplicate != b.deduplicate ||
+	    a.advanced.deduplicate_range != b.advanced.deduplicate_range)
+		return false;
+
+	return a.advanced.source_plugin == b.advanced.source_plugin && a.gpu_decoding == b.gpu_decoding;
 }
 
 std::string config_blur::export_concise(const BlurSettings& settings) {
@@ -376,6 +395,12 @@ BlurSettings config_blur::parse_from_map(const std::map<std::string, std::string
 		config_base::extract_config_value(config_map, "resizing chroma location", settings.advanced.resize_chromaloc);
 		config_base::extract_config_value(config_map, "source plugin", settings.advanced.source_plugin);
 
+		config_base::extract_config_value(config_map, "auto mask samples", settings.advanced.auto_mask.samples);
+		config_base::extract_config_value(config_map, "auto mask stillness", settings.advanced.auto_mask.stillness);
+		config_base::extract_config_value(config_map, "auto mask fill", settings.advanced.auto_mask.fill);
+		config_base::extract_config_value(config_map, "auto mask padding", settings.advanced.auto_mask.padding);
+		config_base::extract_config_value(config_map, "auto mask feather", settings.advanced.auto_mask.feather);
+
 		config_base::extract_config_value(
 			config_map, "blur weighting gaussian std dev", settings.advanced.blur_weighting_gaussian_std_dev
 		);
@@ -521,6 +546,12 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 	j["debug"] = this->advanced.debug;
 	j["resize_chromaloc"] = this->advanced.resize_chromaloc;
 	j["source_plugin"] = this->advanced.source_plugin;
+
+	j["auto_mask_samples"] = this->advanced.auto_mask.samples;
+	j["auto_mask_stillness"] = this->advanced.auto_mask.stillness;
+	j["auto_mask_fill"] = this->advanced.auto_mask.fill;
+	j["auto_mask_padding"] = this->advanced.auto_mask.padding;
+	j["auto_mask_feather"] = this->advanced.auto_mask.feather;
 
 	j["blur_weighting_gaussian_std_dev"] = this->advanced.blur_weighting_gaussian_std_dev;
 	j["blur_weighting_gaussian_mean"] = this->advanced.blur_weighting_gaussian_mean;

@@ -92,6 +92,39 @@ void configs::option_information(ui::Container& container) {
 				"Analysing a video takes a moment, but the result is cached and reused",
 			},
 		},
+
+		// Automatic mask tuning
+		{
+			"auto mask stillness slider",
+			{
+				"How much of the time a pixel has to stay static",
+			},
+		},
+		{
+			"auto mask fill slider",
+			{
+				"How far the mask fills into a flat area from the detail around it",
+			},
+		},
+		{
+			"auto mask padding slider",
+			{
+				"How far the mask spreads past what was found",
+			},
+		},
+		{
+			"auto mask feather slider",
+			{
+				"How far the edge of the mask fades out",
+			},
+		},
+		{
+			"auto mask samples slider",
+			{
+				"How many frames from across the video get compared to find the parts that never move",
+			},
+		},
+
 		{
 			"interpolation method dropdown",
 			{

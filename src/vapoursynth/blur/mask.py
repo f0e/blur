@@ -7,9 +7,9 @@ interpolating one, so it warps an overlay the same way and a mask covers it too.
 
 A mask is an image in <settings path>/masks: white where the frame should be interpolated as normal, black
 where it should be left alone. That's the base mask - the one that's the same for every video, a game's HUD
-say. The "auto mask" setting works a second one out from the video itself (see `generate`) and stacks it over
-the base, catching whatever that particular video has that the base doesn't cover. Either can be used on its
-own; with both, a pixel is protected if either of them protects it - see `combine`.
+say. The "auto mask" setting works a second one out from the video itself (see `measure` and `shape`) and
+stacks it over the base, catching whatever that particular video has that the base doesn't cover. Either can
+be used on its own; with both, a pixel is protected if either of them protects it - see `combine`.
 """
 
 from vapoursynth import core
@@ -18,6 +18,7 @@ import vapoursynth as vs
 import hashlib
 import struct
 import zlib
+from dataclasses import dataclass
 from pathlib import Path
 
 import blur.utils as u
@@ -44,7 +45,7 @@ def load(path: Path) -> vs.VideoNode:
 # Automatic masks
 #
 # A HUD is the thing interpolation gets wrong, and it's also the one thing in the frame that doesn't move. So
-# rather than asking for a png, `generate` samples frames from across the video and looks for the pixels that
+# rather than asking for a png, `measure` samples frames from across the video and looks for the pixels that
 # stayed put in nearly all of them, in two ways:
 #
 #  - held still (`_held_still`): the pixel is the same colour every time. this is what an opaque overlay looks
@@ -144,19 +145,26 @@ FILL_PX_1080P = 24
 CLUSTER_RADIUS = 2
 CLUSTER_COVERAGE = 0.06
 
-# how far the mask reaches past what was detected, and how far it ramps off after that, in analysis pixels.
+# how far the mask reaches past what was detected, and how far it ramps off after that, in pixels at 1080p.
 # just enough to cover an overlay's own antialiased edge and to keep the boundary from being a hard seam -
 # see the note above on why this doesn't want to be generous
 GROW_PX = 1
 FEATHER_PX = 1
 
 # generated masks are kept here, under the settings folder alongside blur's other state, so a video is only
-# ever analysed once however many previews and renders it goes through
+# ever analysed once however many previews and renders it goes through. nothing but finished masks goes in
+# here - it's a folder to go looking in, and every file in it is one that can be copied into the masks folder
 CACHE_FOLDER = "auto-masks"
 
-# how many to keep, oldest dropped first. a mask is mostly flat black and white so it compresses to a few
-# kilobytes - the whole cache at this limit is a couple of megabytes, which is why the limit can be this loose
+# the scores behind them, which are an intermediate rather than anything to look at, so they get a folder of
+# their own. see the note above `_cache_key`
+SCORE_CACHE_FOLDER = "auto-mask-cache"
+
+# how many of each to keep, oldest dropped first. a mask is mostly flat black and white so it compresses to a
+# few kilobytes - the whole cache at this limit is a couple of megabytes, which is why the limit can be this
+# loose. scores are a photo's worth of detail rather than a mask's, so far fewer of those are worth keeping
 CACHE_LIMIT = 256
+SCORE_CACHE_LIMIT = 24
 
 # a cached mask, and a cached "there was nothing to mask here". the mask is a png so that it's the same kind
 # of file as a hand made one - copy it into the masks folder and it's a mask like any other
@@ -173,6 +181,59 @@ MIN_STATIC_PX_1080P = 16
 # that barely moves - and masking it would leave interpolation with nothing left to do, so the detection is
 # treated as a miss
 MAX_STATIC_FRACTION = 0.5
+
+
+# The analysis comes in two halves, and which half a setting belongs to is what decides how expensive it is
+# to change:
+#
+#  - measuring (`measure`): sample frames from the video and score every pixel twice - on how much of the time
+#    it stayed put, and on how much of the time there was anything drawn there at all. This is the slow half,
+#    a seek and a decode per sample, and `samples` is the only setting in it.
+#  - shaping (`shape`): turn those scores into a mask, by cutting them at their thresholds and tidying up
+#    what's left. This is a handful of passes over one small plane, so it's near enough free, and every other
+#    setting lives here.
+#
+# The scores are cached (see `cached`), so retuning anything in the second half is answered without opening the
+# video at all - which is what makes the config screen's mask preview worth flicking settings in front of.
+
+
+@dataclass(frozen=True)
+class Params:
+    """The settings blur exposes for the automatic mask, defaulting to the constants above.
+
+    `Params()` is the analysis exactly as described in those constants' notes. Everything blur sends comes out
+    of json, so `from_settings` is where it's turned into numbers and held to ranges the analysis can actually
+    run with - two samples is the fewest that can be compared with each other at all.
+    """
+
+    # measuring
+    samples: int = SAMPLE_COUNT
+
+    # shaping. stillness is the bar the scores have to clear, so raising it masks less
+    stillness: float = MIN_CONSISTENCY
+    fill: int = FILL_PX_1080P
+    padding: int = GROW_PX
+    feather: int = FEATHER_PX
+
+    @staticmethod
+    def from_settings(settings: dict) -> "Params":
+        """Read blur's settings, falling back to a default for anything missing or unreadable."""
+
+        def number(key: str, default, low, high):
+            try:
+                value = type(default)(settings[key])
+            except (KeyError, TypeError, ValueError):
+                return default
+
+            return min(max(value, low), high)
+
+        return Params(
+            samples=number("auto_mask_samples", SAMPLE_COUNT, 2, 512),
+            stillness=number("auto_mask_stillness", MIN_CONSISTENCY, 0.0, 1.0),
+            fill=number("auto_mask_fill", FILL_PX_1080P, 0, 512),
+            padding=number("auto_mask_padding", GROW_PX, 0, 128),
+            feather=number("auto_mask_feather", FEATHER_PX, 0, 128),
+        )
 
 
 def _detached(clip: vs.VideoNode) -> vs.VideoNode:
@@ -341,12 +402,18 @@ def _local_contrast(
     return stands_out, has_detail
 
 
-def generate(clip: vs.VideoNode) -> vs.VideoNode | None:
-    """Work out a mask from `clip` by finding the parts of the frame that never change.
+def measure(clip: vs.VideoNode, samples: int = SAMPLE_COUNT) -> vs.VideoNode | None:
+    """Score every pixel of `clip` on how static it is, in one 8 bit GRAY clip of two stacked planes.
 
-    Returns a one frame GRAY clip in the same convention as a mask png, or None when there was nothing usable
-    to find - too short a clip, no static region, or so much of the frame static that it can't be an overlay.
-    The caller should render without a mask in that case.
+    The top half is how much of the time the pixel held still or stood out from its surroundings - whichever
+    of the two was more convinced - and the bottom half is how much of the time there was anything drawn there
+    at all. `shape` is what turns them into a mask.
+
+    Comes back None when there weren't enough usable samples to tell an overlay from a scene sitting still.
+
+    This is the expensive half, and it's what gets cached, so its answer is deliberately the scores rather than
+    a mask: everything the settings do to them afterwards is then free. 8 bit because these are fractions of at
+    most a few dozen samples, so a 256 step scale is finer than the measurements themselves.
     """
     # this exact line, prefix included, is what blur watches for to show "analysing video" in place of
     # the render progress
@@ -354,62 +421,100 @@ def generate(clip: vs.VideoNode) -> vs.VideoNode | None:
 
     analysed = _analysed(clip)
 
-    indices = _samples(analysed, SAMPLE_COUNT)
-    if len(indices) < MIN_SAMPLES:
+    indices = _samples(analysed, samples)
+
+    # asking for fewer samples than the floor is asking for a mask off fewer samples, not for no mask
+    if len(indices) < min(MIN_SAMPLES, samples):
         log.info(
             f"Mask: only {len(indices)} frames of this video differ from each other, "
             "so there's nothing to tell an overlay apart from the scene. Rendering unmasked"
         )
         return None
 
-    samples = [analysed[i] for i in indices]
+    frames = [analysed[i] for i in indices]
 
-    # the sizes below are all in analysis pixels. going through the analysis clip's own height rather than the
-    # video's is what keeps them the same distance on screen whether or not the video got shrunk to fit
-    scale = analysed.height / 1080
-
-    def scaled(pixels_at_1080p: int) -> int:
-        return max(1, round(pixels_at_1080p * scale))
+    # in analysis pixels. going through the analysis clip's own height rather than the video's is what keeps
+    # this the same distance on screen whether or not the video got shrunk to fit
+    radius = max(1, round(LOCAL_RADIUS_PX_1080P * analysed.height / 1080))
 
     # only brightness is put through _held_still. colour is far flatter than brightness, so whole desaturated
     # stretches of a scene sit at the same chroma frame after frame and would come back as unchanged
-    brightness = [_plane(sample, 0) for sample in samples]
+    brightness = [_plane(frame, 0) for frame in frames]
 
-    stands_out, has_detail = _local_contrast(samples, scaled(LOCAL_RADIUS_PX_1080P))
+    stands_out, has_detail = _local_contrast(frames, radius)
 
     # a pixel is static if either stillness test is convinced
-    static = core.std.Expr(
-        [_held_still(brightness), stands_out],
-        f"x y max {MIN_CONSISTENCY} >= 1 0 ?",
+    static = core.std.Expr([_held_still(brightness), stands_out], "x y max")
+
+    scores = core.std.StackVertical([static, has_detail])
+
+    return _detached(
+        core.resize.Point(
+            scores,
+            format=vs.GRAY8,
+            range_in_s="full",
+            range_s="full",
+            dither_type="none",
+        )
     )
 
-    # but it only counts where something was drawn to be still in the first place. an empty stretch of sky
-    # holds perfectly still without being an overlay, and masking it is what stops anything that crosses it
-    # later - a lantern, a tracer - from being interpolated at all
-    drawn = core.std.Expr(has_detail, f"x {MIN_DETAIL} >= 1 0 ?")
 
+def shape(scores: vs.VideoNode, params: Params = Params()) -> vs.VideoNode | None:
+    """Cut `measure`'s scores at the settings' thresholds and tidy what's left into a mask.
+
+    Returns a one frame GRAY clip in the same convention as a mask png, or None when there was nothing worth
+    protecting - no static region, or so much of the frame static that it can't be an overlay. The caller
+    should render without a mask in that case.
+
+    Nothing in here reads the video, so it costs about as much as the passes it makes over one small plane.
+    """
+    height = scores.height // 2
+
+    # the scores are 0-255 over a 0-1 range, so the thresholds scale with them. asking for float out matters:
+    # everything below works in coverage rather than levels, and 8 bit would make its 1 a 255th
+    def over(plane: vs.VideoNode, threshold: float) -> vs.VideoNode:
+        return core.std.Expr(plane, f"x {threshold * 255} >= 1 0 ?", format=vs.GRAYS)
+
+    static = over(core.std.Crop(scores, bottom=height), params.stillness)
+    drawn = over(core.std.Crop(scores, top=height), MIN_DETAIL)
+
+    # the sizes below are all in analysis pixels, worked out from the height the scores were measured at
+    scale = height / 1080
+
+    def scaled(pixels_at_1080p: int) -> int:
+        # a size that was asked for stays at least a pixel however small the analysis clip is, but one that
+        # wasn't asked for at all stays off
+        if pixels_at_1080p <= 0:
+            return 0
+
+        return max(1, round(pixels_at_1080p * scale))
+
+    # a static pixel only counts where something was drawn to be still in the first place. an empty stretch of
+    # sky holds perfectly still without being an overlay, and masking it is what stops anything that crosses it
+    # later - a lantern, a tracer - from being interpolated at all
+    #
     # a flat patch is kept anyway when there's detail within reach of it: the middle of a solid panel is as
     # flat as sky, but unlike sky it has the panel's own edges and text around it
-    reach = scaled(FILL_PX_1080P)
-    near_drawn = core.std.BoxBlur(
-        core.std.Expr([static, drawn], "x y min"), hradius=reach, vradius=reach
-    )
-    static = core.std.Expr([static, near_drawn], "y 0 > x 0 ?")
+    reach = scaled(params.fill)
+    if reach > 0:
+        near_drawn = core.std.BoxBlur(
+            core.std.Expr([static, drawn], "x y min"), hradius=reach, vradius=reach
+        )
+        static = core.std.Expr([static, near_drawn], "y 0 > x 0 ?")
+    else:
+        static = core.std.Expr([static, drawn], "x y min")
 
     # throw away static pixels that are on their own, judged by how much of the box around each one is static
     density = core.std.BoxBlur(static, hradius=CLUSTER_RADIUS, vradius=CLUSTER_RADIUS)
     static = core.std.Expr([static, density], f"y {CLUSTER_COVERAGE} < 0 x ?")
 
-    # the values are 0 or 1, so the average over the plane is the share of the frame that's static. this is the
-    # point everything above actually gets decoded and run
+    # the values are 0 or 1, so the average over the plane is the share of the frame that's static
     fraction = core.std.PlaneStats(static).get_frame(0).props["PlaneStatsAverage"]
     found = fraction * static.width * static.height
 
     # an area scales with the square of the linear scale the other sizes use
     if found < max(1, round(MIN_STATIC_PX_1080P * scale * scale)):
-        log.info(
-            f"Mask: nothing static found ({found:.0f} pixels). Rendering unmasked"
-        )
+        log.info(f"Mask: nothing static found ({found:.0f} pixels). Rendering unmasked")
         return None
 
     if fraction > MAX_STATIC_FRACTION:
@@ -421,34 +526,61 @@ def generate(clip: vs.VideoNode) -> vs.VideoNode | None:
 
     log.info(f"Mask: protecting the {fraction:.2%} of the frame that never moves")
 
-    # the blur's ramp is centred on the edge it's given, so growing by GROW_PX + FEATHER_PX first leaves
-    # everything within GROW_PX of the detection fully protected once the ramp has eaten back into it
-    for _ in range(GROW_PX + FEATHER_PX):
+    padding, feather = scaled(params.padding), scaled(params.feather)
+
+    # the blur's ramp is centred on the edge it's given, so growing by padding + feather first leaves
+    # everything within padding of the detection fully protected once the ramp has eaten back into it
+    for _ in range(padding + feather):
         static = core.std.Maximum(static)
 
-    static = core.std.BoxBlur(static, hradius=FEATHER_PX, vradius=FEATHER_PX)
+    if feather > 0:
+        static = core.std.BoxBlur(static, hradius=feather, vradius=feather)
 
     # masks read the other way round: white means "interpolate this as normal"
     return _detached(core.std.Expr(static, "1 x -"))
 
 
+def generate(clip: vs.VideoNode, params: Params = Params()) -> vs.VideoNode | None:
+    """Work out a mask from `clip` by finding the parts of the frame that never change.
+
+    Both halves in one go, for a caller that has no use for the scores in between. `cached` is what blur
+    actually renders through - it keeps them.
+    """
+    scores = measure(clip, params.samples)
+
+    return None if scores is None else shape(scores, params)
+
+
 # Caching
 #
 # A config preview re-runs this whole script for every setting the user nudges and every seek, so without
-# somewhere to put the answer the video would be analysed again each time. Masks are static, so the answer
-# only depends on the video and on how the analysis works, and both of those go into the key.
+# somewhere to put the answer the video would be analysed again each time. Masks are static, so the answer only
+# depends on the video and on how the analysis works, and both of those go into the key.
+#
+# Two things are kept, because the analysis has two halves that cost wildly different amounts:
+#
+#  - the finished mask, under CACHE_FOLDER. keyed on every setting, so it only answers for the exact settings
+#    it was made with. it's a png like a hand made mask, which is the point of it being this folder's only
+#    contents: copy one into the masks folder and it's a mask like any other.
+#  - the scores `measure` worked out, under SCORE_CACHE_FOLDER. keyed on the settings that change what gets
+#    measured, which is the sample count and nothing else, so it answers for every combination of the settings
+#    that only shape those scores afterwards. that's what makes retuning them instant - `shape` runs off this
+#    without the video ever being opened.
 
 
-def _cache_key(video_path: Path, analysed: tuple[int, int]) -> str:
+def _cache_key(video_path: Path, analysed: tuple[int, int], subject: str) -> str:
     """Identify a video, the part of it being analysed, and the analysis that would be run on it.
 
-    This module's own source is part of the key, so any change to how a mask is worked out - a retuned
-    constant included - leaves old cached masks behind rather than quietly reusing them.
+    `subject` is whatever settings the thing being cached depends on. This module's own source is in the key
+    too, so any change to how a mask is worked out - a retuned default included - leaves what's cached behind
+    rather than quietly reusing it.
     """
     stat = video_path.stat()
-    subject = f"{video_path.resolve()}\n{stat.st_size}\n{stat.st_mtime_ns}\n{analysed}".encode()
+    identity = (
+        f"{video_path.resolve()}\n{stat.st_size}\n{stat.st_mtime_ns}\n{analysed}\n{subject}"
+    ).encode()
 
-    return hashlib.sha1(subject + Path(__file__).read_bytes()).hexdigest()[:16]
+    return hashlib.sha1(identity + Path(__file__).read_bytes()).hexdigest()[:16]
 
 
 def _cache_name(video_path: Path, key: str) -> str:
@@ -496,54 +628,110 @@ def _greyscale_png(plane, width: int, height: int) -> bytes:
 
 
 def _store(gray: vs.VideoNode | None, path: Path):
-    """Write a generated mask out, or note that there wasn't one worth having."""
+    """Write a one frame GRAY clip out as a png, or note that there wasn't one worth having."""
     if gray is None:
         path.with_suffix(NOTHING_SUFFIX).write_bytes(b"")
         return
 
-    # 8 bit is what a mask png is, and all a coverage value needs
+    # 8 bit is what a mask png is, and all a coverage value needs. scores are already 8 bit, so this is a
+    # no-op for those
     eight_bit = core.resize.Point(
         gray, format=vs.GRAY8, range_in_s="full", range_s="full", dither_type="none"
     )
     png = _greyscale_png(eight_bit.get_frame(0)[0], eight_bit.width, eight_bit.height)
 
-    # written alongside and moved into place, so a half written file is never picked up as a cached mask
+    # written alongside and moved into place, so a half written file is never picked up as a cached one
     partial = path.with_suffix(".partial")
     partial.write_bytes(png)
     partial.replace(path.with_suffix(MASK_SUFFIX))
 
 
-def _prune(folder: Path):
-    """Drop the oldest cached masks once there are more than CACHE_LIMIT of them."""
+def _prune(folder: Path, limit: int):
+    """Drop the oldest files in a cache folder once there are more than `limit` of them."""
     kept = sorted(
         (p for p in folder.iterdir() if p.suffix in (MASK_SUFFIX, NOTHING_SUFFIX)),
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
 
-    for stale in kept[CACHE_LIMIT:]:
+    for stale in kept[limit:]:
         stale.unlink(missing_ok=True)
 
 
-def cached(
-    clip: vs.VideoNode, video_path: Path, folder: Path, analysed: tuple[int, int]
+def _cached_path(
+    folder: Path, video_path: Path, analysed: tuple[int, int], subject: str
+) -> Path:
+    """Where a video's entry in a cache folder goes, folder made if it wasn't there."""
+    folder.mkdir(parents=True, exist_ok=True)
+
+    return folder / _cache_name(video_path, _cache_key(video_path, analysed, subject))
+
+
+def _scores(
+    clip: vs.VideoNode,
+    video_path: Path,
+    folder: Path,
+    analysed: tuple[int, int],
+    samples: int,
 ) -> vs.VideoNode | None:
-    """`generate`, but remembering the answer on disk between runs.
+    """`measure`, off the cache when it's been run on this video before.
+
+    This is the half that reads the video, so a hit here is the difference between a mask that takes seconds
+    and one that takes no time at all.
+    """
+    try:
+        path = _cached_path(folder, video_path, analysed, f"samples={samples}")
+    except OSError as e:
+        log.info(f"Mask: can't use the cache ({e}), analysing this video every time")
+        return measure(clip, samples)
+
+    if path.with_suffix(NOTHING_SUFFIX).exists():
+        log.info("Mask: cached as nothing to measure")
+        return None
+
+    score_file = path.with_suffix(MASK_SUFFIX)
+    if score_file.exists():
+        try:
+            log.info(f"Mask: reusing measurements from {score_file.name}")
+            return load(score_file)
+        except Exception as e:
+            # unreadable, so it's no better than not having it
+            log.info(f"Mask: couldn't read {score_file.name} ({e}), measuring again")
+
+    scores = measure(clip, samples)
+
+    try:
+        _store(scores, path)
+        _prune(folder, SCORE_CACHE_LIMIT)
+    except OSError as e:
+        log.info(f"Mask: couldn't save the measurements ({e})")
+
+    return scores
+
+
+def cached(
+    clip: vs.VideoNode,
+    video_path: Path,
+    folder: Path,
+    score_folder: Path,
+    analysed: tuple[int, int],
+    params: Params = Params(),
+) -> vs.VideoNode | None:
+    """`generate`, but remembering both halves of it on disk between runs.
 
     `analysed` is which frames of `video_path` the clip covers. It's only used to tell cached masks apart:
     trimming to a different part of a video can turn up a different overlay, so it can't share one.
 
     Comes back 8 bit rather than float when it's read from the cache, which `match` handles either way.
 
-    Falls back to generating in place if the cache can't be read or written - a cache that isn't working is
-    not a reason to fail a render.
+    Falls back to working in place if the cache can't be read or written - a cache that isn't working is not a
+    reason to fail a render.
     """
     try:
-        folder.mkdir(parents=True, exist_ok=True)
-        path = folder / _cache_name(video_path, _cache_key(video_path, analysed))
+        path = _cached_path(folder, video_path, analysed, str(params))
     except OSError as e:
         log.info(f"Mask: can't use the cache ({e}), analysing this video every time")
-        return generate(clip)
+        return generate(clip, params)
 
     if path.with_suffix(NOTHING_SUFFIX).exists():
         log.info("Mask: cached as nothing worth masking")
@@ -558,11 +746,14 @@ def cached(
             # unreadable, so it's no better than not having it
             log.info(f"Mask: couldn't read {mask_file.name} ({e}), analysing again")
 
-    gray = generate(clip)
+    # no mask for these exact settings, but the measurements behind it are worth having whatever the rest of
+    # them say, so those come off their own cache and only the shaping is redone
+    scores = _scores(clip, video_path, score_folder, analysed, params.samples)
+    gray = None if scores is None else shape(scores, params)
 
     try:
         _store(gray, path)
-        _prune(folder)
+        _prune(folder, CACHE_LIMIT)
     except OSError as e:
         log.info(f"Mask: couldn't save to the cache ({e})")
 
@@ -675,3 +866,36 @@ def protect(
 
     # white takes clipb (interpolated), black takes clipa (original)
     return core.std.MaskedMerge(base, interpolated, match(gray, interpolated))
+
+
+def preview(clip: vs.VideoNode, grays: list[vs.VideoNode]) -> vs.VideoNode:
+    """The mask on its own, as a clip that can go out in place of a render.
+
+    This is what blur's config screen shows when the mask preview is toggled on: the same frame size as the
+    render it stands in for, so flicking between the two lines up pixel for pixel and it's obvious what the
+    mask covers and what it misses. White is a pixel that gets interpolated as normal, black one that's left
+    alone, exactly as in a mask file - and an all white frame means nothing is being protected at all.
+    """
+    if grays:
+        gray = combine(grays)
+    else:
+        gray = core.std.BlankClip(clip, format=vs.GRAYS, color=1.0)
+
+    # a mask read from a png carries the png's frame props, one of which says its matrix is rgb - and a grey
+    # clip isn't allowed to claim that on the way into a yuv format. it means nothing here either way: these
+    # are coverage values rather than colours. 2 is "unspecified"
+    gray = core.std.SetFrameProps(gray, _Matrix=2)
+
+    shown = core.resize.Bilinear(
+        gray,
+        width=clip.width,
+        height=clip.height,
+        format=clip.format.id,
+        # full range both sides - these are coverage values, not video levels, and black and white are meant
+        # to come out as black and white
+        range_in_s="full",
+        range_s="full",
+    )
+
+    # one frame stretched over the render's length, so it goes down the pipe like any other output
+    return match_length(shown, clip)

@@ -2,16 +2,124 @@
 
 #include "preview_frames.h"
 
+#include "common/masks.h"
 #include "common/weighting.h"
 
 #include "../../tasks.h"
 
-#include "../../ui/ui.h"
+#include "../notifications.h"
 #include "../../render/render.h"
+#include "../../ui/ui.h"
 
 namespace {
 	// left over from the last ui frame - the seek bar is added after the preview image it affects
 	bool seek_bar_dragging = false;
+
+	struct SaveMaskDialogState {
+		std::string name;
+		std::string error;
+	};
+
+	tl::expected<std::filesystem::path, std::string> get_mask_preset_path(const std::string& entered_name) {
+		std::string name = u::trim(entered_name);
+		if (name.empty())
+			return tl::unexpected("Enter a name for the preset.");
+
+		if (name == "." || name == ".." || name.ends_with(' ') || name.ends_with('.') ||
+		    name.find_first_of("<>:\"/\\|?*") != std::string::npos ||
+		    std::ranges::any_of(name, [](unsigned char character) {
+				return character < 32;
+			}))
+		{
+			return tl::unexpected("That name contains characters that cannot be used in a filename.");
+		}
+
+		if (!u::to_lower(name).ends_with(".png"))
+			name += ".png";
+
+		auto path = masks::get_path() / u::string_to_path(name);
+		std::error_code ec;
+		if (std::filesystem::exists(path, ec))
+			return tl::unexpected("A mask preset with that name already exists.");
+
+		return path;
+	}
+
+	tl::expected<std::filesystem::path, std::string> save_mask_preset(
+		const std::vector<uint8_t>& jpeg, const std::string& name
+	) {
+		auto path = get_mask_preset_path(name);
+		if (!path)
+			return tl::unexpected(path.error());
+
+		std::error_code ec;
+		std::filesystem::create_directories(path->parent_path(), ec);
+		if (ec)
+			return tl::unexpected(std::format("Could not create the masks folder: {}", ec.message()));
+
+		SDL_Surface* surface = render::jpeg_bytes_to_surface(jpeg.data(), jpeg.size());
+		if (!surface)
+			return tl::unexpected("Could not read the current mask preview.");
+
+		bool saved = IMG_SavePNG(surface, u::path_to_string(*path).c_str());
+		SDL_DestroySurface(surface);
+
+		if (!saved)
+			return tl::unexpected(std::format("Could not save the mask preset: {}", SDL_GetError()));
+
+		return *path;
+	}
+
+	void open_save_mask_dialog(std::vector<uint8_t> jpeg) {
+		auto state = std::make_shared<SaveMaskDialogState>();
+
+		ui::dialog::open(
+			{
+				.title = "Save mask preset",
+				.content =
+					[state](ui::Container& container) {
+						ui::add_text_input(
+							"mask preset name input",
+							container,
+							state->name,
+							"name",
+							fonts::dejavu,
+							"",
+							[state](const std::string&) {
+								state->error.clear();
+							}
+						);
+
+						if (!state->error.empty()) {
+							ui::add_text(
+								"mask preset save error",
+								container,
+								state->error,
+								gfx::Color(255, 80, 80, 255),
+								fonts::dejavu(fonts::size::SMALL)
+							);
+						}
+					},
+				.action_required = true,
+				.close_on_confirm = false,
+				.confirm_text = "Save",
+				.on_confirm =
+					[state, jpeg = std::move(jpeg)] {
+						auto saved = save_mask_preset(jpeg, state->name);
+						if (!saved) {
+							state->error = saved.error();
+							return;
+						}
+
+						ui::dialog::close();
+						gui::components::notifications::add(
+							std::format("Saved mask preset '{}'", u::path_to_string(saved->filename())),
+							ui::NotificationType::SUCCESS
+						);
+					},
+			}
+		);
+	}
 
 	void confirm_clear_sample_video() {
 		ui::dialog::confirm_destructive("Remove sample video?", "", "Remove", [] {
@@ -71,12 +179,19 @@ void configs::config_preview(ui::Container& container) {
 	// an unusable video goes in as an empty path, which tears the preview down
 	auto preview_video_path = sample_video_exists ? sample_video_path : std::filesystem::path{};
 
+	bool masking = (settings.interpolate || settings.deduplicate) && (!settings.mask.empty() || settings.auto_mask);
+	if (!masking)
+		show_mask_preview = false;
+
+	bool showing_hovered_mask = !hovered_mask.empty() && hovered_mask != masks::NONE_OPTION;
+
 	auto preview = preview_frames::update(
 		{
 			.video_path = preview_video_path,
 			.settings = settings,
 			.app_settings = app_settings,
 			.seeking = dragging_seek_bar,
+			.show_mask = show_mask_preview,
 		}
 	);
 
@@ -144,79 +259,158 @@ void configs::config_preview(ui::Container& container) {
 		return;
 	}
 
-	if (preview.frame) {
-		container.push_element_gap(2);
+	const int mask_control_height = fonts::dejavu.height();
 
-		// anything that isn't the finished blurred frame for the current settings is faded out
-		ui::add_image(
-			"config preview image",
-			container,
-			preview.frame->texture,
-			container.get_usable_rect().size(),
-			preview.frame->image_id,
-			gfx::Color::white(preview.frame->up_to_date ? 255 : 100)
-		);
+	auto add_mask_controls = [&] {
+		if (!masking)
+			return;
+
+		container.push_element_gap(SEEK_BAR_BOTTOM_GAP);
+
+		auto* separator = ui::add_separator("mask controls separator", container, ui::SeparatorStyle::FADE_BOTH);
 
 		container.pop_element_gap();
 
-		container.push_element_gap(DELETE_ICON_GAP);
-		{
-			int seek_bar_height = ui::seek_bar_height(fonts::dejavu(fonts::size::SMALL));
+		bool show_save_button =
+			show_mask_preview && !showing_hovered_mask && preview.frame && preview.frame->up_to_date;
 
-			auto* seek_bar = ui::add_seek_bar(
-				"config preview seek bar",
-				container,
-				app_settings.config_preview_seek,
-				fonts::dejavu(fonts::size::SMALL),
-				preview.video_duration,
-				container.get_usable_rect().w - seek_bar_height - DELETE_ICON_GAP
-			);
+		if (show_save_button)
+			container.push_element_gap(6);
 
-			seek_bar_dragging = ui::get_active_element() == seek_bar;
+		auto* show_mask_checkbox = ui::add_checkbox(
+			"show mask preview checkbox", container, "show mask", show_mask_preview, fonts::dejavu, {}, true
+		);
 
-			// save once the drag is over rather than writing the config on every frame it moves
-			if (app_settings.config_preview_seek != current_app_settings.config_preview_seek && !seek_bar_dragging) {
-				save_preview_app_settings();
-			}
+		if (show_save_button) {
+			container.pop_element_gap();
 
 			ui::set_next_same_line(container);
 
-			ui::add_icon_button(
-				"remove sample video button",
+			auto* save_button = ui::add_icon_button(
+				"save mask preset button",
 				container,
-				icons::CLOSE,
+				icons::SAVE,
 				fonts::icons,
-				gfx::Size(seek_bar_height, seek_bar_height),
-				DELETE_ICON_COLOR,
-				DELETE_ICON_HOVER_COLOR,
+				gfx::Size(mask_control_height, mask_control_height),
+				gfx::Color::white(190),
+				gfx::Color::white(),
 				[] {
-					confirm_clear_sample_video();
+					open_save_mask_dialog(preview_frames::current_mask_jpeg());
 				},
-				"Remove sample video"
+				"Save mask as preset"
 			);
 		}
+	};
+
+	bool preview_image_added = false;
+	if (showing_hovered_mask || preview.frame) {
+		constexpr int preview_image_gap = 2;
+		int seek_bar_height = ui::seek_bar_height(fonts::dejavu(fonts::size::SMALL));
+
+		container.push_element_gap(preview_image_gap);
+
+		if (showing_hovered_mask) {
+			auto mask_path = masks::get_path() / u::string_to_path(hovered_mask);
+			preview_image_added = ui::add_image(
+									  "config preview image",
+									  container,
+									  mask_path,
+									  container.get_usable_rect().size(),
+									  "hovered mask " + hovered_mask,
+									  gfx::Color::white()
+			)
+			                          .has_value();
+		}
+		else {
+			// anything that isn't the finished blurred frame for the current settings is faded out
+			preview_image_added = ui::add_image(
+									  "config preview image",
+									  container,
+									  preview.frame->texture,
+									  container.get_usable_rect().size(),
+									  preview.frame->image_id,
+									  gfx::Color::white(preview.frame->up_to_date ? 255 : 100)
+			)
+			                          .has_value();
+		}
+
+		container.pop_element_gap();
+
+		container.push_element_gap(SEEK_BAR_BOTTOM_GAP);
+
+		container.push_element_gap(DELETE_ICON_GAP);
+		auto* seek_bar = ui::add_seek_bar(
+			"config preview seek bar",
+			container,
+			app_settings.config_preview_seek,
+			fonts::dejavu(fonts::size::SMALL),
+			preview.video_duration,
+			container.get_usable_rect().w - seek_bar_height - DELETE_ICON_GAP
+		);
+
+		seek_bar_dragging = ui::get_active_element() == seek_bar;
+
+		// save once the drag is over rather than writing the config on every frame it moves
+		if (app_settings.config_preview_seek != current_app_settings.config_preview_seek && !seek_bar_dragging) {
+			save_preview_app_settings();
+		}
+
+		ui::set_next_same_line(container);
+		container.pop_element_gap();
+
+		ui::add_icon_button(
+			"remove sample video button",
+			container,
+			icons::CLOSE,
+			fonts::icons,
+			gfx::Size(seek_bar_height, seek_bar_height),
+			DELETE_ICON_COLOR,
+			DELETE_ICON_HOVER_COLOR,
+			[] {
+				confirm_clear_sample_video();
+			},
+			"Remove sample video"
+		);
+
 		container.pop_element_gap();
 	}
 	else if (preview.rendering) {
+		std::string loading_text = show_mask_preview ? "Loading mask preview..." : "Loading config preview...";
+		if (preview.analysing_mask)
+			loading_text = "Analysing video to generate a mask...";
+
+		container.push_element_gap(SEEK_BAR_BOTTOM_GAP);
+
 		ui::add_text(
 			"loading config preview text",
 			container,
-			"Loading config preview...",
+			{ "", loading_text, "" }, // HACKY to get it to span more lines @todo: cleaner solution
 			gfx::Color::white(100),
 			fonts::dejavu,
 			FONT_CENTERED_X
 		);
+
+		container.pop_element_gap();
 	}
 	else {
+		container.push_element_gap(SEEK_BAR_BOTTOM_GAP);
+
 		ui::add_text(
 			"failed to generate preview text",
 			container,
-			"Failed to generate preview.",
+			{ "", "Failed to generate preview.", "" }, // HACKY to get it to span more lines @todo: cleaner solution
 			gfx::Color::white(100),
 			fonts::dejavu,
 			FONT_CENTERED_X
 		);
+
+		container.pop_element_gap();
 	}
+
+	add_mask_controls();
+
+	if (preview_image_added)
+		ui::shrink_element_to_fit_container_height(container, "config preview image");
 }
 
 void configs::preview_tabs(ui::Container& header_container, ui::Container& content_container) {

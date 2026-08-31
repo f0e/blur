@@ -32,10 +32,43 @@ EXPECTED_PLUGINS = [
 
 LSMASH_PLUGIN = "systems.innocent.lsmas"
 
-try:
-    if vars().get("macos_bundled") == "true":
+
+def build_mask_clips(
+    mask_name: str,
+    auto_mask: bool,
+    auto_mask_params: blur.mask.Params,
+    mask_source: vs.VideoNode,
+    video_path: Path,
+    settings_path: Path,
+    mask_start: int,
+    mask_end: int,
+) -> list[vs.VideoNode]:
+    mask_clips = []
+
+    if mask_name:
+        log.info(f"applying mask {mask_name}")
+        mask_clips.append(blur.mask.load(settings_path / "masks" / mask_name))
+
+    if auto_mask:
+        generated = blur.mask.cached(
+            mask_source,
+            video_path,
+            settings_path / blur.mask.CACHE_FOLDER,
+            settings_path / blur.mask.SCORE_CACHE_FOLDER,
+            (mask_start, mask_end),
+            auto_mask_params,
+        )
+
+        if generated is not None:
+            mask_clips.append(generated)
+
+    return mask_clips
+
+
+def main():
+    if globals().get("macos_bundled") == "true":
         u.load_plugins(".dylib")
-    elif vars().get("linux_bundled") == "true":
+    elif globals().get("linux_bundled") == "true":
         u.load_plugins(".so")
 
     loaded_plugins = [plugin.identifier for plugin in core.plugins()]
@@ -48,15 +81,75 @@ try:
             f"Missing required VapourSynth extension{'s' if len(missing_plugins) != 1 else ''}: {', '.join(missing_plugins)}"
         )
 
-    video_path = Path(vars().get("video_path", ""))
+    video_path = Path(globals().get("video_path", ""))
+    settings = json.loads(globals().get("settings", "{}"))
+    fps_num = globals().get("fps_num", -1)
+    fps_den = globals().get("fps_den", -1)
+    color_range = globals().get("color_range", "")
+    settings_path = Path(globals().get("settings_path", ""))
 
-    settings = json.loads(vars().get("settings", "{}"))
+    resize_chromaloc = settings["resize_chromaloc"]
+    if resize_chromaloc == "default":
+        resize_chromaloc = None
 
-    fps_num = vars().get("fps_num", -1)
-    fps_den = vars().get("fps_den", -1)
-    color_range = vars().get("color_range", "")
+    source_plugin = settings["source_plugin"]
+    if source_plugin == "LWLibavSource" and LSMASH_PLUGIN not in loaded_plugins:
+        log.info("LSMASH isn't available, falling back to BestSource")
+        source_plugin = "BestSource"
 
-    settings_path = Path(vars().get("settings_path", ""))
+    if source_plugin == "LWLibavSource":
+        video = core.lsmas.LWLibavSource(
+            source=video_path,
+            cache=0,
+            prefer_hw=3 if settings["gpu_decoding"] else 0,
+            fpsnum=fps_num if fps_num != -1 else None,
+            fpsden=fps_den if fps_den != -1 else None,
+        )
+
+        # LWLibavSource doesn't respect mp4 edit lists, so negative pts preroll frames get decoded as real content instead of being skipped.
+        # fix this by trimming those frames manually
+        preroll_frames = int(globals().get("preroll_frames", 0))
+        if preroll_frames > 0:
+            video = video[preroll_frames:]
+    else:
+        video = core.bs.VideoSource(
+            source=video_path,
+            cachemode=0,
+            fpsnum=fps_num if fps_num != -1 else None,
+            fpsden=fps_den if fps_den != -1 else None,
+        )
+
+    # trimming
+    start = int(globals().get("start", 0))
+    end = int(globals().get("end", video.num_frames))
+
+    mask_start = max(0, int(globals().get("mask_start", 0)))
+    mask_end = min(int(globals().get("mask_end", video.num_frames)), video.num_frames)
+    mask_source = video[mask_start:mask_end]
+
+    video = video[start:end]
+
+    deduplicating = settings["deduplicate"] and settings["deduplicate_range"] != 0
+    apply_masks = settings["interpolate"] or deduplicating
+    mask_name = settings["mask"] if apply_masks else ""
+    auto_mask = settings["auto_mask"] if apply_masks else False
+    auto_mask_params = blur.mask.Params.from_settings(settings)
+
+    if globals().get("preview_mask") == "true":
+        mask_clips = build_mask_clips(
+            mask_name,
+            auto_mask,
+            auto_mask_params,
+            mask_source,
+            video_path,
+            settings_path,
+            mask_start,
+            mask_end,
+        )
+
+        preview = blur.mask.preview(video, mask_clips)
+        preview.set_output()
+        return
 
     # validate some settings
     svp_interpolation_algorithm = u.coalesce(
@@ -77,18 +170,6 @@ try:
     if settings["blur_output_fps"] <= 0:
         raise u.BlurException("Output FPS must be above 0")
 
-    deduplicating = settings["deduplicate"] and settings["deduplicate_range"] != 0
-
-    # masks protect against interpolation, and deduplication fills the gaps it finds by interpolating too, so
-    # a mask is worth applying whenever either of them runs
-    apply_masks = settings["interpolate"] or deduplicating
-    mask_name = settings["mask"] if apply_masks else ""
-    auto_mask = settings["auto_mask"] if apply_masks else False
-
-    resize_chromaloc = settings["resize_chromaloc"]
-    if resize_chromaloc == "default":
-        resize_chromaloc = None
-
     rife_device_index = settings["rife_device_index"]
     if rife_device_index == -1:  # haven't benchmarked yet..?
         rife_device_index = 0
@@ -97,53 +178,12 @@ try:
     if tensorrt_device_index == -1:  # haven't benchmarked yet..?
         tensorrt_device_index = 0
 
-    source_plugin = settings["source_plugin"]
-    if source_plugin == "LWLibavSource" and LSMASH_PLUGIN not in loaded_plugins:
-        log.info("LSMASH isn't available, falling back to BestSource")
-        source_plugin = "BestSource"
-
-    if source_plugin == "LWLibavSource":
-        video = core.lsmas.LWLibavSource(
-            source=video_path,
-            cache=0,
-            prefer_hw=3 if settings["gpu_decoding"] else 0,
-            fpsnum=fps_num if fps_num != -1 else None,
-            fpsden=fps_den if fps_den != -1 else None,
-        )
-
-        # LWLibavSource doesn't respect mp4 edit lists, so negative pts preroll frames get decoded as real content instead of being skipped.
-        # fix this by trimming those frames manually
-        preroll_frames = int(vars().get("preroll_frames", 0))
-        if preroll_frames > 0:
-            video = video[preroll_frames:]
-    else:
-        video = core.bs.VideoSource(
-            source=video_path,
-            cachemode=0,
-            fpsnum=fps_num if fps_num != -1 else None,
-            fpsden=fps_den if fps_den != -1 else None,
-        )
-
     video_info = u.VideoInfo(
         is_full_color_range=color_range == "pc",
         orig_width=video.width,
         orig_height=video.height,
         resize_chromaloc=resize_chromaloc,
     )
-
-    # trimming
-    start = int(vars().get("start", 0))
-    end = int(vars().get("end", video.num_frames))
-
-    # what an automatic mask gets worked out from. blur passes this separately from the trim above, because a
-    # render's start is the user's trim but a preview's is wherever the seek bar is - and a mask that followed
-    # the seek bar would be a different mask every time, none of them cacheable. left unset it's the whole
-    # video, which is what a preview and an untrimmed render both want
-    mask_start = max(0, int(vars().get("mask_start", 0)))
-    mask_end = min(int(vars().get("mask_end", video.num_frames)), video.num_frames)
-    mask_source = video[mask_start:mask_end]
-
-    video = video[start:end]
 
     # what masked regions get put back to. taken after trimming so it lines up with the render frame for
     # frame, and before deduplication because its fill frames are interpolated and warp an overlay exactly
@@ -367,28 +407,21 @@ try:
 
     # masking. deduplication is included because filling a dropped frame means interpolating one, and it's
     # interpolation that warps an overlay - but if neither actually ran there are no artifacts to put back
+    mask_clips = []
     if (mask_name or auto_mask) and (deduplicating or interpolated):
-        mask_clips = []
+        mask_clips = build_mask_clips(
+            mask_name,
+            auto_mask,
+            auto_mask_params,
+            mask_source,
+            video_path,
+            settings_path,
+            mask_start,
+            mask_end,
+        )
 
-        if mask_name:
-            log.info(f"applying mask {mask_name}")
-            mask_clips.append(blur.mask.load(settings_path / "masks" / mask_name))
-
-        if auto_mask:
-            generated = blur.mask.cached(
-                mask_source,
-                video_path,
-                settings_path / blur.mask.CACHE_FOLDER,
-                (mask_start, mask_end),
-            )
-
-            # None when there was no overlay worth protecting in this video. the base mask, if there is one,
-            # still applies - it's about the game rather than about this particular video
-            if generated is not None:
-                mask_clips.append(generated)
-
-        if mask_clips:
-            video = blur.mask.protect(video, original, blur.mask.combine(mask_clips))
+    if mask_clips:
+        video = blur.mask.protect(video, original, blur.mask.combine(mask_clips))
 
     # debug: write over the frames deduplication had a hand in, and only those. drawn after masking so the
     # text can't be masked away, and before blending - which averages frames together, and will smear this
@@ -470,6 +503,10 @@ try:
         )
 
     video.set_output()
+
+
+try:
+    main()
 except u.BlurException as e:
     u.handle_blur_exception(e)
 except Exception as e:

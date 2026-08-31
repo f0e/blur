@@ -332,11 +332,15 @@ void ui::center_elements_in_container(Container& container, bool horizontal, boo
 			}
 
 			// Center horizontally if requested
-			if (horizontal) {
+			if (horizontal && element->auto_center_horizontal) {
 				element->rect.x = container.get_usable_rect().center().x - element->rect.w / 2;
 			}
 			continue;
 		}
+
+		bool center_group = std::ranges::all_of(group_elements, [](const Element* element) {
+			return element->auto_center_horizontal;
+		});
 
 		// Calculate total width and spacing of group
 		int total_width = 0;
@@ -362,7 +366,7 @@ void ui::center_elements_in_container(Container& container, bool horizontal, boo
 			}
 
 			// Horizontally center the group while preserving relative spacing
-			if (horizontal) {
+			if (horizontal && center_group) {
 				element->rect.x = start_group_x + x_offsets[i];
 			}
 		}
@@ -402,6 +406,39 @@ void ui::center_elements(Container& container, const std::vector<AnimatedElement
 		element->rect.x += shift_x;
 		element->orig_rect.x = element->rect.x;
 	}
+}
+
+void ui::shrink_element_to_fit_container_height(Container& container, const std::string& element_id) {
+	auto current_id = std::ranges::find(container.current_element_ids, element_id);
+	if (current_id == container.current_element_ids.end())
+		return;
+
+	auto target_it = container.elements.find(element_id);
+	if (target_it == container.elements.end())
+		return;
+
+	auto& target = target_it->second.element;
+	int overflow = get_content_height(container) - container.get_usable_rect().h;
+	if (overflow <= 0 || target->rect.h <= 1)
+		return;
+
+	int old_height = target->rect.h;
+	int new_height = std::max(old_height - overflow, 1);
+	int height_reduction = old_height - new_height;
+	float aspect_ratio = target->rect.w / static_cast<float>(old_height);
+
+	target->rect.w = std::max(static_cast<int>(std::lround(new_height * aspect_ratio)), 1);
+	target->rect.h = new_height;
+	target->orig_rect = target->rect;
+
+	// every later element was positioned from the target's old bottom edge.
+	for (++current_id; current_id != container.current_element_ids.end(); ++current_id) {
+		auto& element = container.elements[*current_id].element;
+		element->rect.y -= height_reduction;
+		element->orig_rect.y -= height_reduction;
+	}
+
+	container.current_position.y -= height_reduction;
 }
 
 void ui::right_align_element(Container& container, AnimatedElement* animated_element) {

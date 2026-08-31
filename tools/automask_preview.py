@@ -2,8 +2,8 @@
 
 Temporary dev tool. Runs blur.mask.generate over one or more videos and writes out what it decided:
 the mask itself, and the mask painted over a frame so you can see whether it caught the HUD and missed
-everything else. `--stages` also dumps the intermediate detection steps, which is what you want when
-tuning the constants in blur/mask.py.
+everything else. `--stages` also dumps the scores the analysis measures, which is what the
+stillness and detail settings cut through.
 
 Call it through tools/automask-preview.sh - it needs the bundled python, which is the only one with
 vapoursynth in it.
@@ -85,40 +85,22 @@ def fraction_static(clip: vs.VideoNode) -> float:
 
 
 def detection_stages(clip: vs.VideoNode):
-    """Redo generate()'s detection, keeping the steps it throws away.
+    """The scores mask.measure() works out, and what the thresholds make of them.
 
-    Deliberately a copy of what generate() does rather than a refactor of it - this is a temporary tool and
-    shouldn't be shaping the real code. It reads the same constants, so retuning them shows up here.
+    The scores are the analysis's own intermediate rather than a copy of it, so this can't drift from what
+    blur actually does. The greys in them are what the stillness and detail settings cut through.
     """
-    analysed = mask._analysed(clip)
+    params = mask.Params()
 
-    indices = mask._samples(analysed, mask.SAMPLE_COUNT)
-    if len(indices) < mask.MIN_SAMPLES:
-        return indices, None, None, None, None
+    scores = mask.measure(clip, params.samples)
+    if scores is None:
+        return None, None, None
 
-    samples = [analysed[i] for i in indices]
+    height = scores.height // 2
+    static = core.std.Crop(scores, bottom=height)
+    detail = core.std.Crop(scores, top=height)
 
-    # the analysed clip's height, not the video's - generate() shrinks tall videos to MAX_ANALYSIS_HEIGHT, and
-    # the radii are in that clip's pixels
-    scale = analysed.height / 1080
-
-    def scaled(pixels_at_1080p):
-        return max(1, round(pixels_at_1080p * scale))
-
-    # the detection signals on their own, 0-1. the greys in here are what MIN_CONSISTENCY cuts through
-    held_still = mask._held_still([mask._plane(s, 0) for s in samples])
-    stands_out = mask._stands_out(samples, scaled(mask.LOCAL_RADIUS_PX_1080P))
-
-    raw = core.std.Expr(
-        [held_still, stands_out], f"x y max {mask.MIN_CONSISTENCY} >= 1 0 ?"
-    )
-
-    density = core.std.BoxBlur(
-        raw, hradius=mask.CLUSTER_RADIUS, vradius=mask.CLUSTER_RADIUS
-    )
-    clustered = core.std.Expr([raw, density], f"y {mask.CLUSTER_COVERAGE} < 0 x ?")
-
-    return indices, held_still, stands_out, raw, clustered
+    return static, detail, mask.shape(scores, params)
 
 
 def preview(path: Path, args, ffmpeg: Path) -> bool:
@@ -132,29 +114,18 @@ def preview(path: Path, args, ffmpeg: Path) -> bool:
 
     written = []
 
+    gray = None
+
     if args.stages:
-        indices, held_still, stands_out, raw, clustered = detection_stages(clip)
-        print(f"sampling frames: {indices}")
+        static, detail, gray = detection_stages(clip)
 
-        if raw is not None:
-            print(
-                f"detected before cluster filter: {fraction_static(raw):.3%} of the frame"
-            )
-            print(
-                f"detected after cluster filter : {fraction_static(clustered):.3%} of the frame"
-            )
-
-            for name, stage in (
-                ("held-still", held_still),
-                ("stands-out", stands_out),
-                ("detected-raw", raw),
-                ("detected-clustered", clustered),
-            ):
+        if static is not None:
+            for name, stage in (("score-static", static), ("score-detail", detail)):
                 dest = out.with_suffix(f".{name}.png")
-                write_png(to_gray8(stage), dest, ffmpeg)
+                write_png(stage, dest, ffmpeg)
                 written.append(dest)
-
-    gray = mask.generate(clip)
+    else:
+        gray = mask.generate(clip)
 
     if gray is None:
         print("-> no mask generated, this video would render unmasked")
@@ -209,7 +180,7 @@ def main():
     parser.add_argument(
         "--stages",
         action="store_true",
-        help="also write the intermediate detection steps, for tuning the constants in blur/mask.py",
+        help="also write the scores behind the mask, for tuning stillness and detail",
     )
     parser.add_argument(
         "--tint",

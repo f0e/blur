@@ -38,6 +38,9 @@ void configs::options(ui::Container& container) {
 	// initialised by the time you switch to the config screen. this catches that case.
 	u::set_fastest_devices(settings);
 
+	hovered_weighting.clear();
+	hovered_mask.clear();
+
 	auto validation = config_blur::validate(settings, app_settings, preset_settings, false);
 
 	auto validated_element = [&](config_blur::ValidationField field,
@@ -295,7 +298,7 @@ void configs::options(ui::Container& container) {
 		static std::string selected_mask;
 		selected_mask = settings.mask.empty() ? masks::NONE_OPTION : settings.mask;
 
-		ui::add_dropdown(
+		auto* mask_dropdown = ui::add_dropdown(
 			"default mask dropdown",
 			container,
 			"default mask",
@@ -307,6 +310,9 @@ void configs::options(ui::Container& container) {
 			},
 			{ masks::NONE_OPTION }
 		);
+
+		const auto& dropdown_data = std::get<ui::DropdownElementData>(mask_dropdown->element->data);
+		hovered_mask = dropdown_data.hovered_option;
 
 		// stacks on top of the mask above rather than replacing it, so a game's HUD can be covered by a mask
 		// picked once while this catches whatever else a particular video turns out to have
@@ -714,6 +720,65 @@ void configs::options(ui::Container& container) {
 			"rife (tensorrt) model", container, settings.advanced.rife_trt_model, "rife (tensorrt) model", fonts::dejavu
 		);
 #endif
+
+		/*
+		    Advanced Masking
+		*/
+		if ((settings.interpolate || settings.deduplicate) && settings.auto_mask) {
+			section_component("advanced masking");
+
+			ui::add_slider(
+				"auto mask stillness slider",
+				container,
+				0.f,
+				1.f,
+				&settings.advanced.auto_mask.stillness,
+				"auto mask stillness: {:.2f}",
+				fonts::dejavu,
+				{},
+				0.01f
+			);
+
+			ui::add_slider(
+				"auto mask fill slider",
+				container,
+				0,
+				100,
+				&settings.advanced.auto_mask.fill,
+				"auto mask fill: {}px",
+				fonts::dejavu
+			);
+
+			ui::add_slider(
+				"auto mask padding slider",
+				container,
+				0,
+				32,
+				&settings.advanced.auto_mask.padding,
+				"auto mask padding: {}px",
+				fonts::dejavu
+			);
+
+			ui::add_slider(
+				"auto mask feather slider",
+				container,
+				0,
+				32,
+				&settings.advanced.auto_mask.feather,
+				"auto mask feather: {}px",
+				fonts::dejavu
+			);
+
+			ui::add_slider(
+				"auto mask samples slider",
+				container,
+				4,
+				64,
+				&settings.advanced.auto_mask.samples,
+				"auto mask samples: {}",
+				fonts::dejavu
+			);
+		}
 
 		/*
 		    Advanced Blur
