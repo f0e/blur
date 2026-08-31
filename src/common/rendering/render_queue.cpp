@@ -59,13 +59,19 @@ rendering::QueueAddRes rendering::VideoRenderQueue::add(
 		const VideoRenderDetails& render,
 		const tl::expected<rendering::RenderResult, std::variant<std::string, RenderError>>& result
 	)>& finish_callback,
+	const std::optional<std::string>& config_name,
 	const std::optional<std::string>& mask_override,
 	const std::optional<bool>& auto_mask_override
 ) {
 	// resolve the config now, not when rendering. nice for batch rendering the same file with different
 	// settings
-	BlurSettings settings =
-		config_path.has_value() ? config_blur::parse(*config_path) : config_blur::get_global_config();
+	bool named_config = config_name && !config_name->empty();
+
+	// a config file pointed at outright is used as it is, unless a config was also named - naming one is
+	// the more specific ask of the two
+	BlurSettings settings = (config_path && !named_config)
+	                            ? config_blur::parse(*config_path)
+	                            : config_blur::get_config(config_blur::resolve_config_name(input_path, config_name));
 
 	if (mask_override)
 		settings.mask = *mask_override;

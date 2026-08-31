@@ -137,7 +137,22 @@ namespace config_blur {
 
 	inline const std::vector<std::string> SOURCE_PLUGINS = { "LWLibavSource", "BestSource" };
 
-	const std::string CONFIG_FILENAME = ".blur-config.cfg";
+	// blur configs live one to a file in <settings path>/configs, the way masks live one to a file in
+	// <settings path>/masks. a config's name is its filename without the extension, so the folder stays
+	// readable and hand-editable, and a single config can be copied between machines on its own.
+	//
+	// which one new videos start on is the default, named in the app config rather than fixed to a
+	// filename, so the default can be renamed like any other
+	//
+	// constexpr, not const std::string: GlobalAppSettings defaults its config name from DEFAULT_CONFIG_NAME,
+	// and config_app::DEFAULT_CONFIG is itself a global. a dynamically initialised std::string here would be
+	// read by that one before it was constructed, depending on which translation unit went first
+	inline constexpr std::string_view CONFIGS_FOLDER_NAME = "configs";
+	inline constexpr std::string_view CONFIG_EXTENSION = ".cfg";
+	inline constexpr std::string_view DEFAULT_CONFIG_NAME = "default";
+
+	// the one global config there used to be, migrated into the folder above on startup
+	const std::string LEGACY_CONFIG_FILENAME = ".blur-config.cfg";
 
 	std::string generate_config_string(const BlurSettings& settings, bool concise);
 
@@ -180,8 +195,34 @@ namespace config_blur {
 	BlurSettings parse(const std::filesystem::path& config_filepath);
 	BlurSettings parse_from_map(const std::map<std::string, std::string>& config_map);
 
-	BlurSettings parse_global_config();
+	std::filesystem::path get_configs_path();
+	std::filesystem::path get_config_path(const std::string& name);
 
-	std::filesystem::path get_global_config_path();
-	BlurSettings get_global_config();
+	// names of every config in the folder, sorted. empty if the folder doesn't exist
+	std::vector<std::string> list();
+
+	// what a config dropdown shows. `current` is kept in the list even if it's been deleted since it was
+	// picked, so that's visible instead of the dropdown silently snapping to a different config
+	std::vector<std::string> options(const std::string& current);
+
+	// the named config. falls back to the default config, then to built-in defaults, if it's not there -
+	// a config can be deleted out from under a video that was queued with it
+	BlurSettings get_config(const std::string& name);
+
+	void save(const std::string& name, const BlurSettings& settings);
+	void remove(const std::string& name);
+
+	// the config new videos start on, from the app config. falls back to whatever config does exist if
+	// that one's been deleted, so there's always something selectable
+	std::string get_default_name();
+
+	// which config a video renders with. an explicit choice - the queue dropdown, or --config-name - wins.
+	// a rule matching the input's folder or filename will slot in between the two once those exist
+	std::string resolve_config_name(
+		const std::filesystem::path& input_path, const std::optional<std::string>& name_override
+	);
+
+	// makes the configs folder, moves the old single global config into it, and makes sure at least one
+	// config exists to select. called once on startup
+	void initialise_configs();
 }
