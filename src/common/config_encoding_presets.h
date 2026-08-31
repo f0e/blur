@@ -113,7 +113,10 @@ struct EncodingPresetSettings {
 namespace config_encoding_presets {
 	inline const EncodingPresetSettings DEFAULT_CONFIG;
 
-	const std::string CONFIG_FILENAME = "presets.cfg";
+	const std::string CONFIG_FILENAME = "encoding-presets.cfg";
+
+	// what it used to be called, migrated on startup (see Blur::initialise)
+	const std::string LEGACY_CONFIG_FILENAME = "presets.cfg";
 
 	std::string generate_config_string(const EncodingPresetSettings& settings);
 
