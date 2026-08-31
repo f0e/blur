@@ -604,6 +604,7 @@ namespace ui {
 
 		gfx::Point current_position;
 		std::optional<Padding> padding;
+		std::optional<int> usable_width;
 		bool updated = false;
 		int last_margin_bottom = 0;
 
@@ -625,10 +626,19 @@ namespace ui {
 				usable.w -= padding->left + padding->right;
 				usable.h -= padding->top + padding->bottom;
 			}
+
+			if (usable_width) {
+				int available_width = std::max(usable.w, 0);
+				int width = std::clamp(*usable_width, 0, available_width);
+				usable.x += (usable.w - width) / 2;
+				usable.w = width;
+			}
+
 			return usable;
 		}
 
 		std::stack<int> element_gaps;
+		std::stack<std::optional<int>> usable_widths;
 
 		void push_element_gap(int new_element_gap) {
 			element_gaps.push(element_gap);
@@ -639,6 +649,19 @@ namespace ui {
 			int new_element_gap = element_gaps.top();
 			element_gap = new_element_gap;
 			element_gaps.pop();
+		}
+
+		void push_usable_width(float scale) {
+			auto usable = get_usable_rect();
+			usable_widths.push(usable_width);
+			usable_width = std::lround(usable.w * std::clamp(scale, 0.f, 1.f));
+			current_position.x = get_usable_rect().x;
+		}
+
+		void pop_usable_width() {
+			usable_width = usable_widths.top();
+			usable_widths.pop();
+			current_position.x = get_usable_rect().x;
 		}
 	};
 
