@@ -324,6 +324,7 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 
 	// which masks this clip renders with. seeded from its config when it was added, so these start on the
 	// configured defaults. applies to the selected clip, same as the trim controls above
+	container.push_usable_width(0.5f);
 	{
 		// the dropdown holds onto a pointer to this, so it has to outlive the frame
 		static std::string selected_mask;
@@ -358,9 +359,11 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 			fonts::dejavu,
 			[pending_video](bool new_value) {
 				pending_video->auto_mask = new_value;
-			}
+			},
+			true
 		);
 	}
+	container.pop_usable_width();
 
 	if (trim_disabled) {
 		ui::add_text(
