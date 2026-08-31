@@ -17,6 +17,11 @@ namespace {
 		std::filesystem::path video_path;
 		float seek = 0.f;
 
+		// only the mask frame uses this, and it uses it in place of the seek - a mask is worked out from the whole
+		// video, so every position in it has the same mask, and it's the settings that change which mask that is.
+		// see mask_generation
+		size_t mask_generation = 0;
+
 		bool operator==(const FrameKey& other) const = default;
 	};
 
@@ -49,6 +54,7 @@ namespace {
 
 			if (auto texture = render::texture_from_jpeg(jpeg)) {
 				m_texture = std::move(texture);
+				m_jpeg = std::move(jpeg);
 				m_key = key;
 
 				// tells ui::add_image the texture behind the element has changed
@@ -65,6 +71,7 @@ namespace {
 			}
 
 			m_texture.reset();
+			m_jpeg.clear();
 			m_key = {};
 			m_image_id.clear();
 			// m_id deliberately keeps counting - ui::add_image reuses the texture it has when the id matches, so an
@@ -87,6 +94,10 @@ namespace {
 			return m_image_id;
 		}
 
+		[[nodiscard]] const std::vector<uint8_t>& jpeg() const {
+			return m_jpeg;
+		}
+
 	private:
 		std::string m_name;
 
@@ -95,26 +106,49 @@ namespace {
 		FrameKey m_pending_key;
 
 		std::shared_ptr<render::Texture> m_texture;
+		std::vector<uint8_t> m_jpeg;
 		FrameKey m_key;
 		size_t m_id = 0;
 		std::string m_image_id;
 	};
 
-	// the real preview - the sample video put through the blur pipeline
-	PreviewFrame blurred_frame("blurred");
-	std::atomic<bool> blur_render_running = false;
+	enum class PreviewKind {
+		blurred,
+		mask,
+	};
 
-	// the render backing the newest preview request. anything older has been stopped and isn't allowed
-	// to publish its result anymore
-	std::mutex current_render_mutex;
-	std::shared_ptr<rendering::RenderState> current_render_state;
-
-	// what the last blur render was started for, so we're not rendering the same thing over and over
-	struct {
+	struct LastRender {
 		FrameKey key;
 		BlurSettings settings;
 		std::chrono::steady_clock::time_point time;
-	} last_blur_render;
+	};
+
+	struct PreviewSlot {
+		PreviewSlot(PreviewKind kind, std::string name) : kind(kind), frame(std::move(name)) {}
+
+		PreviewKind kind;
+		PreviewFrame frame;
+		LastRender last_render;
+	};
+
+	// kept apart so switching views can immediately show the last frame rendered for each
+	PreviewSlot blurred_preview(PreviewKind::blurred, "blurred");
+	PreviewSlot mask_preview(PreviewKind::mask, "mask");
+
+	// bumped whenever the settings stop agreeing with what the mask on screen was rendered from, which is what
+	// makes that mask frame stale. only the mask needs this: everything that changes the blurred frame is in its
+	// own settings comparison below
+	size_t mask_generation = 0;
+	BlurSettings mask_generation_settings;
+
+	struct ActiveRender {
+		std::shared_ptr<rendering::RenderState> state;
+		PreviewSlot* preview;
+	};
+
+	// the newest render owns publication; anything it replaced has been stopped and is ignored when it exits
+	std::mutex render_mutex;
+	std::optional<ActiveRender> active_render;
 
 	// an unblurred frame from the source video, shown in place of the blurred preview until that catches up
 	PreviewFrame source_frame("source");
@@ -170,70 +204,104 @@ namespace {
 		return rendering::get_preview_frame_timestamp(settings, video.info, seek);
 	}
 
-	// stops whatever render is in flight and makes state the current one, so only its result is allowed through
-	std::shared_ptr<rendering::RenderState> set_current_render(std::shared_ptr<rendering::RenderState> state) {
-		std::lock_guard lock(current_render_mutex);
+	// stops the current render and claims publication for a new one. if the interrupted render was for the other
+	// view, invalidate its request so switching back starts it again
+	std::shared_ptr<rendering::RenderState> start_render(PreviewSlot& preview) {
+		std::lock_guard lock(render_mutex);
 
-		if (current_render_state)
-			current_render_state->stop();
+		if (active_render) {
+			active_render->state->stop();
 
-		current_render_state = std::move(state);
+			if (active_render->preview != &preview)
+				active_render->preview->last_render = {};
+		}
 
-		return current_render_state;
+		auto state = std::make_shared<rendering::RenderState>();
+		active_render = ActiveRender{ .state = state, .preview = &preview };
+		return state;
 	}
 
-	void render_blurred_frame(const preview_frames::Request& request, const FrameKey& key) {
+	void stop_render() {
+		std::lock_guard lock(render_mutex);
+
+		if (active_render)
+			active_render->state->stop();
+
+		active_render.reset();
+	}
+
+	// starts a render of the requested view unless that request is already cached or in flight
+	void render_preview_frame(const preview_frames::Request& request, const FrameKey& key, PreviewSlot& preview) {
+		bool mask = preview.kind == PreviewKind::mask;
+
 		// no point rendering positions a drag is only passing through, they'd be thrown away on the next mouse move
 		if (request.seeking)
 			return;
 
-		if (last_blur_render.key == key && last_blur_render.settings == request.settings)
+		// the mask's key carries its generation, which is everything about the settings the mask depends on, so
+		// for that one the key answers for the settings as well
+		if (preview.last_render.key == key && (mask || preview.last_render.settings == request.settings))
 			return;
 
 		auto now = std::chrono::steady_clock::now();
 
-		if (now - last_blur_render.time < DEBOUNCE_TIME)
+		if (now - preview.last_render.time < DEBOUNCE_TIME)
 			return;
 
-		u::log("generating config preview");
-
-		last_blur_render = { .key = key, .settings = request.settings, .time = now };
-
-		blur_render_running = true;
+		u::log(mask ? "generating mask preview" : "generating config preview");
 
 		// claimed here rather than on the worker, otherwise two renders started back to back could register in the
 		// opposite order and let the older one publish over the newer
-		auto state = set_current_render(std::make_shared<rendering::RenderState>());
+		auto state = start_render(preview);
+		preview.last_render = { .key = key, .settings = request.settings, .time = now };
 
 		std::thread([state,
+		             &preview,
+		             mask,
 		             video_path = request.video_path,
 		             settings = request.settings,
 		             app_settings = request.app_settings,
 		             key] {
-			auto res = rendering::render_frame(video_path, settings, app_settings, state, key.seek);
+			auto res = rendering::render_frame(video_path, settings, app_settings, state, key.seek, mask);
 
-			// held across the publish - checking first and publishing after would let a newer render register in
-			// between and take this stale result on top of its own
-			std::lock_guard lock(current_render_mutex);
+			// held across the publish - otherwise a newer render could register between the check and publication
+			std::lock_guard lock(render_mutex);
 
-			// the result is for stale settings, throw it away. the render that replaced this one owns the flag now
-			if (current_render_state != state)
+			if (!active_render || active_render->state != state)
 				return;
 
 			if (res) {
-				blurred_frame.publish(std::move(res->frame_jpeg), key);
-
-				u::log("config preview finished rendering");
+				preview.frame.publish(std::move(res->frame_jpeg), key);
+				u::log(mask ? "mask preview finished rendering" : "config preview finished rendering");
 			}
 			else {
 				gui::components::notifications::show_failure_notification(
-					"Failed to generate config preview.", res.error(), std::chrono::duration<float>(10.f)
+					mask ? "Failed to generate mask preview." : "Failed to generate config preview.",
+					res.error(),
+					std::chrono::duration<float>(10.f)
 				);
 			}
 
-			// after publishing, so the ui never sees "not rendering" with nothing new to show
-			blur_render_running = false;
+			active_render.reset();
 		}).detach();
+	}
+
+	struct RenderStatus {
+		bool rendering = false;
+		bool analysing_mask = false;
+	};
+
+	RenderStatus render_status(const PreviewSlot& preview) {
+		std::lock_guard lock(render_mutex);
+
+		if (!active_render || active_render->preview != &preview)
+			return {};
+
+		return {
+			.rendering = true,
+			.analysing_mask =
+				active_render->state->get_progress().init_stage == rendering::RenderState::InitStage::generating_mask,
+		};
 	}
 
 	void extract_source_frame(const FrameKey& key, float timestamp) {
@@ -300,43 +368,69 @@ preview_frames::Result preview_frames::update(const Request& request) {
 
 	FrameKey current{ .video_path = request.video_path, .seek = request.app_settings.config_preview_seek };
 
-	// anything the background threads finished has to be turned into a texture here, on the render thread
-	blurred_frame.upload();
-	source_frame.upload();
-
-	render_blurred_frame(request, current);
-
-	// seeking to a position the blur pipeline hasn't reached yet - grab the frame from the source video instead, so
-	// seeking is instant rather than seek -> wait for a render -> seek again
-	if (request.seeking) {
-		if (auto timestamp = preview_timestamp(request.settings, current.seek))
-			extract_source_frame(current, *timestamp);
+	// worked out whichever image is on screen, so a mask rendered before a settings change is known to be stale by
+	// the time it's switched back to
+	if (!config_blur::same_masking(mask_generation_settings, request.settings)) {
+		mask_generation_settings = request.settings;
+		mask_generation++;
 	}
 
-	bool blurred_up_to_date = blurred_frame.valid() && blurred_frame.key() == current;
-	bool show_source_frame =
-		!blurred_up_to_date && source_frame.valid() && source_frame.key().video_path == current.video_path;
+	// no seek: the mask is worked out from the whole video, so it's the same wherever the seek bar is
+	FrameKey mask_current{ .video_path = request.video_path, .mask_generation = mask_generation };
 
-	const PreviewFrame& frame = show_source_frame ? source_frame : blurred_frame;
+	// anything the background threads finished has to be turned into a texture here, on the render thread
+	blurred_preview.frame.upload();
+	mask_preview.frame.upload();
+	source_frame.upload();
+
+	PreviewSlot& preview = request.show_mask ? mask_preview : blurred_preview;
+	render_preview_frame(request, request.show_mask ? mask_current : current, preview);
+	auto status = render_status(preview);
 
 	Result result{
-		.rendering = blur_render_running,
+		.rendering = status.rendering,
+		.analysing_mask = status.analysing_mask,
 		.video_duration = video_duration(),
 	};
 
-	if (frame.valid()) {
+	const PreviewFrame* frame;
+	bool up_to_date;
+
+	if (request.show_mask) {
+		frame = &mask_preview.frame;
+		up_to_date = frame->valid() && frame->key() == mask_current;
+	}
+	else {
+		// seeking to a position the blur pipeline hasn't reached yet - grab the frame from the source video instead,
+		// so seeking is instant rather than seek -> wait for a render -> seek again
+		if (request.seeking) {
+			if (auto timestamp = preview_timestamp(request.settings, current.seek))
+				extract_source_frame(current, *timestamp);
+		}
+
+		up_to_date = blurred_preview.frame.valid() && blurred_preview.frame.key() == current;
+		bool show_source = !up_to_date && source_frame.valid() && source_frame.key().video_path == current.video_path;
+		frame = show_source ? &source_frame : &blurred_preview.frame;
+	}
+
+	// keep the last frame from this video visible, faded, until the requested one replaces it
+	if (frame->valid() && frame->key().video_path == current.video_path) {
 		result.frame = Frame{
-			.texture = frame.texture(),
-			.image_id = frame.image_id(),
-			.up_to_date = blurred_up_to_date && !blur_render_running,
+			.texture = frame->texture(),
+			.image_id = frame->image_id(),
+			.up_to_date = up_to_date && !result.rendering,
 		};
 	}
 
 	return result;
 }
 
+std::vector<uint8_t> preview_frames::current_mask_jpeg() {
+	return mask_preview.frame.jpeg();
+}
+
 void preview_frames::reset() {
-	set_current_render(nullptr);
+	stop_render();
 
 	{
 		std::lock_guard lock(source_frame_worker.mutex);
@@ -345,11 +439,12 @@ void preview_frames::reset() {
 		source_frame_worker.last_requested.reset();
 	}
 
-	blurred_frame.clear();
+	blurred_preview.frame.clear();
+	mask_preview.frame.clear();
 	source_frame.clear();
 
-	blur_render_running = false;
-	last_blur_render = {};
+	blurred_preview.last_render = {};
+	mask_preview.last_render = {};
 
 	{
 		std::lock_guard lock(video.mutex);

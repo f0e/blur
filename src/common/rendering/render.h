@@ -18,7 +18,8 @@ namespace rendering {
 		const BlurSettings& settings,
 		const GlobalAppSettings& app_settings = config_app::get_app_config(),
 		const std::shared_ptr<RenderState>& state = std::make_shared<RenderState>(),
-		float seek = 0.f
+		float seek = 0.f,
+		bool preview_mask = false
 	);
 
 	float get_preview_frame_timestamp(const BlurSettings& settings, const u::VideoInfo& video_info, float seek);
