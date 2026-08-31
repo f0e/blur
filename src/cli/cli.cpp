@@ -10,7 +10,8 @@ bool cli::run(
 	bool verbose,
 	bool disable_update_check,
 	const std::string& mask,
-	const std::optional<bool>& auto_mask
+	const std::optional<bool>& auto_mask,
+	const std::vector<std::string>& config_names
 ) {
 	auto init_res = blur.initialise(verbose, preview);
 	if (!init_res) { // todo: preview in cli
@@ -52,6 +53,29 @@ bool cli::run(
 		}
 	}
 
+	bool manual_config_names = !config_names.empty();
+	if (manual_config_names && inputs.size() != config_names.size()) {
+		u::log(
+			"Input filename/config name count mismatch ({} inputs, {} config names).",
+			inputs.size(),
+			config_names.size()
+		);
+		return false;
+	}
+
+	// up front rather than per input, so a typo doesn't render half the batch with the default config
+	// before saying anything
+	if (manual_config_names) {
+		auto available = config_blur::list();
+
+		for (const auto& name : config_names) {
+			if (!u::contains(available, name)) {
+				u::log("Config '{}' not found. Available configs: {}", name, u::join(available, ", "));
+				return false;
+			}
+		}
+	}
+
 	for (size_t i = 0; i < inputs.size(); ++i) {
 		std::filesystem::path input_path = inputs[i];
 
@@ -71,9 +95,13 @@ bool cli::run(
 
 		std::optional<std::filesystem::path> output_path;
 		std::optional<std::filesystem::path> config_path;
+		std::optional<std::string> config_name;
 
 		if (manual_config_files)
 			config_path = config_paths[i];
+
+		if (manual_config_names)
+			config_name = config_names[i];
 
 		if (manual_output_files) {
 			output_path = outputs[i];
@@ -98,6 +126,7 @@ bool cli::run(
 			1.f,
 			{},
 			{},
+			config_name,
 			mask_override,
 			auto_mask
 		);

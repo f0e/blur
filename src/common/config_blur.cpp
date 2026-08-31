@@ -1,6 +1,7 @@
 #include "config_blur.h"
 #include "masks.h"
 #include "config_base.h"
+#include "config_app.h"
 #include "rendering/render_commands.h"
 
 namespace {
@@ -439,16 +440,119 @@ BlurSettings config_blur::parse_from_map(const std::map<std::string, std::string
 	return settings;
 }
 
-BlurSettings config_blur::parse_global_config() {
-	return parse(get_global_config_path());
+std::filesystem::path config_blur::get_configs_path() {
+	return blur.settings_path / CONFIGS_FOLDER_NAME;
 }
 
-std::filesystem::path config_blur::get_global_config_path() {
-	return blur.settings_path / CONFIG_FILENAME;
+std::filesystem::path config_blur::get_config_path(const std::string& name) {
+	return get_configs_path() / u::string_to_path(name + std::string(CONFIG_EXTENSION));
 }
 
-BlurSettings config_blur::get_global_config() {
-	return config_base::load_config<BlurSettings>(get_global_config_path(), create, parse);
+std::vector<std::string> config_blur::list() {
+	std::vector<std::string> names;
+
+	std::error_code ec; // don't throw if the folder's missing or unreadable, just show nothing
+	for (const auto& entry : std::filesystem::directory_iterator(get_configs_path(), ec)) {
+		if (!entry.is_regular_file(ec))
+			continue;
+
+		if (u::to_lower(u::path_to_string(entry.path().extension())) != CONFIG_EXTENSION)
+			continue;
+
+		names.push_back(u::path_to_string(entry.path().stem()));
+	}
+
+	std::ranges::sort(names);
+
+	return names;
+}
+
+std::vector<std::string> config_blur::options(const std::string& current) {
+	auto names = list();
+
+	if (!current.empty() && !u::contains(names, current))
+		names.push_back(current);
+
+	return names;
+}
+
+BlurSettings config_blur::get_config(const std::string& name) {
+	auto path = get_config_path(name);
+
+	std::error_code ec;
+	if (!name.empty() && std::filesystem::exists(path, ec))
+		return parse(path);
+
+	// the config's gone - deleted while a video sat in the queue holding its name, say. fall back rather
+	// than render with something the user didn't ask for and can't see
+	if (!name.empty())
+		u::log("config '{}' not found, falling back to the default config", name);
+
+	auto default_name = get_default_name();
+	if (!default_name.empty() && default_name != name) {
+		auto default_path = get_config_path(default_name);
+		if (std::filesystem::exists(default_path, ec))
+			return parse(default_path);
+	}
+
+	return DEFAULT_CONFIG;
+}
+
+void config_blur::save(const std::string& name, const BlurSettings& settings) {
+	std::error_code ec;
+	std::filesystem::create_directories(get_configs_path(), ec);
+
+	create(get_config_path(name), settings);
+}
+
+void config_blur::remove(const std::string& name) {
+	std::error_code ec;
+	std::filesystem::remove(get_config_path(name), ec);
+
+	if (ec)
+		u::log("failed to remove config '{}': {}", name, ec.message());
+}
+
+std::string config_blur::get_default_name() {
+	auto names = list();
+	if (names.empty())
+		return {};
+
+	auto configured = config_app::get_app_config().default_config;
+	if (u::contains(names, configured))
+		return configured;
+
+	// the configured default has been deleted or renamed outside the app. anything is better than
+	// nothing here, and it's what the dropdown will be showing anyway
+	return u::contains(names, std::string(DEFAULT_CONFIG_NAME)) ? std::string(DEFAULT_CONFIG_NAME) : names.front();
+}
+
+std::string config_blur::resolve_config_name(
+	const std::filesystem::path& input_path, const std::optional<std::string>& name_override
+) {
+	if (name_override && !name_override->empty())
+		return *name_override;
+
+	// a rule matching input_path's folder or filename picks the config here, once those exist
+	(void)input_path;
+
+	return get_default_name();
+}
+
+void config_blur::initialise_configs() {
+	auto configs_path = get_configs_path();
+
+	std::error_code ec;
+	std::filesystem::create_directories(configs_path, ec);
+
+	// before the empty check below, so an existing install's settings become its default config rather
+	// than being left behind next to the folder while a fresh default is written inside it
+	config_base::migrate_file(
+		blur.settings_path / LEGACY_CONFIG_FILENAME, get_config_path(std::string(DEFAULT_CONFIG_NAME))
+	);
+
+	if (list().empty())
+		save(std::string(DEFAULT_CONFIG_NAME), DEFAULT_CONFIG);
 }
 
 tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {

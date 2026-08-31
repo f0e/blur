@@ -22,10 +22,6 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 		settings_path / config_encoding_presets::CONFIG_FILENAME
 	);
 
-	auto global_blur_config_path = config_blur::get_global_config_path();
-	if (!std::filesystem::exists(global_blur_config_path))
-		config_blur::create(global_blur_config_path, config_blur::DEFAULT_CONFIG);
-
 	auto app_config_path = config_app::get_app_config_path();
 	if (!std::filesystem::exists(app_config_path))
 		config_app::create(app_config_path, GlobalAppSettings{});
@@ -33,6 +29,9 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 	auto encoding_preset_config_path = config_encoding_presets::get_config_path();
 	if (!std::filesystem::exists(encoding_preset_config_path))
 		config_encoding_presets::create(encoding_preset_config_path, EncodingPresetSettings{});
+
+	// after the app config, which names the default config
+	config_blur::initialise_configs();
 
 	// so there's somewhere to drop mask images even before one's been used
 	std::error_code masks_ec;

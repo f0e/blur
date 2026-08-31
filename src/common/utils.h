@@ -436,6 +436,10 @@ namespace u {
 	std::string to_lower(const std::string& str);
 	std::string truncate_with_ellipsis(const std::string& input, std::size_t max_length);
 
+	// whether a name the user typed can be written to disk as a filename. returns it trimmed, or why it can't
+	// be used. masks and blur configs are both stored as one file per name, so both go through this
+	tl::expected<std::string, std::string> validate_filename(const std::string& entered_name);
+
 	std::optional<std::filesystem::path> get_program_path(const std::string& program_name);
 
 	std::string get_executable_path();

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config_blur.h" // for DEFAULT_CONFIG_NAME. config_blur.h only forward-declares GlobalAppSettings, so no cycle
+
 struct GlobalAppSettings {
 	std::string output_prefix;
 
@@ -36,6 +38,10 @@ struct GlobalAppSettings {
 	std::string dismissed_update_version;
 
 	bool skip_queue = false;
+
+	// name of the blur config new videos start on. by name rather than filename so the default can be
+	// renamed like any other config
+	std::string default_config = std::string(config_blur::DEFAULT_CONFIG_NAME);
 
 #ifdef __linux__
 	std::string vapoursynth_lib_path;
