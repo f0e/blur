@@ -1,5 +1,5 @@
 #include "render_commands.h"
-#include "common/config_presets.h"
+#include "common/config_encoding_presets.h"
 
 namespace {
 	// audio: trim each stream to the render's cut points and apply the timescale
@@ -110,7 +110,7 @@ namespace {
 	}
 
 	std::vector<std::string> build_encoding_args(
-		const BlurSettings& settings, const GlobalAppSettings& app_settings, const PresetSettings* presets
+		const BlurSettings& settings, const GlobalAppSettings& app_settings, const EncodingPresetSettings* presets
 	) {
 		if (!settings.advanced.ffmpeg_override.empty())
 			return u::ffmpeg_string_to_args(settings.advanced.ffmpeg_override);
@@ -119,9 +119,9 @@ namespace {
 		std::string preset = u::to_lower(settings.encode_preset.empty() ? "h264" : settings.encode_preset);
 
 		if (presets)
-			return config_presets::get_preset_params(*presets, gpu_type, preset, settings.quality);
+			return config_encoding_presets::get_preset_params(*presets, gpu_type, preset, settings.quality);
 
-		return config_presets::get_preset_params(gpu_type, preset, settings.quality);
+		return config_encoding_presets::get_preset_params(gpu_type, preset, settings.quality);
 	}
 
 	bool wants_audio_copy(const std::vector<std::string>& encoding_args) {
@@ -144,7 +144,7 @@ bool rendering::detail::copies_audio(const BlurSettings& settings, const GlobalA
 }
 
 bool rendering::detail::copies_audio(
-	const BlurSettings& settings, const GlobalAppSettings& app_settings, const PresetSettings& presets
+	const BlurSettings& settings, const GlobalAppSettings& app_settings, const EncodingPresetSettings& presets
 ) {
 	return wants_audio_copy(build_encoding_args(settings, app_settings, &presets));
 }

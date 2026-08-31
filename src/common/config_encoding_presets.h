@@ -1,6 +1,6 @@
 #pragma once
 
-struct PresetSettings {
+struct EncodingPresetSettings {
 	struct Preset {
 		std::string name;
 		std::string args;
@@ -73,7 +73,7 @@ struct PresetSettings {
 		},
 	};
 
-	bool operator==(const PresetSettings& other) const = default;
+	bool operator==(const EncodingPresetSettings& other) const = default;
 
 	[[nodiscard]] const std::string* find_preset_params(
 		const std::string& gpu_type, const std::string& preset_name
@@ -110,23 +110,25 @@ struct PresetSettings {
 	}
 };
 
-namespace config_presets {
-	inline const PresetSettings DEFAULT_CONFIG;
+namespace config_encoding_presets {
+	inline const EncodingPresetSettings DEFAULT_CONFIG;
 
-	const std::string PRESET_CONFIG_FILENAME = "presets.cfg";
+	const std::string CONFIG_FILENAME = "presets.cfg";
 
-	std::string generate_config_string(const PresetSettings& settings);
+	std::string generate_config_string(const EncodingPresetSettings& settings);
 
-	void create(const std::filesystem::path& filepath, const PresetSettings& current_settings = PresetSettings());
+	void create(
+		const std::filesystem::path& filepath, const EncodingPresetSettings& current_settings = EncodingPresetSettings()
+	);
 
-	PresetSettings parse(const std::filesystem::path& config_filepath);
-	PresetSettings parse(const std::string& config_content);
+	EncodingPresetSettings parse(const std::filesystem::path& config_filepath);
+	EncodingPresetSettings parse(const std::string& config_content);
 
-	std::filesystem::path get_preset_config_path();
+	std::filesystem::path get_config_path();
 
-	PresetSettings get_preset_config();
+	EncodingPresetSettings get_config();
 
-	void save(const PresetSettings& settings);
+	void save(const EncodingPresetSettings& settings);
 
 	struct PresetDetails {
 		std::string name;
@@ -135,12 +137,12 @@ namespace config_presets {
 
 	std::vector<PresetDetails> get_available_presets(bool gpu_encoding, const std::string& gpu_type);
 	std::vector<PresetDetails> get_available_presets(
-		const PresetSettings& config, bool gpu_encoding, const std::string& gpu_type
+		const EncodingPresetSettings& config, bool gpu_encoding, const std::string& gpu_type
 	);
 
 	std::vector<std::string> get_preset_params(const std::string& gpu_type, const std::string& preset, int quality);
 	std::vector<std::string> get_preset_params(
-		const PresetSettings& config, const std::string& gpu_type, const std::string& preset, int quality
+		const EncodingPresetSettings& config, const std::string& gpu_type, const std::string& preset, int quality
 	);
 
 	tl::expected<std::string, std::string> extract_codec_from_args(const std::vector<std::string>& ffmpeg_args);
@@ -150,7 +152,7 @@ namespace config_presets {
 		bool is_error = false;
 	};
 
-	std::optional<ValidationMessage> validate(const std::vector<PresetSettings::Preset>& presets, size_t index);
+	std::optional<ValidationMessage> validate(const std::vector<EncodingPresetSettings::Preset>& presets, size_t index);
 
 	struct PresetError {
 		std::string gpu_type;
@@ -158,7 +160,7 @@ namespace config_presets {
 	};
 
 	std::optional<PresetError> validate(
-		const PresetSettings& settings
+		const EncodingPresetSettings& settings
 	); // @todo: should this return all erroring presets not just first?
 
 	struct QualityConfig {

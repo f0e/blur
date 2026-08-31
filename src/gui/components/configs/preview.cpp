@@ -460,14 +460,14 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 		}
 	}
 
-	auto validation_res = config_blur::validate(settings, app_settings, preset_settings, false);
+	auto validation_res = config_blur::validate(settings, app_settings, encoding_preset_settings, false);
 	std::string fixable_errors = validation_res.message(true);
 	if (!fixable_errors.empty()) {
 		ui::add_separator("config preview separator", content_container, ui::SeparatorStyle::FADE_BOTH);
 
 		ui::add_button(
 			"fix config button", content_container, "Reset invalid config options to defaults", fonts::dejavu, [] {
-				config_blur::validate(settings, app_settings, preset_settings, true);
+				config_blur::validate(settings, app_settings, encoding_preset_settings, true);
 			}
 		);
 	}

@@ -1,7 +1,7 @@
 #pragma once
 
 struct GlobalAppSettings;
-struct PresetSettings;
+struct EncodingPresetSettings;
 
 struct AutoMaskSettings {
 	int samples = 48;
@@ -173,7 +173,7 @@ namespace config_blur {
 	};
 
 	ValidationResult validate(
-		BlurSettings& config, const GlobalAppSettings& app_settings, const PresetSettings& presets, bool fix
+		BlurSettings& config, const GlobalAppSettings& app_settings, const EncodingPresetSettings& presets, bool fix
 	);
 
 	BlurSettings parse(const std::string& config_content);

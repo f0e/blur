@@ -85,7 +85,7 @@ rendering::QueueAddRes rendering::VideoRenderQueue::add(
 	}
 
 	// check if preset is valid
-	auto valid_presets = u::get_supported_presets(config_res.config.gpu_encoding, app_settings.gpu_type);
+	auto valid_presets = u::get_supported_encoding_presets(config_res.config.gpu_encoding, app_settings.gpu_type);
 	if (!u::contains(valid_presets, config_res.config.encode_preset)) {
 		return {
 			.is_global_config = config_res.is_global,

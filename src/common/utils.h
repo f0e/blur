@@ -507,9 +507,9 @@ namespace u {
 	bool test_codec(const std::string& codec);
 	std::set<std::string> get_available_codecs(const std::set<std::string>& codecs);
 
-	std::vector<std::string> get_supported_presets(bool gpu_encoding, const std::string& gpu_type);
-	std::vector<std::string> get_supported_presets(
-		const PresetSettings& presets, bool gpu_encoding, const std::string& gpu_type
+	std::vector<std::string> get_supported_encoding_presets(bool gpu_encoding, const std::string& gpu_type);
+	std::vector<std::string> get_supported_encoding_presets(
+		const EncodingPresetSettings& presets, bool gpu_encoding, const std::string& gpu_type
 	);
 
 	std::vector<std::string> ffmpeg_string_to_args(const std::string& str);

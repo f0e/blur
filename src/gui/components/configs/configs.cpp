@@ -47,7 +47,7 @@ namespace {
 
 bool configs::has_unsaved_changes() {
 	return settings != current_global_settings || app_settings != current_app_settings ||
-	       preset_settings != current_preset_settings;
+	       encoding_preset_settings != current_encoding_preset_settings;
 }
 
 void configs::add_with_message(
@@ -151,19 +151,19 @@ void configs::config_actions(ui::Container& container) {
 		}
 	}
 	else {
-		label = "presets";
+		label = "encoding presets";
 
 		do_export = [] {
-			return config_presets::generate_config_string(preset_settings);
+			return config_encoding_presets::generate_config_string(encoding_preset_settings);
 		};
 
 		do_import = [](const std::string& text) {
-			preset_settings = config_presets::parse(text);
+			encoding_preset_settings = config_encoding_presets::parse(text);
 		};
 
-		if (preset_settings != config_presets::DEFAULT_CONFIG) {
+		if (encoding_preset_settings != config_encoding_presets::DEFAULT_CONFIG) {
 			do_restore_defaults = [] {
-				preset_settings = config_presets::DEFAULT_CONFIG;
+				encoding_preset_settings = config_encoding_presets::DEFAULT_CONFIG;
 			};
 		}
 	}
@@ -258,7 +258,7 @@ void configs::screen(
 			"config tabs", config_container, CONFIG_TABS, selected_config_tab, fonts::dejavu, on_tab_select
 		);
 
-		if (selected_config_tab == "presets")
+		if (selected_config_tab == "encoding presets")
 			ui::center_element(config_container, config_tabs);
 		else {
 			const auto usable_rect = config_container.get_usable_rect();
@@ -280,7 +280,7 @@ void configs::screen(
 				ui::reset_tied_sliders();
 				settings = config_blur::parse_global_config();
 				app_settings = config_app::get_app_config();
-				preset_settings = config_presets::get_preset_config();
+				encoding_preset_settings = config_encoding_presets::get_config();
 				on_load();
 				loading_config = false;
 				loaded_config = true;
@@ -316,9 +316,9 @@ void configs::screen(
 		ui::set_next_same_line(nav_container);
 		ui::add_button("save button", nav_container, "Save", fonts::dejavu, [] {
 			// saving would silently drop the broken presets, send the user to fix them instead
-			if (auto preset_error = config_presets::validate(preset_settings)) {
-				selected_config_tab = "presets";
-				selected_preset_gpu_type = preset_error->gpu_type;
+			if (auto preset_error = config_encoding_presets::validate(encoding_preset_settings)) {
+				selected_config_tab = "encoding presets";
+				selected_encoding_preset_gpu_type = preset_error->gpu_type;
 
 				gui::components::notifications::add(
 					"preset errors", "Fix the errors in your presets before saving", ui::NotificationType::NOTIF_ERROR
@@ -327,7 +327,7 @@ void configs::screen(
 				return;
 			}
 
-			auto validation = config_blur::validate(settings, app_settings, preset_settings, false);
+			auto validation = config_blur::validate(settings, app_settings, encoding_preset_settings, false);
 			if (!validation.ok()) {
 				selected_config_tab = "blur";
 				selected_tab = TABS[0];
@@ -347,7 +347,7 @@ void configs::screen(
 			ui::reset_tied_sliders();
 			settings = current_global_settings;
 			app_settings = current_app_settings;
-			preset_settings = current_preset_settings;
+			encoding_preset_settings = current_encoding_preset_settings;
 			on_load();
 		});
 	}
@@ -369,7 +369,7 @@ void configs::screen(
 			about(preview_content_container);
 	}
 	else {
-		preset_options(config_container);
+		encoding_preset_options(config_container);
 	}
 
 	option_information(option_information_container);

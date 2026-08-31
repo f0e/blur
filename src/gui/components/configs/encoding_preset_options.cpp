@@ -46,9 +46,9 @@ namespace {
 		return buffer.text;
 	}
 
-	std::string make_unique_name(const std::vector<PresetSettings::Preset>& presets, const std::string& name) {
+	std::string make_unique_name(const std::vector<EncodingPresetSettings::Preset>& presets, const std::string& name) {
 		auto taken = [&](const std::string& candidate) {
-			return std::ranges::any_of(presets, [&](const PresetSettings::Preset& preset) {
+			return std::ranges::any_of(presets, [&](const EncodingPresetSettings::Preset& preset) {
 				return u::to_lower(preset.name) == u::to_lower(candidate);
 			});
 		};
@@ -64,12 +64,12 @@ namespace {
 	}
 
 	void add_preset(const std::string& gpu_type, const std::string& name, const std::string& args) {
-		auto* presets = configs::preset_settings.find_preset_group(gpu_type);
+		auto* presets = configs::encoding_preset_settings.find_preset_group(gpu_type);
 		if (!presets)
 			return;
 
 		presets->emplace_back(
-			PresetSettings::Preset{
+			EncodingPresetSettings::Preset{
 				.name = make_unique_name(*presets, name),
 				.args = args,
 			}
@@ -77,27 +77,29 @@ namespace {
 	}
 }
 
-void configs::preset_options(ui::Container& container) {
+void configs::encoding_preset_options(ui::Container& container) {
 	std::vector<std::string> gpu_types;
-	gpu_types.reserve(preset_settings.all_gpu_presets.size());
-	for (const auto& gpu_presets : preset_settings.all_gpu_presets) {
+	gpu_types.reserve(encoding_preset_settings.all_gpu_presets.size());
+	for (const auto& gpu_presets : encoding_preset_settings.all_gpu_presets) {
 		gpu_types.push_back(gpu_presets.gpu_type);
 	}
 
 	if (gpu_types.empty())
 		return;
 
-	if (!u::contains(gpu_types, selected_preset_gpu_type)) {
+	if (!u::contains(gpu_types, selected_encoding_preset_gpu_type)) {
 		// start on the device renders actually encode with
 		std::string encoding_gpu_type = settings.gpu_encoding ? app_settings.gpu_type : "cpu";
 
-		selected_preset_gpu_type = u::contains(gpu_types, encoding_gpu_type) ? encoding_gpu_type : gpu_types.front();
+		selected_encoding_preset_gpu_type =
+			u::contains(gpu_types, encoding_gpu_type) ? encoding_gpu_type : gpu_types.front();
 	}
 
 	ui::add_text(
 		"presets description",
 		container,
-		"presets are the ffmpeg arguments used to encode renders. {quality} is replaced with the quality setting.",
+		"encoding presets are the ffmpeg arguments used to encode renders. {quality} is replaced with the quality "
+		"setting.",
 		gfx::Color::white(renderer::MUTED_SHADE),
 		fonts::dejavu
 	);
@@ -116,13 +118,13 @@ void configs::preset_options(ui::Container& container) {
 		container,
 		"device",
 		gpu_types,
-		selected_preset_gpu_type,
+		selected_encoding_preset_gpu_type,
 		fonts::dejavu,
 		{},
 		unavailable_gpu_types
 	);
 
-	auto* presets = preset_settings.find_preset_group(selected_preset_gpu_type);
+	auto* presets = encoding_preset_settings.find_preset_group(selected_encoding_preset_gpu_type);
 	if (!presets)
 		return;
 
@@ -146,7 +148,7 @@ void configs::preset_options(ui::Container& container) {
 
 		any_defaults = true;
 
-		std::string id = std::format("built-in preset {} {}", selected_preset_gpu_type, preset.name);
+		std::string id = std::format("built-in preset {} {}", selected_encoding_preset_gpu_type, preset.name);
 
 		// read only inputs rather than text so they can still be selected and copied
 		container.push_element_gap(4);
@@ -180,7 +182,7 @@ void configs::preset_options(ui::Container& container) {
 		ui::add_text(
 			"no built-in presets text",
 			container,
-			std::format("no built-in presets for {}", selected_preset_gpu_type),
+			std::format("no built-in presets for {}", selected_encoding_preset_gpu_type),
 			gfx::Color::white(renderer::MUTED_SHADE),
 			fonts::dejavu
 		);
@@ -198,7 +200,7 @@ void configs::preset_options(ui::Container& container) {
 		if (preset.is_default)
 			continue;
 
-		std::string id = std::format("custom preset {} {}", selected_preset_gpu_type, i);
+		std::string id = std::format("custom preset {} {}", selected_encoding_preset_gpu_type, i);
 
 		if (any_custom)
 			ui::add_separator(std::format("{} separator", id), container, ui::SeparatorStyle::FADE_RIGHT);
@@ -231,14 +233,14 @@ void configs::preset_options(ui::Container& container) {
 			gfx::Size(delete_icon_size, delete_icon_size),
 			DELETE_ICON_COLOR,
 			DELETE_ICON_HOVER_COLOR,
-			[gpu_type = selected_preset_gpu_type, i, name = preset.name, args = preset.args] {
+			[gpu_type = selected_encoding_preset_gpu_type, i, name = preset.name, args = preset.args] {
 				ui::dialog::confirm_destructive(
 					"Remove preset?",
 					name.empty() ? "This preset will be removed from the config."
 								 : std::format("'{}' will be removed from the config.", name),
 					"Remove",
 					[gpu_type, i] {
-						auto* group = preset_settings.find_preset_group(gpu_type);
+						auto* group = encoding_preset_settings.find_preset_group(gpu_type);
 						if (!group || i >= group->size() || (*group)[i].is_default)
 							return;
 
@@ -256,7 +258,7 @@ void configs::preset_options(ui::Container& container) {
 
 		std::optional<std::string> message;
 		gfx::Color message_color = WARNING_COLOR;
-		if (auto validation = config_presets::validate(*presets, i)) {
+		if (auto validation = config_encoding_presets::validate(*presets, i)) {
 			message = validation->message;
 
 			if (validation->is_error)
@@ -281,14 +283,14 @@ void configs::preset_options(ui::Container& container) {
 		ui::add_text(
 			"no custom presets text",
 			container,
-			std::format("no custom presets for {} yet", selected_preset_gpu_type),
+			std::format("no custom presets for {} yet", selected_encoding_preset_gpu_type),
 			gfx::Color::white(renderer::MUTED_SHADE),
 			fonts::dejavu
 		);
 	}
 
 	ui::add_button("add preset button", container, "Add preset", fonts::dejavu, [] {
-		auto* group = preset_settings.find_preset_group(selected_preset_gpu_type);
+		auto* group = encoding_preset_settings.find_preset_group(selected_encoding_preset_gpu_type);
 		if (!group)
 			return;
 
@@ -301,6 +303,6 @@ void configs::preset_options(ui::Container& container) {
 			}
 		}
 
-		add_preset(selected_preset_gpu_type, "new preset", args);
+		add_preset(selected_encoding_preset_gpu_type, "new preset", args);
 	});
 }
