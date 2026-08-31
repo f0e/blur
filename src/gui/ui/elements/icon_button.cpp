@@ -3,6 +3,9 @@
 
 #include "../keys.h"
 
+constexpr float ICON_BUTTON_ANIMATION_SPEED = 25.f;
+constexpr float ICON_BUTTON_HOVER_ANIMATION_SPEED = 80.f;
+
 void ui::render_icon_button(const Container& container, const AnimatedElement& element) {
 	const auto& button_data = std::get<IconButtonElementData>(element.element->data);
 
@@ -75,8 +78,8 @@ ui::AnimatedElement* ui::add_icon_button(
 		std::move(element),
 		container.element_gap,
 		{
-			{ hasher("main"), AnimationState(25.f) },
-			{ hasher("hover"), AnimationState(80.f) },
+			{ hasher("main"), AnimationState(ICON_BUTTON_ANIMATION_SPEED) },
+			{ hasher("hover"), AnimationState(ICON_BUTTON_HOVER_ANIMATION_SPEED) },
 		}
 	);
 }
