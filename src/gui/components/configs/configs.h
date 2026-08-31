@@ -79,6 +79,9 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	void about(ui::Container& container);
 
+	bool theme_preview_open(const ui::Container& config_container);
+	void theme_preview(ui::Container& container);
+
 	void config_preview(ui::Container& container);
 	void reset_config_preview();
 
