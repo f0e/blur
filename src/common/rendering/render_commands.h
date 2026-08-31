@@ -2,7 +2,7 @@
 
 #include "common/config_app.h"
 #include "common/config_blur.h"
-#include "common/config_presets.h"
+#include "common/config_encoding_presets.h"
 
 // Pure functions that turn settings + video info into the vspipe / ffmpeg
 // argument vectors. No process spawning, no shared state - just string building.
@@ -33,7 +33,7 @@ namespace rendering::detail {
 
 	bool copies_audio(const BlurSettings& settings, const GlobalAppSettings& app_settings);
 	bool copies_audio(
-		const BlurSettings& settings, const GlobalAppSettings& app_settings, const PresetSettings& presets
+		const BlurSettings& settings, const GlobalAppSettings& app_settings, const EncodingPresetSettings& presets
 	);
 
 	tl::expected<std::filesystem::path, std::string> build_output_filename(

@@ -110,7 +110,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	const int base_config_width = 200 + PAD_X * 2;
 
 	// presets need the room, ffmpeg commands are long
-	int config_goal_width = components::configs::selected_config_tab == "presets" ? rect.w : base_config_width;
+	int config_goal_width = components::configs::selected_config_tab == "encoding presets" ? rect.w : base_config_width;
 
 	static float config_width = config_goal_width;
 	float last_config_width = config_width;
@@ -165,7 +165,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	gfx::Rect option_information_container_rect = config_preview_container_rect;
 	ui::Padding option_information_padding{ PAD_Y, PAD_X, bottom_pad, PAD_X };
 
-	if (components::configs::selected_config_tab == "presets") {
+	if (components::configs::selected_config_tab == "encoding presets") {
 		// presets tab takes up the whole space so show option info in the same area
 		option_information_container_rect = config_container_rect;
 		option_information_padding.top += ui::tabs_height(fonts::dejavu) + config_container_element_gap;
