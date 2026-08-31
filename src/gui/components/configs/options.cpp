@@ -859,8 +859,24 @@ void configs::parse_interp() {
 };
 
 void configs::save_config() {
-	config_blur::create(config_blur::get_global_config_path(), settings);
-	current_global_settings = settings;
+	flush_selected_config();
+
+	// configs removed this session are still on disk until now, so they go before the writes - a config
+	// deleted and a new one added under the same name in one session has to end up as the new one
+	for (const auto& [name, config] : saved_configs) {
+		if (!edited_configs.contains(name))
+			config_blur::remove(name);
+	}
+
+	for (const auto& [name, config] : edited_configs) {
+		auto existing = saved_configs.find(name);
+		if (existing != saved_configs.end() && existing->second == config)
+			continue; // unchanged, and writing would only reformat the file
+
+		config_blur::save(name, config);
+	}
+
+	saved_configs = edited_configs;
 
 	config_app::create(config_app::get_app_config_path(), app_settings);
 	current_app_settings = app_settings;
@@ -881,7 +897,8 @@ void configs::save_config() {
 };
 
 void configs::on_load() {
-	current_global_settings = settings;
+	flush_selected_config();
+	saved_configs = edited_configs;
 	parse_interp();
 
 	current_app_settings = app_settings;

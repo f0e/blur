@@ -45,8 +45,33 @@ namespace {
 	}
 }
 
+void configs::flush_selected_config() {
+	if (selected_config_name.empty())
+		return;
+
+	edited_configs[selected_config_name] = settings;
+}
+
+void configs::select_config(const std::string& name) {
+	if (name == selected_config_name)
+		return;
+
+	flush_selected_config(); // keep the edits on the config being left
+
+	selected_config_name = name;
+
+	auto it = edited_configs.find(name);
+	settings = it != edited_configs.end() ? it->second : config_blur::DEFAULT_CONFIG;
+
+	// the sliders cache the values they were bound to, so they'd keep showing the old config's numbers
+	ui::reset_tied_sliders();
+	parse_interp();
+}
+
 bool configs::has_unsaved_changes() {
-	return settings != current_global_settings || app_settings != current_app_settings ||
+	flush_selected_config();
+
+	return edited_configs != saved_configs || app_settings != current_app_settings ||
 	       encoding_preset_settings != current_encoding_preset_settings;
 }
 
@@ -278,7 +303,19 @@ void configs::screen(
 
 			std::thread([] {
 				ui::reset_tied_sliders();
-				settings = config_blur::parse_global_config();
+
+				edited_configs.clear();
+				for (const auto& name : config_blur::list()) {
+					edited_configs[name] = config_blur::get_config(name);
+				}
+
+				selected_config_name = config_blur::get_default_name();
+				if (!edited_configs.contains(selected_config_name) && !edited_configs.empty())
+					selected_config_name = edited_configs.begin()->first;
+
+				settings = edited_configs.contains(selected_config_name) ? edited_configs[selected_config_name]
+				                                                         : config_blur::DEFAULT_CONFIG;
+
 				app_settings = config_app::get_app_config();
 				encoding_preset_settings = config_encoding_presets::get_config();
 				on_load();
@@ -327,13 +364,24 @@ void configs::screen(
 				return;
 			}
 
-			auto validation = config_blur::validate(settings, app_settings, encoding_preset_settings, false);
-			if (!validation.ok()) {
+			// every config gets validated, not just the one on screen - saving writes them all, so a
+			// broken one that isn't selected would otherwise be written or dropped without a word
+			flush_selected_config();
+
+			for (auto& [name, config] : edited_configs) {
+				auto validation = config_blur::validate(config, app_settings, encoding_preset_settings, false);
+				if (validation.ok())
+					continue;
+
 				selected_config_tab = "blur";
 				selected_tab = TABS[0];
+				select_config(name); // show the config the error is actually in
 
 				gui::components::notifications::add(
-					"settings error", validation.message(), ui::NotificationType::NOTIF_ERROR
+					"settings error",
+					edited_configs.size() > 1 ? std::format("{}: {}", name, validation.message())
+											  : validation.message(),
+					ui::NotificationType::NOTIF_ERROR
 				);
 
 				return;
@@ -345,7 +393,16 @@ void configs::screen(
 		ui::set_next_same_line(nav_container);
 		ui::add_button("reset changes button", nav_container, "Reset changes", fonts::dejavu, [] {
 			ui::reset_tied_sliders();
-			settings = current_global_settings;
+
+			edited_configs = saved_configs;
+
+			// the selected config may have been one added this session, which reverting just removed
+			if (!edited_configs.contains(selected_config_name))
+				selected_config_name = edited_configs.empty() ? "" : edited_configs.begin()->first;
+
+			settings = edited_configs.contains(selected_config_name) ? edited_configs[selected_config_name]
+			                                                         : config_blur::DEFAULT_CONFIG;
+
 			app_settings = current_app_settings;
 			encoding_preset_settings = current_encoding_preset_settings;
 			on_load();
@@ -357,6 +414,9 @@ void configs::screen(
 	config_container.pop_element_gap();
 
 	if (selected_config_tab == "blur") {
+		config_management(config_container);
+		ui::add_separator("config management separator", config_container, ui::SeparatorStyle::FADE_RIGHT);
+
 		options(config_container);
 		preview(preview_header_container, preview_content_container);
 	}

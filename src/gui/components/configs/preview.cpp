@@ -21,18 +21,11 @@ namespace {
 	};
 
 	tl::expected<std::filesystem::path, std::string> get_mask_preset_path(const std::string& entered_name) {
-		std::string name = u::trim(entered_name);
-		if (name.empty())
-			return tl::unexpected("Enter a name for the preset.");
+		auto valid_name = u::validate_filename(entered_name);
+		if (!valid_name)
+			return tl::unexpected(valid_name.error());
 
-		if (name == "." || name == ".." || name.ends_with(' ') || name.ends_with('.') ||
-		    name.find_first_of("<>:\"/\\|?*") != std::string::npos ||
-		    std::ranges::any_of(name, [](unsigned char character) {
-				return character < 32;
-			}))
-		{
-			return tl::unexpected("That name contains characters that cannot be used in a filename.");
-		}
+		std::string name = *valid_name;
 
 		if (!u::to_lower(name).ends_with(".png"))
 			name += ".png";

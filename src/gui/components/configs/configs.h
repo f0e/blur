@@ -33,8 +33,15 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	inline std::string hovered_weighting;
 	inline std::string hovered_mask;
 
+	// the config the blur tab is editing. every option in options.cpp writes straight into this, and it's
+	// flushed back into edited_configs whenever the selection changes or the screen needs the whole set
 	inline BlurSettings settings;
-	inline BlurSettings current_global_settings;
+	inline std::string selected_config_name;
+
+	// every config, as edited and as last saved. edits are kept for all of them, so switching between
+	// configs doesn't lose work and one Save writes whatever changed
+	inline std::map<std::string, BlurSettings> edited_configs;
+	inline std::map<std::string, BlurSettings> saved_configs;
 
 	inline GlobalAppSettings app_settings;
 	inline GlobalAppSettings current_app_settings;
@@ -77,6 +84,15 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	void options(ui::Container& container);
 	void app_options(ui::Container& container);
 	void encoding_preset_options(ui::Container& container);
+
+	// the config dropdown and its new/duplicate/rename/delete/default actions, above the blur options
+	void config_management(ui::Container& container);
+
+	// writes `settings` back into the config it belongs to. call before reading edited_configs as a whole
+	void flush_selected_config();
+
+	// switches which config the blur tab is editing, keeping unsaved edits on the one being left
+	void select_config(const std::string& name);
 
 	void about(ui::Container& container);
 

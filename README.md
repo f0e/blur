@@ -89,6 +89,23 @@ If your footage contains duplicate frames then occasionally blurred frames will 
 
 When interpolation is on it does both jobs in one pass: every frame it generates comes from the two nearest frames that were really captured, rather than from frames that were themselves generated to patch a gap.
 
+### Configs
+
+A config is a full set of blur settings. They're kept one to a file in the `configs` folder of your config folder, named after the file - `configs/slowmo.cfg` is the config called `slowmo` - so a config can be copied between machines, or edited by hand, on its own.
+
+One of them is the default, which is what videos start on when you add them. Create, rename and delete configs from the dropdown at the top of the blur settings tab, and set which one is the default there too. Edits to every config are kept while the settings screen is open, so you can flick between them and save the lot in one go.
+
+Each video in the queue can be switched to a different config from its own dropdown, so a batch can mix them - a `slowmo` clip and a normal one rendered in one sitting. Switching a video's config also resets its mask options to whatever that config asks for.
+
+`blur-cli` takes `--config-name`, one per input, to say which config each video renders with:
+
+```
+blur-cli -i clip.mp4 --config-name slowmo
+blur-cli -i a.mp4 -i b.mp4 --config-name slowmo --config-name default
+```
+
+Left off, each video uses the default config. `--config-path` still takes a path to a `.cfg` anywhere on disk, for a config that isn't in the folder.
+
 ### Masks
 
 Interpolation has no idea that a HUD isn't part of the scene, so it warps static overlays - crosshairs, killfeeds, timers - along with the world behind them. A mask marks those regions so they keep their original pixels instead. It applies to deduplication as well, since filling in a dropped frame means interpolating one, and that warps an overlay the same way.
@@ -104,7 +121,7 @@ Two things worth knowing:
 
 #### Automatic masks
 
-Setting `mask` to `auto` skips the png and works a mask out from the video itself, so you don't have to draw one per game.
+Turning on `auto mask` works a mask out from the video itself, so you don't have to draw one per game. It's a separate setting from `mask`, and the two stack - a pixel is protected if either of them protects it.
 
 It samples frames from across the whole video and looks for the pixels that stayed put in nearly all of them - either because they were exactly the same colour every time, which is what a solid overlay looks like, or because they kept sitting on the same side of their surroundings, which is what a see-through one like a crosshair does when the scene behind it keeps changing. Both brightness and colour are checked, so a green crosshair is still found on ground it happens to match in brightness. The scene moves as the camera does; a crosshair, HUD, scoreboard or watermark doesn't.
 

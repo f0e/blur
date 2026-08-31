@@ -16,13 +16,17 @@ namespace main = gui::components::main;
 namespace {
 	size_t pending_index = 0;
 
-	std::unordered_map<size_t, bool> trim_disabled_cache;
+	// keyed on the video and the config it's set to, not the video alone - switching a video to a config
+	// whose preset copies the audio has to re-answer this, and it's the config that decides the answer
+	std::map<std::pair<size_t, std::string>, bool> trim_disabled_cache;
 
 	bool is_trim_disabled(const tasks::PendingVideo& pending_video) {
 		if (!pending_video.video_info)
 			return false;
 
-		auto it = trim_disabled_cache.find(pending_video.video_id);
+		auto key = std::pair{ pending_video.video_id, pending_video.config_name };
+
+		auto it = trim_disabled_cache.find(key);
 		if (it != trim_disabled_cache.end())
 			return it->second;
 
@@ -31,12 +35,12 @@ namespace {
 		if (!pending_video.video_info->audio_sample_rates.empty()) {
 			auto app_settings = config_app::get_app_config();
 
-			auto config = config_blur::get_global_config();
+			auto config = config_blur::get_config(pending_video.config_name);
 
 			disabled = rendering::detail::copies_audio(config, app_settings);
 		}
 
-		trim_disabled_cache.emplace(pending_video.video_id, disabled);
+		trim_disabled_cache.emplace(key, disabled);
 		return disabled;
 	}
 }
@@ -321,10 +325,39 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 		}
 	);
 
-	// which masks this clip renders with. seeded from its config when it was added, so these start on the
+	// which config and masks this clip renders with. seeded when it was added, so these start on the
 	// configured defaults. applies to the selected clip, same as the trim controls above
 	container.push_usable_width(0.5f);
 	{
+		// the dropdown holds onto a pointer to this, so it has to outlive the frame
+		static std::string selected_config;
+		selected_config = pending_video->config_name;
+
+		ui::add_dropdown(
+			std::format("config dropdown {}", pending_video->video_id),
+			container,
+			"config",
+			config_blur::options(pending_video->config_name),
+			selected_config,
+			fonts::dejavu,
+			[pending_video](std::string* new_value) {
+				if (pending_video->config_name == *new_value)
+					return;
+
+				pending_video->config_name = *new_value;
+
+				// the mask controls below start on whatever the config asks for, so a new config brings
+			    // its own masks with it. that does drop a mask picked by hand for this clip, but the
+			    // dropdown for it is right there
+				auto config = config_blur::get_config(pending_video->config_name);
+				pending_video->mask = config.mask;
+				pending_video->auto_mask = config.auto_mask;
+
+				// whether trimming is allowed depends on the config's encode preset
+				invalidate_trim_support();
+			}
+		);
+
 		// the dropdown holds onto a pointer to this, so it has to outlive the frame
 		static std::string selected_mask;
 		selected_mask = pending_video->mask.empty() ? masks::NONE_OPTION : pending_video->mask;
