@@ -114,8 +114,17 @@ int gui::run() {
 
 							gui::renderer::screen = gui::renderer::Screens::CONFIG;
 
+							// it lands on whichever config is open rather than becoming one of its own, so
+							// say which - that's someone's existing config being overwritten otherwise
 							gui::components::notifications::add(
-								"Imported config", ui::NotificationType::INFO, {}, std::chrono::duration<float>(2.f)
+								gui::components::configs::selected_config_name.empty()
+									? "Imported config"
+									: std::format(
+										  "Imported config into '{}'", gui::components::configs::selected_config_name
+									  ),
+								ui::NotificationType::INFO,
+								{},
+								std::chrono::duration<float>(2.f)
 							);
 						}
 						catch (const std::exception& e) {
