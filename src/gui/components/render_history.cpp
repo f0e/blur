@@ -26,12 +26,11 @@ namespace {
 
 	struct Entry {
 		size_t id;
-		std::string name;
+		std::string title; // the file that came out, or the video that failed
 		std::filesystem::path output_path;
 
 		bool success;
-		std::string error_message;   // the short version, shown in the entry
-		std::string error_clipboard; // the full log, copied by the entry's copy button
+		rendering::RenderError error;
 
 		std::chrono::steady_clock::time_point shown_until; // fallback dismissal time if it is never hovered
 		bool auto_display_hovered = false;                 // once hovered, leaving dismisses it immediately
@@ -42,13 +41,15 @@ namespace {
 	};
 
 	std::mutex entries_mutex;
-	std::vector<Entry> entries; // newest first
+	std::vector<std::shared_ptr<Entry>> entries; // newest first
 	size_t next_entry_id = 0;
 
 	bool panel_open = false;
 	bool panel_showing = false; // whether it's got anything in it right now, ignoring what's animating away
+	bool panel_transforming = false;
 	gfx::Rect button_rect;
 	gfx::Rect panel_rect;
+	std::optional<gfx::Rect> panel_collapse_rect;
 	float panel_height = 0.f;
 	std::string panel_title;
 
@@ -57,9 +58,10 @@ namespace {
 		return std::max(fonts::dejavu.height(), history::BUTTON_SIZE) + PANEL_HEADER_GAP;
 	}
 
-	// the panel says what it is when you open it, and what just happened when it shows itself
-	std::string get_panel_title(bool open, size_t shown_count, size_t shown_failures) {
-		if (open)
+	// the panel says what it is while the mouse is why it's showing, and what just happened when it shows itself
+	// on its own
+	std::string get_panel_title(bool hovered, size_t shown_count, size_t shown_failures) {
+		if (hovered)
 			return "Render history";
 
 		bool plural = shown_count > 1;
@@ -85,8 +87,8 @@ namespace {
 			std::lock_guard lock(entries_mutex);
 
 			for (auto& entry : entries) {
-				if (entry.id == entry_id) {
-					entry.thumbnail_jpeg = std::move(jpeg);
+				if (entry->id == entry_id) {
+					entry->thumbnail_jpeg = std::move(jpeg);
 					break;
 				}
 			}
@@ -100,7 +102,7 @@ namespace {
 		entry.id = id;
 		entry.shown_until = std::chrono::steady_clock::now() + ENTRY_SHOW_TIME;
 
-		entries.insert(entries.begin(), std::move(entry));
+		entries.insert(entries.begin(), std::make_shared<Entry>(std::move(entry)));
 
 		if (entries.size() > MAX_ENTRIES)
 			entries.resize(MAX_ENTRIES);
@@ -116,22 +118,67 @@ namespace {
 			u::log_error("Failed to open '{}': {}", u::path_to_string(path), SDL_GetError());
 	}
 
-	std::vector<ui::RenderHistoryAction> get_entry_actions(const Entry& entry) {
-		if (!entry.success) {
+	void show_error_dialog(const std::shared_ptr<const Entry>& entry) {
+		ui::dialog::open(
+			{
+				.title = "Render failed",
+				.content =
+					[entry](ui::Container& container) {
+						const auto log_font = fonts::dejavu(fonts::size::SMALL);
+
+						ui::dialog::add_body(
+							container, "error body", std::format("{} could not be rendered.", entry->title)
+						);
+						ui::dialog::add_field(container, "error message", "Error", entry->error.user_message);
+
+						// errors that came through as a bare message have none of these
+						std::vector<std::pair<std::string, const std::string*>> logs{
+							{ "Technical details", &entry->error.technical_details },
+							{ "VSPipe log", &entry->error.vspipe_errors },
+							{ "FFmpeg log", &entry->error.ffmpeg_errors },
+						};
+
+						bool heading_added = false;
+						for (const auto& [title, text] : logs) {
+							if (text->empty())
+								continue;
+
+							if (!heading_added) {
+								ui::dialog::add_heading(container, "advanced heading", "Advanced diagnostics");
+								heading_added = true;
+							}
+
+							ui::dialog::add_field(container, std::format("error {}", title), title, *text, log_font);
+						}
+					},
+				.close_on_confirm = false,
+				.width = 560,
+				.confirm_text = "Copy error",
+				.cancel_text = "Close",
+				.confirm_icon = icons::COPY,
+				.on_confirm =
+					[entry] {
+						SDL_SetClipboardText(entry->error.to_string().c_str());
+
+						gui::components::notifications::add(
+							"Copied error message to clipboard",
+							ui::NotificationType::INFO,
+							{},
+							std::chrono::duration<float>(2.f)
+						);
+					},
+			}
+		);
+	}
+
+	std::vector<ui::RenderHistoryAction> get_entry_actions(const std::shared_ptr<const Entry>& entry) {
+		if (!entry->success) {
 			return {
 				{
-					.icon = icons::COPY,
-					.tooltip = "Copy error",
+					.label = "View details",
 					.on_press =
-						[error = entry.error_clipboard] {
-							SDL_SetClipboardText(error.c_str());
-
-							gui::components::notifications::add(
-								"Copied error message to clipboard",
-								ui::NotificationType::INFO,
-								{},
-								std::chrono::duration<float>(2.f)
-							);
+						[entry] {
+							show_error_dialog(entry);
 						},
 				},
 			};
@@ -142,7 +189,9 @@ namespace {
 				.icon = icons::COPY,
 				.tooltip = "Copy video",
 				.on_press =
-					[path = entry.output_path] {
+					[entry] {
+						const auto& path = entry->output_path;
+
 						if (!os::clipboard::copy_file(path)) {
 							u::log_error("Failed to copy '{}' to the clipboard", u::path_to_string(path));
 							return;
@@ -160,7 +209,9 @@ namespace {
 				.icon = icons::FOLDER,
 				.tooltip = "Open containing folder",
 				.on_press =
-					[path = entry.output_path] {
+					[entry] {
+						const auto& path = entry->output_path;
+
 						if (!os::file_browser::reveal_file(path))
 							u::log_error("Failed to reveal '{}' in the file browser", u::path_to_string(path));
 					},
@@ -169,10 +220,10 @@ namespace {
 	}
 }
 
-void history::add_success(const rendering::VideoRenderDetails& render, const rendering::RenderResult& result) {
+void history::add_success(const rendering::RenderResult& result) {
 	size_t id = add_entry(
 		{
-			.name = u::path_to_string(render.input_path.stem()),
+			.title = u::path_to_string(result.output_path.filename()),
 			.output_path = result.output_path,
 			.success = true,
 		}
@@ -184,25 +235,14 @@ void history::add_success(const rendering::VideoRenderDetails& render, const ren
 void history::add_failure(
 	const rendering::VideoRenderDetails& render, const std::variant<std::string, rendering::RenderError>& error
 ) {
-	std::string message;
-	std::string clipboard;
-
-	if (std::holds_alternative<rendering::RenderError>(error)) {
-		const auto& render_error = std::get<rendering::RenderError>(error);
-		message = render_error.user_message;
-		clipboard = render_error.to_string();
-	}
-	else {
-		message = std::get<std::string>(error);
-		clipboard = message;
-	}
-
 	size_t id = add_entry(
 		{
-			.name = u::path_to_string(render.input_path.stem()),
+			.title = u::path_to_string(render.input_path.stem()),
 			.success = false,
-			.error_message = message,
-			.error_clipboard = clipboard,
+			// a bare string is an error with nothing else to show
+			.error = std::holds_alternative<rendering::RenderError>(error)
+	                     ? std::get<rendering::RenderError>(error)
+	                     : rendering::RenderError{ .user_message = std::get<std::string>(error) },
 		}
 	);
 
@@ -246,6 +286,12 @@ void history::render_panel(ui::Container& container, float delta_time, bool with
 	if (!with_button)
 		panel_open = false; // nothing to hover
 
+	// Keep the origin around while the rows go stale so the backdrop can fold away with them.
+	panel_collapse_rect =
+		with_button && !button_rect.is_empty() ? std::optional<gfx::Rect>{ button_rect } : std::nullopt;
+	if (!panel_collapse_rect)
+		panel_transforming = false;
+
 	auto now = std::chrono::steady_clock::now();
 
 	bool hovering = panel_showing && panel_rect.contains(keys::mouse_pos);
@@ -253,26 +299,17 @@ void history::render_panel(ui::Container& container, float delta_time, bool with
 	size_t shown_count = 0;
 	size_t shown_failures = 0;
 
-	for (auto& entry : entries) {
-		if (!panel_open) {
-			// The timer is only a fallback for entries the user never interacts with. Once an auto-shown
-			// entry has been hovered, keep it under the cursor and dismiss it as soon as the cursor leaves.
-			if (entry.auto_display_hovered) {
-				if (!hovering)
-					continue;
-			}
-			else {
-				if (now > entry.shown_until)
-					continue;
+	for (const auto& entry_ptr : entries) {
+		auto& entry = *entry_ptr;
 
-				if (hovering)
-					entry.auto_display_hovered = true;
-			}
-		}
-		else if (hovering) {
-			// Opening the full history while an entry is still auto-shown also counts as interacting with it.
+		// The timer is only a fallback for entries the user never interacts with. Once an auto-shown entry has
+		// been hovered, keep it under the cursor and dismiss it as soon as the cursor leaves.
+		if (!panel_open && (entry.auto_display_hovered ? !hovering : now > entry.shown_until))
+			continue;
+
+		// hovering the panel, or opening the full history, counts as interacting with an auto-shown entry
+		if (hovering)
 			entry.auto_display_hovered = true;
-		}
 
 		if (shown_count == 0)
 			container.current_position.y += header_height(); // the header is drawn with the backdrop, behind the rows
@@ -288,29 +325,34 @@ void history::render_panel(ui::Container& container, float delta_time, bool with
 			entry.thumbnail_jpeg = {};
 		}
 
-		std::optional<std::function<void()>> on_click;
-		if (entry.success) {
-			on_click = [path = entry.output_path] {
-				open_path(path);
-			};
-		}
+		std::shared_ptr<const Entry> const_entry = entry_ptr;
+
+		auto on_click = [const_entry] {
+			if (const_entry->success)
+				open_path(const_entry->output_path);
+			else
+				show_error_dialog(const_entry);
+		};
 
 		ui::add_render_history_entry(
 			std::format("render history entry {}", entry.id),
 			container,
-			entry.name,
-			entry.success ? u::path_to_string(entry.output_path.filename()) : entry.error_message,
+			entry.title,
+			entry.success ? "" : entry.error.user_message,
 			!entry.success,
 			entry.thumbnail,
-			get_entry_actions(entry),
+			get_entry_actions(const_entry),
 			std::move(on_click),
-			with_button && !button_rect.is_empty() ? std::optional<gfx::Rect>{ button_rect } : std::nullopt,
+			panel_collapse_rect,
 			fonts::dejavu
 		);
 	}
 
 	if (shown_count == 0) {
-		// keep the last rect around so the backdrop fades out in place rather than snapping shut under the rows
+		if (panel_showing && panel_collapse_rect)
+			panel_transforming = true;
+
+		// keep the last rect around so the backdrop can animate out in place rather than snapping shut under the rows
 		panel_showing = false;
 		return;
 	}
@@ -320,44 +362,94 @@ void history::render_panel(ui::Container& container, float delta_time, bool with
 
 	float goal_height = static_cast<float>(std::min(content_height, container.rect.h));
 
+	if (!panel_showing && panel_collapse_rect)
+		panel_transforming = true;
+
 	// grows and shrinks with the rows, but starts at the right size rather than unfolding from whatever it was
 	panel_height = panel_showing ? u::lerp(panel_height, goal_height, 25.f * delta_time, 0.5f) : goal_height;
 	panel_showing = true;
 
 	panel_rect = { container.rect.x, container.rect.y, container.rect.w, static_cast<int>(std::lround(panel_height)) };
-	panel_title = get_panel_title(panel_open, shown_count, shown_failures);
+	panel_title = get_panel_title(panel_open || hovering, shown_count, shown_failures);
 }
 
-void history::draw_panel(ui::Container& container) {
-	if (panel_rect.is_empty() || container.elements.empty())
+void history::draw_panel(ui::Container& container, ui::Container& button_container) {
+	// the button is always visible, whether or not the panel has anything to show
+	if (panel_rect.is_empty() || container.elements.empty()) {
+		ui::render_container(button_container);
 		return;
+	}
 
-	// fades with the rows it's holding
+	// Follows the rows' shared animation: from the button to its full bounds on the way in, and back on the way out.
 	float anim = 0.f;
 	for (const auto& [id, element] : container.elements) {
 		anim = std::max(anim, element.animations.at(ui::hasher("main")).current);
 	}
 
-	if (anim <= 0.01f)
-		return;
+	if (anim <= 0.01f) {
+		if (!panel_showing)
+			panel_transforming = false;
 
-	render::rounded_rect_filled(panel_rect, PANEL_COLOR.adjust_alpha(anim), PANEL_ROUNDING);
-	render::rounded_rect_stroke(panel_rect, PANEL_BORDER_COLOR.adjust_alpha(anim), PANEL_ROUNDING);
+		ui::render_container(button_container);
+		return;
+	}
+
+	if (panel_transforming && ((panel_showing && anim >= 1.f) || (!panel_showing && anim <= 0.01f)))
+		panel_transforming = false;
+
+	bool transform_contents = panel_transforming && panel_collapse_rect.has_value();
+	gfx::Rect animated_panel_rect =
+		transform_contents ? gfx::Rect::lerp(*panel_collapse_rect, panel_rect, anim) : panel_rect;
+	float draw_opacity = transform_contents ? 1.f : anim;
+	size_t first_vertex = render::draw_vertex_count();
+
+	render::rounded_rect_filled(panel_rect, PANEL_COLOR.adjust_alpha(draw_opacity), PANEL_ROUNDING);
+	render::rounded_rect_stroke(panel_rect, PANEL_BORDER_COLOR.adjust_alpha(draw_opacity), PANEL_ROUNDING);
 
 	// the header sits with the backdrop rather than in the container, so scrolling doesn't drag it away.
-	// it shares its row with the button, so it's centered against that
+	// it shares its row with the button, so it's centered against that. it stays outside the row overflow clip so
+	// its transformed glyphs aren't cut off while the panel is expanding
 	gfx::Rect usable = container.get_usable_rect();
 	int header_top = panel_rect.y + (container.padding ? container.padding->top : 0);
 
 	render::text(
 		gfx::Point(usable.x, header_top + ((BUTTON_SIZE - fonts::dejavu.height()) / 2)),
-		gfx::Color::white(110).adjust_alpha(anim),
+		gfx::Color::white(110).adjust_alpha(draw_opacity),
 		panel_title,
 		fonts::dejavu
 	);
 
+	// transform the backdrop/header now, before the button is drawn, so the button itself is excluded and stays
+	// put rather than folding away with them
+	if (transform_contents)
+		render::transform_draw_vertices(first_vertex, panel_rect, animated_panel_rect, anim);
+
+	// drawn above the backdrop but below the rows: scrolled-over entries cover it back up
+	ui::render_container(button_container);
+
+	size_t rows_first_vertex = render::draw_vertex_count();
+
+	// This clip only contains row scroll overflow. During a transition it expands with the transformed rows.
+	render::push_clip_rect(animated_panel_rect, true);
+
+	std::vector<std::pair<ui::AnimationState*, float>> row_animations;
+	if (transform_contents) {
+		row_animations.reserve(container.elements.size());
+		for (auto& [id, element] : container.elements) {
+			auto& row_animation = element.animations.at(ui::hasher("main"));
+			row_animations.emplace_back(&row_animation, row_animation.current);
+			row_animation.current = 1.f;
+		}
+	}
+
 	// the rows live inside the panel, nothing of them shows past its edges
-	render::push_clip_rect(panel_rect, true);
 	ui::render_container(container);
+
+	for (const auto& [row_animation, current] : row_animations)
+		row_animation->current = current;
+
 	render::pop_clip_rect();
+
+	if (transform_contents)
+		render::transform_draw_vertices(rows_first_vertex, panel_rect, animated_panel_rect, anim);
 }

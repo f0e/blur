@@ -106,7 +106,8 @@ bool ui::update_text_input(const Container& container, AnimatedElement& element)
 	auto pos = get_positions(container, input_data, element);
 	auto& state = helpers::text_input::text_input_map.at(element.element->id);
 
-	bool hovered = pos.input_rect.contains(keys::mouse_pos) && set_hovered_element(element);
+	bool hovered = container.rect.contains(keys::mouse_pos) && pos.input_rect.contains(keys::mouse_pos) &&
+	               set_hovered_element(element);
 	hover_anim.set_goal(hovered ? 1.f : 0.f);
 
 	if (hovered) {
@@ -208,6 +209,7 @@ ui::AnimatedElement* ui::add_text_input(
 	state.font = font;
 	state.on_change = std::move(on_change);
 	state.read_only = read_only;
+	state.multiline = false;
 
 	helpers::text_input::add_text_edit(id, state);
 
@@ -223,6 +225,56 @@ ui::AnimatedElement* ui::add_text_input(
 			.text_input = std::move(state),
 			.label = label,
 			.placeholder = placeholder,
+		},
+		render_text_input,
+		update_text_input
+	);
+
+	return add_element(
+		container,
+		std::move(element),
+		container.element_gap,
+		{
+			{ hasher("main"), AnimationState(25.f) },
+			{ hasher("hover"), AnimationState(80.f) },
+			{ hasher("focus"), AnimationState(25.f) },
+		}
+	);
+}
+
+ui::AnimatedElement* ui::add_selectable_text(
+	const std::string& id,
+	Container& container,
+	const std::string& text,
+	const render::Font& font,
+	std::optional<int> width
+) {
+	int field_width = width.value_or(container.get_usable_rect().w);
+
+	helpers::text_input::TextInputData state;
+	state.font = font;
+	state.read_only = true;
+	state.multiline = true;
+
+	// the state outlives the element, so the wrapped copy stays readable while the element fades out. the caller's
+	// string doesn't have to survive the call
+	auto& internal_state = helpers::text_input::add_text_edit(id, state);
+	internal_state.owned_text = u::join(
+		render::wrap_text(text, gfx::Size(std::max(field_width - (TEXT_INPUT_PADDING.w * 2), 1), 0), font), "\n"
+	);
+	state.text = &internal_state.owned_text;
+
+	int line_count = 1 + static_cast<int>(std::ranges::count(internal_state.owned_text, '\n'));
+	gfx::Size total_size(field_width, (line_count * font.height()) + (TEXT_INPUT_PADDING.h * 2));
+
+	Element element(
+		id,
+		ElementType::TEXT_INPUT,
+		gfx::Rect(container.current_position, total_size),
+		TextInputElementData{
+			.text_input = std::move(state),
+			.label = "",
+			.placeholder = "",
 		},
 		render_text_input,
 		update_text_input

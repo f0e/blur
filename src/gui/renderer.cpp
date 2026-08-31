@@ -484,8 +484,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		ui::render_container(nav_container);
 		ui::render_container(navigation_button_container);
 		ui::render_container(update_container);
-		components::render_history::draw_panel(history_panel_container);
-		ui::render_container(history_button_container);
+		components::render_history::draw_panel(history_panel_container, history_button_container);
+
 		ui::dialog::render();
 
 		ui::tooltip::render();
@@ -534,7 +534,7 @@ void gui::renderer::on_render_finished(
 		return;
 	}
 
-	components::render_history::add_success(render, *result);
+	components::render_history::add_success(*result);
 
 	auto app_config = config_app::get_app_config();
 	if (app_config.render_success_notifications) {

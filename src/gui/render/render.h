@@ -283,6 +283,10 @@ namespace render {
 	gfx::Rect pop_clip_rect();
 	gfx::Rect get_clip_rect();
 
+	// Captures and transforms a group of already-submitted primitives as one unit.
+	[[nodiscard]] size_t draw_vertex_count();
+	void transform_draw_vertices(size_t first_vertex, const gfx::Rect& from, const gfx::Rect& to, float opacity = 1.f);
+
 	bool clip_string(std::string& text, const Font& font, int max_width, int min_chars = 0);
 	std::vector<std::string> wrap_text(
 		const std::string& text, const gfx::Size& dimensions, const Font& font, int line_height = 0
