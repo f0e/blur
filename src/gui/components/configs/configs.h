@@ -122,8 +122,8 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	void reset_config_preview();
 
 	void preview_tabs(ui::Container& container);
-	void preview(ui::Container& container);
-	void rules(ui::Container& container);
+	void preview(ui::Container& container, float delta_time);
+	void rules(ui::Container& container, float delta_time);
 	void option_information(ui::Container& container);
 
 	// the rules list scrolls, so it flows from the top left instead of being centred in the panel

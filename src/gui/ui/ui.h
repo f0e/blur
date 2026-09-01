@@ -93,12 +93,10 @@ namespace ui {
 	struct DragHandleElementData {
 		std::string tooltip;
 
-		// written by update_drag_handle on the frame the handle is grabbed. whoever owns the list
-		// tracks the drag from there, since the rows move around underneath it
-		bool pressed = false;
+		gfx::Rect row_rect;
 
 		bool operator==(const DragHandleElementData& other) const {
-			return tooltip == other.tooltip;
+			return tooltip == other.tooltip && row_rect == other.row_rect;
 		}
 	};
 
