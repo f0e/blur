@@ -23,6 +23,8 @@ namespace {
 	// keep element animations with their rows
 	constexpr std::array ANIMATED_ROW_ELEMENTS = { "drag handle" };
 
+	const std::string NO_DEFAULT_OPTION = "none";
+
 	struct Drag {
 		size_t index = 0;
 		int grab_offset = 0;
@@ -270,15 +272,72 @@ namespace {
 		return !name.empty() && !configs::edited_configs.contains(name);
 	}
 
+	struct RowWidths {
+		int icon = 0;
+		int pattern = 0;
+		int config = 0;
+		int full = 0;
+	};
+
+	// pins an element where it's put, out of the container's row centering
+	void place(ui::AnimatedElement* element, int x, int nudge_y) {
+		element->element->auto_center_horizontal = false;
+
+		element->element->rect.x = x;
+		element->element->rect.y += nudge_y;
+		element->element->orig_rect = element->element->rect;
+	}
+
+	RowWidths row_widths(const ui::Container& container) {
+		RowWidths widths;
+
+		widths.icon = ui::text_input_height(fonts::dejavu);
+		widths.full = container.get_usable_rect().w;
+
+		int fields = widths.full - (widths.icon * 2) - (container.element_gap * 3);
+		widths.config = std::max(int(fields * 0.45f), 100);
+		widths.pattern = fields - widths.config;
+
+		return widths;
+	}
+
+	ui::AnimatedElement* add_config_dropdown(
+		const std::string& id,
+		ui::Container& container,
+		const RowWidths& widths,
+		const std::string& current,
+		const std::vector<std::string>& options,
+		const std::function<void(std::string*)>& on_change
+	) {
+		int config_x = container.current_position.x;
+		container.push_usable_width((float)widths.config / (float)widths.full);
+		container.current_position.x = config_x;
+
+		auto* dropdown = ui::add_dropdown(
+			id,
+			container,
+			"",
+			options,
+			configs::bind_read_only_input(id, current),
+			fonts::dejavu,
+			on_change,
+			config_missing(current) ? std::vector{ current } : std::vector<std::string>{}
+		);
+
+		container.pop_usable_width();
+
+		return dropdown;
+	}
+
 	Row rule_row(ui::Container& container, size_t index) {
 		auto& rule = configs::rule_settings.rules[index];
-
-		int icon_size = ui::text_input_height(fonts::dejavu);
-		auto icon_dimensions = gfx::Size(icon_size, icon_size);
 
 		size_t first_element = container.current_element_ids.size();
 
 		container.push_element_gap(ROW_GAP);
+
+		auto widths = row_widths(container);
+		auto icon_dimensions = gfx::Size(widths.icon, widths.icon);
 
 		std::optional<std::string> message;
 		gfx::Color message_color = configs::WARNING_COLOR;
@@ -294,11 +353,6 @@ namespace {
 		ui::AnimatedElement* handle = nullptr;
 
 		ui::add_with_message(container, row_element_id(index, "message"), message, message_color, [&] {
-			int full_width = container.get_usable_rect().w;
-			int fields_width = full_width - (icon_size * 2) - (container.element_gap * 3);
-			int config_width = std::max(int(fields_width * 0.45f), 100);
-			int pattern_width = fields_width - config_width;
-
 			handle = ui::add_drag_handle(
 				row_element_id(index, "drag handle"), container, icon_dimensions, "Drag to reorder"
 			);
@@ -314,30 +368,22 @@ namespace {
 				"pattern",
 				{},
 				false,
-				pattern_width
+				widths.pattern
 			);
 
 			ui::set_next_same_line(container);
 
-			int config_x = container.current_position.x;
-			container.push_usable_width((float)config_width / (float)full_width);
-			container.current_position.x = config_x;
-
-			ui::add_dropdown(
+			add_config_dropdown(
 				row_element_id(index, "config dropdown"),
 				container,
-				"",
+				widths,
+				rule.config_name,
 				config_options(rule.config_name),
-				configs::bind_read_only_input(std::format("rule {} config", index), rule.config_name),
-				fonts::dejavu,
 				[index](std::string* new_value) {
 					if (index < configs::rule_settings.rules.size())
 						configs::rule_settings.rules[index].config_name = *new_value;
-				},
-				config_missing(rule.config_name) ? std::vector{ rule.config_name } : std::vector<std::string>{}
+				}
 			);
-
-			container.pop_usable_width();
 
 			ui::set_next_same_line(container);
 
@@ -383,48 +429,48 @@ namespace {
 		return row;
 	}
 
-	void rules_for_config(ui::Container& container, const std::string& config_name) {
-		ui::add_text(
-			"rules preview heading",
-			container,
-			std::format("rules for '{}'", config_name),
-			gfx::Color::white(),
-			fonts::dejavu
-		);
+	void default_row(ui::Container& container) {
+		const auto& default_config = configs::rule_settings.default_config;
 
-		bool any = false;
+		container.push_element_gap(ROW_GAP);
 
-		for (size_t i = 0; i < configs::rule_settings.rules.size(); i++) {
-			const auto& rule = configs::rule_settings.rules[i];
-			if (rule.config_name != config_name)
-				continue;
+		auto widths = row_widths(container);
 
-			any = true;
+		std::optional<std::string> message;
+		if (config_missing(default_config))
+			message = std::format("rule disabled - '{}' no longer exists", default_config);
 
-			ui::add_text(
-				std::format("rules preview {}", i), container, rule.pattern, gfx::Color::white(200), fonts::dejavu
-			);
-		}
+		ui::add_with_message(container, "default row message", message, configs::ERROR_COLOR, [&] {
+			auto* label =
+				ui::add_text("default row label", container, "default", gfx::Color::white(180), fonts::dejavu);
 
-		if (!any) {
-			ui::add_text(
-				"rules preview empty",
+			ui::set_next_same_line(container);
+
+			auto options = config_options(default_config);
+			options.insert(options.begin(), NO_DEFAULT_OPTION);
+
+			auto* dropdown = add_config_dropdown(
+				"default row dropdown",
 				container,
-				"No rules send videos to this config.",
-				gfx::Color::white(gui::renderer::MUTED_SHADE),
-				fonts::dejavu(fonts::size::SMALL)
+				widths,
+				default_config.empty() ? NO_DEFAULT_OPTION : default_config,
+				options,
+				[](std::string* new_value) {
+					configs::rule_settings.default_config = *new_value == NO_DEFAULT_OPTION ? "" : *new_value;
+				}
 			);
-		}
 
-		ui::add_spacing(container, 8);
+			int row_x = container.get_usable_rect().center().x - (widths.full / 2);
 
-		ui::add_text(
-			"rules preview hint",
-			container,
-			"Open the rules tab to edit them.",
-			gfx::Color::white(gui::renderer::MUTED_SHADE),
-			fonts::dejavu(fonts::size::SMALL)
-		);
+			place(
+				label,
+				row_x + widths.icon + container.element_gap,
+				(dropdown->element->rect.h - label->element->rect.h) / 2
+			);
+			place(dropdown, row_x + widths.icon + widths.pattern + (container.element_gap * 2), 0);
+		});
+
+		container.pop_element_gap();
 	}
 }
 
@@ -435,9 +481,6 @@ void configs::rules(ui::Container& container, float delta_time) {
 	if (temp_tab_owner == CONFIG_DROPDOWN_ID) {
 		stop_drag(container);
 		row_states.clear();
-
-		rules_for_config(container, hovered_config.empty() ? selected_config_name : hovered_config);
-		return;
 	}
 
 	if (!drawn_last_frame || row_states.size() != rule_settings.rules.size()) {
@@ -461,6 +504,8 @@ void configs::rules(ui::Container& container, float delta_time) {
 			"no rules text", container, "no rules yet", gfx::Color::white(gui::renderer::MUTED_SHADE), fonts::dejavu
 		);
 	}
+
+	default_row(container);
 
 	ui::add_spacing(container, 8);
 
