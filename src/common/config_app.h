@@ -13,8 +13,8 @@ struct GlobalAppSettings {
 	std::string gui_color_hex;
 #endif
 
-	int gui_width = 591;
-	int gui_height = 381;
+	int gui_width = 777;
+	int gui_height = 500;
 	bool blur_amount_tied_to_fps = true;
 	float dpi_scale_override = 0.f; // 0 = auto (use the os content/dpi scale)
 
