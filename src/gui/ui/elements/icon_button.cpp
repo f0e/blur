@@ -15,7 +15,12 @@ void ui::render_icon_button(const Container& container, const AnimatedElement& e
 	gfx::Color color = gfx::Color::lerp(button_data.color, button_data.hover_color, hover_anim).adjust_alpha(anim);
 
 	render::text(
-		element.element->rect.center(), color, button_data.icon, button_data.font, FONT_CENTERED_X | FONT_CENTERED_Y
+		element.element->rect.center(),
+		color,
+		button_data.icon,
+		button_data.font,
+		FONT_CENTERED_X | FONT_CENTERED_Y,
+		button_data.rotation_deg
 	);
 }
 
@@ -55,7 +60,8 @@ ui::AnimatedElement* ui::add_icon_button(
 	gfx::Color color,
 	gfx::Color hover_color,
 	std::optional<std::function<void()>> on_press,
-	const std::string& tooltip
+	const std::string& tooltip,
+	float rotation_deg
 ) {
 	Element element(
 		id,
@@ -68,6 +74,7 @@ ui::AnimatedElement* ui::add_icon_button(
 			.hover_color = hover_color,
 			.tooltip = tooltip,
 			.on_press = std::move(on_press),
+			.rotation_deg = rotation_deg,
 		},
 		render_icon_button,
 		update_icon_button
