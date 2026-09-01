@@ -2,6 +2,7 @@
 #include "masks.h"
 #include "config_base.h"
 #include "config_app.h"
+#include "config_rules.h"
 #include "rendering/render_commands.h"
 
 namespace {
@@ -531,8 +532,9 @@ std::string config_blur::resolve_config_name(
 	if (name_override && !name_override->empty())
 		return *name_override;
 
-	// a rule matching input_path's folder or filename picks the config here, once those exist
-	(void)input_path;
+	auto matched = config_rules::match(config_rules::get_config(), input_path, list());
+	if (!matched.empty())
+		return matched;
 
 	return get_default_name();
 }
