@@ -45,6 +45,43 @@ namespace {
 	}
 }
 
+namespace {
+	// whether the owner asked for the switch this frame. an owner that stops being drawn while it
+	// holds the switch never gets to close it, which would leave the panel stuck on its tab
+	bool temp_tab_owner_drawn = false;
+}
+
+void configs::set_temporary_tab(const std::string& owner, bool open, const std::string& tab) {
+	if (temp_tab_owner == owner)
+		temp_tab_owner_drawn = true;
+
+	if (open) {
+		if (temp_tab_owner.empty()) {
+			temp_tab_owner = owner;
+			temp_tab_owner_drawn = true;
+			old_tab = selected_tab;
+		}
+
+		if (temp_tab_owner == owner)
+			selected_tab = tab;
+	}
+	else if (temp_tab_owner == owner) {
+		selected_tab = old_tab;
+		old_tab.clear();
+		temp_tab_owner.clear();
+	}
+}
+
+void configs::release_stale_temporary_tab() {
+	if (!temp_tab_owner.empty() && !temp_tab_owner_drawn) {
+		selected_tab = old_tab;
+		old_tab.clear();
+		temp_tab_owner.clear();
+	}
+
+	temp_tab_owner_drawn = false;
+}
+
 void configs::flush_selected_config() {
 	if (selected_config_name.empty())
 		return;
