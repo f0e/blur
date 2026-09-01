@@ -103,6 +103,58 @@ std::string u::truncate_with_ellipsis(const std::string& input, std::size_t max_
 	return input;
 }
 
+namespace {
+	std::string normalise_for_match(std::string_view str) {
+		std::string out(str);
+
+		std::ranges::for_each(out, [](char& c) {
+			c = c == '\\' ? '/' : (char)std::tolower(c);
+		});
+
+		return out;
+	}
+}
+
+bool u::matches_pattern(std::string_view pattern, std::string_view text) {
+	if (pattern.empty())
+		return false;
+
+	std::string pat = normalise_for_match(pattern);
+	std::string str = normalise_for_match(text);
+
+	if (pat.find_first_of("*?") == std::string::npos)
+		return str.find(pat) != std::string::npos;
+
+	size_t p = 0;
+	size_t s = 0;
+	size_t star = std::string::npos;
+	size_t star_s = 0;
+
+	while (s < str.size()) {
+		if (p < pat.size() && (pat[p] == '?' || pat[p] == str[s])) {
+			p++;
+			s++;
+		}
+		else if (p < pat.size() && pat[p] == '*') {
+			star = p++;
+			star_s = s;
+		}
+		else if (star != std::string::npos) {
+			// backtrack: let the last '*' swallow one more character and try again
+			p = star + 1;
+			s = ++star_s;
+		}
+		else
+			return false;
+	}
+
+	while (p < pat.size() && pat[p] == '*') {
+		p++;
+	}
+
+	return p == pat.size();
+}
+
 tl::expected<std::string, std::string> u::validate_filename(const std::string& entered_name) {
 	std::string name = u::trim(entered_name);
 	if (name.empty())
