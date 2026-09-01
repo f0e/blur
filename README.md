@@ -36,7 +36,7 @@ Requires manual installation of dependencies. [See here for the list of dependen
 
 The amount of motion blur is easily configurable, and there are additional options to enable other features such as interpolating the video's fps. This can be used to generate 'fake' motion blur through frame blending the interpolated footage. This motion blur does not blur non-moving parts of the video, like the HUD in gameplay footage.
 
-The program can also be used in the command line via `blur-cli`, use -h or --help for more information.
+The program can also be used in the command line via `blur-cli` - see [Command line](#command-line).
 
 ## Sample output
 
@@ -93,22 +93,33 @@ When interpolation is on it does both jobs in one pass: every frame it generates
 
 A config is a full set of blur settings. They're kept one to a file in the `configs` folder of your config folder, named after the file - `configs/slowmo.cfg` is the config called `slowmo` - so a config can be copied between machines, or edited by hand, on its own.
 
-One of them is the default, which is what videos start on when you add them. Create, rename and delete configs from the dropdown at the top of the blur settings tab, and set which one is the default there too - the star marks it, and clicking the lit star unsets it again.
+One of them is the default, which is what videos start on when you add them unless a [rule](#rules) picks another. Create, rename and delete configs from the dropdown at the top of the blur settings tab, and set which one is the default there too - the star marks it, and clicking the lit star unsets it again.
 
 Each video in the queue can be switched to a different config from its own dropdown, so a batch can mix them - a `slowmo` clip and a normal one rendered in one sitting. Switching a video's config also resets its mask options to whatever that config asks for.
 
-With no default set, videos are added to the queue without a config and their dropdown reads `select a config` until you pick one. Rendering then starts the videos that have a config and leaves the rest in the queue, telling you how many are still waiting on one.
+With no default set and no rule matching, videos are added to the queue without a config and their dropdown reads `select a config` until you pick one. Rendering then starts the videos that have a config and leaves the rest in the queue, telling you how many are still waiting on one.
 
 Edits to every config are kept while the settings screen is open, so you can flick between them and save the lot in one go.
 
-`blur-cli` takes `--config-name`, one per input, to say which config each video renders with:
+On the command line, `--config-name` says which config each video renders with, one per input - see [Command line](#command-line).
 
-```
-blur-cli -i clip.mp4 --config-name slowmo
-blur-cli -i a.mp4 -i b.mp4 --config-name slowmo --config-name default
-```
+### Rules
 
-Left off, each video uses the default config, and `blur-cli` won't render anything if there isn't one. `--config-path` still takes a path to a `.cfg` anywhere on disk, for a config that isn't in the folder.
+A rule points every video whose path matches a pattern at a config, so clips out of a folder land on the right settings without picking one each time. They live in the `rules` tab of the settings screen, next to the preview, and in `rules.cfg` in your config folder.
+
+Each rule is a pattern and the config it picks. `*` matches any run of characters and `?` matches a single one, and a pattern with neither is matched anywhere in the path - so `valorant` catches anything with that in its path, `D:/clips/apex/*` catches a folder, and `*.mkv` catches an extension. Matching ignores case, and treats `\` and `/` the same, so a pattern copied off a Windows path works on Linux too.
+
+Rules are ordered and the first enabled one that matches wins, so put the specific ones above the general ones. Drag a rule by its handle to move it.
+
+A video picks its config when it's added, in this order:
+
+1. a config chosen for that video, or `--config-name` on the command line
+2. the first enabled rule that matches its path
+3. the default config
+
+The queue says which of those it was underneath the config dropdown, and changing the config there overrides it for that video either way.
+
+Deleting a config leaves any rules pointing at it in place, flagged, and they're skipped until a config of that name exists again. Renaming one takes its rules with it.
 
 ### Masks
 
@@ -142,6 +153,30 @@ Those are ordinary mask images, so if one comes out nearly right you can copy it
 ### Frameserver output
 
 Blur supports rendering from frameservers. This means you can avoid having to run blur on your input videos when video editing. When rendering, simply output (make sure your project is high framerate) to the frameserver and then drag the generated AVI into blur. Note that some video editing software might limit the maximum project framerate.
+
+## Command line
+
+`blur-cli` renders without opening the app, using the same configs, rules and masks. `blur-cli --help` lists everything; the options are:
+
+| Option | What it does |
+| --- | --- |
+| `-i, --input` | Input file(s). Required, and repeatable. |
+| `-o, --output` | Output file(s). One per input if given, otherwise names are worked out from the input. |
+| `--config-name` | Name of a config in the `configs` folder, one per input. Takes precedence over `--config-path`. |
+| `-c, --config-path` | Path to a `.cfg` anywhere on disk, one per input, for a config that isn't in the folder. |
+| `--mask` | Mask image filename in the `masks` folder, or `none` to turn off a mask the config sets. |
+| `--auto-mask`, `--no-auto-mask` | Turn the generated mask on or off for this run. Left off entirely, the config decides. |
+| `-p, --preview` | Show a preview while rendering. |
+| `-v, --verbose` | Log more. |
+
+```
+blur-cli -i clip.mp4
+blur-cli -i clip.mp4 -o blurred.mp4 --config-name slowmo
+blur-cli -i a.mp4 -i b.mp4 --config-name slowmo --config-name default
+blur-cli -i clip.mp4 --mask none --no-auto-mask
+```
+
+With no `--config-name` or `--config-path`, each input gets the config a rule picks for its path, or the default config. If none of those resolve for an input it's skipped with a message, and if none of them could resolve for any input `blur-cli` says so and stops before rendering anything.
 
 ## Config settings explained:
 
