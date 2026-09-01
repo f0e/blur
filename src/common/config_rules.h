@@ -39,6 +39,13 @@ namespace config_rules {
 	bool usable(const ConfigRule& rule, const std::vector<std::string>& available_configs);
 	bool any_usable(const ConfigRuleSettings& settings, const std::vector<std::string>& available_configs);
 
+	// the first usable rule matching input_path, or null if nothing matches
+	const ConfigRule* find_match(
+		const ConfigRuleSettings& settings,
+		const std::filesystem::path& input_path,
+		const std::vector<std::string>& available_configs
+	);
+
 	// the config the first matching usable rule picks, or empty if nothing matches
 	std::string match(
 		const ConfigRuleSettings& settings,

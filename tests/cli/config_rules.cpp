@@ -170,8 +170,15 @@ TEST_F(ConfigRuleResolution, RulePicksTheConfig) {
 		}
 	);
 
-	EXPECT_EQ(config_blur::resolve_config_name("D:/clips/valorant/round.mp4", {}), "valorant");
-	EXPECT_EQ(config_blur::resolve_config_name("D:/clips/other/round.mp4", {}), "apex");
+	auto matched = config_blur::resolve_config("D:/clips/valorant/round.mp4", {});
+	EXPECT_EQ(matched.name, "valorant");
+	EXPECT_EQ(matched.source, config_blur::ConfigSource::RULE);
+	EXPECT_EQ(matched.rule_pattern, "*valorant*");
+
+	auto fell_through = config_blur::resolve_config("D:/clips/other/round.mp4", {});
+	EXPECT_EQ(fell_through.name, "apex");
+	EXPECT_EQ(fell_through.source, config_blur::ConfigSource::DEFAULT);
+	EXPECT_TRUE(fell_through.rule_pattern.empty());
 }
 
 TEST_F(ConfigRuleResolution, AnExplicitChoiceBeatsARule) {
