@@ -280,28 +280,6 @@ namespace {
 
 		container.push_element_gap(ROW_GAP);
 
-		auto* handle =
-			ui::add_drag_handle(row_element_id(index, "drag handle"), container, icon_dimensions, "Drag to reorder");
-
-		ui::set_next_same_line(container);
-
-		auto* delete_button = ui::add_icon_button(
-			row_element_id(index, "delete button"),
-			container,
-			icons::CLOSE,
-			fonts::icons,
-			icon_dimensions,
-			configs::DELETE_ICON_COLOR,
-			configs::DELETE_ICON_HOVER_COLOR,
-			[index] {
-				if (index < configs::rule_settings.rules.size())
-					configs::rule_settings.rules.erase(configs::rule_settings.rules.begin() + index);
-			},
-			"Remove rule"
-		);
-
-		ui::right_align_element(container, delete_button);
-
 		std::optional<std::string> message;
 		gfx::Color message_color = configs::WARNING_COLOR;
 
@@ -313,10 +291,19 @@ namespace {
 			message = "enter a pattern for this rule to match";
 		}
 
-		configs::add_with_message(container, row_element_id(index, "message"), message, message_color, [&] {
+		ui::AnimatedElement* handle = nullptr;
+
+		ui::add_with_message(container, row_element_id(index, "message"), message, message_color, [&] {
 			int full_width = container.get_usable_rect().w;
-			int config_width = std::max(full_width / 2, 100);
-			int pattern_width = full_width - config_width - configs::DELETE_ICON_GAP;
+			int fields_width = full_width - (icon_size * 2) - (container.element_gap * 3);
+			int config_width = std::max(int(fields_width * 0.45f), 100);
+			int pattern_width = fields_width - config_width;
+
+			handle = ui::add_drag_handle(
+				row_element_id(index, "drag handle"), container, icon_dimensions, "Drag to reorder"
+			);
+
+			ui::set_next_same_line(container);
 
 			ui::add_text_input(
 				row_element_id(index, "pattern input"),
@@ -332,9 +319,11 @@ namespace {
 
 			ui::set_next_same_line(container);
 
+			int config_x = container.current_position.x;
 			container.push_usable_width((float)config_width / (float)full_width);
+			container.current_position.x = config_x;
 
-			auto* config_dropdown = ui::add_dropdown(
+			ui::add_dropdown(
 				row_element_id(index, "config dropdown"),
 				container,
 				"",
@@ -350,7 +339,24 @@ namespace {
 
 			container.pop_usable_width();
 
-			ui::right_align_element(container, config_dropdown);
+			ui::set_next_same_line(container);
+
+			auto* delete_button = ui::add_icon_button(
+				row_element_id(index, "delete button"),
+				container,
+				icons::CLOSE,
+				fonts::icons,
+				icon_dimensions,
+				configs::DELETE_ICON_COLOR,
+				configs::DELETE_ICON_HOVER_COLOR,
+				[index] {
+					if (index < configs::rule_settings.rules.size())
+						configs::rule_settings.rules.erase(configs::rule_settings.rules.begin() + index);
+				},
+				"Remove rule"
+			);
+
+			ui::right_align_element(container, delete_button);
 		});
 
 		container.pop_element_gap();
