@@ -323,13 +323,31 @@ namespace ui {
 		}
 	};
 
+	struct DropdownOptionAction {
+		std::string icon;
+		std::string tooltip;
+		std::optional<gfx::Color> color; // empty uses the standard muted action color
+		gfx::Color hover_color = gfx::Color::white();
+		// empty makes the icon informational rather than clickable
+		std::function<void(const std::string& option)> on_press;
+		// empty applies to every option
+		std::function<bool(const std::string& option)> applies_to;
+	};
+
+	struct DropdownAddAction {
+		std::string tooltip;
+		std::function<void()> on_press;
+	};
+
 	struct DropdownElementData {
-		std::string label;
+		std::string label; // empty omits the label and its vertical spacing
 		std::vector<std::string> options;
 		std::string* selected;
 		render::Font font;
 		std::optional<std::function<void(std::string*)>> on_change;
 		std::vector<std::string> muted_options;
+		std::vector<DropdownOptionAction> option_actions;
+		std::optional<DropdownAddAction> add_action;
 
 		std::string hovered_option;
 
@@ -986,7 +1004,9 @@ namespace ui {
 		std::string& selected,
 		const render::Font& font,
 		std::optional<std::function<void(std::string*)>> on_change = {},
-		const std::vector<std::string>& muted_options = {}
+		const std::vector<std::string>& muted_options = {},
+		const std::vector<DropdownOptionAction>& option_actions = {},
+		std::optional<DropdownAddAction> add_action = {}
 	);
 
 	AnimatedElement* add_color_picker(

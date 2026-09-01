@@ -16,6 +16,8 @@ namespace main = gui::components::main;
 namespace {
 	size_t pending_index = 0;
 
+	const std::string NO_CONFIG_OPTION = "select a config";
+
 	// keyed on the video and the config it's set to, not the video alone - switching a video to a config
 	// whose preset copies the audio has to re-answer this, and it's the config that decides the answer
 	std::map<std::pair<size_t, std::string>, bool> trim_disabled_cache;
@@ -331,7 +333,7 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 	{
 		// the dropdown holds onto a pointer to this, so it has to outlive the frame
 		static std::string selected_config;
-		selected_config = pending_video->config_name;
+		selected_config = pending_video->config_name.empty() ? NO_CONFIG_OPTION : pending_video->config_name;
 
 		ui::add_dropdown(
 			std::format("config dropdown {}", pending_video->video_id),
@@ -355,7 +357,9 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 
 				// whether trimming is allowed depends on the config's encode preset
 				invalidate_trim_support();
-			}
+			},
+			// show the placeholder as muted without making it selectable
+			{ NO_CONFIG_OPTION }
 		);
 
 		// the dropdown holds onto a pointer to this, so it has to outlive the frame
@@ -457,7 +461,11 @@ main::MainScreen main::screen(ui::Container& container, float delta_time) {
 	const auto& pending = tasks::get_pending_copy();
 
 	if (pending.size() > 0) {
-		if (!app_config.skip_queue) {
+		bool needs_config = std::ranges::any_of(pending, [](const auto& pending_video) {
+			return pending_video->config_name.empty();
+		});
+
+		if (!app_config.skip_queue || needs_config) {
 			render_pending(container, pending);
 			return MainScreen::PENDING;
 		}

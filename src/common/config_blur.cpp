@@ -514,17 +514,15 @@ void config_blur::remove(const std::string& name) {
 }
 
 std::string config_blur::get_default_name() {
-	auto names = list();
-	if (names.empty())
+	auto configured = config_app::get_app_config().default_config;
+	if (configured.empty())
 		return {};
 
-	auto configured = config_app::get_app_config().default_config;
-	if (u::contains(names, configured))
+	if (u::contains(list(), configured))
 		return configured;
 
-	// the configured default has been deleted or renamed outside the app. anything is better than
-	// nothing here, and it's what the dropdown will be showing anyway
-	return u::contains(names, std::string(DEFAULT_CONFIG_NAME)) ? std::string(DEFAULT_CONFIG_NAME) : names.front();
+	// do not silently replace an invalid default with an arbitrary config
+	return {};
 }
 
 std::string config_blur::resolve_config_name(

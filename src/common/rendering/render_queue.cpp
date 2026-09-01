@@ -69,9 +69,22 @@ rendering::QueueAddRes rendering::VideoRenderQueue::add(
 
 	// a config file pointed at outright is used as it is, unless a config was also named - naming one is
 	// the more specific ask of the two
-	BlurSettings settings = (config_path && !named_config)
-	                            ? config_blur::parse(*config_path)
-	                            : config_blur::get_config(config_blur::resolve_config_name(input_path, config_name));
+	BlurSettings settings;
+
+	if (config_path && !named_config) {
+		settings = config_blur::parse(*config_path);
+	}
+	else {
+		auto resolved_name = config_blur::resolve_config_name(input_path, config_name);
+
+		if (resolved_name.empty()) {
+			return {
+				.error = "no config selected, and there's no default config set",
+			};
+		}
+
+		settings = config_blur::get_config(resolved_name);
+	}
 
 	if (mask_override)
 		settings.mask = *mask_override;
