@@ -126,9 +126,6 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	void rules(ui::Container& container, float delta_time);
 	void option_information(ui::Container& container);
 
-	// the rules list scrolls, so it flows from the top left instead of being centred in the panel
-	bool preview_centered();
-
 	// keeps a value and the buffer an element edits in sync, returns the buffer for the element to use
 	std::string& bind_input(const std::string& id, std::string& value);
 	std::string& bind_read_only_input(const std::string& id, const std::string& value);

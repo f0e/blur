@@ -359,8 +359,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 				icons::BACK
 			);
 
-			if (components::configs::preview_centered())
-				ui::center_elements_in_container(config_preview_content_container);
+			ui::center_elements_in_container(config_preview_content_container);
 			ui::center_elements_in_container(option_information_container, true, false);
 
 			// the app tab draws its own update notice
