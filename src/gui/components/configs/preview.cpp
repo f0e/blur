@@ -407,9 +407,14 @@ void configs::config_preview(ui::Container& container) {
 }
 
 void configs::preview_tabs(ui::Container& header_container, ui::Container& content_container) {
+	release_stale_temporary_tab();
+
 	auto on_tab_select = [&content_container] {
 		content_container.scroll_to_top = true;
+
+		// clicking a tab keeps it, so whoever was borrowing the panel gives up its claim
 		old_tab.clear();
+		temp_tab_owner.clear();
 	};
 
 	ui::add_tabs("preview tab", header_container, TABS, selected_tab, fonts::dejavu, on_tab_select);

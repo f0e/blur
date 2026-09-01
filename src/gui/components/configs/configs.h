@@ -30,9 +30,18 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	inline const std::vector<std::string> TABS = { "preview", "weightings" };
 	inline std::string selected_tab = TABS[0];
-	inline std::string old_tab;
 	inline std::string hovered_weighting;
 	inline std::string hovered_mask;
+
+	// a dropdown can switch the preview panel to its own tab while it's open. only one owns the
+	// switch at a time, so a second one opening can't strand the first one's tab
+	inline std::string old_tab;
+	inline std::string temp_tab_owner;
+
+	void set_temporary_tab(const std::string& owner, bool open, const std::string& tab);
+
+	// puts the tab back if whoever owns the switch stopped being drawn before it could close
+	void release_stale_temporary_tab();
 
 	// the config the blur tab is editing. every option in options.cpp writes straight into this, and it's
 	// flushed back into edited_configs whenever the selection changes or the screen needs the whole set
