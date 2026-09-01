@@ -23,6 +23,8 @@ namespace gui::renderer {
 	inline Screens screen = Screens::MAIN;
 
 	inline ui::Container main_container;
+	inline ui::Container queue_config_container;
+	inline ui::Container queue_container;
 	inline ui::Container config_container;
 	inline ui::Container config_preview_content_container;
 	inline ui::Container option_information_container;

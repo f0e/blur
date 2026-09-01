@@ -281,6 +281,31 @@ void ui::add_spacing(Container& container, int spacing) {
 	container.current_position.y += spacing;
 }
 
+void ui::add_with_message(
+	Container& container,
+	const std::string& message_id,
+	const std::optional<std::string>& message,
+	const gfx::Color& color,
+	const std::function<void()>& add_element
+) {
+	if (message)
+		container.push_element_gap(2);
+
+	add_element();
+
+	if (message) {
+		container.pop_element_gap();
+
+		ui::add_text(message_id, container, *message, color, fonts::dejavu);
+	}
+}
+
+void ui::reserve_space(Container& container, int height) {
+	container.current_position.x = container.get_usable_rect().x;
+	container.current_position.y += height + container.element_gap;
+	container.last_margin_bottom = container.element_gap;
+}
+
 void ui::set_next_same_line(Container& container) {
 	if (container.current_element_ids.empty())
 		return;

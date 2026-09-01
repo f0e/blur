@@ -226,7 +226,7 @@ void configs::encoding_preset_options(ui::Container& container) {
 				message_color = ERROR_COLOR;
 		}
 
-		add_with_message(container, std::format("{} message", id), message, message_color, [&] {
+		ui::add_with_message(container, std::format("{} message", id), message, message_color, [&] {
 			ui::add_text_input(
 				std::format("{} args input", id),
 				container,
