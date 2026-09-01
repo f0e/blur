@@ -79,6 +79,16 @@ void configs::app_options(ui::Container& container) {
 		fonts::dejavu
 	);
 
+	ui::add_button("use current window size button", container, "use current window size", fonts::dejavu, [] {
+		int width = 0;
+		int height = 0;
+		SDL_GetWindowSize(sdl::window, &width, &height);
+
+		const float content_scale = render::get_content_scale(sdl::window);
+		app_settings.gui_width = std::lround(width / content_scale);
+		app_settings.gui_height = std::lround(height / content_scale);
+	});
+
 	ui::add_slider(
 		"dpi scale slider",
 		container,
