@@ -436,6 +436,11 @@ namespace u {
 	std::string to_lower(const std::string& str);
 	std::string truncate_with_ellipsis(const std::string& input, std::size_t max_length);
 
+	// '*' matches any run of characters, '?' matches one. a pattern with neither is matched as a
+	// substring, so a rule can just say 'valorant' without making the user learn wildcards. case
+	// insensitive, and backslashes are normalised to '/' on both sides so windows paths match either way
+	bool matches_pattern(std::string_view pattern, std::string_view text);
+
 	// whether a name the user typed can be written to disk as a filename. returns it trimmed, or why it can't
 	// be used. masks and blur configs are both stored as one file per name, so both go through this
 	tl::expected<std::string, std::string> validate_filename(const std::string& entered_name);
