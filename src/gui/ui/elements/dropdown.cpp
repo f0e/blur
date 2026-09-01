@@ -153,8 +153,7 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 		icons::DROPDOWN_ARROW,
 		fonts::icons,
 		FONT_CENTERED_X | FONT_CENTERED_Y,
-		expand_goal * 180.f,
-		17 // hardcoded lol but its correct enough
+		expand_goal * 180.f
 	);
 
 	// Render dropdown options
