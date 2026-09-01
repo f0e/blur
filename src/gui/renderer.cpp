@@ -104,13 +104,38 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	const int config_page_container_gap = PAD_X / 2;
 
 	const int config_container_element_gap = 9;
+	const int base_config_width = 200 + PAD_X * 2;
+	const int queue_title_area_height = PAD_Y + fonts::garamond(fonts::size::SMALL_HEADER).height() + PAD_Y;
+
+	gfx::Rect queue_config_container_rect = rect;
+	const int queue_usable_height = std::max(rect.h - PAD_Y - bottom_pad, 0);
+	const int preferred_queue_width = std::lround((queue_usable_height / 1.5f) * (16.f / 9.f)) + PAD_X * 2;
+	const int queue_width = std::min(preferred_queue_width, rect.w - base_config_width);
+	const int queue_page_width = base_config_width + queue_width;
+
+	queue_config_container_rect.x = rect.center().x - queue_page_width / 2;
+	queue_config_container_rect.w = base_config_width;
+
+	ui::reset_container(
+		queue_config_container,
+		sdl::window,
+		queue_config_container_rect,
+		config_container_element_gap,
+		ui::Padding{ queue_title_area_height, PAD_X, bottom_pad, PAD_X }
+	);
+
+	gfx::Rect queue_container_rect = queue_config_container_rect;
+	queue_container_rect.x = queue_config_container_rect.x2();
+	queue_container_rect.w = queue_width;
+
+	ui::reset_container(
+		queue_container, sdl::window, queue_container_rect, 13, ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X }
+	);
 
 	gfx::Rect config_container_rect = rect;
 
-	const int base_config_width = 200 + PAD_X * 2;
-
 	// presets need the room, ffmpeg commands are long
-	int config_goal_width = components::configs::selected_config_tab == "encoding presets" ? rect.w : base_config_width;
+	int config_goal_width = components::configs::selected_config_tab == "encoding" ? rect.w : base_config_width;
 
 	static float config_width = config_goal_width;
 	float last_config_width = config_width;
@@ -144,7 +169,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	gfx::Rect option_information_container_rect = config_preview_container_rect;
 	ui::Padding option_information_padding{ PAD_Y, PAD_X, bottom_pad, PAD_X };
 
-	if (components::configs::selected_config_tab == "encoding presets") {
+	if (components::configs::selected_config_tab == "encoding") {
 		// presets tab takes up the whole space so show option info in the same area
 		option_information_container_rect = config_container_rect;
 		option_information_padding.top += ui::tabs_height(fonts::dejavu) + config_container_element_gap;
@@ -225,7 +250,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 				components::configs::loaded_config = false;
 			}
 
-			auto main_screen = components::main::screen(main_container, delta_time);
+			auto main_screen =
+				components::main::screen(main_container, queue_config_container, queue_container, delta_time);
 
 			components::render_history::render_button(history_button_container);
 			components::render_history::render_panel(history_panel_container, delta_time, true);
@@ -264,6 +290,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 						ui::set_next_same_line(nav_container);
 						components::main::open_files_button(nav_container, "Add files");
+
+						ui::center_elements_in_container(queue_container, true, false);
 
 						break;
 					}
@@ -399,6 +427,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	want_to_render |= ui::update_container_frame(navigation_button_container, delta_time);
 
 	want_to_render |= ui::update_container_frame(main_container, delta_time);
+	want_to_render |= ui::update_container_frame(queue_config_container, delta_time);
+	want_to_render |= ui::update_container_frame(queue_container, delta_time);
 	want_to_render |= ui::update_container_frame(config_container, delta_time);
 	want_to_render |= ui::update_container_frame(config_preview_content_container, delta_time);
 	want_to_render |= ui::update_container_frame(option_information_container, delta_time);
@@ -451,7 +481,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		}
 #endif
 
-		// front -> back
+		ui::render_container(queue_config_container);
+		ui::render_container(queue_container);
 		ui::render_container(main_container);
 		ui::render_container(config_container);
 		ui::render_container(config_preview_content_container);

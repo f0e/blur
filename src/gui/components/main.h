@@ -23,11 +23,21 @@ namespace gui::components::main {
 		float& bar_percent
 	);
 
-	void render_pending(ui::Container& container, const std::vector<std::shared_ptr<tasks::PendingVideo>>& pending);
+	void render_pending(
+		ui::Container& container,
+		ui::Container& config_container,
+		ui::Container& queue_container,
+		const std::vector<std::shared_ptr<tasks::PendingVideo>>& pending
+	);
 
 	void invalidate_trim_support();
 
 	void render_home(ui::Container& container);
 
-	MainScreen screen(ui::Container& container, float delta_time);
+	MainScreen screen(
+		ui::Container& container,
+		ui::Container& queue_config_container,
+		ui::Container& queue_container,
+		float delta_time
+	);
 }

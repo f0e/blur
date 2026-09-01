@@ -48,7 +48,7 @@ void configs::options(ui::Container& container) {
 	                             const std::function<void()>& add_element) {
 		auto it = std::ranges::find(validation.errors, field, &config_blur::ValidationError::field);
 		std::optional<std::string> message = it != validation.errors.end() ? std::optional(it->message) : std::nullopt;
-		add_with_message(container, error_id, message, ERROR_COLOR, add_element);
+		ui::add_with_message(container, error_id, message, ERROR_COLOR, add_element);
 	};
 
 	bool first_section = true;

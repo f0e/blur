@@ -28,6 +28,7 @@ namespace ui {
 		TEXT,
 		IMAGE,
 		VIDEO,
+		TIMELINE,
 		BUTTON,
 		ICON_BUTTON,
 		NOTIFICATION,
@@ -156,50 +157,45 @@ namespace ui {
 		size_t video_id;
 		std::filesystem::path path;
 		std::optional<u::VideoInfo> video_info;
+		float* start = nullptr;
+		float* end = nullptr;
+		bool trim_disabled = false;
 
 		bool operator==(const UIVideo& other) const = default;
 	};
 
+	struct VideoWaveform {
+		std::vector<int16_t> samples;
+		int16_t max_sample = 0;
+	};
+
 	struct VideoElementData {
-		struct StoredWaveform {
-			std::vector<int16_t> samples;
-			int16_t max_sample = 0;
-		};
-
-		struct Video {
-			UIVideo data;
-			gfx::Size size;
-			std::optional<StoredWaveform*> waveform;
-			std::optional<gui_utils::ThumbnailRes> thumbnail;
-
-			bool operator==(const Video& other) const {
-				return data == other.data && size == other.size && waveform == other.waveform &&
-				       thumbnail == other.thumbnail;
-			}
-		};
-
-		struct TrimHandleInfo {
-			bool grabbing;
-			bool grab_moving = false;
-			std::optional<int> grab_start_mouse_x;
-			// for the future
-		};
-
-		std::vector<Video> videos;
-		size_t* index;
-		float* start;
-		float* end;
-		bool trim_disabled = false;
-		std::optional<float> saved_percent;
-		TrimHandleInfo handle_info;
+		UIVideo video;
+		std::optional<gui_utils::ThumbnailRes> thumbnail;
+		bool active = false;
+		float fade = 0.f;
+		size_t* index = nullptr;
+		size_t list_index = 0;
+		size_t video_count = 1;
 		std::function<void(size_t video_id)> on_remove;
 
-		// persistent
-		std::optional<std::filesystem::path> last_active_video;
-		std::optional<int> last_pan_x;
-
 		bool operator==(const VideoElementData& other) const {
-			return videos == other.videos && index == other.index && start == other.start && end == other.end;
+			return video == other.video && thumbnail == other.thumbnail && active == other.active &&
+			       fade == other.fade && index == other.index && list_index == other.list_index &&
+			       video_count == other.video_count;
+		}
+	};
+
+	struct TimelineElementData {
+		UIVideo video;
+		VideoWaveform* waveform = nullptr;
+		bool active = false;
+		float fade = 0.f;
+		bool interactive = false;
+
+		bool operator==(const TimelineElementData& other) const {
+			return video == other.video && waveform == other.waveform && active == other.active && fade == other.fade &&
+			       interactive == other.interactive;
 		}
 	};
 
@@ -510,6 +506,7 @@ namespace ui {
 		TextElementData,
 		ImageElementData,
 		VideoElementData,
+		TimelineElementData,
 		ButtonElementData,
 		IconButtonElementData,
 		NotificationElementData,
@@ -717,10 +714,13 @@ namespace ui {
 
 	void render_image(const Container& container, const AnimatedElement& element);
 
-	void render_videos(const Container& container, const AnimatedElement& element);
-	bool update_videos(const Container& container, AnimatedElement& element);
-	void remove_videos(AnimatedElement& element);
-	void pause_stale_videos(AnimatedElement& element);
+	void render_video(const Container& container, const AnimatedElement& element);
+	bool update_video(const Container& container, AnimatedElement& element);
+	void remove_video(AnimatedElement& element);
+	void pause_stale_video(AnimatedElement& element);
+
+	void render_timeline(const Container& container, const AnimatedElement& element);
+	bool update_timeline(const Container& container, AnimatedElement& element);
 
 	void handle_videos_event(const SDL_Event& event, bool& to_render);
 
@@ -879,7 +879,7 @@ namespace ui {
 		gfx::Color image_color = gfx::Color::white()
 	);
 
-	std::optional<AnimatedElement*> add_videos(
+	void add_videos(
 		const std::string& id,
 		Container& container,
 		const std::vector<UIVideo>& ui_videos,
@@ -1109,6 +1109,17 @@ namespace ui {
 	);
 
 	void add_spacing(Container& container, int spacing);
+
+	void reserve_space(Container& container, int height);
+
+	// adds an element, followed by an optional message tucked in close underneath it (e.g. a validation error)
+	void add_with_message(
+		Container& container,
+		const std::string& message_id,
+		const std::optional<std::string>& message,
+		const gfx::Color& color,
+		const std::function<void()>& add_element
+	);
 
 	void set_next_same_line(Container& container);
 

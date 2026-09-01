@@ -251,9 +251,37 @@ jobs:
               mkdir -p package
               mv blur-cli "package/blur-cli-$config"
               mv blur "package/blur-$config"
-              find . -maxdepth 1 -type f \( -name '*EGL*.so*' -o -name '*GLESv2*.so*' \) -exec mv {} package/ \;
+
+              # preserve angle symlinks
+              shopt -s nullglob
+              angle_egl_libraries=( *EGL*.so* )
+              angle_gles_libraries=( *GLESv2*.so* )
+              if (( ${#angle_egl_libraries[@]} == 0 || ${#angle_gles_libraries[@]} == 0 )); then
+                echo "Missing ANGLE Linux runtime libraries in $PWD" >&2
+                exit 1
+              fi
+              cp -a -- "${angle_egl_libraries[@]}" "${angle_gles_libraries[@]}" package/
+
               mv lib/ package/
               cp -r ../../ci/out/* package/
+
+              linux_gui="package/blur-$config"
+              if ! readelf -d "$linux_gui" | grep -Fq '$ORIGIN'; then
+                echo "Linux GUI does not have a relocatable \$ORIGIN RUNPATH" >&2
+                readelf -d "$linux_gui" >&2
+                exit 1
+              fi
+
+              elf_files=( "$linux_gui" package/*EGL*.so* package/*GLESv2*.so* )
+              for elf_file in "${elf_files[@]}"; do
+                missing_dependencies="$(ldd "$elf_file" | grep 'not found' || true)"
+                if [[ -n "$missing_dependencies" ]]; then
+                  echo "Unresolved runtime dependencies for $elf_file:" >&2
+                  echo "$missing_dependencies" >&2
+                  exit 1
+                fi
+              done
+
               tar -czf "$bundle_dir/blur-$config.tar.gz" -C package .
               ;;
 

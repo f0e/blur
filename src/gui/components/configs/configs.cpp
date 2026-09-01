@@ -172,25 +172,6 @@ bool configs::has_unsaved_changes() {
 	       rule_settings != current_rule_settings || encoding_preset_settings != current_encoding_preset_settings;
 }
 
-void configs::add_with_message(
-	ui::Container& container,
-	const std::string& message_id,
-	const std::optional<std::string>& message,
-	const gfx::Color& color,
-	const std::function<void()>& add_element
-) {
-	if (message)
-		container.push_element_gap(2);
-
-	add_element();
-
-	if (message) {
-		container.pop_element_gap();
-
-		ui::add_text(message_id, container, *message, color, fonts::dejavu);
-	}
-}
-
 void configs::section(
 	ui::Container& container, bool& first_section, const std::string& label, bool* setting, bool forced_on
 ) {
@@ -273,7 +254,7 @@ void configs::config_actions(ui::Container& container) {
 		}
 	}
 	else {
-		label = "encoding presets";
+		label = "encoding";
 
 		do_export = [] {
 			return config_encoding_presets::generate_config_string(encoding_preset_settings);
@@ -379,7 +360,7 @@ void configs::screen(
 			"config tabs", config_container, CONFIG_TABS, selected_config_tab, fonts::dejavu, on_tab_select
 		);
 
-		if (selected_config_tab == "encoding presets")
+		if (selected_config_tab == "encoding")
 			ui::center_element(config_container, config_tabs);
 		else {
 			const auto usable_rect = config_container.get_usable_rect();
@@ -451,7 +432,7 @@ void configs::screen(
 		ui::add_button("save button", nav_container, "Save", fonts::dejavu, [] {
 			// saving would silently drop the broken presets, send the user to fix them instead
 			if (auto preset_error = config_encoding_presets::validate(encoding_preset_settings)) {
-				selected_config_tab = "encoding presets";
+				selected_config_tab = "encoding";
 				selected_encoding_preset_gpu_type = preset_error->gpu_type;
 
 				gui::components::notifications::add(

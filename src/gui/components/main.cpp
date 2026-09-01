@@ -268,7 +268,12 @@ void main::render_progress(
 	}
 }
 
-void main::render_pending(ui::Container& container, const std::vector<std::shared_ptr<tasks::PendingVideo>>& pending) {
+void main::render_pending(
+	ui::Container& container,
+	ui::Container& config_container,
+	ui::Container& queue_container,
+	const std::vector<std::shared_ptr<tasks::PendingVideo>>& pending
+) {
 	pending_index = (size_t)std::clamp((int)pending_index, 0, int(pending.size() - 1));
 
 	auto& pending_video = pending[pending_index];
@@ -280,18 +285,17 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 		render_title_text = std::format("{} ({}/{})", render_title_text, pending_index + 1, queue_size);
 	}
 
-	container.push_element_gap(4);
+	const auto title_font = fonts::garamond(fonts::size::SMALL_HEADER);
 
-	ui::add_text(
+	ui::add_text_fixed(
 		std::format("video {} name text", pending_index),
 		container,
+		container.get_usable_rect().top_center(),
 		render_title_text,
 		gfx::Color::white(),
-		fonts::garamond(fonts::size::SMALL_HEADER),
-		FONT_CENTERED_X | FONT_OUTLINE
+		title_font,
+		FONT_CENTERED_X | FONT_DROPSHADOW | FONT_OUTLINE
 	);
-
-	container.pop_element_gap();
 
 	std::vector<ui::UIVideo> ui_videos;
 
@@ -302,6 +306,9 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 				.video_id = pv->video_id,
 				.path = pv->video_path,
 				.video_info = pv->video_info,
+				.start = &pv->start,
+				.end = &pv->end,
+				.trim_disabled = is_trim_disabled(*pv),
 			}
 		);
 	}
@@ -314,7 +321,7 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 
 	ui::add_videos(
 		"test video",
-		container,
+		queue_container,
 		ui_videos,
 		pending_index,
 		pending_video->start,
@@ -327,43 +334,50 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 		}
 	);
 
-	// which config and masks this clip renders with. seeded when it was added, so these start on the
-	// configured defaults. applies to the selected clip, same as the trim controls above
-	container.push_usable_width(0.5f);
 	{
 		// the dropdown holds onto a pointer to this, so it has to outlive the frame
 		static std::string selected_config;
 		selected_config = pending_video->config_name.empty() ? NO_CONFIG_OPTION : pending_video->config_name;
 
-		ui::add_dropdown(
-			std::format("config dropdown {}", pending_video->video_id),
-			container,
-			"config",
-			config_blur::options(pending_video->config_name),
-			selected_config,
-			fonts::dejavu,
-			[pending_video](std::string* new_value) {
-				if (pending_video->config_name == *new_value)
-					return;
+		std::optional<std::string> config_missing_message;
+		if (pending_video->config_missing_warning && pending_video->config_name.empty())
+			config_missing_message = "you need to select a config";
 
-				pending_video->config_name = *new_value;
+		ui::add_with_message(
+			config_container,
+			std::format("config missing warning {}", pending_video->video_id),
+			config_missing_message,
+			gfx::Color(255, 100, 100),
+			[&] {
+				ui::add_dropdown(
+					std::format("config dropdown {}", pending_video->video_id),
+					config_container,
+					"config",
+					config_blur::options(pending_video->config_name),
+					selected_config,
+					fonts::dejavu,
+					[pending_video](std::string* new_value) {
+						if (pending_video->config_name == *new_value)
+							return;
 
-				// picked by hand, so the line below stops explaining where it came from
-				pending_video->config_source = config_blur::ConfigSource::OVERRIDE;
-				pending_video->config_rule_pattern.clear();
+						pending_video->config_name = *new_value;
+						pending_video->config_missing_warning = false;
 
-				// the mask controls below start on whatever the config asks for, so a new config brings
-			    // its own masks with it. that does drop a mask picked by hand for this clip, but the
-			    // dropdown for it is right there
-				auto config = config_blur::get_config(pending_video->config_name);
-				pending_video->mask = config.mask;
-				pending_video->auto_mask = config.auto_mask;
+						// picked by hand, so the line below stops explaining where it came from
+						pending_video->config_source = config_blur::ConfigSource::OVERRIDE;
+						pending_video->config_rule_pattern.clear();
 
-				// whether trimming is allowed depends on the config's encode preset
-				invalidate_trim_support();
-			},
-			// show the placeholder as muted without making it selectable
-			{ NO_CONFIG_OPTION }
+						auto config = config_blur::get_config(pending_video->config_name);
+						pending_video->mask = config.mask;
+						pending_video->auto_mask = config.auto_mask;
+
+						// whether trimming is allowed depends on the config's encode preset
+						invalidate_trim_support();
+					},
+					// show the placeholder as muted without making it selectable
+					{ NO_CONFIG_OPTION }
+				);
+			}
 		);
 
 		// say where the config came from, so a rule quietly picking one isn't a surprise
@@ -383,7 +397,7 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 		if (config_reason) {
 			ui::add_text(
 				std::format("config reason {}", pending_video->video_id),
-				container,
+				config_container,
 				*config_reason,
 				gfx::Color::white(renderer::MUTED_SHADE),
 				fonts::dejavu(fonts::size::SMALL)
@@ -398,7 +412,7 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 		// leave the callback pointing at whichever video first created the element.
 		ui::add_dropdown(
 			std::format("mask dropdown {}", pending_video->video_id),
-			container,
+			config_container,
 			"mask",
 			masks::options(pending_video->mask),
 			selected_mask,
@@ -417,7 +431,7 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 		// stacks on top of the mask above rather than replacing it
 		ui::add_checkbox(
 			std::format("auto mask checkbox {}", pending_video->video_id),
-			container,
+			config_container,
 			"auto mask",
 			auto_mask,
 			fonts::dejavu,
@@ -427,12 +441,11 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 			true
 		);
 	}
-	container.pop_usable_width();
 
 	if (trim_disabled) {
 		ui::add_text(
 			"trim disabled notice",
-			container,
+			queue_container,
 			"Trimming unavailable, as the current preset copies the audio ('-c:a copy')",
 			gfx::Color::white(renderer::MUTED_SHADE),
 			fonts::dejavu,
@@ -481,7 +494,9 @@ void main::render_home(ui::Container& container) {
 	);
 }
 
-main::MainScreen main::screen(ui::Container& container, float delta_time) {
+main::MainScreen main::screen(
+	ui::Container& container, ui::Container& queue_config_container, ui::Container& queue_container, float delta_time
+) {
 	static float bar_percent = 0.f;
 
 	auto app_config = config_app::get_app_config();
@@ -494,7 +509,7 @@ main::MainScreen main::screen(ui::Container& container, float delta_time) {
 		});
 
 		if (!app_config.skip_queue || needs_config) {
-			render_pending(container, pending);
+			render_pending(container, queue_config_container, queue_container, pending);
 			return MainScreen::PENDING;
 		}
 	}

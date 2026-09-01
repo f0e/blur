@@ -222,6 +222,7 @@ void tasks::start_pending_videos() {
 	std::erase_if(pending_videos, [&missing_config](const std::shared_ptr<PendingVideo>& pending_video) {
 		if (pending_video->config_name.empty()) {
 			missing_config++;
+			pending_video->config_missing_warning = true;
 			return false;
 		}
 

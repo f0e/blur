@@ -109,12 +109,12 @@ A rule points every video whose path matches a pattern at a config, so clips out
 
 Each rule is a pattern and the config it picks. `*` matches any run of characters and `?` matches a single one, and a pattern with neither is matched anywhere in the path - so `valorant` catches anything with that in its path, `D:/clips/apex/*` catches a folder, and `*.mkv` catches an extension. Matching ignores case, and treats `\` and `/` the same, so a pattern copied off a Windows path works on Linux too.
 
-Rules are ordered and the first enabled one that matches wins, so put the specific ones above the general ones. Drag a rule by its handle to move it.
+Rules are ordered and the first one that matches wins, so put the specific ones above the general ones. Drag a rule by its handle to move it.
 
 A video picks its config when it's added, in this order:
 
 1. a config chosen for that video, or `--config-name` on the command line
-2. the first enabled rule that matches its path
+2. the first rule that matches its path
 3. the default config
 
 The queue says which of those it was underneath the config dropdown, and changing the config there overrides it for that video either way.

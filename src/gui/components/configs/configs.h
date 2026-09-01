@@ -17,15 +17,7 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	const int DELETE_ICON_GAP = 6;
 	const int SEEK_BAR_BOTTOM_GAP = 9;
 
-	void add_with_message(
-		ui::Container& container,
-		const std::string& message_id,
-		const std::optional<std::string>& message,
-		const gfx::Color& color,
-		const std::function<void()>& add_element
-	);
-
-	inline const std::vector<std::string> CONFIG_TABS = { "blur", "app", "encoding presets" };
+	inline const std::vector<std::string> CONFIG_TABS = { "blur", "app", "encoding" };
 	inline std::string selected_config_tab = CONFIG_TABS[0];
 	inline constexpr int CONFIG_HEADER_NAV_GAP = 6;
 
