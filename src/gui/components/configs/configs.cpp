@@ -46,6 +46,66 @@ namespace {
 }
 
 namespace {
+	// text inputs and dropdowns keep a pointer to the string they're showing, and elements stick around for a
+	// bit after they stop being added (they fade out), so the strings can't live in the vector they came from -
+	// removing an entry would leave the fading out elements pointing at freed memory. they live here instead,
+	// keyed by element id, and never get erased
+	struct InputBuffer {
+		std::string text;   // what the element edits
+		std::string synced; // the value both sides last agreed on, used to work out which way to sync
+	};
+
+	std::map<std::string, InputBuffer> input_buffers;
+
+	// same idea for checkboxes, which keep a bool* and would dangle when the vector behind them grows
+	struct CheckboxBuffer {
+		bool value = false;
+		bool synced = false;
+	};
+
+	std::map<std::string, CheckboxBuffer> checkbox_buffers;
+}
+
+std::string& configs::bind_input(const std::string& id, std::string& value) {
+	auto& buffer = input_buffers[id];
+
+	if (buffer.text != buffer.synced) {
+		// edited in the ui
+		value = buffer.text;
+	}
+	else if (value != buffer.synced) {
+		// changed elsewhere (config loaded, changes reset, an entry above this one was removed, ...)
+		buffer.text = value;
+	}
+
+	buffer.synced = value;
+
+	return buffer.text;
+}
+
+std::string& configs::bind_read_only_input(const std::string& id, const std::string& value) {
+	auto& buffer = input_buffers[id];
+
+	buffer.text = value;
+	buffer.synced = value;
+
+	return buffer.text;
+}
+
+bool& configs::bind_checkbox(const std::string& id, bool& value) {
+	auto& buffer = checkbox_buffers[id];
+
+	if (buffer.value != buffer.synced)
+		value = buffer.value;
+	else if (value != buffer.synced)
+		buffer.value = value;
+
+	buffer.synced = value;
+
+	return buffer.value;
+}
+
+namespace {
 	// whether the owner asked for the switch this frame. an owner that stops being drawn while it
 	// holds the switch never gets to close it, which would leave the panel stuck on its tab
 	bool temp_tab_owner_drawn = false;
@@ -109,7 +169,7 @@ bool configs::has_unsaved_changes() {
 	flush_selected_config();
 
 	return edited_configs != saved_configs || app_settings != current_app_settings ||
-	       encoding_preset_settings != current_encoding_preset_settings;
+	       rule_settings != current_rule_settings || encoding_preset_settings != current_encoding_preset_settings;
 }
 
 void configs::add_with_message(
@@ -355,6 +415,7 @@ void configs::screen(
 
 				app_settings = config_app::get_app_config();
 				encoding_preset_settings = config_encoding_presets::get_config();
+				rule_settings = config_rules::get_config();
 				on_load();
 				loading_config = false;
 				loaded_config = true;
@@ -442,6 +503,7 @@ void configs::screen(
 
 			app_settings = current_app_settings;
 			encoding_preset_settings = current_encoding_preset_settings;
+			rule_settings = current_rule_settings;
 			on_load();
 		});
 	}
