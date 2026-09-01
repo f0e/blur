@@ -469,15 +469,14 @@ void render::text(
 	const std::string& text,
 	const Font& font,
 	unsigned int flags,
-	float rotation_deg,
-	int rotation_pivot_y
+	float rotation_deg
 ) {
 	if (!font)
 		return;
 
 	ImGui::PushFont(font.im_font(), font.size());
 
-	int vtx_idx_begin = imgui.drawlist->_VtxCurrentIdx;
+	int vtx_idx_begin = imgui.drawlist->VtxBuffer.Size;
 
 	if (flags) {
 		const auto size = font.calc_size(text);
@@ -523,17 +522,29 @@ void render::text(
 	imgui.drawlist->AddText(font.im_font(), font.size(), pos, colour.to_imgui(), text.data());
 
 	if (rotation_deg != 0.f) {
-		int vtx_idx_end = imgui.drawlist->_VtxCurrentIdx;
+		int vtx_idx_end = imgui.drawlist->VtxBuffer.Size;
+		if (vtx_idx_begin == vtx_idx_end) {
+			ImGui::PopFont();
+			return;
+		}
 
-		auto text_size = font.calc_size(text);
-		gfx::Rect text_rect(pos, gfx::Size(text_size.w, rotation_pivot_y));
+		// use the center of the vertices that were actually drawn
+		float min_x = imgui.drawlist->VtxBuffer[vtx_idx_begin].pos.x;
+		float max_x = min_x;
+		float min_y = imgui.drawlist->VtxBuffer[vtx_idx_begin].pos.y;
+		float max_y = min_y;
+		for (int i = vtx_idx_begin + 1; i < vtx_idx_end; i++) {
+			min_x = std::min(min_x, imgui.drawlist->VtxBuffer[i].pos.x);
+			max_x = std::max(max_x, imgui.drawlist->VtxBuffer[i].pos.x);
+			min_y = std::min(min_y, imgui.drawlist->VtxBuffer[i].pos.y);
+			max_y = std::max(max_y, imgui.drawlist->VtxBuffer[i].pos.y);
+		}
 
-		ImVec2 pivot_in = text_rect.center();
-		ImVec2 pivot_out = text_rect.center();
+		ImVec2 pivot((min_x + max_x) * 0.5f, (min_y + max_y) * 0.5f);
 
 		float ang = u::deg_to_rad(rotation_deg);
 		ImGui::ShadeVertsTransformPos(
-			imgui.drawlist, vtx_idx_begin, vtx_idx_end, pivot_in, std::cos(ang), std::sin(ang), pivot_out
+			imgui.drawlist, vtx_idx_begin, vtx_idx_end, pivot, std::cos(ang), std::sin(ang), pivot
 		);
 	}
 

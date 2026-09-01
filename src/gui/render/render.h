@@ -224,8 +224,7 @@ namespace render {
 		const std::string& text,
 		const Font& font,
 		unsigned int flags = FONT_NONE,
-		float rotation_deg = 0.f,
-		int rotation_pivot_y = 0
+		float rotation_deg = 0.f
 	);
 
 	void image(const gfx::Rect& rect, const Texture& texture, const gfx::Color& tint_color = gfx::Color::white());
