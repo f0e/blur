@@ -94,9 +94,10 @@ namespace ui {
 		std::string tooltip;
 
 		gfx::Rect row_rect;
+		int row_anchor_y = 0;
 
 		bool operator==(const DragHandleElementData& other) const {
-			return tooltip == other.tooltip && row_rect == other.row_rect;
+			return tooltip == other.tooltip && row_rect == other.row_rect && row_anchor_y == other.row_anchor_y;
 		}
 	};
 

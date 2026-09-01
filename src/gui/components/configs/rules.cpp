@@ -223,6 +223,7 @@ namespace {
 													row.h + (LIFT_PADDING_Y * 2)
 												)
 			                                  : gfx::Rect();
+			handle_data.row_anchor_y = row.handle->element->rect.y;
 
 			if (lifted_row) {
 				for (auto* element : row.elements) {
