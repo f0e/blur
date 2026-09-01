@@ -272,5 +272,5 @@ void configs::config_management(ui::Container& container) {
 	const auto& dropdown_data = std::get<ui::DropdownElementData>(dropdown->element->data);
 	hovered_config = dropdown_data.hovered_option;
 
-	set_temporary_tab(CONFIG_DROPDOWN_ID, dropdown->animations.at(ui::hasher("expand")).goal > 0, TABS[2]);
+	set_temporary_tab(CONFIG_DROPDOWN_ID, dropdown->animations.at(ui::hasher("expand")).goal > 0, RIGHT_TABS[2]);
 }

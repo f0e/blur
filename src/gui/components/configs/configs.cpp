@@ -119,14 +119,14 @@ void configs::set_temporary_tab(const std::string& owner, bool open, const std::
 		if (temp_tab_owner.empty()) {
 			temp_tab_owner = owner;
 			temp_tab_owner_drawn = true;
-			old_tab = selected_tab;
+			old_tab = selected_right_tab;
 		}
 
 		if (temp_tab_owner == owner)
-			selected_tab = tab;
+			selected_right_tab = tab;
 	}
 	else if (temp_tab_owner == owner) {
-		selected_tab = old_tab;
+		selected_right_tab = old_tab;
 		old_tab.clear();
 		temp_tab_owner.clear();
 	}
@@ -134,7 +134,7 @@ void configs::set_temporary_tab(const std::string& owner, bool open, const std::
 
 void configs::release_stale_temporary_tab() {
 	if (!temp_tab_owner.empty() && !temp_tab_owner_drawn) {
-		selected_tab = old_tab;
+		selected_right_tab = old_tab;
 		old_tab.clear();
 		temp_tab_owner.clear();
 	}
@@ -471,7 +471,7 @@ void configs::screen(
 					continue;
 
 				selected_config_tab = "blur";
-				selected_tab = TABS[0];
+				selected_right_tab = RIGHT_TABS[0];
 				select_config(name); // show the config the error is actually in
 
 				gui::components::notifications::add(

@@ -97,7 +97,9 @@ void configs::options(ui::Container& container) {
 		const auto& dropdown_data = std::get<ui::DropdownElementData>(weighting_dropdown->element->data);
 		hovered_weighting = dropdown_data.hovered_option;
 
-		set_temporary_tab("blur weighting", weighting_dropdown->animations.at(ui::hasher("expand")).goal > 0, TABS[1]);
+		set_temporary_tab(
+			"blur weighting", weighting_dropdown->animations.at(ui::hasher("expand")).goal > 0, RIGHT_TABS[1]
+		);
 
 		ui::add_slider("blur gamma", container, 1.f, 10.f, &settings.blur_gamma, "blur gamma: {:.2f}", fonts::dejavu);
 	}
