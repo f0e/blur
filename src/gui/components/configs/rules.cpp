@@ -1,11 +1,18 @@
-#include "configs.h"
+﻿#include "configs.h"
 
 #include "../../ui/ui.h"
+#include "../../ui/keys.h"
 #include "../../renderer.h"
 
 namespace configs = gui::components::configs;
 
 namespace {
+	constexpr int ROW_GAP = 4;
+
+	// which rule the mouse is carrying, if any. the rows move around under the cursor as it goes, so the
+	// drag is tracked here rather than by the handle that started it
+	std::optional<size_t> dragging_rule;
+
 	std::vector<std::string> config_options(const std::string& current) {
 		std::vector<std::string> names;
 		names.reserve(configs::edited_configs.size() + 1);
@@ -26,7 +33,13 @@ namespace {
 		return !name.empty() && !configs::edited_configs.contains(name);
 	}
 
-	void rule_row(ui::Container& container, size_t index) {
+	struct RowResult {
+		ui::AnimatedElement* handle;
+		int y;
+		int y2;
+	};
+
+	RowResult rule_row(ui::Container& container, size_t index) {
 		auto& rule = configs::rule_settings.rules[index];
 
 		std::string id = std::format("rule {}", index);
@@ -34,18 +47,23 @@ namespace {
 		int icon_size = ui::text_input_height(fonts::dejavu);
 		auto icon_dimensions = gfx::Size(icon_size, icon_size);
 
-		container.push_element_gap(4);
+		int row_y = container.current_position.y;
 
-		ui::add_text_input(
-			std::format("{} pattern input", id),
+		container.push_element_gap(ROW_GAP);
+
+		auto* handle =
+			ui::add_drag_handle(std::format("{} drag handle", id), container, icon_dimensions, "Drag to reorder");
+
+		ui::set_next_same_line(container);
+
+		ui::add_checkbox(
+			std::format("{} enabled checkbox", id),
 			container,
-			configs::bind_input(std::format("{} pattern", id), rule.pattern),
-			"",
+			"enabled",
+			configs::bind_checkbox(std::format("{} enabled", id), rule.enabled),
 			fonts::dejavu,
-			"pattern",
 			{},
-			false,
-			container.get_usable_rect().w - icon_size - configs::DELETE_ICON_GAP
+			true
 		);
 
 		ui::set_next_same_line(container);
@@ -67,8 +85,6 @@ namespace {
 
 		ui::right_align_element(container, delete_button);
 
-		container.pop_element_gap();
-
 		std::optional<std::string> message;
 		gfx::Color message_color = configs::WARNING_COLOR;
 
@@ -81,10 +97,27 @@ namespace {
 		}
 
 		configs::add_with_message(container, std::format("{} message", id), message, message_color, [&] {
-			container.push_element_gap(4);
-			container.push_usable_width(0.55f);
+			int full_width = container.get_usable_rect().w;
+			int config_width = std::max(full_width / 2, 100);
+			int pattern_width = full_width - config_width - configs::DELETE_ICON_GAP;
 
-			ui::add_dropdown(
+			ui::add_text_input(
+				std::format("{} pattern input", id),
+				container,
+				configs::bind_input(std::format("{} pattern", id), rule.pattern),
+				"",
+				fonts::dejavu,
+				"pattern",
+				{},
+				false,
+				pattern_width
+			);
+
+			ui::set_next_same_line(container);
+
+			container.push_usable_width((float)config_width / (float)full_width);
+
+			auto* config_dropdown = ui::add_dropdown(
 				std::format("{} config dropdown", id),
 				container,
 				"",
@@ -100,48 +133,47 @@ namespace {
 
 			container.pop_usable_width();
 
-			auto reorder_button =
-				[&](const std::string& button_id, const std::string& tooltip, float rotation, size_t swap_with) {
-					ui::set_next_same_line(container);
-
-					return ui::add_icon_button(
-						std::format("{} {}", id, button_id),
-						container,
-						icons::DROPDOWN_ARROW,
-						fonts::icons,
-						icon_dimensions,
-						configs::DELETE_ICON_COLOR,
-						gfx::Color::white(),
-						[index, swap_with] {
-							auto& rules = configs::rule_settings.rules;
-							if (index < rules.size() && swap_with < rules.size())
-								std::swap(rules[index], rules[swap_with]);
-						},
-						tooltip,
-						rotation
-					);
-				};
-
-			std::vector<ui::AnimatedElement*> reorder_buttons;
-
-			if (index > 0)
-				reorder_buttons.push_back(reorder_button("move up button", "Move up", 180.f, index - 1));
-
-			if (index + 1 < configs::rule_settings.rules.size())
-				reorder_buttons.push_back(reorder_button("move down button", "Move down", 0.f, index + 1));
-
-			ui::right_align_elements(container, reorder_buttons);
-
-			container.pop_element_gap();
+			ui::right_align_element(container, config_dropdown);
 		});
 
-		ui::add_checkbox(
-			std::format("{} enabled checkbox", id),
-			container,
-			"enabled",
-			configs::bind_checkbox(std::format("{} enabled", id), rule.enabled),
-			fonts::dejavu
-		);
+		container.pop_element_gap();
+
+		return RowResult{ .handle = handle, .y = row_y, .y2 = container.current_position.y };
+	}
+
+	// while a handle is held the rule follows the cursor into whichever row it's over. moving it rather
+	// than swapping keeps the rest of the list in order however far it's dragged
+	void update_drag(const std::vector<RowResult>& rows) {
+		auto& rules = configs::rule_settings.rules;
+
+		for (size_t i = 0; i < rows.size(); i++) {
+			const auto& handle_data = std::get<ui::DragHandleElementData>(rows[i].handle->element->data);
+			if (handle_data.pressed)
+				dragging_rule = i;
+		}
+
+		if (!dragging_rule)
+			return;
+
+		if (!keys::is_mouse_dragging() || *dragging_rule >= rows.size()) {
+			dragging_rule.reset();
+			return;
+		}
+
+		for (size_t i = 0; i < rows.size(); i++) {
+			if (i == *dragging_rule || keys::mouse_pos.y < rows[i].y || keys::mouse_pos.y >= rows[i].y2)
+				continue;
+
+			auto rule = rules[*dragging_rule];
+			rules.erase(rules.begin() + *dragging_rule);
+			rules.insert(rules.begin() + i, rule);
+
+			dragging_rule = i;
+			break;
+		}
+
+		// the rows shuffle underneath, so hand the grab to whichever handle the rule is now under
+		ui::set_active_element(*rows[*dragging_rule].handle, "drag handle");
 	}
 
 	// what the panel shows while the config dropdown is open: the rules pointing at whichever config is
@@ -197,6 +229,7 @@ namespace {
 
 void configs::rules(ui::Container& container) {
 	if (temp_tab_owner == CONFIG_DROPDOWN_ID) {
+		dragging_rule.reset();
 		rules_for_config(container, hovered_config.empty() ? selected_config_name : hovered_config);
 		return;
 	}
@@ -205,29 +238,34 @@ void configs::rules(ui::Container& container) {
 		"rules explanation",
 		container,
 		std::vector<std::string>{
-			"Videos are matched against these rules when they're added.",
-			"The first enabled rule that matches wins.",
+			"Videos are matched against these rules as",
+			"they are added - the first match wins.",
 		},
 		gfx::Color::white(gui::renderer::MUTED_SHADE),
 		fonts::dejavu(fonts::size::SMALL)
 	);
 
-	ui::add_spacing(container, 4);
+	ui::add_spacing(container, 6);
+
+	std::vector<RowResult> rows;
+	rows.reserve(rule_settings.rules.size());
 
 	for (size_t i = 0; i < rule_settings.rules.size(); i++) {
 		if (i > 0)
 			ui::add_separator(std::format("rule {} separator", i), container, ui::SeparatorStyle::FADE_RIGHT);
 
-		rule_row(container, i);
-
-		ui::add_spacing(container, 8);
+		rows.push_back(rule_row(container, i));
 	}
+
+	update_drag(rows);
 
 	if (rule_settings.rules.empty()) {
 		ui::add_text(
 			"no rules text", container, "no rules yet", gfx::Color::white(gui::renderer::MUTED_SHADE), fonts::dejavu
 		);
 	}
+
+	ui::add_spacing(container, 8);
 
 	ui::add_button("add rule button", container, "Add rule", fonts::dejavu, [] {
 		rule_settings.rules.push_back(
