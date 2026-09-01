@@ -210,10 +210,11 @@ namespace ui {
 		gfx::Color hover_color;
 		std::string tooltip;
 		std::optional<std::function<void()>> on_press;
+		float rotation_deg = 0.f;
 
 		bool operator==(const IconButtonElementData& other) const {
 			return icon == other.icon && font == other.font && color == other.color &&
-			       hover_color == other.hover_color && tooltip == other.tooltip;
+			       hover_color == other.hover_color && tooltip == other.tooltip && rotation_deg == other.rotation_deg;
 		}
 	};
 
@@ -894,7 +895,8 @@ namespace ui {
 		gfx::Color color,
 		gfx::Color hover_color,
 		std::optional<std::function<void()>> on_press = {},
-		const std::string& tooltip = ""
+		const std::string& tooltip = "",
+		float rotation_deg = 0.f
 	);
 
 	AnimatedElement* add_notification(
