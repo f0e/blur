@@ -39,8 +39,7 @@ struct GlobalAppSettings {
 
 	bool skip_queue = false;
 
-	// name of the blur config new videos start on. by name rather than filename so the default can be
-	// renamed like any other config
+	// name-based so renames preserve the default and empty requires a queue selection
 	std::string default_config = std::string(config_blur::DEFAULT_CONFIG_NAME);
 
 #ifdef __linux__

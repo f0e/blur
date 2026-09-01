@@ -76,6 +76,15 @@ bool cli::run(
 		}
 	}
 
+	if (!manual_config_names && !manual_config_files && config_blur::get_default_name().empty()) {
+		u::log(
+			"No default config is set, so there's nothing to render with. Pass --config-name (one per "
+			"input) to pick a config, or set a default in the app. Available configs: {}",
+			u::join(config_blur::list(), ", ")
+		);
+		return false;
+	}
+
 	for (size_t i = 0; i < inputs.size(); ++i) {
 		std::filesystem::path input_path = inputs[i];
 

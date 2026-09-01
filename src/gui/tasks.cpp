@@ -125,17 +125,20 @@ void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
 		// start from the config this video resolves to, and the masks that config asks for. the queue
 		// screen can change all three after
 		auto config_name = config_blur::resolve_config_name(path, {});
-		auto config = config_blur::get_config(config_name);
 
-		pending_videos.push_back(
-			std::make_shared<PendingVideo>(PendingVideo{
-				.video_id = next_video_id++,
-				.video_path = path,
-				.config_name = config_name,
-				.mask = config.mask,
-				.auto_mask = config.auto_mask,
-			})
-		);
+		auto pending_video = std::make_shared<PendingVideo>(PendingVideo{
+			.video_id = next_video_id++,
+			.video_path = path,
+			.config_name = config_name,
+		});
+
+		if (!config_name.empty()) {
+			auto config = config_blur::get_config(config_name);
+			pending_video->mask = config.mask;
+			pending_video->auto_mask = config.auto_mask;
+		}
+
+		pending_videos.push_back(std::move(pending_video));
 	}
 }
 
@@ -166,7 +169,9 @@ void tasks::process_pending_files() {
 		else {
 			pending_videos[index]->video_info = video_info;
 
-			if (config_app::get_app_config().skip_queue || pending_videos[index]->start_immediately) {
+			bool can_start = !pending_videos[index]->config_name.empty();
+
+			if (can_start && (config_app::get_app_config().skip_queue || pending_videos[index]->start_immediately)) {
 				auto pending_video = pending_videos[index];
 				pending_videos.erase(pending_videos.begin() + index);
 
@@ -210,7 +215,14 @@ void tasks::cancel_pending(size_t video_id) {
 void tasks::start_pending_videos() {
 	std::lock_guard<std::mutex> lock(pending_videos_mutex);
 
-	std::erase_if(pending_videos, [](const std::shared_ptr<PendingVideo>& pending_video) {
+	size_t missing_config = 0;
+
+	std::erase_if(pending_videos, [&missing_config](const std::shared_ptr<PendingVideo>& pending_video) {
+		if (pending_video->config_name.empty()) {
+			missing_config++;
+			return false;
+		}
+
 		if (!pending_video->video_info) {
 			// not parsed yet, flag it to be started immediately when parsing finishes & don't erase
 			pending_video->start_immediately = true;
@@ -220,6 +232,15 @@ void tasks::start_pending_videos() {
 		queue_render(pending_video);
 		return true;
 	});
+
+	if (missing_config > 0) {
+		gui::components::notifications::add(
+			"missing config",
+			missing_config == 1 ? "1 video still needs a config before it can render"
+								: std::format("{} videos still need a config before they can render", missing_config),
+			ui::NotificationType::NOTIF_ERROR
+		);
+	}
 }
 
 std::vector<std::shared_ptr<tasks::PendingVideo>> tasks::get_pending_copy() {

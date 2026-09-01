@@ -93,9 +93,13 @@ When interpolation is on it does both jobs in one pass: every frame it generates
 
 A config is a full set of blur settings. They're kept one to a file in the `configs` folder of your config folder, named after the file - `configs/slowmo.cfg` is the config called `slowmo` - so a config can be copied between machines, or edited by hand, on its own.
 
-One of them is the default, which is what videos start on when you add them. Create, rename and delete configs from the dropdown at the top of the blur settings tab, and set which one is the default there too. Edits to every config are kept while the settings screen is open, so you can flick between them and save the lot in one go.
+One of them is the default, which is what videos start on when you add them. Create, rename and delete configs from the dropdown at the top of the blur settings tab, and set which one is the default there too - the star marks it, and clicking the lit star unsets it again.
 
 Each video in the queue can be switched to a different config from its own dropdown, so a batch can mix them - a `slowmo` clip and a normal one rendered in one sitting. Switching a video's config also resets its mask options to whatever that config asks for.
+
+With no default set, videos are added to the queue without a config and their dropdown reads `select a config` until you pick one. Rendering then starts the videos that have a config and leaves the rest in the queue, telling you how many are still waiting on one.
+
+Edits to every config are kept while the settings screen is open, so you can flick between them and save the lot in one go.
 
 `blur-cli` takes `--config-name`, one per input, to say which config each video renders with:
 
@@ -104,7 +108,7 @@ blur-cli -i clip.mp4 --config-name slowmo
 blur-cli -i a.mp4 -i b.mp4 --config-name slowmo --config-name default
 ```
 
-Left off, each video uses the default config. `--config-path` still takes a path to a `.cfg` anywhere on disk, for a config that isn't in the folder.
+Left off, each video uses the default config, and `blur-cli` won't render anything if there isn't one. `--config-path` still takes a path to a `.cfg` anywhere on disk, for a config that isn't in the folder.
 
 ### Masks
 

@@ -115,6 +115,74 @@ namespace {
 		configs::edited_configs[name] = settings;
 		configs::select_config(name);
 	}
+
+	void rename_config(const std::string& name) {
+		open_name_dialog("Rename config", "Rename", name, "rename config", name, [from = name](const auto& to) {
+			if (from == to)
+				return;
+
+			configs::flush_selected_config();
+
+			auto node = configs::edited_configs.extract(from);
+			if (node.empty())
+				return;
+
+			node.key() = to;
+			configs::edited_configs.insert(std::move(node));
+
+			// config files are renamed on save
+			if (configs::app_settings.default_config == from)
+				configs::app_settings.default_config = to;
+
+			if (configs::selected_config_name == from)
+				configs::selected_config_name = to;
+		});
+	}
+
+	void duplicate_config(const std::string& name) {
+		// duplicate unsaved edits rather than the last saved version
+		configs::flush_selected_config();
+
+		auto it = configs::edited_configs.find(name);
+		if (it == configs::edited_configs.end())
+			return;
+
+		open_name_dialog(
+			"Duplicate config",
+			"Duplicate",
+			unique_name(name),
+			"duplicate config",
+			{},
+			[source = it->second](const auto& new_name) {
+				add_config(new_name, source);
+			}
+		);
+	}
+
+	void delete_config(const std::string& name) {
+		ui::dialog::confirm_destructive("Remove config?", std::format("'{}' will be removed.", name), "Remove", [name] {
+			configs::edited_configs.erase(name);
+
+			// deleting the default intentionally leaves no default
+			if (configs::app_settings.default_config == name)
+				configs::app_settings.default_config.clear();
+
+			if (configs::edited_configs.empty())
+				return;
+
+			if (configs::selected_config_name == name) {
+				// force select_config() to load the replacement
+				configs::selected_config_name.clear();
+				configs::select_config(configs::edited_configs.begin()->first);
+			}
+		});
+	}
+
+	void new_config() {
+		open_name_dialog("New config", "Create", unique_name("new config"), "new config", {}, [](const auto& name) {
+			add_config(name, config_blur::DEFAULT_CONFIG);
+		});
+	}
 }
 
 void configs::config_management(ui::Container& container) {
@@ -126,154 +194,76 @@ void configs::config_management(ui::Container& container) {
 	if (!u::contains(names, selected_config_name))
 		select_config(names.front());
 
-	bool is_default = app_settings.default_config == selected_config_name;
-
 	// the dropdown holds onto a pointer to this, so it has to outlive the frame
 	static std::string selected;
 	selected = selected_config_name;
 
+	auto is_default = [](const std::string& name) {
+		return app_settings.default_config == name;
+	};
+
+	std::vector<ui::DropdownOptionAction> row_actions = {
+		{
+			.icon = icons::STAR,
+			.tooltip = "Default config (click to unset)",
+			.color = DEFAULT_CONFIG_ICON_COLOR,
+			.hover_color = DEFAULT_CONFIG_ICON_COLOR,
+			.on_press =
+				[](const std::string&) {
+					app_settings.default_config.clear();
+				},
+			.applies_to = is_default,
+		},
+		{
+			.icon = icons::STAR,
+			.tooltip = "Set as default config",
+			.hover_color = DEFAULT_CONFIG_ICON_COLOR,
+			.on_press =
+				[](const std::string& name) {
+					app_settings.default_config = name;
+				},
+			.applies_to =
+				[is_default](const std::string& name) {
+					return !is_default(name);
+				},
+		},
+		{
+			.icon = icons::RENAME,
+			.tooltip = "Rename config",
+			.on_press = rename_config,
+		},
+		{
+			.icon = icons::COPY,
+			.tooltip = "Duplicate config",
+			.on_press = duplicate_config,
+		},
+		{
+			.icon = icons::TRASH,
+			.tooltip = "Delete config",
+			.hover_color = DELETE_ICON_HOVER_COLOR,
+			.on_press = delete_config,
+			.applies_to =
+				[](const std::string&) {
+					return edited_configs.size() > 1;
+				},
+		},
+	};
+
 	ui::add_dropdown(
-		"blur config dropdown", container, "config", names, selected, fonts::dejavu, [](std::string* new_value) {
+		"blur config dropdown",
+		container,
+		"",
+		names,
+		selected,
+		fonts::dejavu,
+		[](std::string* new_value) {
 			select_config(*new_value);
+		},
+		{},
+		row_actions,
+		ui::DropdownAddAction{
+			.tooltip = "New config",
+			.on_press = new_config,
 		}
 	);
-
-	// collected first and laid out below: five buttons don't fit on one line at this panel width, and
-	// center_elements only shifts a row rather than wrapping it, so they'd hang off both edges
-	struct Action {
-		std::string id;
-		std::string label;
-		std::function<void()> on_press;
-	};
-
-	std::vector<Action> actions;
-
-	auto add_action = [&](const std::string& id, const std::string& label, std::function<void()> on_press) {
-		actions.emplace_back(Action{ .id = id, .label = label, .on_press = std::move(on_press) });
-	};
-
-	add_action("new config button", "New", [] {
-		open_name_dialog("New config", "Create", unique_name("new config"), "new config", {}, [](const auto& name) {
-			// built-in defaults rather than a copy of what's selected - that's what Duplicate is for
-			add_config(name, config_blur::DEFAULT_CONFIG);
-		});
-	});
-
-	add_action("duplicate config button", "Duplicate", [] {
-		flush_selected_config();
-
-		open_name_dialog(
-			"Duplicate config",
-			"Duplicate",
-			unique_name(selected_config_name),
-			"duplicate config",
-			{},
-			[source = settings](const auto& name) {
-				add_config(name, source);
-			}
-		);
-	});
-
-	add_action("rename config button", "Rename", [] {
-		open_name_dialog(
-			"Rename config",
-			"Rename",
-			selected_config_name,
-			"rename config",
-			selected_config_name,
-			[from = selected_config_name](const auto& to) {
-				if (from == to)
-					return;
-
-				flush_selected_config();
-
-				auto node = edited_configs.extract(from);
-				if (node.empty())
-					return;
-
-				node.key() = to;
-				edited_configs.insert(std::move(node));
-
-				// the default is stored by name, so it has to follow the rename. the file on disk is
-			    // renamed at save time, along with the app config this writes into
-				if (app_settings.default_config == from)
-					app_settings.default_config = to;
-
-				selected_config_name = to;
-			}
-		);
-	});
-
-	// there's always got to be something to select, and something for videos to render with
-	if (edited_configs.size() > 1) {
-		add_action("delete config button", "Delete", [] {
-			ui::dialog::confirm_destructive(
-				"Remove config?",
-				std::format("'{}' will be removed.", selected_config_name),
-				"Remove",
-				[name = selected_config_name] {
-					edited_configs.erase(name);
-
-					if (edited_configs.empty())
-						return;
-
-					// if the default went with it, something has to take over, or videos would queue
-				    // against a config that isn't there
-					if (app_settings.default_config == name)
-						app_settings.default_config = edited_configs.begin()->first;
-
-					selected_config_name.clear(); // so select_config doesn't take it for a no-op
-					select_config(edited_configs.begin()->first);
-				}
-			);
-		});
-	}
-
-	if (!is_default) {
-		add_action("set default config button", "Set default", [] {
-			app_settings.default_config = selected_config_name;
-		});
-	}
-
-	// greedily pack into as many centred lines as it takes
-	const int usable_width = container.get_usable_rect().w;
-
-	std::vector<ui::AnimatedElement*> row;
-	int row_width = 0;
-
-	auto flush_row = [&] {
-		if (row.empty())
-			return;
-
-		ui::center_elements(container, row);
-		row.clear();
-		row_width = 0;
-	};
-
-	for (const auto& action : actions) {
-		int width = ui::button_width(action.label, fonts::dejavu);
-		int width_on_this_row = row.empty() ? width : row_width + container.element_gap + width;
-
-		if (!row.empty() && width_on_this_row > usable_width)
-			flush_row();
-
-		if (!row.empty())
-			ui::set_next_same_line(container);
-
-		row.push_back(ui::add_button(action.id, container, action.label, fonts::dejavu, action.on_press));
-		row_width = row.size() == 1 ? width : row_width + container.element_gap + width;
-	}
-
-	flush_row();
-
-	if (is_default) {
-		ui::add_text(
-			"default config notice",
-			container,
-			"videos start on this config",
-			gfx::Color::white(renderer::MUTED_SHADE),
-			fonts::dejavu,
-			FONT_CENTERED_X
-		);
-	}
 }

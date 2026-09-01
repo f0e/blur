@@ -212,12 +212,10 @@ namespace config_blur {
 	void save(const std::string& name, const BlurSettings& settings);
 	void remove(const std::string& name);
 
-	// the config new videos start on, from the app config. falls back to whatever config does exist if
-	// that one's been deleted, so there's always something selectable
+	// returns empty when no default is set or the configured default no longer exists
 	std::string get_default_name();
 
-	// which config a video renders with. an explicit choice - the queue dropdown, or --config-name - wins.
-	// a rule matching the input's folder or filename will slot in between the two once those exist
+	// returns empty when neither an override nor the default resolves
 	std::string resolve_config_name(
 		const std::filesystem::path& input_path, const std::optional<std::string>& name_override
 	);

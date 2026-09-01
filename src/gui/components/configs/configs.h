@@ -11,6 +11,7 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	inline const gfx::Color WARNING_COLOR(252, 186, 3, 150);
 
 	const gfx::Color DELETE_ICON_COLOR = gfx::Color::white(120);
+	const gfx::Color DEFAULT_CONFIG_ICON_COLOR = gfx::Color(255, 100, 100, 255);
 	const gfx::Color DELETE_ICON_HOVER_COLOR(255, 80, 80, 255);
 	const int DELETE_ICON_GAP = 6;
 	const int SEEK_BAR_BOTTOM_GAP = 9;
@@ -85,7 +86,6 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	void app_options(ui::Container& container);
 	void encoding_preset_options(ui::Container& container);
 
-	// the config dropdown and its new/duplicate/rename/delete/default actions, above the blur options
 	void config_management(ui::Container& container);
 
 	// writes `settings` back into the config it belongs to. call before reading edited_configs as a whole
