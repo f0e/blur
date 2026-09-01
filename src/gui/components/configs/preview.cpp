@@ -431,7 +431,7 @@ bool configs::preview_centered() {
 }
 
 // todo: refactor
-void configs::preview(ui::Container& container) {
+void configs::preview(ui::Container& container, float delta_time) {
 	std::optional<int> interp_fps;
 	if (settings.interpolate) {
 		std::istringstream iss(settings.interpolated_fps);
@@ -468,7 +468,7 @@ void configs::preview(ui::Container& container) {
 		}
 	}
 	else if (selected_tab == TABS[2]) {
-		rules(container);
+		rules(container, delta_time);
 	}
 
 	auto validation_res = config_blur::validate(settings, app_settings, encoding_preset_settings, false);

@@ -9,9 +9,246 @@ namespace configs = gui::components::configs;
 namespace {
 	constexpr int ROW_GAP = 4;
 
-	// which rule the mouse is carrying, if any. the rows move around under the cursor as it goes, so the
-	// drag is tracked here rather than by the handle that started it
-	std::optional<size_t> dragging_rule;
+	constexpr float ROW_SETTLE_SPEED = 50.f;
+	constexpr float ROW_SETTLE_SNAP = 0.5f;
+
+	constexpr int LIFT_PADDING_X = 6;
+	constexpr int LIFT_PADDING_Y = 5;
+
+	constexpr int LIFT_Z_INDEX = 10;
+
+	constexpr int AUTO_SCROLL_EDGE = 40;
+	constexpr float AUTO_SCROLL_SPEED = 800.f;
+
+	// keep element animations with their rows
+	constexpr std::array ANIMATED_ROW_ELEMENTS = { "drag handle", "enabled checkbox" };
+
+	struct Drag {
+		size_t index = 0;
+		int grab_offset = 0;
+	};
+
+	std::optional<Drag> drag;
+
+	struct RowState {
+		float offset = 0.f;
+		int y = 0;
+		int h = 0;
+		bool laid_out = false;
+	};
+
+	std::vector<RowState> row_states;
+
+	std::vector<std::string> lifted_element_ids;
+
+	size_t last_built_frame = 0;
+
+	struct Row {
+		int y = 0;
+		int h = 0;
+		ui::AnimatedElement* handle = nullptr;
+		std::vector<ui::AnimatedElement*> elements;
+	};
+
+	std::string row_element_id(size_t index, std::string_view suffix) {
+		return std::format("rule {} {}", index, suffix);
+	}
+
+	ui::AnimatedElement* find_row_element(ui::Container& container, size_t index, std::string_view suffix) {
+		auto it = container.elements.find(row_element_id(index, suffix));
+		return it == container.elements.end() ? nullptr : &it->second;
+	}
+
+	void swap_row_animations(ui::Container& container, size_t a, size_t b) {
+		for (std::string_view suffix : ANIMATED_ROW_ELEMENTS) {
+			auto* first = find_row_element(container, a, suffix);
+			auto* second = find_row_element(container, b, suffix);
+
+			if (first && second)
+				std::swap(first->animations, second->animations);
+		}
+	}
+
+	void stop_drag(ui::Container& container) {
+		drag.reset();
+
+		for (const auto& id : lifted_element_ids) {
+			auto it = container.elements.find(id);
+			if (it != container.elements.end())
+				it->second.z_index = 0;
+		}
+
+		lifted_element_ids.clear();
+	}
+
+	int to_row_space(const ui::Container& container, int y) {
+		return y + std::lround(container.scroll_y);
+	}
+
+	int dragged_row_y(const ui::Container& container) {
+		return to_row_space(container, keys::mouse_pos.y) - drag->grab_offset;
+	}
+
+	int row_middle(size_t index) {
+		return row_states[index].y + (row_states[index].h / 2);
+	}
+
+	float get_max_scroll(const ui::Container& container) {
+		auto usable_rect = container.get_usable_rect();
+
+		int content_bottom = usable_rect.y;
+		for (const auto& [id, element] : container.elements)
+			content_bottom = std::max(content_bottom, element.element->orig_rect.y2());
+
+		return std::max((float)(content_bottom - usable_rect.y2()), 0.f);
+	}
+
+	void auto_scroll(ui::Container& container, float delta_time) {
+		auto usable_rect = container.get_usable_rect();
+
+		float speed = 0.f;
+		if (keys::mouse_pos.y < usable_rect.y + AUTO_SCROLL_EDGE)
+			speed = -(float)(usable_rect.y + AUTO_SCROLL_EDGE - keys::mouse_pos.y) / AUTO_SCROLL_EDGE;
+		else if (keys::mouse_pos.y > usable_rect.y2() - AUTO_SCROLL_EDGE)
+			speed = (float)(keys::mouse_pos.y - (usable_rect.y2() - AUTO_SCROLL_EDGE)) / AUTO_SCROLL_EDGE;
+
+		if (speed == 0.f)
+			return;
+
+		container.scroll_y = std::clamp(
+			container.scroll_y + (std::clamp(speed, -1.f, 1.f) * AUTO_SCROLL_SPEED * delta_time),
+			0.f,
+			get_max_scroll(container)
+		);
+
+		container.scroll_to_top = false;
+		container.scroll_speed_y = 0.f;
+	}
+
+	void update_drag(ui::Container& container, float delta_time) {
+		auto& rules = configs::rule_settings.rules;
+
+		if (!drag) {
+			for (size_t i = 0; i < rules.size(); i++) {
+				auto* handle = find_row_element(container, i, "drag handle");
+				if (!handle || !ui::is_active_element(*handle, "drag handle") || !row_states[i].laid_out)
+					continue;
+
+				drag = Drag{
+					.index = i,
+					.grab_offset = to_row_space(container, keys::mouse_pos.y) -
+					               (row_states[i].y + std::lround(row_states[i].offset)),
+				};
+
+				break;
+			}
+		}
+
+		if (!drag)
+			return;
+
+		if (drag->index >= rules.size() || !keys::is_mouse_dragging()) {
+			stop_drag(container);
+			return;
+		}
+
+		auto_scroll(container, delta_time);
+
+		int middle = dragged_row_y(container) + (row_states[drag->index].h / 2);
+
+		std::optional<size_t> swap_with;
+		if (drag->index + 1 < rules.size() && middle > row_middle(drag->index + 1))
+			swap_with = drag->index + 1;
+		else if (drag->index > 0 && middle < row_middle(drag->index - 1))
+			swap_with = drag->index - 1;
+
+		if (swap_with) {
+			std::swap(rules[drag->index], rules[*swap_with]);
+			std::swap(row_states[drag->index], row_states[*swap_with]);
+			swap_row_animations(container, drag->index, *swap_with);
+
+			drag->index = *swap_with;
+		}
+
+		if (auto* handle = find_row_element(container, drag->index, "drag handle"))
+			ui::set_active_element(*handle, "drag handle");
+	}
+
+	void animate_rows(ui::Container& container, const std::vector<Row>& rows, float delta_time) {
+		auto usable_rect = container.get_usable_rect();
+
+		std::vector<std::string> lifted;
+
+		for (size_t i = 0; i < rows.size(); i++) {
+			const Row& row = rows[i];
+			auto& state = row_states[i];
+
+			bool dragged = drag && drag->index == i;
+
+			if (dragged) {
+				int lowest = rows.back().y + rows.back().h - row.h;
+				int y = std::clamp(dragged_row_y(container), rows.front().y, std::max(lowest, rows.front().y));
+
+				state.offset = (float)(y - row.y);
+			}
+			else if (state.laid_out) {
+				state.offset += (float)(state.y - row.y);
+				state.offset = u::lerp(state.offset, 0.f, ROW_SETTLE_SPEED * delta_time, ROW_SETTLE_SNAP);
+			}
+			else {
+				state.offset = 0.f;
+			}
+
+			state.y = row.y;
+			state.h = row.h;
+			state.laid_out = true;
+
+			int offset = std::lround(state.offset);
+
+			for (auto* element : row.elements) {
+				element->element->rect.y += offset;
+				element->element->orig_rect.y += offset;
+			}
+
+			auto& lift_anim = row.handle->animations.at(ui::hasher("lift"));
+			lift_anim.set_goal(dragged ? 1.f : 0.f);
+
+			bool lifted_row = dragged || lift_anim.current > 0.f;
+
+			auto& handle_data = std::get<ui::DragHandleElementData>(row.handle->element->data);
+			handle_data.row_rect = lifted_row ? gfx::Rect(
+													usable_rect.x - LIFT_PADDING_X,
+													row.y + offset - LIFT_PADDING_Y,
+													usable_rect.w + (LIFT_PADDING_X * 2),
+													row.h + (LIFT_PADDING_Y * 2)
+												)
+			                                  : gfx::Rect();
+
+			if (lifted_row) {
+				for (auto* element : row.elements) {
+					element->z_index = LIFT_Z_INDEX;
+					lifted.push_back(element->element->id);
+				}
+
+				row.handle->z_index = LIFT_Z_INDEX - 1;
+			}
+
+			// keep the list redrawing while rows move
+			if (offset != 0 || lifted_row)
+				row.handle->element->always_render = true;
+		}
+
+		for (const auto& id : lifted_element_ids) {
+			if (u::contains(lifted, id))
+				continue;
+
+			auto it = container.elements.find(id);
+			if (it != container.elements.end())
+				it->second.z_index = 0;
+		}
+
+		lifted_element_ids = std::move(lifted);
+	}
 
 	std::vector<std::string> config_options(const std::string& current) {
 		std::vector<std::string> names;
@@ -21,8 +258,7 @@ namespace {
 			names.push_back(name);
 		}
 
-		// keep a rule's config in its own dropdown even once it's gone, so the rule shows what it's
-		// pointing at rather than snapping to whichever config happens to sort first
+		// show missing configs in the dropdown
 		if (!current.empty() && !u::contains(names, current))
 			names.push_back(current);
 
@@ -33,34 +269,26 @@ namespace {
 		return !name.empty() && !configs::edited_configs.contains(name);
 	}
 
-	struct RowResult {
-		ui::AnimatedElement* handle;
-		int y;
-		int y2;
-	};
-
-	RowResult rule_row(ui::Container& container, size_t index) {
+	Row rule_row(ui::Container& container, size_t index) {
 		auto& rule = configs::rule_settings.rules[index];
-
-		std::string id = std::format("rule {}", index);
 
 		int icon_size = ui::text_input_height(fonts::dejavu);
 		auto icon_dimensions = gfx::Size(icon_size, icon_size);
 
-		int row_y = container.current_position.y;
+		size_t first_element = container.current_element_ids.size();
 
 		container.push_element_gap(ROW_GAP);
 
 		auto* handle =
-			ui::add_drag_handle(std::format("{} drag handle", id), container, icon_dimensions, "Drag to reorder");
+			ui::add_drag_handle(row_element_id(index, "drag handle"), container, icon_dimensions, "Drag to reorder");
 
 		ui::set_next_same_line(container);
 
 		ui::add_checkbox(
-			std::format("{} enabled checkbox", id),
+			row_element_id(index, "enabled checkbox"),
 			container,
 			"enabled",
-			configs::bind_checkbox(std::format("{} enabled", id), rule.enabled),
+			configs::bind_checkbox(std::format("rule {} enabled", index), rule.enabled),
 			fonts::dejavu,
 			{},
 			true
@@ -69,7 +297,7 @@ namespace {
 		ui::set_next_same_line(container);
 
 		auto* delete_button = ui::add_icon_button(
-			std::format("{} delete button", id),
+			row_element_id(index, "delete button"),
 			container,
 			icons::CLOSE,
 			fonts::icons,
@@ -96,15 +324,15 @@ namespace {
 			message = "enter a pattern for this rule to match";
 		}
 
-		configs::add_with_message(container, std::format("{} message", id), message, message_color, [&] {
+		configs::add_with_message(container, row_element_id(index, "message"), message, message_color, [&] {
 			int full_width = container.get_usable_rect().w;
 			int config_width = std::max(full_width / 2, 100);
 			int pattern_width = full_width - config_width - configs::DELETE_ICON_GAP;
 
 			ui::add_text_input(
-				std::format("{} pattern input", id),
+				row_element_id(index, "pattern input"),
 				container,
-				configs::bind_input(std::format("{} pattern", id), rule.pattern),
+				configs::bind_input(std::format("rule {} pattern", index), rule.pattern),
 				"",
 				fonts::dejavu,
 				"pattern",
@@ -118,11 +346,11 @@ namespace {
 			container.push_usable_width((float)config_width / (float)full_width);
 
 			auto* config_dropdown = ui::add_dropdown(
-				std::format("{} config dropdown", id),
+				row_element_id(index, "config dropdown"),
 				container,
 				"",
 				config_options(rule.config_name),
-				configs::bind_read_only_input(std::format("{} config", id), rule.config_name),
+				configs::bind_read_only_input(std::format("rule {} config", index), rule.config_name),
 				fonts::dejavu,
 				[index](std::string* new_value) {
 					if (index < configs::rule_settings.rules.size())
@@ -138,46 +366,28 @@ namespace {
 
 		container.pop_element_gap();
 
-		return RowResult{ .handle = handle, .y = row_y, .y2 = container.current_position.y };
-	}
+		Row row{ .handle = handle };
 
-	// while a handle is held the rule follows the cursor into whichever row it's over. moving it rather
-	// than swapping keeps the rest of the list in order however far it's dragged
-	void update_drag(const std::vector<RowResult>& rows) {
-		auto& rules = configs::rule_settings.rules;
+		int row_y2 = 0;
 
-		for (size_t i = 0; i < rows.size(); i++) {
-			const auto& handle_data = std::get<ui::DragHandleElementData>(rows[i].handle->element->data);
-			if (handle_data.pressed)
-				dragging_rule = i;
-		}
-
-		if (!dragging_rule)
-			return;
-
-		if (!keys::is_mouse_dragging() || *dragging_rule >= rows.size()) {
-			dragging_rule.reset();
-			return;
-		}
-
-		for (size_t i = 0; i < rows.size(); i++) {
-			if (i == *dragging_rule || keys::mouse_pos.y < rows[i].y || keys::mouse_pos.y >= rows[i].y2)
+		for (size_t i = first_element; i < container.current_element_ids.size(); i++) {
+			auto it = container.elements.find(container.current_element_ids[i]);
+			if (it == container.elements.end())
 				continue;
 
-			auto rule = rules[*dragging_rule];
-			rules.erase(rules.begin() + *dragging_rule);
-			rules.insert(rules.begin() + i, rule);
+			const auto& rect = it->second.element->rect;
 
-			dragging_rule = i;
-			break;
+			row.y = row.elements.empty() ? rect.y : std::min(row.y, rect.y);
+			row_y2 = row.elements.empty() ? rect.y2() : std::max(row_y2, rect.y2());
+
+			row.elements.push_back(&it->second);
 		}
 
-		// the rows shuffle underneath, so hand the grab to whichever handle the rule is now under
-		ui::set_active_element(*rows[*dragging_rule].handle, "drag handle");
+		row.h = row_y2 - row.y;
+
+		return row;
 	}
 
-	// what the panel shows while the config dropdown is open: the rules pointing at whichever config is
-	// under the cursor, so they can be checked without selecting anything
 	void rules_for_config(ui::Container& container, const std::string& config_name) {
 		ui::add_text(
 			"rules preview heading",
@@ -227,27 +437,26 @@ namespace {
 	}
 }
 
-void configs::rules(ui::Container& container) {
+void configs::rules(ui::Container& container, float delta_time) {
+	bool drawn_last_frame = ui::frame == last_built_frame + 1;
+	last_built_frame = ui::frame;
+
 	if (temp_tab_owner == CONFIG_DROPDOWN_ID) {
-		dragging_rule.reset();
+		stop_drag(container);
+		row_states.clear();
+
 		rules_for_config(container, hovered_config.empty() ? selected_config_name : hovered_config);
 		return;
 	}
 
-	ui::add_text(
-		"rules explanation",
-		container,
-		std::vector<std::string>{
-			"Videos are matched against these rules as",
-			"they are added - the first match wins.",
-		},
-		gfx::Color::white(gui::renderer::MUTED_SHADE),
-		fonts::dejavu(fonts::size::SMALL)
-	);
+	if (!drawn_last_frame || row_states.size() != rule_settings.rules.size()) {
+		stop_drag(container);
+		row_states.assign(rule_settings.rules.size(), RowState{});
+	}
 
-	ui::add_spacing(container, 6);
+	update_drag(container, delta_time);
 
-	std::vector<RowResult> rows;
+	std::vector<Row> rows;
 	rows.reserve(rule_settings.rules.size());
 
 	for (size_t i = 0; i < rule_settings.rules.size(); i++) {
@@ -257,7 +466,7 @@ void configs::rules(ui::Container& container) {
 		rows.push_back(rule_row(container, i));
 	}
 
-	update_drag(rows);
+	animate_rows(container, rows, delta_time);
 
 	if (rule_settings.rules.empty()) {
 		ui::add_text(

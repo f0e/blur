@@ -5,6 +5,7 @@
 
 constexpr float DRAG_HANDLE_ANIMATION_SPEED = 25.f;
 constexpr float DRAG_HANDLE_HOVER_ANIMATION_SPEED = 80.f;
+constexpr float DRAG_HANDLE_LIFT_ANIMATION_SPEED = 40.f;
 
 constexpr int DOT_ROWS = 3;
 constexpr int DOT_COLUMNS = 2;
@@ -12,9 +13,31 @@ constexpr float DOT_RADIUS = 1.2f;
 constexpr int DOT_GAP_X = 4;
 constexpr int DOT_GAP_Y = 4;
 
+constexpr float LIFT_ROUNDING = 6.f;
+constexpr float LIFT_GROW = 2.f; // how much the card swells as it's picked up
+const gfx::Color LIFT_FILL_COLOR(26, 26, 26, 255);
+const gfx::Color LIFT_STROKE_COLOR = gfx::Color::white(55);
+
 void ui::render_drag_handle(const Container& container, const AnimatedElement& element) {
+	const auto& handle_data = std::get<DragHandleElementData>(element.element->data);
+
 	float anim = element.animations.at(hasher("main")).current;
 	float hover_anim = element.animations.at(hasher("hover")).current;
+	float lift_anim = element.animations.at(hasher("lift")).current;
+
+	if (lift_anim > 0.f && !handle_data.row_rect.is_empty()) {
+		gfx::Rect row_rect = handle_data.row_rect;
+
+		// convert the row position to the scrolled view
+		row_rect.y += element.element->rect.y - element.element->orig_rect.y;
+
+		gfx::Rect card = row_rect.expand(std::lround(std::lerp(0.f, LIFT_GROW, lift_anim)));
+
+		float card_alpha = anim * lift_anim;
+
+		render::rounded_rect_filled(card, LIFT_FILL_COLOR.adjust_alpha(card_alpha), LIFT_ROUNDING);
+		render::rounded_rect_stroke(card, LIFT_STROKE_COLOR.adjust_alpha(card_alpha), LIFT_ROUNDING);
+	}
 
 	gfx::Color color = gfx::Color::white((uint8_t)std::lerp(90.f, 255.f, hover_anim)).adjust_alpha(anim);
 
@@ -35,33 +58,38 @@ void ui::render_drag_handle(const Container& container, const AnimatedElement& e
 }
 
 bool ui::update_drag_handle(const Container& container, AnimatedElement& element) {
-	auto& handle_data = std::get<DragHandleElementData>(element.element->data);
+	const auto& handle_data = std::get<DragHandleElementData>(element.element->data);
 	auto& hover_anim = element.animations.at(hasher("hover"));
 
-	handle_data.pressed = false;
-
 	bool hovered = element.element->rect.contains(keys::mouse_pos) && set_hovered_element(element);
-	bool active = get_active_element() == &element;
+	bool held = is_active_element(element, "drag handle");
 
-	hover_anim.set_goal(hovered || active ? 1.f : 0.f);
+	hover_anim.set_goal(hovered || held ? 1.f : 0.f);
 
-	if (hovered || active)
+	if (held) {
+		set_cursor(SDL_SYSTEM_CURSOR_MOVE);
+	}
+	else if (hovered) {
 		set_cursor(SDL_SYSTEM_CURSOR_POINTER);
 
-	if (hovered && !active && keys::is_mouse_down()) {
+		if (!handle_data.tooltip.empty())
+			tooltip::set(handle_data.tooltip);
+	}
+
+	if (hovered && !held && keys::is_mouse_down()) {
 		set_active_element(element, "drag handle");
 		keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
-		handle_data.pressed = true;
+
+		keys::set_mouse_capture(true);
 
 		return true;
 	}
 
-	// the list moves rows around under the cursor while a drag is running, so the handle only reports
-	// the grab and lets go on release - it's the list that knows which row is being dragged
-	if (active) {
+	if (held) {
 		if (keys::is_mouse_dragging())
 			return true;
 
+		keys::set_mouse_capture(false);
 		reset_active_element();
 	}
 
@@ -89,6 +117,7 @@ ui::AnimatedElement* ui::add_drag_handle(
 		{
 			{ hasher("main"), AnimationState(DRAG_HANDLE_ANIMATION_SPEED) },
 			{ hasher("hover"), AnimationState(DRAG_HANDLE_HOVER_ANIMATION_SPEED) },
+			{ hasher("lift"), AnimationState(DRAG_HANDLE_LIFT_ANIMATION_SPEED) },
 		}
 	);
 }

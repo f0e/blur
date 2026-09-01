@@ -518,7 +518,7 @@ void configs::screen(
 		ui::add_separator("config management separator", config_container, ui::SeparatorStyle::FADE_RIGHT);
 
 		options(config_container);
-		preview(preview_content_container);
+		preview(preview_content_container, delta_time);
 	}
 	else if (selected_config_tab == "app") {
 		app_options(config_container);

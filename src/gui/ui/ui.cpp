@@ -719,6 +719,20 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 
 void ui::on_update_frame_end() {}
 
+std::vector<decltype(ui::Container::elements)::iterator> ui::get_sorted_container_elements(Container& container) {
+	std::vector<decltype(Container::elements)::iterator> sorted;
+	sorted.reserve(container.elements.size());
+
+	for (auto it = container.elements.begin(); it != container.elements.end(); ++it)
+		sorted.push_back(it);
+
+	std::ranges::stable_sort(sorted, std::less{}, [](const auto& it) {
+		return it->second.z_index;
+	});
+
+	return sorted;
+}
+
 void ui::render_container(Container& container) {
 	if (container.background_color) {
 		render::rect_filled(container.rect, *container.background_color);
@@ -726,7 +740,8 @@ void ui::render_container(Container& container) {
 
 	// render::push_clip_rect(container.rect); todo: fade or some shit but straight clipping looks poo
 
-	for (auto& [id, element] : container.elements) {
+	for (auto& it : get_sorted_container_elements(container)) {
+		auto& element = it->second;
 		element.element->render_fn(container, element);
 	}
 
