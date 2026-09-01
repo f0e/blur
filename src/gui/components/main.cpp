@@ -452,6 +452,25 @@ void main::render_pending(
 			FONT_CENTERED_X
 		);
 	}
+
+	if (pending_video->trim_range_warning) {
+		if (pending_video->video_info && rendering::has_enough_frames_to_render(
+											 *pending_video->video_info, pending_video->start, pending_video->end
+										 ))
+		{
+			pending_video->trim_range_warning = false;
+		}
+		else {
+			ui::add_text(
+				"trim range warning",
+				queue_container,
+				"Trim will result in an empty video",
+				gfx::Color(255, 100, 100),
+				fonts::dejavu,
+				FONT_CENTERED_X
+			);
+		}
+	}
 }
 
 void main::render_home(ui::Container& container) {
@@ -508,7 +527,11 @@ main::MainScreen main::screen(
 			return pending_video->config_name.empty();
 		});
 
-		if (!app_config.skip_queue || needs_config) {
+		bool needs_trim_fix = std::ranges::any_of(pending, [](const auto& pending_video) {
+			return pending_video->trim_range_warning;
+		});
+
+		if (!app_config.skip_queue || needs_config || needs_trim_fix) {
 			render_pending(container, queue_config_container, queue_container, pending);
 			return MainScreen::PENDING;
 		}
