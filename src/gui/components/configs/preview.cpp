@@ -417,7 +417,7 @@ void configs::preview_tabs(ui::Container& container) {
 		temp_tab_owner.clear();
 	};
 
-	auto* tabs = ui::add_tabs("preview tab", container, TABS, selected_tab, fonts::dejavu, on_tab_select);
+	auto* tabs = ui::add_tabs("preview tab", container, RIGHT_TABS, selected_right_tab, fonts::dejavu, on_tab_select);
 
 	// the tabs scroll with the content rather than sitting over it, so they're centred on their own
 	// instead of by whatever centres the panel
@@ -427,7 +427,7 @@ void configs::preview_tabs(ui::Container& container) {
 }
 
 bool configs::preview_centered() {
-	return !(selected_config_tab == "blur" && selected_tab == TABS[2]);
+	return !(selected_config_tab == "blur" && selected_right_tab == RIGHT_TABS[2]);
 }
 
 // todo: refactor
@@ -443,10 +443,10 @@ void configs::preview(ui::Container& container, float delta_time) {
 
 	preview_tabs(container);
 
-	if (selected_tab == TABS[0]) {
+	if (selected_right_tab == RIGHT_TABS[0]) {
 		config_preview(container);
 	}
-	else if (selected_tab == TABS[1]) {
+	else if (selected_right_tab == RIGHT_TABS[1]) {
 		auto weight_settings = settings;
 
 		if (!hovered_weighting.empty())
@@ -467,7 +467,7 @@ void configs::preview(ui::Container& container, float delta_time) {
 			);
 		}
 	}
-	else if (selected_tab == TABS[2]) {
+	else if (selected_right_tab == RIGHT_TABS[2]) {
 		rules(container, delta_time);
 	}
 

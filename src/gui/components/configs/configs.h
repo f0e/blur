@@ -29,8 +29,8 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	inline std::string selected_config_tab = CONFIG_TABS[0];
 	inline constexpr int CONFIG_HEADER_NAV_GAP = 6;
 
-	inline const std::vector<std::string> TABS = { "preview", "weightings", "rules" };
-	inline std::string selected_tab = TABS[0];
+	inline const std::vector<std::string> RIGHT_TABS = { "preview", "weightings", "rules" };
+	inline std::string selected_right_tab = RIGHT_TABS[0];
 	inline std::string hovered_weighting;
 	inline std::string hovered_mask;
 	inline std::string hovered_config;
