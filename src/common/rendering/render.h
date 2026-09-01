@@ -24,6 +24,10 @@ namespace rendering {
 
 	float get_preview_frame_timestamp(const BlurSettings& settings, const u::VideoInfo& video_info, float seek);
 
+	std::pair<size_t, size_t> get_trim_frame_range(const u::VideoInfo& video_info, float start, float end);
+
+	bool has_enough_frames_to_render(const u::VideoInfo& video_info, float start, float end);
+
 	namespace detail {
 		tl::expected<RenderResult, std::variant<std::string, RenderError>> render_video(
 			const std::filesystem::path& input_path,

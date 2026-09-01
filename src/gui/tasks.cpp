@@ -17,6 +17,15 @@ namespace {
 	std::vector<std::shared_ptr<tasks::PendingVideo>> pending_videos;
 	std::mutex pending_videos_mutex;
 
+	bool trim_leaves_no_frames(const tasks::PendingVideo& pending_video) {
+		if (!pending_video.video_info)
+			return false;
+
+		return !rendering::has_enough_frames_to_render(
+			*pending_video.video_info, pending_video.start, pending_video.end
+		);
+	}
+
 	void queue_render(const std::shared_ptr<tasks::PendingVideo>& pending_video) {
 		auto app_config = config_app::get_app_config();
 
@@ -175,9 +184,14 @@ void tasks::process_pending_files() {
 
 			if (can_start && (config_app::get_app_config().skip_queue || pending_videos[index]->start_immediately)) {
 				auto pending_video = pending_videos[index];
-				pending_videos.erase(pending_videos.begin() + index);
 
-				queue_render(pending_video);
+				if (trim_leaves_no_frames(*pending_video)) {
+					pending_video->trim_range_warning = true;
+				}
+				else {
+					pending_videos.erase(pending_videos.begin() + index);
+					queue_render(pending_video);
+				}
 			}
 		}
 	}
@@ -218,8 +232,9 @@ void tasks::start_pending_videos() {
 	std::lock_guard<std::mutex> lock(pending_videos_mutex);
 
 	size_t missing_config = 0;
+	size_t invalid_trim = 0;
 
-	std::erase_if(pending_videos, [&missing_config](const std::shared_ptr<PendingVideo>& pending_video) {
+	std::erase_if(pending_videos, [&missing_config, &invalid_trim](const std::shared_ptr<PendingVideo>& pending_video) {
 		if (pending_video->config_name.empty()) {
 			missing_config++;
 			pending_video->config_missing_warning = true;
@@ -232,6 +247,12 @@ void tasks::start_pending_videos() {
 			return false;
 		}
 
+		if (trim_leaves_no_frames(*pending_video)) {
+			invalid_trim++;
+			pending_video->trim_range_warning = true;
+			return false;
+		}
+
 		queue_render(pending_video);
 		return true;
 	});
@@ -241,6 +262,15 @@ void tasks::start_pending_videos() {
 			"missing config",
 			missing_config == 1 ? "1 video still needs a config before it can render"
 								: std::format("{} videos still need a config before they can render", missing_config),
+			ui::NotificationType::NOTIF_ERROR
+		);
+	}
+
+	if (invalid_trim > 0) {
+		gui::components::notifications::add(
+			"invalid trim range",
+			invalid_trim == 1 ? "1 video has invalid trim points"
+							  : std::format("{} videos have invalid trim points", invalid_trim),
 			ui::NotificationType::NOTIF_ERROR
 		);
 	}
