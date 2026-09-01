@@ -410,11 +410,13 @@ void configs::screen(
 	}
 
 	config_container.push_element_gap(2);
+	if (selected_config_tab == "blur")
+		config_management(config_container);
+
 	config_actions(config_container);
 	config_container.pop_element_gap();
 
 	if (selected_config_tab == "blur") {
-		config_management(config_container);
 		ui::add_separator("config management separator", config_container, ui::SeparatorStyle::FADE_RIGHT);
 
 		options(config_container);
