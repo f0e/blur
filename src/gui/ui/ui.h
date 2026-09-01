@@ -39,6 +39,7 @@ namespace ui {
 		COLOR_PICKER,
 		SEEK_BAR,
 		SEPARATOR,
+		DRAG_HANDLE,
 		WEIGHTING_GRAPH,
 		TABS,
 		HINT,
@@ -86,6 +87,18 @@ namespace ui {
 
 		bool operator==(const SeparatorElementData& other) const {
 			return style == other.style;
+		}
+	};
+
+	struct DragHandleElementData {
+		std::string tooltip;
+
+		// written by update_drag_handle on the frame the handle is grabbed. whoever owns the list
+		// tracks the drag from there, since the rows move around underneath it
+		bool pressed = false;
+
+		bool operator==(const DragHandleElementData& other) const {
+			return tooltip == other.tooltip;
 		}
 	};
 
@@ -509,6 +522,7 @@ namespace ui {
 		DropdownElementData,
 		ColorPickerElementData,
 		SeparatorElementData,
+		DragHandleElementData,
 		WeightingGraphElementData,
 		TabsElementData,
 		HintElementData,
@@ -755,6 +769,9 @@ namespace ui {
 	bool is_color_picker_open(const Container& container, const std::string& id);
 
 	void render_separator(const Container& container, const AnimatedElement& element);
+
+	void render_drag_handle(const Container& container, const AnimatedElement& element);
+	bool update_drag_handle(const Container& container, AnimatedElement& element);
 
 	void render_weighting_graph(const Container& container, const AnimatedElement& element);
 
@@ -1046,6 +1063,10 @@ namespace ui {
 	);
 
 	AnimatedElement* add_separator(const std::string& id, Container& container, SeparatorStyle style);
+
+	AnimatedElement* add_drag_handle(
+		const std::string& id, Container& container, const gfx::Size& size, const std::string& tooltip = ""
+	);
 
 	AnimatedElement* add_spinner(
 		const std::string& id,
