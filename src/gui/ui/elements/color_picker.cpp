@@ -242,8 +242,7 @@ void ui::render_color_picker(const Container& container, const AnimatedElement& 
 		icons::DROPDOWN_ARROW,
 		fonts::icons,
 		FONT_CENTERED_X | FONT_CENTERED_Y,
-		expand_goal * 180.f,
-		17 // same fudge as the dropdown's arrow
+		expand_goal * 180.f
 	);
 
 	if (expand_anim <= 0.01f)
