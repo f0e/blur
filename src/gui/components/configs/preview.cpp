@@ -422,12 +422,9 @@ void configs::preview_tabs(ui::Container& container) {
 	// the tabs scroll with the content rather than sitting over it, so they're centred on their own
 	// instead of by whatever centres the panel
 	ui::center_element(container, tabs);
+	tabs->element->fixed = true;
 
 	ui::add_spacing(container, 8);
-}
-
-bool configs::preview_centered() {
-	return !(selected_config_tab == "blur" && selected_right_tab == RIGHT_TABS[2]);
 }
 
 // todo: refactor
