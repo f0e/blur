@@ -27,9 +27,7 @@ void ui::render_drag_handle(const Container& container, const AnimatedElement& e
 
 	if (lift_anim > 0.f && !handle_data.row_rect.is_empty()) {
 		gfx::Rect row_rect = handle_data.row_rect;
-
-		// convert the row position to the scrolled view
-		row_rect.y += element.element->rect.y - element.element->orig_rect.y;
+		row_rect.y += element.element->rect.y - handle_data.row_anchor_y;
 
 		gfx::Rect card = row_rect.expand(std::lround(std::lerp(0.f, LIFT_GROW, lift_anim)));
 
