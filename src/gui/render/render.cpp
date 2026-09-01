@@ -76,6 +76,8 @@ bool render::init(SDL_Window* window, const SDL_GLContext& context) {
 	if (!fonts::icons.init(ICONS_COMPRESSED_DATA, fonts::size::ICON, &font_cfg))
 		return false;
 
+	fonts::icons.set_ink_aligned(true);
+
 	initialised = true;
 
 	return true;
@@ -479,19 +481,21 @@ void render::text(
 	int vtx_idx_begin = imgui.drawlist->VtxBuffer.Size;
 
 	if (flags) {
-		const auto size = font.calc_size(text);
+		// the box the alignment flags line up with, relative to pos
+		const gfx::Rect box =
+			font.ink_aligned() ? font.calc_ink_bounds(text) : gfx::Rect(gfx::Point(), font.calc_size(text));
 
 		if (flags & FONT_CENTERED_X)
-			pos.x -= int(size.w * 0.5f);
+			pos.x -= box.x + int(box.w * 0.5f);
 
 		if (flags & FONT_CENTERED_Y)
-			pos.y -= int(size.h * 0.5f);
+			pos.y -= box.y + int(box.h * 0.5f);
 
 		if (flags & FONT_RIGHT_ALIGN)
-			pos.x -= size.w;
+			pos.x -= box.x2();
 
 		if (flags & FONT_BOTTOM_ALIGN)
-			pos.y -= size.h;
+			pos.y -= box.y2();
 
 		if (flags & FONT_OUTLINE) {
 			const gfx::Color outline_colour(0, 0, 0, colour.a * 0.8f);
