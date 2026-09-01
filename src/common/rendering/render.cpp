@@ -100,6 +100,28 @@ float rendering::get_preview_frame_timestamp(const BlurSettings& settings, const
 	return static_cast<float>((get_seek_start_frame(settings, video_info, seek) / fps) + get_output_seek(settings));
 }
 
+std::pair<size_t, size_t> rendering::get_trim_frame_range(const u::VideoInfo& video_info, float start, float end) {
+	if (video_info.fps_num <= 0 || video_info.fps_den <= 0)
+		return { 0, 0 };
+
+	double abs_start_time = video_info.video_start_time + (start * video_info.duration);
+	double abs_end_time = video_info.video_start_time + (end * video_info.duration);
+
+	auto start_frame = static_cast<size_t>(
+		((abs_start_time - video_info.video_start_time) * video_info.fps_num / video_info.fps_den) + 0.5
+	);
+	auto end_frame = static_cast<size_t>(
+		((abs_end_time - video_info.video_start_time) * video_info.fps_num / video_info.fps_den) + 0.5
+	);
+
+	return { start_frame, end_frame };
+}
+
+bool rendering::has_enough_frames_to_render(const u::VideoInfo& video_info, float start, float end) {
+	auto [start_frame, end_frame] = get_trim_frame_range(video_info, start, end);
+	return end_frame > start_frame;
+}
+
 tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>> rendering::detail::
 	render_video(
 		const std::filesystem::path& input_path,
@@ -150,16 +172,7 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 		u::log("Rendered at {:.2f} speed with crf {}", settings.output_timescale, settings.quality);
 	}
 
-	// compute cut points
-	double abs_start_time = video_info.video_start_time + (start * video_info.duration);
-	double abs_end_time = video_info.video_start_time + (end * video_info.duration);
-
-	auto start_frame = static_cast<size_t>(
-		((abs_start_time - video_info.video_start_time) * video_info.fps_num / video_info.fps_den) + 0.5
-	);
-	auto end_frame = static_cast<size_t>(
-		((abs_end_time - video_info.video_start_time) * video_info.fps_num / video_info.fps_den) + 0.5
-	);
+	auto [start_frame, end_frame] = get_trim_frame_range(video_info, start, end);
 
 	bool trimmed = start != 0.f || end != 1.f;
 
