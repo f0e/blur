@@ -6,8 +6,6 @@
 namespace configs = gui::components::configs;
 
 namespace {
-	const std::string CONFIG_DROPDOWN_OWNER = "blur config dropdown";
-
 	std::vector<std::string> config_options(const std::string& current) {
 		std::vector<std::string> names;
 		names.reserve(configs::edited_configs.size() + 1);
@@ -132,8 +130,7 @@ namespace {
 			if (index + 1 < configs::rule_settings.rules.size())
 				reorder_buttons.push_back(reorder_button("move down button", "Move down", 0.f, index + 1));
 
-			if (!reorder_buttons.empty())
-				ui::right_align_element(container, reorder_buttons.back());
+			ui::right_align_elements(container, reorder_buttons);
 
 			container.pop_element_gap();
 		});
@@ -199,7 +196,7 @@ namespace {
 }
 
 void configs::rules(ui::Container& container) {
-	if (temp_tab_owner == CONFIG_DROPDOWN_OWNER) {
+	if (temp_tab_owner == CONFIG_DROPDOWN_ID) {
 		rules_for_config(container, hovered_config.empty() ? selected_config_name : hovered_config);
 		return;
 	}

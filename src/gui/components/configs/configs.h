@@ -45,6 +45,9 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	// puts the tab back if whoever owns the switch stopped being drawn before it could close
 	void release_stale_temporary_tab();
 
+	// the rules tab reads this to know the config dropdown is the one borrowing the panel
+	inline const std::string CONFIG_DROPDOWN_ID = "blur config dropdown";
+
 	// the config the blur tab is editing. every option in options.cpp writes straight into this, and it's
 	// flushed back into edited_configs whenever the selection changes or the screen needs the whole set
 	inline BlurSettings settings;

@@ -1099,6 +1099,7 @@ namespace ui {
 	void shrink_element_to_fit_container_height(Container& container, const std::string& element_id);
 
 	void right_align_element(Container& container, AnimatedElement* animated_element);
+	void right_align_elements(Container& container, const std::vector<AnimatedElement*>& animated_elements);
 
 	void anchor_elements_to_bottom(Container& container);
 	void stick_element_to_top(const Container& scroll_container, AnimatedElement* animated_element);

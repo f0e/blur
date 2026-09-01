@@ -451,6 +451,21 @@ void ui::right_align_element(Container& container, AnimatedElement* animated_ele
 	element->orig_rect.x = element->rect.x;
 }
 
+// same as right_align_element, but keeps a row of elements together as it moves them
+void ui::right_align_elements(Container& container, const std::vector<AnimatedElement*>& animated_elements) {
+	if (animated_elements.empty())
+		return;
+
+	int shift_x = container.get_usable_rect().x2() - animated_elements.back()->element->rect.x2();
+
+	for (auto* animated_element : animated_elements) {
+		auto& element = animated_element->element;
+
+		element->rect.x += shift_x;
+		element->orig_rect.x = element->rect.x;
+	}
+}
+
 void ui::anchor_elements_to_bottom(Container& container) {
 	auto usable_rect = container.get_usable_rect();
 
