@@ -21,7 +21,7 @@ namespace {
 	constexpr float AUTO_SCROLL_SPEED = 800.f;
 
 	// keep element animations with their rows
-	constexpr std::array ANIMATED_ROW_ELEMENTS = { "drag handle", "enabled checkbox" };
+	constexpr std::array ANIMATED_ROW_ELEMENTS = { "drag handle" };
 
 	struct Drag {
 		size_t index = 0;
@@ -284,18 +284,6 @@ namespace {
 
 		ui::set_next_same_line(container);
 
-		ui::add_checkbox(
-			row_element_id(index, "enabled checkbox"),
-			container,
-			"enabled",
-			configs::bind_checkbox(std::format("rule {} enabled", index), rule.enabled),
-			fonts::dejavu,
-			{},
-			true
-		);
-
-		ui::set_next_same_line(container);
-
 		auto* delete_button = ui::add_icon_button(
 			row_element_id(index, "delete button"),
 			container,
@@ -407,11 +395,7 @@ namespace {
 			any = true;
 
 			ui::add_text(
-				std::format("rules preview {}", i),
-				container,
-				rule.enabled ? rule.pattern : std::format("{} (disabled)", rule.pattern),
-				gfx::Color::white(rule.enabled ? 200 : gui::renderer::MUTED_SHADE),
-				fonts::dejavu
+				std::format("rules preview {}", i), container, rule.pattern, gfx::Color::white(200), fonts::dejavu
 			);
 		}
 
@@ -460,9 +444,6 @@ void configs::rules(ui::Container& container, float delta_time) {
 	rows.reserve(rule_settings.rules.size());
 
 	for (size_t i = 0; i < rule_settings.rules.size(); i++) {
-		if (i > 0)
-			ui::add_separator(std::format("rule {} separator", i), container, ui::SeparatorStyle::FADE_RIGHT);
-
 		rows.push_back(rule_row(container, i));
 	}
 

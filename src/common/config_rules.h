@@ -5,7 +5,6 @@
 struct ConfigRule {
 	std::string pattern;
 	std::string config_name;
-	bool enabled = true;
 
 	bool operator==(const ConfigRule& other) const = default;
 };

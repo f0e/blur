@@ -28,17 +28,6 @@ TEST(ConfigRules, FirstMatchWins) {
 	EXPECT_EQ(config_rules::match(settings, "D:/clips/valorant/round.mp4", AVAILABLE), "valorant");
 }
 
-TEST(ConfigRules, SkipsDisabledRules) {
-	auto settings = make_settings(
-		{
-			{ .pattern = "*clips*", .config_name = "apex", .enabled = false },
-			{ .pattern = "*valorant*", .config_name = "valorant" },
-		}
-	);
-
-	EXPECT_EQ(config_rules::match(settings, "D:/clips/valorant/round.mp4", AVAILABLE), "valorant");
-}
-
 TEST(ConfigRules, SkipsRulesForMissingConfigs) {
 	auto settings = make_settings(
 		{
@@ -86,28 +75,25 @@ TEST(ConfigRules, AnyUsable) {
 			AVAILABLE
 		)
 	);
-
-	EXPECT_FALSE(
-		config_rules::any_usable(
-			make_settings(
-				{
-					{ .pattern = "*apex*", .config_name = "apex", .enabled = false },
-				}
-			),
-			AVAILABLE
-		)
-	);
 }
 
 TEST(ConfigRules, RoundTripsThroughItsFileFormat) {
 	auto settings = make_settings(
 		{
 			{ .pattern = "D:/clips/apex/*", .config_name = "apex" },
-			{ .pattern = "*valorant*", .config_name = "valorant", .enabled = false },
+			{ .pattern = "*valorant*", .config_name = "valorant" },
 		}
 	);
 
 	EXPECT_EQ(config_rules::parse(config_rules::generate_config_string(settings)), settings);
+}
+
+TEST(ConfigRules, IgnoresLegacyEnabledSetting) {
+	auto settings = config_rules::parse(std::string("- rule\nconfig: apex\npattern: *clips*\nenabled: false\n"));
+
+	EXPECT_EQ(settings, make_settings({ { .pattern = "*clips*", .config_name = "apex" } }));
+	EXPECT_EQ(config_rules::match(settings, "D:/clips/round.mp4", AVAILABLE), "apex");
+	EXPECT_EQ(config_rules::generate_config_string(settings).find("enabled:"), std::string::npos);
 }
 
 TEST(ConfigRules, RoundTripsAnEmptyList) {
