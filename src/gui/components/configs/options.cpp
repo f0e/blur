@@ -883,6 +883,14 @@ void configs::save_config() {
 
 	config_encoding_presets::save(encoding_preset_settings);
 	current_encoding_preset_settings = encoding_preset_settings;
+
+	// patterns come back trimmed from the file, so trim now to keep what's shown the same as what's saved
+	for (auto& rule : rule_settings.rules) {
+		rule.pattern = u::trim(rule.pattern);
+	}
+
+	config_rules::save(rule_settings);
+	current_rule_settings = rule_settings;
 };
 
 void configs::on_load() {
@@ -893,4 +901,6 @@ void configs::on_load() {
 	current_app_settings = app_settings;
 
 	current_encoding_preset_settings = encoding_preset_settings;
+
+	current_rule_settings = rule_settings;
 };

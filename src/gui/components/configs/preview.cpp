@@ -457,6 +457,9 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 			);
 		}
 	}
+	else if (selected_tab == TABS[2]) {
+		rules(content_container);
+	}
 
 	auto validation_res = config_blur::validate(settings, app_settings, encoding_preset_settings, false);
 	std::string fixable_errors = validation_res.message(true);

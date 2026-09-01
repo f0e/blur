@@ -2,6 +2,7 @@
 
 #include "common/config_app.h"
 #include "common/config_encoding_presets.h"
+#include "common/config_rules.h"
 #include "common/rendering.h"
 #include "../../fonts/icons.h"
 #include "../../ui/ui.h"
@@ -28,10 +29,11 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	inline std::string selected_config_tab = CONFIG_TABS[0];
 	inline constexpr int CONFIG_HEADER_NAV_GAP = 6;
 
-	inline const std::vector<std::string> TABS = { "preview", "weightings" };
+	inline const std::vector<std::string> TABS = { "preview", "weightings", "rules" };
 	inline std::string selected_tab = TABS[0];
 	inline std::string hovered_weighting;
 	inline std::string hovered_mask;
+	inline std::string hovered_config;
 
 	// a dropdown can switch the preview panel to its own tab while it's open. only one owns the
 	// switch at a time, so a second one opening can't strand the first one's tab
@@ -58,6 +60,11 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	inline EncodingPresetSettings encoding_preset_settings;
 	inline EncodingPresetSettings current_encoding_preset_settings;
+
+	// rules are global rather than per config, but they're edited from the blur tab's preview panel
+	// so they ride the same save/reset workflow as everything else here
+	inline ConfigRuleSettings rule_settings;
+	inline ConfigRuleSettings current_rule_settings;
 	inline std::string selected_encoding_preset_gpu_type; // which device's presets the encoding presets tab is showing
 
 	inline bool show_mask_preview = false;
@@ -113,7 +120,13 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	void preview_tabs(ui::Container& header_container, ui::Container& content_container);
 	void preview(ui::Container& header_container, ui::Container& content_container);
+	void rules(ui::Container& container);
 	void option_information(ui::Container& container);
+
+	// keeps a value and the buffer an element edits in sync, returns the buffer for the element to use
+	std::string& bind_input(const std::string& id, std::string& value);
+	std::string& bind_read_only_input(const std::string& id, const std::string& value);
+	bool& bind_checkbox(const std::string& id, bool& value);
 
 	void parse_interp();
 	bool has_unsaved_changes();

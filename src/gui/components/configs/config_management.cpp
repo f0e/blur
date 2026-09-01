@@ -136,6 +136,8 @@ namespace {
 
 			if (configs::selected_config_name == from)
 				configs::selected_config_name = to;
+
+			config_rules::rename_config(configs::rule_settings, from, to);
 		});
 	}
 
@@ -249,7 +251,7 @@ void configs::config_management(ui::Container& container) {
 		},
 	};
 
-	ui::add_dropdown(
+	auto* dropdown = ui::add_dropdown(
 		"blur config dropdown",
 		container,
 		"",
@@ -266,4 +268,9 @@ void configs::config_management(ui::Container& container) {
 			.on_press = new_config,
 		}
 	);
+
+	const auto& dropdown_data = std::get<ui::DropdownElementData>(dropdown->element->data);
+	hovered_config = dropdown_data.hovered_option;
+
+	set_temporary_tab("blur config dropdown", dropdown->animations.at(ui::hasher("expand")).goal > 0, TABS[2]);
 }

@@ -2,6 +2,9 @@
 
 #include "common/config_rules.h"
 
+#include "common/config_blur.h"
+#include "common/config_app.h"
+
 namespace {
 	const std::vector<std::string> AVAILABLE = { "apex", "valorant" };
 
@@ -125,4 +128,78 @@ TEST(ConfigRules, RenameConfigRepointsMatchingRulesOnly) {
 	EXPECT_EQ(settings.rules[0].config_name, "apex legends");
 	EXPECT_EQ(settings.rules[1].config_name, "valorant");
 	EXPECT_EQ(settings.rules[2].config_name, "apex legends");
+}
+
+// the wiring both the gui and the cli go through, rather than the matching on its own
+class ConfigRuleResolution : public ::testing::Test {
+protected:
+	std::filesystem::path m_settings_dir;
+	std::filesystem::path m_old_settings_path;
+
+	void SetUp() override {
+		m_old_settings_path = blur.settings_path;
+
+		m_settings_dir = TEST_OUTPUT_DIR / ::testing::UnitTest::GetInstance()->current_test_info()->name();
+		std::filesystem::remove_all(m_settings_dir);
+		std::filesystem::create_directories(m_settings_dir);
+
+		blur.settings_path = m_settings_dir;
+
+		config_blur::save("apex", config_blur::DEFAULT_CONFIG);
+		config_blur::save("valorant", config_blur::DEFAULT_CONFIG);
+	}
+
+	void TearDown() override {
+		blur.settings_path = m_old_settings_path;
+		std::filesystem::remove_all(m_settings_dir);
+	}
+
+	static void set_default(const std::string& name) {
+		auto app_settings = config_app::get_app_config();
+		app_settings.default_config = name;
+		config_app::create(config_app::get_app_config_path(), app_settings);
+	}
+};
+
+TEST_F(ConfigRuleResolution, RulePicksTheConfig) {
+	set_default("apex");
+
+	config_rules::save(
+		ConfigRuleSettings{
+			.rules = { { .pattern = "*valorant*", .config_name = "valorant" } },
+		}
+	);
+
+	EXPECT_EQ(config_blur::resolve_config_name("D:/clips/valorant/round.mp4", {}), "valorant");
+	EXPECT_EQ(config_blur::resolve_config_name("D:/clips/other/round.mp4", {}), "apex");
+}
+
+TEST_F(ConfigRuleResolution, AnExplicitChoiceBeatsARule) {
+	config_rules::save(
+		ConfigRuleSettings{
+			.rules = { { .pattern = "*valorant*", .config_name = "valorant" } },
+		}
+	);
+
+	EXPECT_EQ(config_blur::resolve_config_name("D:/clips/valorant/round.mp4", "apex"), "apex");
+}
+
+TEST_F(ConfigRuleResolution, ARuleForADeletedConfigFallsThroughToTheDefault) {
+	set_default("apex");
+
+	config_rules::save(
+		ConfigRuleSettings{
+			.rules = { { .pattern = "*valorant*", .config_name = "valorant" } },
+		}
+	);
+
+	config_blur::remove("valorant");
+
+	EXPECT_EQ(config_blur::resolve_config_name("D:/clips/valorant/round.mp4", {}), "apex");
+}
+
+TEST_F(ConfigRuleResolution, NothingResolvesWithNoDefaultAndNoMatch) {
+	set_default("");
+
+	EXPECT_TRUE(config_blur::resolve_config_name("D:/clips/round.mp4", {}).empty());
 }

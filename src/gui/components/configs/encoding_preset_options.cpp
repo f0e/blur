@@ -7,45 +7,6 @@
 namespace configs = gui::components::configs;
 
 namespace {
-	// text inputs keep a pointer to the string they're editing, and elements stick around for a bit after they stop
-	// being added (they fade out), so the strings can't live in the preset vector - removing a preset would leave the
-	// fading out inputs pointing at freed memory. they live here instead, keyed by element id, and never get erased
-	struct InputBuffer {
-		std::string text;   // what the text input edits
-		std::string synced; // the value both sides last agreed on, used to work out which way to sync
-	};
-
-	std::map<std::string, InputBuffer> input_buffers;
-
-	// keeps a preset value and its input buffer in sync, returns the buffer for the text input to edit
-	std::string& bind_input(const std::string& id, std::string& value) {
-		auto& buffer = input_buffers[id];
-
-		if (buffer.text != buffer.synced) {
-			// edited in the ui
-			value = buffer.text;
-		}
-		else if (value != buffer.synced) {
-			// changed elsewhere (config loaded, changes reset, a preset above this one was removed, ...)
-			buffer.text = value;
-		}
-
-		buffer.synced = value;
-
-		return buffer.text;
-	}
-
-	// same idea for values that can't be edited - the buffer only exists to give the element a string that outlives
-	// the preset
-	std::string& bind_read_only_input(const std::string& id, const std::string& value) {
-		auto& buffer = input_buffers[id];
-
-		buffer.text = value;
-		buffer.synced = value;
-
-		return buffer.text;
-	}
-
 	std::string make_unique_name(const std::vector<EncodingPresetSettings::Preset>& presets, const std::string& name) {
 		auto taken = [&](const std::string& candidate) {
 			return std::ranges::any_of(presets, [&](const EncodingPresetSettings::Preset& preset) {
