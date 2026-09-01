@@ -98,7 +98,7 @@ bool config_rules::any_usable(const ConfigRuleSettings& settings, const std::vec
 	});
 }
 
-std::string config_rules::match(
+const ConfigRule* config_rules::find_match(
 	const ConfigRuleSettings& settings,
 	const std::filesystem::path& input_path,
 	const std::vector<std::string>& available_configs
@@ -110,10 +110,20 @@ std::string config_rules::match(
 			continue;
 
 		if (u::matches_pattern(rule.pattern, path_string))
-			return rule.config_name;
+			return &rule;
 	}
 
-	return {};
+	return nullptr;
+}
+
+std::string config_rules::match(
+	const ConfigRuleSettings& settings,
+	const std::filesystem::path& input_path,
+	const std::vector<std::string>& available_configs
+) {
+	const auto* rule = find_match(settings, input_path, available_configs);
+
+	return rule ? rule->config_name : std::string{};
 }
 
 void config_rules::rename_config(ConfigRuleSettings& settings, const std::string& from, const std::string& to) {

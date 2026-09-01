@@ -124,16 +124,18 @@ void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
 
 		// start from the config this video resolves to, and the masks that config asks for. the queue
 		// screen can change all three after
-		auto config_name = config_blur::resolve_config_name(path, {});
+		auto resolved = config_blur::resolve_config(path, {});
 
 		auto pending_video = std::make_shared<PendingVideo>(PendingVideo{
 			.video_id = next_video_id++,
 			.video_path = path,
-			.config_name = config_name,
+			.config_name = resolved.name,
+			.config_source = resolved.source,
+			.config_rule_pattern = resolved.rule_pattern,
 		});
 
-		if (!config_name.empty()) {
-			auto config = config_blur::get_config(config_name);
+		if (!resolved.name.empty()) {
+			auto config = config_blur::get_config(resolved.name);
 			pending_video->mask = config.mask;
 			pending_video->auto_mask = config.auto_mask;
 		}

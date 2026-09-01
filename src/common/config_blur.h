@@ -215,7 +215,25 @@ namespace config_blur {
 	// returns empty when no default is set or the configured default no longer exists
 	std::string get_default_name();
 
-	// returns empty when neither an override nor the default resolves
+	// where a video's config came from, so the queue can say why it picked the one it did
+	enum class ConfigSource : std::uint8_t {
+		NONE,
+		OVERRIDE,
+		RULE,
+		DEFAULT,
+	};
+
+	struct ResolvedConfig {
+		std::string name;
+		ConfigSource source = ConfigSource::NONE;
+		std::string rule_pattern; // only set when source is RULE
+	};
+
+	ResolvedConfig resolve_config(
+		const std::filesystem::path& input_path, const std::optional<std::string>& name_override
+	);
+
+	// returns empty when neither an override, a rule nor the default resolves
 	std::string resolve_config_name(
 		const std::filesystem::path& input_path, const std::optional<std::string>& name_override
 	);

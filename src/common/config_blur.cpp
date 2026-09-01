@@ -526,17 +526,36 @@ std::string config_blur::get_default_name() {
 	return {};
 }
 
-std::string config_blur::resolve_config_name(
+config_blur::ResolvedConfig config_blur::resolve_config(
 	const std::filesystem::path& input_path, const std::optional<std::string>& name_override
 ) {
 	if (name_override && !name_override->empty())
-		return *name_override;
+		return { .name = *name_override, .source = ConfigSource::OVERRIDE };
 
-	auto matched = config_rules::match(config_rules::get_config(), input_path, list());
-	if (!matched.empty())
-		return matched;
+	auto available = list();
 
-	return get_default_name();
+	// the settings have to outlive the body - find_match points into them
+	auto rules = config_rules::get_config();
+
+	if (const auto* rule = config_rules::find_match(rules, input_path, available)) {
+		return {
+			.name = rule->config_name,
+			.source = ConfigSource::RULE,
+			.rule_pattern = rule->pattern,
+		};
+	}
+
+	auto default_name = get_default_name();
+	if (default_name.empty())
+		return {};
+
+	return { .name = default_name, .source = ConfigSource::DEFAULT };
+}
+
+std::string config_blur::resolve_config_name(
+	const std::filesystem::path& input_path, const std::optional<std::string>& name_override
+) {
+	return resolve_config(input_path, name_override).name;
 }
 
 void config_blur::initialise_configs() {

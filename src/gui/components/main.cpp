@@ -348,6 +348,10 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 
 				pending_video->config_name = *new_value;
 
+				// picked by hand, so the line below stops explaining where it came from
+				pending_video->config_source = config_blur::ConfigSource::OVERRIDE;
+				pending_video->config_rule_pattern.clear();
+
 				// the mask controls below start on whatever the config asks for, so a new config brings
 			    // its own masks with it. that does drop a mask picked by hand for this clip, but the
 			    // dropdown for it is right there
@@ -361,6 +365,30 @@ void main::render_pending(ui::Container& container, const std::vector<std::share
 			// show the placeholder as muted without making it selectable
 			{ NO_CONFIG_OPTION }
 		);
+
+		// say where the config came from, so a rule quietly picking one isn't a surprise
+		std::optional<std::string> config_reason;
+
+		switch (pending_video->config_source) {
+			case config_blur::ConfigSource::DEFAULT:
+				config_reason = "using the default config";
+				break;
+			case config_blur::ConfigSource::RULE:
+				config_reason = std::format("matching rule '{}'", pending_video->config_rule_pattern);
+				break;
+			default:
+				break;
+		}
+
+		if (config_reason) {
+			ui::add_text(
+				std::format("config reason {}", pending_video->video_id),
+				container,
+				*config_reason,
+				gfx::Color::white(renderer::MUTED_SHADE),
+				fonts::dejavu(fonts::size::SMALL)
+			);
+		}
 
 		// the dropdown holds onto a pointer to this, so it has to outlive the frame
 		static std::string selected_mask;
