@@ -24,7 +24,6 @@ namespace gui::renderer {
 
 	inline ui::Container main_container;
 	inline ui::Container config_container;
-	inline ui::Container config_preview_header_container;
 	inline ui::Container config_preview_content_container;
 	inline ui::Container option_information_container;
 	inline ui::Container notification_container;

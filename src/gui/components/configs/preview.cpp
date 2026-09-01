@@ -406,22 +406,32 @@ void configs::config_preview(ui::Container& container) {
 		ui::shrink_element_to_fit_container_height(container, "config preview image");
 }
 
-void configs::preview_tabs(ui::Container& header_container, ui::Container& content_container) {
+void configs::preview_tabs(ui::Container& container) {
 	release_stale_temporary_tab();
 
-	auto on_tab_select = [&content_container] {
-		content_container.scroll_to_top = true;
+	auto on_tab_select = [&container] {
+		container.scroll_to_top = true;
 
 		// clicking a tab keeps it, so whoever was borrowing the panel gives up its claim
 		old_tab.clear();
 		temp_tab_owner.clear();
 	};
 
-	ui::add_tabs("preview tab", header_container, TABS, selected_tab, fonts::dejavu, on_tab_select);
+	auto* tabs = ui::add_tabs("preview tab", container, TABS, selected_tab, fonts::dejavu, on_tab_select);
+
+	// the tabs scroll with the content rather than sitting over it, so they're centred on their own
+	// instead of by whatever centres the panel
+	ui::center_element(container, tabs);
+
+	ui::add_spacing(container, 8);
+}
+
+bool configs::preview_centered() {
+	return !(selected_config_tab == "blur" && selected_tab == TABS[2]);
 }
 
 // todo: refactor
-void configs::preview(ui::Container& header_container, ui::Container& content_container) {
+void configs::preview(ui::Container& container) {
 	std::optional<int> interp_fps;
 	if (settings.interpolate) {
 		std::istringstream iss(settings.interpolated_fps);
@@ -431,10 +441,10 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 		}
 	}
 
-	preview_tabs(header_container, content_container);
+	preview_tabs(container);
 
 	if (selected_tab == TABS[0]) {
-		config_preview(content_container);
+		config_preview(container);
 	}
 	else if (selected_tab == TABS[1]) {
 		auto weight_settings = settings;
@@ -444,12 +454,12 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 
 		auto weights_res = weighting::get_weights(weight_settings, interp_fps);
 		if (weights_res.error.empty()) {
-			ui::add_weighting_graph("weighting graph", content_container, weights_res.weights, interp_fps.has_value());
+			ui::add_weighting_graph("weighting graph", container, weights_res.weights, interp_fps.has_value());
 		}
 		else {
 			ui::add_text(
 				"weighting error",
-				content_container,
+				container,
 				weights_res.error,
 				gfx::Color(255, 50, 50, 255),
 				fonts::dejavu,
@@ -458,18 +468,16 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 		}
 	}
 	else if (selected_tab == TABS[2]) {
-		rules(content_container);
+		rules(container);
 	}
 
 	auto validation_res = config_blur::validate(settings, app_settings, encoding_preset_settings, false);
 	std::string fixable_errors = validation_res.message(true);
 	if (!fixable_errors.empty()) {
-		ui::add_separator("config preview separator", content_container, ui::SeparatorStyle::FADE_BOTH);
+		ui::add_separator("config preview separator", container, ui::SeparatorStyle::FADE_BOTH);
 
-		ui::add_button(
-			"fix config button", content_container, "Reset invalid config options to defaults", fonts::dejavu, [] {
-				config_blur::validate(settings, app_settings, encoding_preset_settings, true);
-			}
-		);
+		ui::add_button("fix config button", container, "Reset invalid config options to defaults", fonts::dejavu, [] {
+			config_blur::validate(settings, app_settings, encoding_preset_settings, true);
+		});
 	}
 }
