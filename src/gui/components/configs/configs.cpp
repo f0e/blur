@@ -365,7 +365,6 @@ void configs::config_actions(ui::Container& container) {
 void configs::screen(
 	ui::Container& config_container,
 	ui::Container& nav_container,
-	ui::Container& preview_header_container,
 	ui::Container& preview_content_container,
 	ui::Container& option_information_container,
 	float delta_time
@@ -438,7 +437,7 @@ void configs::screen(
 
 		// stuff that doesnt need configs to be loaded
 		if (selected_config_tab == "blur") {
-			preview_tabs(preview_header_container, preview_content_container);
+			preview_tabs(preview_content_container);
 		}
 		else if (selected_config_tab == "app") {
 			about(preview_content_container);
@@ -519,7 +518,7 @@ void configs::screen(
 		ui::add_separator("config management separator", config_container, ui::SeparatorStyle::FADE_RIGHT);
 
 		options(config_container);
-		preview(preview_header_container, preview_content_container);
+		preview(preview_content_container);
 	}
 	else if (selected_config_tab == "app") {
 		app_options(config_container);

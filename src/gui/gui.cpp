@@ -176,7 +176,6 @@ int gui::run() {
 					to_render |= ui::update_container_input(renderer::main_container);
 					to_render |= ui::update_container_input(renderer::config_container);
 					to_render |= ui::update_container_input(renderer::option_information_container);
-					to_render |= ui::update_container_input(renderer::config_preview_header_container);
 					to_render |= ui::update_container_input(renderer::config_preview_content_container);
 				}
 

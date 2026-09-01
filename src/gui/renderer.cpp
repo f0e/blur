@@ -131,35 +131,14 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	config_preview_container_rect.x = config_container_rect.x2() + config_page_container_gap;
 	config_preview_container_rect.w -= config_container_rect.w + config_page_container_gap;
 
-	gfx::Rect config_preview_header_container_rect = config_preview_container_rect;
-	config_preview_header_container_rect.h = 80;
-
-	ui::reset_container(
-		config_preview_header_container,
-		sdl::window,
-		config_preview_header_container_rect,
-		fonts::dejavu.height(),
-		ui::Padding{ PAD_Y, PAD_X }
-	);
-
 	gfx::Rect config_preview_content_container_rect = config_preview_container_rect;
-
-	bool draw_config_preview_header =
-		components::configs::selected_config_tab ==
-		"blur"; // only tab where we actually render the header, so offset for it (still need to reset it above
-	            // otherwise to clear it, but rect creation is pointless tbf)
-
-	if (draw_config_preview_header) {
-		config_preview_content_container_rect.y = config_preview_header_container_rect.y2();
-		config_preview_content_container_rect.h -= config_preview_header_container_rect.h;
-	}
 
 	ui::reset_container(
 		config_preview_content_container,
 		sdl::window,
 		config_preview_content_container_rect,
 		fonts::dejavu.height(),
-		ui::Padding{ draw_config_preview_header ? 0 : PAD_Y, PAD_X, bottom_pad, PAD_X }
+		ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X }
 	);
 
 	gfx::Rect option_information_container_rect = config_preview_container_rect;
@@ -351,7 +330,6 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 			components::configs::screen(
 				config_container,
 				nav_container,
-				config_preview_header_container,
 				config_preview_content_container,
 				option_information_container,
 				delta_time
@@ -381,8 +359,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 				icons::BACK
 			);
 
-			ui::center_elements_in_container(config_preview_header_container, true, false);
-			ui::center_elements_in_container(config_preview_content_container);
+			if (components::configs::preview_centered())
+				ui::center_elements_in_container(config_preview_content_container);
 			ui::center_elements_in_container(option_information_container, true, false);
 
 			// the app tab draws its own update notice
@@ -423,7 +401,6 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 	want_to_render |= ui::update_container_frame(main_container, delta_time);
 	want_to_render |= ui::update_container_frame(config_container, delta_time);
-	want_to_render |= ui::update_container_frame(config_preview_header_container, delta_time);
 	want_to_render |= ui::update_container_frame(config_preview_content_container, delta_time);
 	want_to_render |= ui::update_container_frame(option_information_container, delta_time);
 
@@ -479,7 +456,6 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		ui::render_container(main_container);
 		ui::render_container(config_container);
 		ui::render_container(config_preview_content_container);
-		ui::render_container(config_preview_header_container);
 		ui::render_container(option_information_container);
 		ui::render_container(nav_container);
 		ui::render_container(navigation_button_container);
