@@ -1,5 +1,6 @@
 #include "cli.h"
 #include "common/rendering.h"
+#include "common/config_rules.h"
 #include "common/masks.h"
 
 bool cli::run(
@@ -76,10 +77,13 @@ bool cli::run(
 		}
 	}
 
-	if (!manual_config_names && !manual_config_files && config_blur::get_default_name().empty()) {
+	if (!manual_config_names && !manual_config_files && config_blur::get_default_name().empty() &&
+	    !config_rules::any_usable(config_rules::get_config(), config_blur::list()))
+	{
 		u::log(
-			"No default config is set, so there's nothing to render with. Pass --config-name (one per "
-			"input) to pick a config, or set a default in the app. Available configs: {}",
+			"No default config is set and no rule can pick one, so there's nothing to render with. Pass "
+			"--config-name (one per input) to pick a config, or set a default or a rule in the app. "
+			"Available configs: {}",
 			u::join(config_blur::list(), ", ")
 		);
 		return false;
