@@ -3,7 +3,6 @@
 #include "common/config_rules.h"
 
 #include "common/config_blur.h"
-#include "common/config_app.h"
 
 namespace {
 	const std::vector<std::string> AVAILABLE = { "apex", "valorant" };
@@ -109,11 +108,25 @@ TEST(ConfigRules, RenameConfigRepointsMatchingRulesOnly) {
 		}
 	);
 
+	settings.default_config = "apex";
+
 	config_rules::rename_config(settings, "apex", "apex legends");
 
 	EXPECT_EQ(settings.rules[0].config_name, "apex legends");
 	EXPECT_EQ(settings.rules[1].config_name, "valorant");
 	EXPECT_EQ(settings.rules[2].config_name, "apex legends");
+	EXPECT_EQ(settings.default_config, "apex legends");
+}
+
+TEST(ConfigRules, RoundTripsTheDefaultConfig) {
+	auto settings = make_settings({ { .pattern = "*apex*", .config_name = "apex" } });
+	settings.default_config = "valorant";
+
+	EXPECT_EQ(config_rules::parse(config_rules::generate_config_string(settings)), settings);
+
+	settings.default_config.clear();
+
+	EXPECT_EQ(config_rules::parse(config_rules::generate_config_string(settings)), settings);
 }
 
 // the wiring both the gui and the cli go through, rather than the matching on its own
@@ -139,20 +152,13 @@ protected:
 		blur.settings_path = m_old_settings_path;
 		std::filesystem::remove_all(m_settings_dir);
 	}
-
-	static void set_default(const std::string& name) {
-		auto app_settings = config_app::get_app_config();
-		app_settings.default_config = name;
-		config_app::create(config_app::get_app_config_path(), app_settings);
-	}
 };
 
 TEST_F(ConfigRuleResolution, RulePicksTheConfig) {
-	set_default("apex");
-
 	config_rules::save(
 		ConfigRuleSettings{
 			.rules = { { .pattern = "*valorant*", .config_name = "valorant" } },
+			.default_config = "apex",
 		}
 	);
 
@@ -178,11 +184,10 @@ TEST_F(ConfigRuleResolution, AnExplicitChoiceBeatsARule) {
 }
 
 TEST_F(ConfigRuleResolution, ARuleForADeletedConfigFallsThroughToTheDefault) {
-	set_default("apex");
-
 	config_rules::save(
 		ConfigRuleSettings{
 			.rules = { { .pattern = "*valorant*", .config_name = "valorant" } },
+			.default_config = "apex",
 		}
 	);
 
@@ -192,7 +197,7 @@ TEST_F(ConfigRuleResolution, ARuleForADeletedConfigFallsThroughToTheDefault) {
 }
 
 TEST_F(ConfigRuleResolution, NothingResolvesWithNoDefaultAndNoMatch) {
-	set_default("");
+	config_rules::save(ConfigRuleSettings{ .default_config = "" });
 
 	EXPECT_TRUE(config_blur::resolve_config_name("D:/clips/round.mp4", {}).empty());
 }

@@ -515,7 +515,7 @@ void config_blur::remove(const std::string& name) {
 }
 
 std::string config_blur::get_default_name() {
-	auto configured = config_app::get_app_config().default_config;
+	auto configured = config_rules::get_config().default_config;
 	if (configured.empty())
 		return {};
 

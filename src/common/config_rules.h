@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config_blur.h" // for DEFAULT_CONFIG_NAME
+
 // a rule points every video whose path matches `pattern` at `config_name`. rules are globally
 // ordered and the first match wins, so overlapping patterns resolve predictably
 struct ConfigRule {
@@ -11,6 +13,9 @@ struct ConfigRule {
 
 struct ConfigRuleSettings {
 	std::vector<ConfigRule> rules;
+
+	// name-based so renames preserve the default and empty requires a queue selection
+	std::string default_config = std::string(config_blur::DEFAULT_CONFIG_NAME);
 
 	bool operator==(const ConfigRuleSettings& other) const = default;
 };

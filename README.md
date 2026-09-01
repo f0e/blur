@@ -93,7 +93,7 @@ When interpolation is on it does both jobs in one pass: every frame it generates
 
 A config is a full set of blur settings. They're kept one to a file in the `configs` folder of your config folder, named after the file - `configs/slowmo.cfg` is the config called `slowmo` - so a config can be copied between machines, or edited by hand, on its own.
 
-One of them is the default, which is what videos start on when you add them unless a [rule](#rules) picks another. Create, rename and delete configs from the dropdown at the top of the blur settings tab, and set which one is the default there too - the star marks it, and clicking the lit star unsets it again.
+One of them is the default, which is what videos start on when you add them unless a [rule](#rules) picks another. Create, rename and delete configs from the dropdown at the top of the blur settings tab, and set which one is the default there too - the star marks it, and clicking the lit star unsets it again. The last row of the [rules](#rules) tab sets the same thing.
 
 Each video in the queue can be switched to a different config from its own dropdown, so a batch can mix them - a `slowmo` clip and a normal one rendered in one sitting. Switching a video's config also resets its mask options to whatever that config asks for.
 
@@ -110,6 +110,8 @@ A rule points every video whose path matches a pattern at a config, so clips out
 Each rule is a pattern and the config it picks. `*` matches any run of characters and `?` matches a single one, and a pattern with neither is matched anywhere in the path - so `valorant` catches anything with that in its path, `D:/clips/apex/*` catches a folder, and `*.mkv` catches an extension. Matching ignores case, and treats `\` and `/` the same, so a pattern copied off a Windows path works on Linux too.
 
 Rules are ordered and the first one that matches wins, so put the specific ones above the general ones. Drag a rule by its handle to move it.
+
+The last row of the tab is `default`, the default config every video that no rule matched falls through to. Set it to `none` and those videos are added without a config instead, waiting for you to pick one.
 
 A video picks its config when it's added, in this order:
 
@@ -158,16 +160,16 @@ Blur supports rendering from frameservers. This means you can avoid having to ru
 
 `blur-cli` renders without opening the app, using the same configs, rules and masks. `blur-cli --help` lists everything; the options are:
 
-| Option | What it does |
-| --- | --- |
-| `-i, --input` | Input file(s). Required, and repeatable. |
-| `-o, --output` | Output file(s). One per input if given, otherwise names are worked out from the input. |
-| `--config-name` | Name of a config in the `configs` folder, one per input. Takes precedence over `--config-path`. |
-| `-c, --config-path` | Path to a `.cfg` anywhere on disk, one per input, for a config that isn't in the folder. |
-| `--mask` | Mask image filename in the `masks` folder, or `none` to turn off a mask the config sets. |
-| `--auto-mask`, `--no-auto-mask` | Turn the generated mask on or off for this run. Left off entirely, the config decides. |
-| `-p, --preview` | Show a preview while rendering. |
-| `-v, --verbose` | Log more. |
+| Option                          | What it does                                                                                    |
+| ------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `-i, --input`                   | Input file(s). Required, and repeatable.                                                        |
+| `-o, --output`                  | Output file(s). One per input if given, otherwise names are worked out from the input.          |
+| `--config-name`                 | Name of a config in the `configs` folder, one per input. Takes precedence over `--config-path`. |
+| `-c, --config-path`             | Path to a `.cfg` anywhere on disk, one per input, for a config that isn't in the folder.        |
+| `--mask`                        | Mask image filename in the `masks` folder, or `none` to turn off a mask the config sets.        |
+| `--auto-mask`, `--no-auto-mask` | Turn the generated mask on or off for this run. Left off entirely, the config decides.          |
+| `-p, --preview`                 | Show a preview while rendering.                                                                 |
+| `-v, --verbose`                 | Log more.                                                                                       |
 
 ```
 blur-cli -i clip.mp4

@@ -7,6 +7,7 @@
 #include "config_blur.h"
 #include "config_app.h"
 #include "config_encoding_presets.h"
+#include "config_rules.h"
 #include "masks.h"
 
 tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_preview) {
@@ -30,7 +31,11 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 	if (!std::filesystem::exists(encoding_preset_config_path))
 		config_encoding_presets::create(encoding_preset_config_path, EncodingPresetSettings{});
 
-	// after the app config, which names the default config
+	auto rules_config_path = config_rules::get_config_path();
+	if (!std::filesystem::exists(rules_config_path))
+		config_rules::create(rules_config_path);
+
+	// after the rules config, which names the default config
 	config_blur::initialise_configs();
 
 	// so there's somewhere to drop mask images even before one's been used

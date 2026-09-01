@@ -6,6 +6,9 @@ std::string config_rules::generate_config_string(const ConfigRuleSettings& setti
 
 	output << "[blur v" << BLUR_VERSION << "]" << "\n";
 
+	output << "\n";
+	output << "default config: " << settings.default_config << "\n";
+
 	for (const auto& rule : settings.rules) {
 		output << "\n";
 		output << "- rule" << "\n";
@@ -26,6 +29,8 @@ ConfigRuleSettings config_rules::parse(const std::string& config_content) {
 	std::istringstream stream(config_content);
 	std::string line;
 
+	bool in_rule = false;
+
 	while (std::getline(stream, line)) {
 		line = u::trim(line);
 
@@ -33,12 +38,13 @@ ConfigRuleSettings config_rules::parse(const std::string& config_content) {
 			continue;
 
 		if (line.front() == '-') {
-			settings.rules.emplace_back();
+			in_rule = u::trim(line.substr(1)) == "rule";
+
+			if (in_rule)
+				settings.rules.emplace_back();
+
 			continue;
 		}
-
-		if (settings.rules.empty())
-			continue;
 
 		size_t delimiter_pos = line.find(':');
 		if (delimiter_pos == std::string::npos)
@@ -48,6 +54,13 @@ ConfigRuleSettings config_rules::parse(const std::string& config_content) {
 		// names can't, they go through u::validate_filename
 		std::string key = u::trim(line.substr(0, delimiter_pos));
 		std::string value = u::trim(line.substr(delimiter_pos + 1));
+
+		if (!in_rule) {
+			if (key == "default config")
+				settings.default_config = value;
+
+			continue;
+		}
 
 		auto& rule = settings.rules.back();
 
@@ -128,4 +141,7 @@ void config_rules::rename_config(ConfigRuleSettings& settings, const std::string
 		if (rule.config_name == from)
 			rule.config_name = to;
 	}
+
+	if (settings.default_config == from)
+		settings.default_config = to;
 }

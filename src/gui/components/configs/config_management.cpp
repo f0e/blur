@@ -127,12 +127,9 @@ namespace {
 			if (node.empty())
 				return;
 
+			// config files are renamed on save
 			node.key() = to;
 			configs::edited_configs.insert(std::move(node));
-
-			// config files are renamed on save
-			if (configs::app_settings.default_config == from)
-				configs::app_settings.default_config = to;
 
 			if (configs::selected_config_name == from)
 				configs::selected_config_name = to;
@@ -166,8 +163,8 @@ namespace {
 			configs::edited_configs.erase(name);
 
 			// deleting the default intentionally leaves no default
-			if (configs::app_settings.default_config == name)
-				configs::app_settings.default_config.clear();
+			if (configs::rule_settings.default_config == name)
+				configs::rule_settings.default_config.clear();
 
 			if (configs::edited_configs.empty())
 				return;
@@ -201,7 +198,7 @@ void configs::config_management(ui::Container& container) {
 	selected = selected_config_name;
 
 	auto is_default = [](const std::string& name) {
-		return app_settings.default_config == name;
+		return rule_settings.default_config == name;
 	};
 
 	std::vector<ui::DropdownOptionAction> row_actions = {
@@ -212,7 +209,7 @@ void configs::config_management(ui::Container& container) {
 			.hover_color = DEFAULT_CONFIG_ICON_COLOR,
 			.on_press =
 				[](const std::string&) {
-					app_settings.default_config.clear();
+					rule_settings.default_config.clear();
 				},
 			.applies_to = is_default,
 		},
@@ -222,7 +219,7 @@ void configs::config_management(ui::Container& container) {
 			.hover_color = DEFAULT_CONFIG_ICON_COLOR,
 			.on_press =
 				[](const std::string& name) {
-					app_settings.default_config = name;
+					rule_settings.default_config = name;
 				},
 			.applies_to =
 				[is_default](const std::string& name) {

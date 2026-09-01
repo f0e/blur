@@ -141,11 +141,11 @@ namespace config_blur {
 	// <settings path>/masks. a config's name is its filename without the extension, so the folder stays
 	// readable and hand-editable, and a single config can be copied between machines on its own.
 	//
-	// which one new videos start on is the default, named in the app config rather than fixed to a
-	// filename, so the default can be renamed like any other
+	// which one new videos start on is the default, named in the rules config alongside the rules that
+	// override it, rather than fixed to a filename, so the default can be renamed like any other
 	//
-	// constexpr, not const std::string: GlobalAppSettings defaults its config name from DEFAULT_CONFIG_NAME,
-	// and config_app::DEFAULT_CONFIG is itself a global. a dynamically initialised std::string here would be
+	// constexpr, not const std::string: ConfigRuleSettings defaults its config name from DEFAULT_CONFIG_NAME,
+	// and config_rules::DEFAULT_CONFIG is itself a global. a dynamically initialised std::string here would be
 	// read by that one before it was constructed, depending on which translation unit went first
 	inline constexpr std::string_view CONFIGS_FOLDER_NAME = "configs";
 	inline constexpr std::string_view CONFIG_EXTENSION = ".cfg";

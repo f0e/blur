@@ -1,7 +1,5 @@
 #pragma once
 
-#include "config_blur.h" // for DEFAULT_CONFIG_NAME. config_blur.h only forward-declares GlobalAppSettings, so no cycle
-
 struct GlobalAppSettings {
 	std::string output_prefix;
 
@@ -38,9 +36,6 @@ struct GlobalAppSettings {
 	std::string dismissed_update_version;
 
 	bool skip_queue = false;
-
-	// name-based so renames preserve the default and empty requires a queue selection
-	std::string default_config = std::string(config_blur::DEFAULT_CONFIG_NAME);
 
 #ifdef __linux__
 	std::string vapoursynth_lib_path;
