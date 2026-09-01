@@ -79,7 +79,7 @@ rendering::QueueAddRes rendering::VideoRenderQueue::add(
 
 		if (resolved_name.empty()) {
 			return {
-				.error = "no config selected, and there's no default config set",
+				.error = "no config selected, no rule matched, and there's no default config set",
 			};
 		}
 
