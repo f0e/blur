@@ -11,7 +11,6 @@ std::string config_rules::generate_config_string(const ConfigRuleSettings& setti
 		output << "- rule" << "\n";
 		output << "config: " << rule.config_name << "\n";
 		output << "pattern: " << rule.pattern << "\n";
-		output << "enabled: " << (rule.enabled ? "true" : "false") << "\n";
 	}
 
 	return output.str();
@@ -56,8 +55,6 @@ ConfigRuleSettings config_rules::parse(const std::string& config_content) {
 			rule.config_name = value;
 		else if (key == "pattern")
 			rule.pattern = value;
-		else if (key == "enabled")
-			rule.enabled = value != "false";
 	}
 
 	return settings;
@@ -84,7 +81,7 @@ void config_rules::save(const ConfigRuleSettings& settings) {
 }
 
 bool config_rules::usable(const ConfigRule& rule, const std::vector<std::string>& available_configs) {
-	if (!rule.enabled || rule.pattern.empty() || rule.config_name.empty())
+	if (rule.pattern.empty() || rule.config_name.empty())
 		return false;
 
 	// a rule outliving the config it points at is kept rather than deleted, so skip it here instead
