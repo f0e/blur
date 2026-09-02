@@ -352,58 +352,65 @@ namespace {
 
 		ui::AnimatedElement* handle = nullptr;
 
-		ui::add_with_message(container, row_element_id(index, "message"), message, message_color, [&] {
-			handle = ui::add_drag_handle(
-				row_element_id(index, "drag handle"), container, icon_dimensions, "Drag to reorder"
-			);
+		ui::add_with_message(
+			container,
+			row_element_id(index, "message"),
+			message,
+			message_color,
+			[&] {
+				handle = ui::add_drag_handle(
+					row_element_id(index, "drag handle"), container, icon_dimensions, "Drag to reorder"
+				);
 
-			ui::set_next_same_line(container);
+				ui::set_next_same_line(container);
 
-			ui::add_text_input(
-				row_element_id(index, "pattern input"),
-				container,
-				configs::bind_input(std::format("rule {} pattern", index), rule.pattern),
-				"",
-				fonts::dejavu,
-				"pattern",
-				{},
-				false,
-				widths.pattern
-			);
+				ui::add_text_input(
+					row_element_id(index, "pattern input"),
+					container,
+					configs::bind_input(std::format("rule {} pattern", index), rule.pattern),
+					"",
+					fonts::dejavu,
+					"pattern",
+					{},
+					false,
+					widths.pattern
+				);
 
-			ui::set_next_same_line(container);
+				ui::set_next_same_line(container);
 
-			add_config_dropdown(
-				row_element_id(index, "config dropdown"),
-				container,
-				widths,
-				rule.config_name,
-				config_options(rule.config_name),
-				[index](std::string* new_value) {
-					if (index < configs::rule_settings.rules.size())
-						configs::rule_settings.rules[index].config_name = *new_value;
-				}
-			);
+				add_config_dropdown(
+					row_element_id(index, "config dropdown"),
+					container,
+					widths,
+					rule.config_name,
+					config_options(rule.config_name),
+					[index](std::string* new_value) {
+						if (index < configs::rule_settings.rules.size())
+							configs::rule_settings.rules[index].config_name = *new_value;
+					}
+				);
 
-			ui::set_next_same_line(container);
+				ui::set_next_same_line(container);
 
-			auto* delete_button = ui::add_icon_button(
-				row_element_id(index, "delete button"),
-				container,
-				icons::CLOSE,
-				fonts::icons,
-				icon_dimensions,
-				configs::DELETE_ICON_COLOR,
-				configs::DELETE_ICON_HOVER_COLOR,
-				[index] {
-					if (index < configs::rule_settings.rules.size())
-						configs::rule_settings.rules.erase(configs::rule_settings.rules.begin() + index);
-				},
-				"Remove rule"
-			);
+				auto* delete_button = ui::add_icon_button(
+					row_element_id(index, "delete button"),
+					container,
+					icons::CLOSE,
+					fonts::icons,
+					icon_dimensions,
+					configs::DELETE_ICON_COLOR,
+					configs::DELETE_ICON_HOVER_COLOR,
+					[index] {
+						if (index < configs::rule_settings.rules.size())
+							configs::rule_settings.rules.erase(configs::rule_settings.rules.begin() + index);
+					},
+					"Remove rule"
+				);
 
-			ui::right_align_element(container, delete_button);
-		});
+				ui::right_align_element(container, delete_button);
+			},
+			FONT_CENTERED_X
+		);
 
 		container.pop_element_gap();
 
@@ -440,35 +447,42 @@ namespace {
 		if (config_missing(default_config))
 			message = std::format("rule disabled - '{}' no longer exists", default_config);
 
-		ui::add_with_message(container, "default row message", message, configs::ERROR_COLOR, [&] {
-			auto* label =
-				ui::add_text("default row label", container, "default", gfx::Color::white(180), fonts::dejavu);
+		ui::add_with_message(
+			container,
+			"default row message",
+			message,
+			configs::ERROR_COLOR,
+			[&] {
+				auto* label =
+					ui::add_text("default row label", container, "default", gfx::Color::white(180), fonts::dejavu);
 
-			ui::set_next_same_line(container);
+				ui::set_next_same_line(container);
 
-			auto options = config_options(default_config);
-			options.insert(options.begin(), NO_DEFAULT_OPTION);
+				auto options = config_options(default_config);
+				options.insert(options.begin(), NO_DEFAULT_OPTION);
 
-			auto* dropdown = add_config_dropdown(
-				"default row dropdown",
-				container,
-				widths,
-				default_config.empty() ? NO_DEFAULT_OPTION : default_config,
-				options,
-				[](std::string* new_value) {
-					configs::rule_settings.default_config = *new_value == NO_DEFAULT_OPTION ? "" : *new_value;
-				}
-			);
+				auto* dropdown = add_config_dropdown(
+					"default row dropdown",
+					container,
+					widths,
+					default_config.empty() ? NO_DEFAULT_OPTION : default_config,
+					options,
+					[](std::string* new_value) {
+						configs::rule_settings.default_config = *new_value == NO_DEFAULT_OPTION ? "" : *new_value;
+					}
+				);
 
-			int row_x = container.get_usable_rect().center().x - (widths.full / 2);
+				int row_x = container.get_usable_rect().center().x - (widths.full / 2);
 
-			place(
-				label,
-				row_x + widths.icon + container.element_gap,
-				(dropdown->element->rect.h - label->element->rect.h) / 2
-			);
-			place(dropdown, row_x + widths.icon + widths.pattern + (container.element_gap * 2), 0);
-		});
+				place(
+					label,
+					row_x + widths.icon + container.element_gap,
+					(dropdown->element->rect.h - label->element->rect.h) / 2
+				);
+				place(dropdown, row_x + widths.icon + widths.pattern + (container.element_gap * 2), 0);
+			},
+			FONT_CENTERED_X
+		);
 
 		container.pop_element_gap();
 	}
