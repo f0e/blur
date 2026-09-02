@@ -56,6 +56,15 @@ find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3)
 find_package(SDL3_image CONFIG REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(unofficial-angle REQUIRED CONFIG)
+
+# always use release ANGLE builds cause debug versions are slow asf
+foreach(angle_target unofficial::angle::libEGL unofficial::angle::libGLESv2)
+  if(TARGET ${angle_target})
+    set_target_properties(${angle_target} PROPERTIES MAP_IMPORTED_CONFIG_DEBUG
+                                                     "Release;Debug")
+  endif()
+endforeach()
+
 find_package(GTest CONFIG REQUIRED)
 find_package(tl-expected CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
