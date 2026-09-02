@@ -381,6 +381,8 @@ void configs::screen(
 			std::thread([] {
 				ui::reset_tied_sliders();
 
+				config_blur::initialise_configs(); // re-initialise in case the folder got removed since launch
+
 				edited_configs.clear();
 				for (const auto& name : config_blur::list()) {
 					edited_configs[name] = config_blur::get_config(name);
