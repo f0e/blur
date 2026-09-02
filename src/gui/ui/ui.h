@@ -1118,7 +1118,8 @@ namespace ui {
 		const std::string& message_id,
 		const std::optional<std::string>& message,
 		const gfx::Color& color,
-		const std::function<void()>& add_element
+		const std::function<void()>& add_element,
+		unsigned int message_flags = EFontFlags::FONT_NONE
 	);
 
 	void set_next_same_line(Container& container);

@@ -286,7 +286,8 @@ void ui::add_with_message(
 	const std::string& message_id,
 	const std::optional<std::string>& message,
 	const gfx::Color& color,
-	const std::function<void()>& add_element
+	const std::function<void()>& add_element,
+	unsigned int message_flags
 ) {
 	if (message)
 		container.push_element_gap(2);
@@ -296,7 +297,7 @@ void ui::add_with_message(
 	if (message) {
 		container.pop_element_gap();
 
-		ui::add_text(message_id, container, *message, color, fonts::dejavu);
+		ui::add_text(message_id, container, *message, color, fonts::dejavu, message_flags);
 	}
 }
 
