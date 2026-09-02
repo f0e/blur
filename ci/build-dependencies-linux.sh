@@ -144,7 +144,7 @@ download_wheel \
 mkdir -p "$out_dir/vapoursynth-plugins"
 cp download/lsmas/wheel/vapoursynth/plugins/liblsmashsource.so "$out_dir/vapoursynth-plugins"
 
-# akarin (jet fork, only published as a wheel these days)
+# akarin
 download_wheel \
   "https://files.pythonhosted.org/packages/88/82/656755adce60bdf2758c0b03eb3ed7b9622c114bed1d5a1c6c7e13fb5e77/vapoursynth_akarin-1.5.0-py3-none-manylinux_2_35_x86_64.whl" \
   "akarin"

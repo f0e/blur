@@ -122,7 +122,6 @@ Set-Location $PWD
 # Plugin installations
 $plugins = @(
     @{
-        # jet fork, only published as a wheel (a zip in disguise) since v1.3.0
         Name         = "Akarin";
         Url          = "https://files.pythonhosted.org/packages/0d/31/95658c029a7ee3bbfc1359f9fa623a13f0a3ff0d940ba9e204421dd7a0ca/vapoursynth_akarin-1.5.0-py3-none-win_amd64.whl";
         FilePatterns = @(
