@@ -4,8 +4,8 @@ set(VCPKG_OVERLAY_TRIPLETS
     "${CMAKE_CURRENT_LIST_DIR}/cmake/triplets"
     CACHE STRING "" FORCE)
 
-# CMAKE_HOST_SYSTEM_PROCESSOR isn't filled in until project(), and vcpkg's
-# toolchain runs there - so ask for the host arch directly
+# CMAKE_HOST_SYSTEM_PROCESSOR isn't set until project(), too late for vcpkg's
+# toolchain, so query the host arch directly instead
 cmake_host_system_information(RESULT BLUR_HOST_PROCESSOR QUERY OS_PLATFORM)
 string(TOLOWER "${BLUR_HOST_PROCESSOR}" BLUR_HOST_PROCESSOR)
 if(BLUR_HOST_PROCESSOR MATCHES "^(arm64|aarch64)$")
@@ -25,27 +25,15 @@ endif()
 if(BLUR_VCPKG_PLATFORM)
   set(BLUR_VCPKG_DEFAULT_TRIPLET "${BLUR_VCPKG_ARCH}-${BLUR_VCPKG_PLATFORM}")
 
-  # blur's triplets are the stock ones plus a dynamic ANGLE (see
-  # cmake/triplets/blur-angle-dynamic.cmake). building against the stock triplet
-  # instead gives a static ANGLE, which SDL can't dlopen at runtime - so take
-  # over the stock triplet name too, otherwise a cache from before these
-  # triplets existed silently keeps producing a broken build.
-  if(NOT VCPKG_TARGET_TRIPLET OR VCPKG_TARGET_TRIPLET STREQUAL
-                                 "${BLUR_VCPKG_DEFAULT_TRIPLET}")
-    if(VCPKG_TARGET_TRIPLET)
-      message(
-        STATUS
-          "Replacing vcpkg triplet ${VCPKG_TARGET_TRIPLET} with ${BLUR_VCPKG_DEFAULT_TRIPLET}-blur"
-      )
-    endif()
-
+  # default to the -blur triplet instead of vcpkg's stock one
+  if(NOT VCPKG_TARGET_TRIPLET)
     set(VCPKG_TARGET_TRIPLET
         "${BLUR_VCPKG_DEFAULT_TRIPLET}-blur"
         CACHE STRING "" FORCE)
   endif()
 endif()
 
-# Force static runtime on Windows
+# force static runtime on windows
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 project(blur LANGUAGES C CXX)
@@ -80,7 +68,7 @@ file(GLOB_RECURSE CLI_TEST_SOURCES "tests/cli/*.cpp")
 list(FILTER CLI_TEST_SOURCES EXCLUDE REGEX
      "^.*/tests/plot_weighting_functions/.*$")
 
-# Create CLI sources without main for tests
+# create CLI sources without main for tests
 set(CLI_SOURCES_NO_MAIN ${CLI_SOURCES})
 list(FILTER CLI_SOURCES_NO_MAIN EXCLUDE REGEX ".*main\\.cpp$")
 
@@ -212,9 +200,8 @@ target_link_libraries(
 target_link_libraries(blur PRIVATE unofficial::angle::libEGL
                                    unofficial::angle::libGLESv2)
 
-# SDL dlopens EGL/GLES at runtime, so a static ANGLE can't work no matter where
-# we put it. catch it here rather than at startup - it means the wrong triplet
-# was used (see the VCPKG_TARGET_TRIPLET handling at the top of this file).
+# SDL dlopens EGL/GLES at runtime, so a static ANGLE can never work - catch it
+# here (wrong triplet, see VCPKG_TARGET_TRIPLET handling above) rather than at startup.
 get_target_property(BLUR_ANGLE_EGL_TYPE unofficial::angle::libEGL TYPE)
 if(NOT BLUR_ANGLE_EGL_TYPE STREQUAL "SHARED_LIBRARY")
   message(
@@ -228,10 +215,8 @@ target_compile_definitions(
                BLUR_ANGLE_EGL_LIBRARY="$<TARGET_FILE_NAME:unofficial::angle::libEGL>"
                BLUR_ANGLE_GLES_LIBRARY="$<TARGET_FILE_NAME:unofficial::angle::libGLESv2>")
 
-# in a macos app bundle dylibs belong in Contents/Frameworks, everywhere else
-# they sit next to the executable. sdl.cpp mirrors this when it points SDL at
-# them, so keep the two in sync.
 if(APPLE)
+  # put dylibs in Contents/Frameworks like they should be instead of alongside the executable
   set(BLUR_ANGLE_RUNTIME_DIR "$<TARGET_BUNDLE_CONTENT_DIR:blur>/Frameworks")
 else()
   set(BLUR_ANGLE_RUNTIME_DIR "$<TARGET_FILE_DIR:blur>")
@@ -254,8 +239,11 @@ if(APPLE)
     blur PROPERTIES BUILD_RPATH "@executable_path;@executable_path/../Frameworks"
                     INSTALL_RPATH "@executable_path;@executable_path/../Frameworks")
 elseif(UNIX)
-  set_target_properties(blur PROPERTIES BUILD_RPATH "$ORIGIN"
-                                        INSTALL_RPATH "$ORIGIN")
+  set_target_properties(
+    blur
+    PROPERTIES BUILD_RPATH "$ORIGIN"
+               INSTALL_RPATH "$ORIGIN"
+               BUILD_WITH_INSTALL_RPATH TRUE)
 endif()
 
 if(APPLE)
@@ -307,38 +295,30 @@ if(APPLE)
                XCODE_ATTRIBUTE_OTHER_CODE_SIGN_FLAGS "--deep"
                XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "YES")
 
-  # Specify the .icns file as the app icon
   set(MACOSX_BUNDLE_ICON_FILE blur.icns)
 
-  # Ensure the .icns file is included in the app bundle's Resources folder
   set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/blur.icns
                               PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
-  # Link the .icns file to the target
   target_sources(blur PRIVATE ${CMAKE_SOURCE_DIR}/resources/blur.icns)
 
-  # Add a post-build step that will run after the bundle is created
   add_custom_command(
     TARGET blur
     POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E echo "Copying resources to bundle..."
-    # Make sure the destination directories exist
     COMMAND ${CMAKE_COMMAND} -E make_directory
             "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/"
     COMMAND ${CMAKE_COMMAND} -E make_directory
             "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/vapoursynth"
-    # Copy ci/out directory if it exists
     COMMAND ${CMAKE_COMMAND} -E echo "Copying ci/out files..."
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/ci/out"
             "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/"
-    # Copy vapoursynth scripts
     COMMAND ${CMAKE_COMMAND} -E echo "Copying vapoursynth files..."
     COMMAND
       ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/src/vapoursynth"
       "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/lib"
-    # Verify the copy worked
     COMMAND ${CMAKE_COMMAND} -E echo "Resource copying complete"
-    # The VERBATIM flag ensures command arguments are correctly escaped
+    # VERBATIM ensures command arguments are correctly escaped
     VERBATIM)
 elseif(UNIX)
   find_package(PkgConfig REQUIRED)
