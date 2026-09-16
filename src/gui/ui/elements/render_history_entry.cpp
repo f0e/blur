@@ -18,6 +18,9 @@ static const int ACTION_LABEL_PADDING = 7;
 static const int TITLE_DETAIL_GAP = 3;
 static const int MAX_DETAIL_LINES = 2;
 
+static const int PROGRESS_BAR_H = 3;
+static const float PROGRESS_BAR_ROUNDING = 1.5f;
+
 // how far the mouse can move with the button down before the press stops being a click and starts dragging the
 // file out of the window
 static const float DRAG_DISTANCE = 4.f;
@@ -94,12 +97,20 @@ namespace {
 		return std::max(width, 0);
 	}
 
-	// the title's line, with the detail lines stacked under it
-	int get_text_height(const std::vector<std::string>& detail_lines, const render::Font& font, int line_height) {
+	// the title's line, with the detail lines stacked under it and the progress bar under those
+	int get_text_height(
+		const std::vector<std::string>& detail_lines,
+		const std::optional<float>& progress,
+		const render::Font& font,
+		int line_height
+	) {
 		int height = font.height();
 
 		if (!detail_lines.empty())
 			height += TITLE_DETAIL_GAP + (static_cast<int>(detail_lines.size()) * line_height);
+
+		if (progress)
+			height += TITLE_DETAIL_GAP + PROGRESS_BAR_H;
 
 		return height;
 	}
@@ -164,7 +175,8 @@ void ui::render_render_history_entry(const Container& container, const AnimatedE
 	render::rounded_rect_stroke(thumbnail_rect, gfx::Color::white(45), THUMBNAIL_ROUNDING);
 
 	// title above the detail lines, the block centered against the thumbnail
-	int text_height = get_text_height(entry_data.detail_lines, entry_data.font, entry_data.line_height);
+	int text_height =
+		get_text_height(entry_data.detail_lines, entry_data.progress, entry_data.font, entry_data.line_height);
 
 	gfx::Rect inner = get_inner_rect(rect);
 	gfx::Point text_pos(thumbnail_rect.x2() + THUMBNAIL_GAP, inner.y + ((inner.h - text_height) / 2));
@@ -179,6 +191,23 @@ void ui::render_render_history_entry(const Container& container, const AnimatedE
 	for (const auto& line : entry_data.detail_lines) {
 		render::text(text_pos, detail_color, line, entry_data.font);
 		text_pos.y += entry_data.line_height;
+	}
+
+	if (entry_data.progress) {
+		int bar_width = get_text_width(rect.w, entry_data.actions, entry_data.font);
+
+		// the title already left a gap behind it, the detail lines only their leading
+		int bar_y = text_pos.y + (entry_data.detail_lines.empty() ? 0 : TITLE_DETAIL_GAP);
+
+		gfx::Rect bar_rect(text_pos.x, bar_y, bar_width, PROGRESS_BAR_H);
+
+		render::rounded_rect_filled(bar_rect, gfx::Color::white(25), PROGRESS_BAR_ROUNDING);
+
+		gfx::Rect filled_rect = bar_rect;
+		filled_rect.w = static_cast<int>(bar_width * std::clamp(*entry_data.progress, 0.f, 1.f));
+
+		if (filled_rect.w > 0)
+			render::rounded_rect_filled(filled_rect, gfx::Color::white(160), PROGRESS_BAR_ROUNDING);
 	}
 
 	std::vector<gfx::Rect> action_rects = get_action_rects(rect, entry_data.actions, entry_data.font);
@@ -302,6 +331,7 @@ ui::AnimatedElement* ui::add_render_history_entry(
 	const std::string& title,
 	const std::string& detail,
 	bool error,
+	const std::optional<float>& progress,
 	const std::shared_ptr<render::Texture>& thumbnail,
 	const std::vector<RenderHistoryAction>& actions,
 	std::optional<std::function<void()>> on_click,
@@ -331,7 +361,7 @@ ui::AnimatedElement* ui::add_render_history_entry(
 	std::string clipped_title = title;
 	render::clip_string(clipped_title, font, text_width);
 
-	size.h = std::max(THUMBNAIL_H, get_text_height(detail_lines, font, line_height)) + (ENTRY_PADDING * 2);
+	size.h = std::max(THUMBNAIL_H, get_text_height(detail_lines, progress, font, line_height)) + (ENTRY_PADDING * 2);
 
 	Element element(
 		id,
@@ -341,6 +371,7 @@ ui::AnimatedElement* ui::add_render_history_entry(
 			.title = std::move(clipped_title),
 			.detail_lines = std::move(detail_lines),
 			.error = error,
+			.progress = progress,
 			.thumbnail = thumbnail,
 			.actions = actions,
 			.on_click = std::move(on_click),

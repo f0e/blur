@@ -9,6 +9,16 @@ bool rendering::VideoRenderQueue::process_next() {
 
 	auto cur = m_queue.front();
 
+	if (cur.state->wants_stop()) {
+		if (cur.finish_callback)
+			cur.finish_callback(cur, RenderResult{ .stopped = true });
+
+		std::unique_lock lock(m_mutex);
+		m_queue.erase(m_queue.begin());
+
+		return true;
+	}
+
 	auto res = detail::render_video(
 		cur.input_path,
 		cur.video_info,
@@ -26,6 +36,35 @@ bool rendering::VideoRenderQueue::process_next() {
 
 	std::unique_lock lock(m_mutex);
 	m_queue.erase(m_queue.begin());
+
+	return true;
+}
+
+bool rendering::VideoRenderQueue::cancel(const std::shared_ptr<RenderState>& state) {
+	std::optional<VideoRenderDetails> cancelled;
+
+	{
+		std::lock_guard lock(m_mutex);
+
+		auto it = std::ranges::find_if(m_queue, [&](const auto& render) {
+			return render.state == state;
+		});
+
+		if (it == m_queue.end())
+			return false;
+
+		it->state->stop();
+
+		// process_next is holding onto the front render, so leave taking it off the queue to it
+		if (it == m_queue.begin())
+			return true;
+
+		cancelled = *it;
+		m_queue.erase(it);
+	}
+
+	if (cancelled->finish_callback)
+		cancelled->finish_callback(*cancelled, RenderResult{ .stopped = true });
 
 	return true;
 }

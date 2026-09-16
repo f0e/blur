@@ -29,3 +29,5 @@ vcpkg_installed/
 
 # Keep .gitkeep files
 !.gitkeep
+
+.cache/
