@@ -59,6 +59,8 @@ namespace rendering {
 		// finish callback. defined in the .cpp as it drives detail::render_video.
 		bool process_next();
 
+		bool cancel(const std::shared_ptr<RenderState>& state);
+
 		void stop() {
 			m_active = false;
 			// now no more renders will start. see process_next.

@@ -131,8 +131,6 @@ tl::expected<void, std::string> sdl::initialise() {
 	SDL_SetHint(SDL_HINT_VIDEO_FORCE_EGL, "1");
 	SDL_SetHint(SDL_HINT_OPENGL_ES_DRIVER, "1");
 
-	// Use the packaged libraries instead of another ANGLE installation that
-	// happens to be on the system loader's search path.
 	const auto angle_dir = angle_library_dir();
 	const std::string angle_egl_path = (angle_dir / BLUR_ANGLE_EGL_LIBRARY).string();
 	const std::string angle_gles_path = (angle_dir / BLUR_ANGLE_GLES_LIBRARY).string();

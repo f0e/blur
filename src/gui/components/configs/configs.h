@@ -125,6 +125,7 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	void parse_interp();
 	bool has_unsaved_changes();
+	void leave_screen(const std::function<void()>& on_leave);
 	void save_config();
 	void on_load();
 

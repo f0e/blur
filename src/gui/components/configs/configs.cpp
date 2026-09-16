@@ -172,6 +172,17 @@ bool configs::has_unsaved_changes() {
 	       rule_settings != current_rule_settings || encoding_preset_settings != current_encoding_preset_settings;
 }
 
+void configs::leave_screen(const std::function<void()>& on_leave) {
+	if (!has_unsaved_changes()) {
+		on_leave();
+		return;
+	}
+
+	ui::dialog::confirm_destructive(
+		"Discard unsaved changes?", "Leaving will discard your unsaved config changes.", "Discard", on_leave
+	);
+}
+
 void configs::section(
 	ui::Container& container, bool& first_section, const std::string& label, bool* setting, bool forced_on
 ) {

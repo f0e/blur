@@ -1,7 +1,10 @@
 #include "render_history.h"
 
+#include "main.h"
 #include "notifications.h"
+#include "configs/configs.h"
 
+#include "../renderer.h"
 #include "../os/clipboard.h"
 #include "../os/file_browser.h"
 #include "../ui/keys.h"
@@ -9,6 +12,7 @@
 #include "../fonts/icons.h"
 
 namespace history = gui::components::render_history;
+using gui::components::main::MainScreen;
 
 namespace {
 	// how far outside the button/panel the mouse can stray before the panel closes. covers the gap between them
@@ -26,18 +30,27 @@ namespace {
 
 	struct Entry {
 		size_t id;
-		std::string title; // the file that came out, or the video that failed
+		std::string title; // the file that came out, or the video it came from
 		std::filesystem::path output_path;
 
-		bool success;
+		bool success = false;
 		rendering::RenderError error;
+
+		// set while the render is still in the queue, so its row can show live progress and turn into the result
+		std::shared_ptr<rendering::RenderState> state;
+		bool active = false;
+		size_t queue_index = 0;
 
 		std::chrono::steady_clock::time_point shown_until; // fallback dismissal time if it is never hovered
 		bool auto_display_hovered = false;                 // once hovered, leaving dismisses it immediately
 
 		std::vector<uint8_t> thumbnail_jpeg;        // filled in by a worker thread
 		std::shared_ptr<render::Texture> thumbnail; // uploaded from the jpeg on the render thread
-		bool thumbnail_uploaded = false;
+	};
+
+	struct ActiveStatus {
+		std::string detail;
+		std::optional<float> progress;
 	};
 
 	std::mutex entries_mutex;
@@ -60,9 +73,12 @@ namespace {
 
 	// the panel says what it is while the mouse is why it's showing, and what just happened when it shows itself
 	// on its own
-	std::string get_panel_title(bool hovered, size_t shown_count, size_t shown_failures) {
+	std::string get_panel_title(bool hovered, size_t shown_count, size_t shown_failures, size_t shown_active) {
 		if (hovered)
 			return "Render history";
+
+		if (shown_active > 0)
+			return "Rendering";
 
 		bool plural = shown_count > 1;
 
@@ -95,12 +111,36 @@ namespace {
 		}).detach();
 	}
 
-	size_t add_entry(Entry entry) {
+	// a moment into the part of the video that's actually being rendered
+	float get_input_thumbnail_timestamp(const rendering::VideoRenderDetails& render) {
+		return static_cast<float>(render.video_info.video_start_time) + (render.start * render.video_info.duration) +
+		       0.2f;
+	}
+
+	// the row that was showing the render's progress becomes the row for its result, so it stays put
+	size_t finish_entry(const std::shared_ptr<rendering::RenderState>& state, Entry entry) {
 		std::lock_guard lock(entries_mutex);
+
+		entry.shown_until = std::chrono::steady_clock::now() + ENTRY_SHOW_TIME;
+
+		auto it = std::ranges::find_if(entries, [&](const auto& existing) {
+			return existing->state == state;
+		});
+
+		if (it != entries.end()) {
+			auto& existing = **it;
+
+			entry.id = existing.id;
+			entry.state = existing.state; // dropped once the render leaves the queue, see sync_active_entries
+			entry.thumbnail = existing.thumbnail;
+
+			existing = std::move(entry);
+
+			return existing.id;
+		}
 
 		size_t id = next_entry_id++;
 		entry.id = id;
-		entry.shown_until = std::chrono::steady_clock::now() + ENTRY_SHOW_TIME;
 
 		entries.insert(entries.begin(), std::make_shared<Entry>(std::move(entry)));
 
@@ -108,6 +148,114 @@ namespace {
 			entries.resize(MAX_ENTRIES);
 
 		return id;
+	}
+
+	// the queue owns the rows for renders that haven't finished yet
+	void sync_active_entries() {
+		auto queue = rendering::video_render_queue.get_queue_copy();
+
+		std::vector<const rendering::RenderState*> queued;
+		queued.reserve(queue.size());
+
+		for (const auto& [i, render] : u::enumerate(queue)) {
+			queued.push_back(render.state.get());
+
+			auto it = std::ranges::find_if(entries, [&](const auto& entry) {
+				return entry->state == render.state;
+			});
+
+			if (it != entries.end()) {
+				(*it)->queue_index = i;
+				continue;
+			}
+
+			bool is_current_render = i == 0;
+			bool auto_show = !is_current_render || gui::components::main::current_screen() != MainScreen::PROGRESS;
+
+			auto entry = std::make_shared<Entry>(Entry{
+				.id = next_entry_id++,
+				.title = u::path_to_string(render.input_path.stem()),
+				.state = render.state,
+				.active = true,
+				.queue_index = i,
+				.shown_until = auto_show ? std::chrono::steady_clock::now() + ENTRY_SHOW_TIME
+			                             : std::chrono::steady_clock::time_point{},
+			});
+
+			entries.insert(entries.begin(), entry);
+
+			load_thumbnail_async(entry->id, render.input_path, get_input_thumbnail_timestamp(render));
+		}
+
+		auto is_queued = [&](const Entry& entry) {
+			return u::contains(queued, entry.state.get());
+		};
+
+		// a render that left the queue without a result was cancelled, so its row goes with it
+		std::erase_if(entries, [&](const auto& entry) {
+			return entry->active && !is_queued(*entry);
+		});
+
+		// nothing left to keep the render state alive for once it's out of the queue
+		for (auto& entry : entries) {
+			if (entry->state && !is_queued(*entry))
+				entry->state.reset();
+		}
+	}
+
+	std::vector<std::shared_ptr<Entry>> get_ordered_entries() {
+		std::vector<std::shared_ptr<Entry>> ordered;
+		ordered.reserve(entries.size());
+
+		for (const auto& entry : entries) {
+			if (entry->active)
+				ordered.push_back(entry);
+		}
+
+		std::ranges::sort(ordered, std::ranges::greater{}, [](const auto& entry) {
+			return entry->queue_index;
+		});
+
+		for (const auto& entry : entries) {
+			if (!entry->active)
+				ordered.push_back(entry);
+		}
+
+		return ordered;
+	}
+
+	ActiveStatus get_active_status(const Entry& entry) {
+		if (entry.queue_index > 0)
+			return { .detail = "Queued" };
+
+		auto progress = entry.state->get_progress();
+
+		if (!progress.rendered_a_frame) {
+			if (entry.state->is_paused())
+				return { .detail = "Paused" };
+
+			switch (progress.init_stage) {
+				case rendering::RenderState::InitStage::generating_mask:
+					return { .detail = "Generating mask..." };
+				case rendering::RenderState::InitStage::building_engine:
+					return { .detail = "Building TensorRT engine..." };
+				case rendering::RenderState::InitStage::none:
+					return { .detail = "Initialising..." };
+			}
+		}
+
+		float fraction = progress.total_frames > 0
+		                     ? std::clamp(progress.current_frame / static_cast<float>(progress.total_frames), 0.f, 1.f)
+		                     : 0.f;
+
+		std::string detail = std::format("{:.0f}%", fraction * 100.f);
+
+		if (entry.state->is_paused())
+			detail = std::format("Paused - {}", detail);
+		else if (progress.fps > 0.f)
+			detail = std::format("{} - {:.0f} frames per second", detail, progress.fps);
+
+		return { .detail = detail, .progress = fraction };
 	}
 
 	void open_path(const std::filesystem::path& path) {
@@ -176,7 +324,50 @@ namespace {
 		);
 	}
 
+	void go_to_render_screen() {
+		gui::components::main::show_screen(MainScreen::PROGRESS);
+
+		if (gui::renderer::screen != gui::renderer::Screens::CONFIG)
+			return;
+
+		gui::components::configs::leave_screen([] {
+			gui::renderer::screen = gui::renderer::Screens::MAIN;
+		});
+	}
+
+	std::vector<ui::RenderHistoryAction> get_active_entry_actions(const std::shared_ptr<const Entry>& entry) {
+		std::vector<ui::RenderHistoryAction> actions;
+
+		// only the render at the front is going, the rest haven't started so there's nothing to pause
+		if (entry->queue_index == 0) {
+			actions.push_back(
+				{
+					.label = entry->state->is_paused() ? "Resume" : "Pause",
+					.on_press =
+						[state = entry->state] {
+							state->toggle_pause();
+						},
+				}
+			);
+		}
+
+		actions.push_back(
+			{
+				.label = "Cancel",
+				.on_press =
+					[state = entry->state] {
+						rendering::video_render_queue.cancel(state);
+					},
+			}
+		);
+
+		return actions;
+	}
+
 	std::vector<ui::RenderHistoryAction> get_entry_actions(const std::shared_ptr<const Entry>& entry) {
+		if (entry->active)
+			return get_active_entry_actions(entry);
+
 		if (!entry->success) {
 			return {
 				{
@@ -225,8 +416,9 @@ namespace {
 	}
 }
 
-void history::add_success(const rendering::RenderResult& result) {
-	size_t id = add_entry(
+void history::add_success(const rendering::VideoRenderDetails& render, const rendering::RenderResult& result) {
+	size_t id = finish_entry(
+		render.state,
 		{
 			.title = u::path_to_string(result.output_path.filename()),
 			.output_path = result.output_path,
@@ -240,7 +432,8 @@ void history::add_success(const rendering::RenderResult& result) {
 void history::add_failure(
 	const rendering::VideoRenderDetails& render, const std::variant<std::string, rendering::RenderError>& error
 ) {
-	size_t id = add_entry(
+	size_t id = finish_entry(
+		render.state,
 		{
 			.title = u::path_to_string(render.input_path.stem()),
 			.success = false,
@@ -252,7 +445,7 @@ void history::add_failure(
 	);
 
 	// no output to show, so use the video that failed
-	load_thumbnail_async(id, render.input_path, render.start + 0.2f);
+	load_thumbnail_async(id, render.input_path, get_input_thumbnail_timestamp(render));
 }
 
 bool history::empty() {
@@ -285,15 +478,13 @@ void history::render_button(ui::Container& container) {
 	button_rect = button->element->rect;
 }
 
-void history::render_panel(ui::Container& container, float delta_time, bool with_button) {
+void history::render_panel(ui::Container& container, float delta_time) {
 	std::lock_guard lock(entries_mutex);
 
-	if (!with_button)
-		panel_open = false; // nothing to hover
+	sync_active_entries();
 
 	// Keep the origin around while the rows go stale so the backdrop can fold away with them.
-	panel_collapse_rect =
-		with_button && !button_rect.is_empty() ? std::optional<gfx::Rect>{ button_rect } : std::nullopt;
+	panel_collapse_rect = !button_rect.is_empty() ? std::optional<gfx::Rect>{ button_rect } : std::nullopt;
 	if (!panel_collapse_rect)
 		panel_transforming = false;
 
@@ -303,8 +494,9 @@ void history::render_panel(ui::Container& container, float delta_time, bool with
 
 	size_t shown_count = 0;
 	size_t shown_failures = 0;
+	size_t shown_active = 0;
 
-	for (const auto& entry_ptr : entries) {
+	for (const auto& entry_ptr : get_ordered_entries()) {
 		auto& entry = *entry_ptr;
 
 		// The timer is only a fallback for entries the user never interacts with. Once an auto-shown entry has
@@ -320,36 +512,56 @@ void history::render_panel(ui::Container& container, float delta_time, bool with
 			container.current_position.y += header_height(); // the header is drawn with the backdrop, behind the rows
 
 		shown_count++;
-		if (!entry.success)
+		if (entry.active)
+			shown_active++;
+		else if (!entry.success)
 			shown_failures++;
 
 		// uploading a texture needs the render thread, so it happens here rather than in the worker
-		if (!entry.thumbnail_uploaded && !entry.thumbnail_jpeg.empty()) {
+		if (!entry.thumbnail_jpeg.empty()) {
 			entry.thumbnail = render::texture_from_jpeg(entry.thumbnail_jpeg);
-			entry.thumbnail_uploaded = true;
 			entry.thumbnail_jpeg = {};
 		}
 
 		std::shared_ptr<const Entry> const_entry = entry_ptr;
 
-		auto on_click = [const_entry] {
-			if (const_entry->success)
-				open_path(const_entry->output_path);
-			else
-				show_error_dialog(const_entry);
-		};
+		ActiveStatus status;
+		std::string detail;
+
+		if (entry.active) {
+			status = get_active_status(entry);
+			detail = status.detail;
+		}
+		else if (!entry.success) {
+			detail = entry.error.user_message;
+		}
+
+		std::optional<std::function<void()>> on_click;
+		if (entry.active) {
+			on_click = go_to_render_screen;
+		}
+		else {
+			on_click = [const_entry] {
+				if (const_entry->success)
+					open_path(const_entry->output_path);
+				else
+					show_error_dialog(const_entry);
+			};
+		}
 
 		ui::add_render_history_entry(
 			std::format("render history entry {}", entry.id),
 			container,
 			entry.title,
-			entry.success ? "" : entry.error.user_message,
-			!entry.success,
+			detail,
+			!entry.active && !entry.success,
+			status.progress,
 			entry.thumbnail,
 			get_entry_actions(const_entry),
 			std::move(on_click),
-			// failed renders have no file to hand over, only the error to show
-			entry.success ? std::make_optional(entry.output_path) : std::optional<std::filesystem::path>{},
+			// only a finished render has a file to hand over
+			entry.active || !entry.success ? std::optional<std::filesystem::path>{}
+										   : std::make_optional(entry.output_path),
 			panel_collapse_rect,
 			fonts::dejavu
 		);
@@ -377,7 +589,7 @@ void history::render_panel(ui::Container& container, float delta_time, bool with
 	panel_showing = true;
 
 	panel_rect = { container.rect.x, container.rect.y, container.rect.w, static_cast<int>(std::lround(panel_height)) };
-	panel_title = get_panel_title(panel_open || hovering, shown_count, shown_failures);
+	panel_title = get_panel_title(panel_open || hovering, shown_count, shown_failures, shown_active);
 }
 
 void history::draw_panel(ui::Container& container, ui::Container& button_container) {

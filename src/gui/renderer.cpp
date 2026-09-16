@@ -197,22 +197,21 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 	const ui::Padding history_panel_padding{ HISTORY_PANEL_PAD, HISTORY_PANEL_PAD, HISTORY_PANEL_PAD, 12 };
 
-	gfx::Rect history_panel_container_rect = rect;
-	history_panel_container_rect.w = HISTORY_PANEL_W;
-	history_panel_container_rect.x = rect.x2() - PAD_X - HISTORY_PANEL_W;
-	history_panel_container_rect.y = rect.y + PAD_Y;
-	history_panel_container_rect.h = rect.y2() - PAD_Y - history_panel_container_rect.y;
-
-	ui::reset_container(history_panel_container, sdl::window, history_panel_container_rect, 6, history_panel_padding);
-
 	gfx::Rect history_button_container_rect = rect;
 	history_button_container_rect.w = history_button_size;
 	history_button_container_rect.h = history_button_size;
-	history_button_container_rect.x =
-		history_panel_container_rect.x2() - history_panel_padding.right - history_button_size;
-	history_button_container_rect.y = history_panel_container_rect.y + history_panel_padding.top;
+	history_button_container_rect.x = rect.x2() - PAD_X - history_button_size;
+	history_button_container_rect.y = rect.y + PAD_Y + ((ui::tabs_height(fonts::dejavu) - history_button_size) / 2);
 
 	ui::reset_container(history_button_container, sdl::window, history_button_container_rect, 0, {});
+
+	gfx::Rect history_panel_container_rect = rect;
+	history_panel_container_rect.w = HISTORY_PANEL_W;
+	history_panel_container_rect.x = history_button_container_rect.x2() + history_panel_padding.right - HISTORY_PANEL_W;
+	history_panel_container_rect.y = history_button_container_rect.y - history_panel_padding.top;
+	history_panel_container_rect.h = rect.y2() - PAD_Y - history_panel_container_rect.y;
+
+	ui::reset_container(history_panel_container, sdl::window, history_panel_container_rect, 6, history_panel_padding);
 
 	gfx::Rect update_container_rect = rect;
 	update_container_rect.w = ui::NOTIFICATION_DEFAULT_W;
@@ -254,7 +253,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 				components::main::screen(main_container, queue_config_container, queue_container, delta_time);
 
 			components::render_history::render_button(history_button_container);
-			components::render_history::render_panel(history_panel_container, delta_time, true);
+			components::render_history::render_panel(history_panel_container, delta_time);
 
 			if (initialisation_res) {
 				switch (main_screen) {
@@ -330,6 +329,20 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 					}
 				}
 
+				// while a render and a queue are both up, the nav offers whichever isn't being looked at
+				if (auto target = components::main::get_screen_switch_target()) {
+					ui::set_next_same_line(nav_container);
+					ui::add_button(
+						"screen switch button",
+						nav_container,
+						*target == components::main::MainScreen::PROGRESS ? "View render" : "View queue",
+						fonts::dejavu,
+						[target] {
+							components::main::show_screen(*target);
+						}
+					);
+				}
+
 				ui::set_next_same_line(nav_container);
 				ui::add_button(
 					"configuration navigation",
@@ -353,7 +366,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		case Screens::CONFIG: {
 			components::configs::should_load_config = true;
 
-			components::render_history::render_panel(history_panel_container, delta_time, false);
+			components::render_history::render_button(history_button_container);
+			components::render_history::render_panel(history_panel_container, delta_time);
 
 			components::configs::screen(
 				config_container,
@@ -369,19 +383,9 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 				"",
 				fonts::dejavu,
 				[] {
-					if (!components::configs::has_unsaved_changes()) {
+					components::configs::leave_screen([] {
 						screen = Screens::MAIN;
-						return;
-					}
-
-					ui::dialog::confirm_destructive(
-						"Discard unsaved changes?",
-						"Going back will discard your unsaved config changes.",
-						"Discard",
-						[] {
-							screen = Screens::MAIN;
-						}
-					);
+					});
 				},
 				{},
 				icons::BACK
@@ -542,7 +546,7 @@ void gui::renderer::on_render_finished(
 		return;
 	}
 
-	components::render_history::add_success(*result);
+	components::render_history::add_success(render, *result);
 
 	auto app_config = config_app::get_app_config();
 	if (app_config.render_success_notifications) {

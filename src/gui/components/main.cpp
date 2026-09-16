@@ -16,6 +16,10 @@ namespace main = gui::components::main;
 namespace {
 	size_t pending_index = 0;
 
+	bool prefer_render_screen = false;
+
+	main::MainScreen last_main_screen = main::MainScreen::HOME;
+
 	const std::string NO_CONFIG_OPTION = "select a config";
 
 	// keyed on the video and the config it's set to, not the video alone - switching a video to a config
@@ -45,6 +49,44 @@ namespace {
 		trim_disabled_cache.emplace(key, disabled);
 		return disabled;
 	}
+
+	// with skip_queue on, pending videos only need a screen while a config or trim still needs sorting out
+	bool wants_queue_screen(const std::vector<std::shared_ptr<tasks::PendingVideo>>& pending) {
+		if (pending.empty())
+			return false;
+
+		if (!config_app::get_app_config().skip_queue)
+			return true;
+
+		return std::ranges::any_of(pending, [](const auto& pending_video) {
+			return pending_video->config_name.empty() || pending_video->trim_range_warning;
+		});
+	}
+}
+
+std::optional<main::MainScreen> main::current_screen() {
+	if (renderer::screen != renderer::Screens::MAIN)
+		return std::nullopt; // it goes stale as soon as the main screen isn't the one being drawn
+
+	return last_main_screen;
+}
+
+std::optional<main::MainScreen> main::get_screen_switch_target() {
+	auto current = current_screen();
+	if (!current)
+		return std::nullopt;
+
+	if (*current == MainScreen::PROGRESS && wants_queue_screen(tasks::get_pending_copy()))
+		return MainScreen::PENDING;
+
+	if (*current == MainScreen::PENDING && !rendering::video_render_queue.is_empty())
+		return MainScreen::PROGRESS;
+
+	return std::nullopt;
+}
+
+void main::show_screen(MainScreen main_screen) {
+	prefer_render_screen = main_screen == MainScreen::PROGRESS;
 }
 
 void main::invalidate_trim_support() {
@@ -86,36 +128,25 @@ void main::open_files_button(ui::Container& container, const std::string& label)
 void main::render_progress(
 	ui::Container& container,
 	const rendering::VideoRenderDetails& render,
-	size_t render_index,
-	bool current,
 	float delta_time,
 	bool& is_progress_shown,
 	float& bar_percent
 ) {
-	// todo: ui concept
-	// screen start|      [faded]last_video current_video [faded]next_video next_video2 next_video3 (+5) |
-	// screen end animate sliding in as it moves along the queue
-
 	std::string render_title_text = u::path_to_string(render.input_path.stem());
 
-	if (current) {
-		int queue_size = rendering::video_render_queue.size() + tasks::finished_renders;
-		if (queue_size > 1) {
-			render_title_text = std::format("{} ({}/{})", render_title_text, tasks::finished_renders + 1, queue_size);
-		}
+	int queue_size = rendering::video_render_queue.size() + tasks::finished_renders;
+	if (queue_size > 1) {
+		render_title_text = std::format("{} ({}/{})", render_title_text, tasks::finished_renders + 1, queue_size);
 	}
 
 	ui::add_text(
-		std::format("video {} name text", render_index),
+		"video name text",
 		container,
 		render_title_text,
-		gfx::Color(255, 255, 255, (current ? 255 : 100)),
+		gfx::Color::white(),
 		fonts::garamond(fonts::size::SMALL_HEADER),
 		FONT_CENTERED_X
 	);
-
-	if (!current)
-		return;
 
 	int bar_width = 300;
 
@@ -518,48 +549,41 @@ main::MainScreen main::screen(
 ) {
 	static float bar_percent = 0.f;
 
-	auto app_config = config_app::get_app_config();
-
 	const auto& pending = tasks::get_pending_copy();
-
-	if (pending.size() > 0) {
-		bool needs_config = std::ranges::any_of(pending, [](const auto& pending_video) {
-			return pending_video->config_name.empty();
-		});
-
-		bool needs_trim_fix = std::ranges::any_of(pending, [](const auto& pending_video) {
-			return pending_video->trim_range_warning;
-		});
-
-		if (!app_config.skip_queue || needs_config || needs_trim_fix) {
-			render_pending(container, queue_config_container, queue_container, pending);
-			return MainScreen::PENDING;
-		}
-	}
-	else {
-		pending_index = 0;
-	}
-
 	const auto& queue = rendering::video_render_queue.get_queue_copy();
 
-	if (!queue.empty()) {
+	if (pending.empty())
+		pending_index = 0;
+
+	bool queue_screen = wants_queue_screen(pending);
+
+	if (queue.empty())
+		prefer_render_screen = false; // nothing to go back to
+
+	// the queue screen is where the user still has something to do, so it wins unless they asked for the render
+	if (!queue.empty() && (prefer_render_screen || !queue_screen)) {
 		bool is_progress_shown = false;
 
-		for (const auto [i, render] : u::enumerate(queue)) {
-			bool current = i == 0;
-
-			render_progress(container, render, i, current, delta_time, is_progress_shown, bar_percent);
-		}
+		render_progress(container, queue.front(), delta_time, is_progress_shown, bar_percent);
 
 		if (!is_progress_shown)
 			bar_percent = 0.f;
 
-		return MainScreen::PROGRESS;
+		last_main_screen = MainScreen::PROGRESS;
+		return last_main_screen;
 	}
 
 	bar_percent = 0.f;
 
+	if (queue_screen) {
+		render_pending(container, queue_config_container, queue_container, pending);
+
+		last_main_screen = MainScreen::PENDING;
+		return last_main_screen;
+	}
+
 	render_home(container);
 
-	return MainScreen::HOME;
+	last_main_screen = MainScreen::HOME;
+	return last_main_screen;
 }

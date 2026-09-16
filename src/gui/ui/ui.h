@@ -260,6 +260,7 @@ namespace ui {
 		std::string title;
 		std::vector<std::string> detail_lines;
 		bool error;
+		std::optional<float> progress;
 		std::shared_ptr<render::Texture> thumbnail; // null until one has been generated
 		std::vector<RenderHistoryAction> actions;
 		std::optional<std::function<void()>> on_click;
@@ -270,8 +271,8 @@ namespace ui {
 
 		bool operator==(const RenderHistoryEntryElementData& other) const {
 			return title == other.title && detail_lines == other.detail_lines && error == other.error &&
-			       thumbnail == other.thumbnail && actions == other.actions && drag_path == other.drag_path &&
-			       font == other.font;
+			       progress == other.progress && thumbnail == other.thumbnail && actions == other.actions &&
+			       drag_path == other.drag_path && font == other.font;
 		}
 	};
 
@@ -931,6 +932,7 @@ namespace ui {
 		const std::string& title,
 		const std::string& detail,
 		bool error,
+		const std::optional<float>& progress,
 		const std::shared_ptr<render::Texture>& thumbnail,
 		const std::vector<RenderHistoryAction>& actions,
 		std::optional<std::function<void()>> on_click,
