@@ -106,14 +106,17 @@ def _retimed(
     decisions = dedupe.decisions
     sides = core.std.BlankClip(video, length=decisions.num_frames, keep=True)
 
-    def side(prop: str) -> vs.VideoNode:
+    def side(index: int) -> vs.VideoNode:
         return core.std.FrameEval(
-            sides, lambda n, f: video[int(f.props[prop])], prop_src=decisions
+            sides,
+            lambda n, f: video[deduplicate.frame_at(f.props, index)],
+            prop_src=decisions,
         )
 
+    # a decision's pairs sit one after another, `slots` of them whether or not it uses them all
     pairs = core.std.AssumeFPS(
         core.std.Interleave(
-            [side(deduplicate.PROP_LEFT), side(deduplicate.PROP_RIGHT)]
+            [side(slot + end) for slot in range(dedupe.slots) for end in (0, 1)]
         ),
         fpsnum=1,
         fpsden=1,
@@ -131,7 +134,7 @@ def _retimed(
             return video[at.left]
 
         step = min(round(at.timepoint * steps), steps)
-        pair = deduplicate.decision_index(dedupe, n, ratio)
+        pair = deduplicate.decision_index(dedupe, n, ratio) * dedupe.slots + at.slot
 
         return generated[min((2 * pair) * steps + step, last_generated)]
 

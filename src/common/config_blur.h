@@ -20,6 +20,7 @@ struct AdvancedSettings {
 	std::string deduplicate_threshold = "0.003";
 	std::string duplicate_timing = "first";
 	int max_future_checks = 3;
+	std::string game_fps; // empty = off
 	std::string ffmpeg_override;
 	bool debug = false;
 	std::string resize_chromaloc = "default";
@@ -165,6 +166,7 @@ namespace config_blur {
 	enum class ValidationField : std::uint8_t {
 		ENCODE_PRESET,
 		DEDUPLICATE_THRESHOLD,
+	GAME_FPS,
 		FFMPEG_OVERRIDE,
 		SVP_INTERPOLATION_PRESET,
 		SVP_INTERPOLATION_ALGORITHM,

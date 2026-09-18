@@ -13,6 +13,17 @@ namespace {
 
 		return iss.eof() && !iss.fail();
 	}
+
+	bool game_fps_valid(const std::string& game_fps) {
+		if (game_fps.empty())
+			return true;
+
+		std::istringstream iss(game_fps);
+		float f = NAN;
+		iss >> std::noskipws >> f;
+
+		return iss.eof() && !iss.fail() && f > 0;
+	}
 }
 
 std::string config_blur::generate_config_string(const BlurSettings& settings, bool concise) {
@@ -142,6 +153,10 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "deduplicate max future checks: " << settings.advanced.max_future_checks << "\n";
 
 			output << "\n";
+			output << "- advanced frame timing" << "\n";
+			output << "game fps: " << settings.advanced.game_fps << "\n";
+
+			output << "\n";
 			output << "- advanced rendering" << "\n";
 			output << "video container: " << settings.advanced.video_container << "\n";
 			if (!concise || !settings.advanced.ffmpeg_override.empty()) {
@@ -262,6 +277,13 @@ config_blur::ValidationResult config_blur::validate(
 			if (fix)
 				config.advanced.deduplicate_threshold = DEFAULT_CONFIG.advanced.deduplicate_threshold;
 		}
+
+		if (!game_fps_valid(config.advanced.game_fps)) {
+			add_error(ValidationField::GAME_FPS, "game fps must be a number above 0, or empty", true);
+
+			if (fix)
+				config.advanced.game_fps = DEFAULT_CONFIG.advanced.game_fps;
+		}
 	}
 
 	if (!u::contains(SVP_INTERPOLATION_PRESETS, config.advanced.svp_interpolation_preset)) {
@@ -375,6 +397,8 @@ BlurSettings config_blur::parse_from_map(const std::map<std::string, std::string
 		config_base::extract_config_value(
 			config_map, "deduplicate max future checks", settings.advanced.max_future_checks
 		);
+
+		config_base::extract_config_value(config_map, "game fps", settings.advanced.game_fps);
 
 		// 'deduplicate frames to interpolate' is what this used to be called, back when it named the frames to
 		// interpolate between rather than the frame in a run that's real. the two it described that still exist
@@ -627,6 +651,7 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 	j["deduplicate_threshold"] = this->advanced.deduplicate_threshold;
 	j["duplicate_timing"] = this->advanced.duplicate_timing;
 	j["max_future_checks"] = this->advanced.max_future_checks;
+	j["game_fps"] = this->advanced.game_fps;
 
 	// j["video_container"] = this->advanced.video_container;
 	// j["ffmpeg_override"] = this->advanced.ffmpeg_override;

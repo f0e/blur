@@ -76,13 +76,12 @@ WINDOW_CLAMPED = False
 # length run is halfway through a frame - counting in halves keeps every time an exact whole number
 HALF = 2
 
-# what a decision frame carries: the two frames that bracket this one, when each of them belongs on the
-# timeline, whether the picture is standing still, and the difference that was measured here
-PROP_LEFT = "BlurDedupeLeft"
-PROP_RIGHT = "BlurDedupeRight"
-PROP_LEFT_TIME = "BlurDedupeLeftTime"
-PROP_RIGHT_TIME = "BlurDedupeRightTime"
-PROP_HOLD = "BlurDedupeHold"
+# what a decision frame carries: the real frames whose stretches of the timeline overlap it, in order, and when
+# each of them belongs, counted in 1/PROP_TIME_SCALE frames. a single frame means the picture is held. the
+# difference that was measured here only comes from deduplication
+PROP_FRAMES = "BlurRetimeFrames"
+PROP_TIMES = "BlurRetimeTimes"
+PROP_TIME_SCALE = "BlurRetimeTimeScale"
 PROP_DIFF = "BlurDedupeDiff"
 
 
@@ -92,6 +91,9 @@ class Dedupe:
 
     `decisions` holds `resolution` frames per frame of the source, carrying the props above. It's a 1x1 clip -
     only the props matter - and it's built so that reading one of its frames only reads the source around it.
+
+    `slots` is how many pairs a decision can hold. Deduplication's decisions are always one pair, but a timeline
+    whose frames don't land on whole frame numbers can have a real frame land partway through a decision.
     """
 
     decisions: vs.VideoNode
@@ -99,6 +101,7 @@ class Dedupe:
     max_gap: int
     timing: str
     resolution: int
+    slots: int = 1
 
 
 @dataclass(frozen=True)
@@ -106,7 +109,8 @@ class Bracket:
     """The two real frames an output frame sits between, when they belong, and where between them it sits.
 
     `timepoint` is None when there's nothing to generate - the output frame lands on `left` or before it, or
-    the picture isn't changing - and `left` should be used as it is.
+    the picture isn't changing - and `left` should be used as it is. `slot` is which of the decision's pairs
+    this is.
     """
 
     left: int
@@ -114,9 +118,10 @@ class Bracket:
     left_time: Fraction
     right_time: Fraction
     timepoint: Fraction | None
+    slot: int = 0
 
 
-def _shifted(clip: vs.VideoNode, offset: int) -> vs.VideoNode:
+def shifted(clip: vs.VideoNode, offset: int) -> vs.VideoNode:
     """`clip` moved along by `offset`, so its frame n holds whatever frame n + offset held.
 
     The ends repeat rather than running out, which is what makes a scan that reaches past the start or end of
@@ -172,7 +177,7 @@ def _decisions(
 
     reach = _reach(timing, max_gap)
     offsets = list(range(-reach, reach + 1))
-    window = [_shifted(diffs, offset) for offset in offsets]
+    window = [shifted(diffs, offset) for offset in offsets]
 
     resolution = _resolution(timing)
     if resolution != 1:
@@ -354,11 +359,9 @@ def _decisions(
         left, left_time, right, right_time, hold = answer
 
         out = f[0].copy()
-        out.props[PROP_LEFT] = left
-        out.props[PROP_RIGHT] = right
-        out.props[PROP_LEFT_TIME] = left_time
-        out.props[PROP_RIGHT_TIME] = right_time
-        out.props[PROP_HOLD] = hold
+        out.props[PROP_FRAMES] = [left] if hold else [left, right]
+        out.props[PROP_TIMES] = [left_time] if hold else [left_time, right_time]
+        out.props[PROP_TIME_SCALE] = HALF
         out.props[PROP_DIFF] = diff(source)
 
         return out
@@ -437,22 +440,43 @@ def over_output(dedupe: Dedupe, dst_frames: int, ratio: Fraction) -> vs.VideoNod
     )
 
 
+def _ints(value) -> list[int]:
+    # vapoursynth hands a one element array back as a plain value
+    return [int(v) for v in value] if isinstance(value, (list, tuple)) else [int(value)]
+
+
+def frame_at(props, index: int) -> int:
+    """The `index`th real frame a decision holds, or its last if it holds fewer."""
+    frames = _ints(props[PROP_FRAMES])
+    return frames[min(index, len(frames) - 1)]
+
+
 def bracket(props, time: Fraction) -> Bracket:
     """Read a decision frame's props back out for an output frame at `time`."""
-    left = int(props[PROP_LEFT])
-    right = int(props[PROP_RIGHT])
-    left_time = Fraction(int(props[PROP_LEFT_TIME]), HALF)
-    right_time = Fraction(int(props[PROP_RIGHT_TIME]), HALF)
+    frames = _ints(props[PROP_FRAMES])
+    scale = int(props[PROP_TIME_SCALE])
+    times = [Fraction(t, scale) for t in _ints(props[PROP_TIMES])]
 
-    if props[PROP_HOLD] or right_time <= left_time or time <= left_time:
-        return Bracket(left, right, left_time, right_time, None)
+    if len(frames) == 1:
+        return Bracket(frames[0], frames[0], times[0], times[0], None)
+
+    slot = 0
+    while slot + 2 < len(frames) and time >= times[slot + 1]:
+        slot += 1
+
+    left, right = frames[slot], frames[slot + 1]
+    left_time, right_time = times[slot], times[slot + 1]
+
+    if right_time <= left_time or time <= left_time:
+        return Bracket(left, right, left_time, right_time, None, slot)
 
     return Bracket(
         left,
         right,
         left_time,
         right_time,
-        (time - left_time) / (right_time - left_time),
+        min((time - left_time) / (right_time - left_time), Fraction(1)),
+        slot,
     )
 
 
@@ -477,7 +501,8 @@ def describe(n: int, time: Fraction, props, at: Bracket) -> str:
             f" @ {float(at.timepoint):.3f}"
         )
 
-    return f"{n} | src {float(time):.3f} | diff {float(props[PROP_DIFF]):.6f} | {where}"
+    diff = f" | diff {float(props[PROP_DIFF]):.6f}" if PROP_DIFF in props else ""
+    return f"{n} | src {float(time):.3f}{diff} | {where}"
 
 
 def annotate(video: vs.VideoNode, dedupe: Dedupe, ratio: Fraction) -> vs.VideoNode:
