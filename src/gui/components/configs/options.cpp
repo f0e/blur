@@ -617,11 +617,13 @@ void configs::options(ui::Container& container) {
 		*/
 		section_component("advanced frame timing");
 
-		validated_element(config_blur::ValidationField::GAME_FPS, "game fps error", [&] {
-			ui::add_text_input(
-				"game fps input", container, settings.advanced.game_fps, "game fps", fonts::dejavu, "off"
-			);
-		});
+		ui::add_checkbox(
+			"frame timing logs checkbox",
+			container,
+			"use frame timing logs",
+			settings.advanced.frame_timing_logs,
+			fonts::dejavu
+		);
 
 		/*
 		    Advanced Rendering

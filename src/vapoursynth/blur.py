@@ -131,10 +131,29 @@ def main():
     untrimmed = video
     video = video[start:end]
 
-    game_fps = settings["game_fps"].strip()
+    # a frame timing log says exactly which frames are repeats and when every real frame belongs, so where
+    # there is one it takes deduplication's place rather than running alongside it
+    try:
+        deduplicate_threshold = float(settings["deduplicate_threshold"])
+    except (ValueError, TypeError, KeyError):
+        raise u.BlurException(
+            f"Deduplicate threshold is not a number: '{settings['deduplicate_threshold']}'"
+        )
+
+    logged_timing = None
+    if settings["frame_timing_logs"]:
+        logged_timing = blur.frame_timing.analyse(
+            untrimmed,
+            video.fps,
+            start,
+            video.num_frames,
+            video_path,
+            deduplicate_threshold,
+        )
+
     deduplicating = (
         settings["deduplicate"] and settings["deduplicate_range"] != 0
-    ) or bool(game_fps)
+    ) or logged_timing is not None
     apply_masks = settings["interpolate"] or deduplicating
     mask_name = settings["mask"] if apply_masks else ""
     auto_mask = settings["auto_mask"] if apply_masks else False
@@ -203,31 +222,12 @@ def main():
 
     # deduplication doesn't render anything here - it works out which frames are repeats, and interpolation
     # renders onto the timeline that describes. see blur/deduplicate.py
-    dedupe = None
+    dedupe = logged_timing
     debug_dedupe = None
-    if game_fps:
-        # the game's timeline has no room for duplicates - a repeat moved zero game frames - so this takes
-        # deduplication's place rather than running alongside it
-        dedupe = blur.frame_timing.analyse(
-            untrimmed,
-            game_fps,
-            original.fps,
-            start,
-            video.num_frames,
-            video_path,
-            settings_path,
-        )
-    elif deduplicating:
+    if deduplicating and logged_timing is None:
         deduplicate_range: int | None = int(settings["deduplicate_range"])
         if deduplicate_range == -1:  # -1 = infinite
             deduplicate_range = None
-
-        try:
-            deduplicate_threshold = float(settings["deduplicate_threshold"])
-        except (ValueError, TypeError, KeyError):
-            raise u.BlurException(
-                f"Deduplicate threshold is not a number: '{settings['deduplicate_threshold']}'"
-            )
 
         dedupe = blur.deduplicate.analyse(
             video,
@@ -411,10 +411,9 @@ def main():
         method = settings["deduplicate_method"]
         log.info(f"filling duplicate frames with {method}")
 
-        if method == "old" and game_fps:
-            raise u.BlurException(
-                "Game FPS needs a deduplicate method other than 'old' when interpolation is off"
-            )
+        if method == "old" and logged_timing is not None:
+            log.info("the 'old' method can't use a frame timing log, so rife fills the gaps instead")
+            method = "rife"
 
         if method == "old":
             # the one method that doesn't retime - it patches a blend over each duplicate instead, so it has
