@@ -10,6 +10,7 @@ sys.path.insert(1, str(Path(__file__).parent))
 
 import blur.blending
 import blur.deduplicate
+import blur.frame_timing
 import blur.interpolate
 import blur.mask
 import blur.weighting
@@ -127,9 +128,13 @@ def main():
     mask_end = min(int(globals().get("mask_end", video.num_frames)), video.num_frames)
     mask_source = video[mask_start:mask_end]
 
+    untrimmed = video
     video = video[start:end]
 
-    deduplicating = settings["deduplicate"] and settings["deduplicate_range"] != 0
+    game_fps = settings["game_fps"].strip()
+    deduplicating = (
+        settings["deduplicate"] and settings["deduplicate_range"] != 0
+    ) or bool(game_fps)
     apply_masks = settings["interpolate"] or deduplicating
     mask_name = settings["mask"] if apply_masks else ""
     auto_mask = settings["auto_mask"] if apply_masks else False
@@ -200,7 +205,19 @@ def main():
     # renders onto the timeline that describes. see blur/deduplicate.py
     dedupe = None
     debug_dedupe = None
-    if deduplicating:
+    if game_fps:
+        # the game's timeline has no room for duplicates - a repeat moved zero game frames - so this takes
+        # deduplication's place rather than running alongside it
+        dedupe = blur.frame_timing.analyse(
+            untrimmed,
+            game_fps,
+            original.fps,
+            start,
+            video.num_frames,
+            video_path,
+            settings_path,
+        )
+    elif deduplicating:
         deduplicate_range: int | None = int(settings["deduplicate_range"])
         if deduplicate_range == -1:  # -1 = infinite
             deduplicate_range = None
@@ -220,12 +237,12 @@ def main():
             future_checks=settings["max_future_checks"],
         )
 
-        if settings["debug"]:
-            # `dedupe` is cleared as soon as an interpolation pass takes it, so the debug overlay - which is
-            # drawn right at the end, on frames that are finished and in a format text can go on - keeps its
-            # own handle on it, and on the framerate its frame numbers are counted in
-            debug_dedupe = dedupe
-            debug_source_fps = video.fps
+    if dedupe is not None and settings["debug"]:
+        # `dedupe` is cleared as soon as an interpolation pass takes it, so the debug overlay - which is
+        # drawn right at the end, on frames that are finished and in a format text can go on - keeps its
+        # own handle on it, and on the framerate its frame numbers are counted in
+        debug_dedupe = dedupe
+        debug_source_fps = video.fps
 
     def interpolate_to(method: str, video: vs.VideoNode, new_fps, dedupe=None):
         """Interpolate `video` up to `new_fps`, filling `dedupe`'s gaps on the way if it was given any."""
@@ -393,6 +410,11 @@ def main():
         # instead, and fills the gaps with whatever method it was already going to use
         method = settings["deduplicate_method"]
         log.info(f"filling duplicate frames with {method}")
+
+        if method == "old" and game_fps:
+            raise u.BlurException(
+                "Game FPS needs a deduplicate method other than 'old' when interpolation is off"
+            )
 
         if method == "old":
             # the one method that doesn't retime - it patches a blend over each duplicate instead, so it has

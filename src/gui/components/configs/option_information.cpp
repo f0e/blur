@@ -250,6 +250,24 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"game fps input",
+			{
+				"The framerate the game was running at while it was recorded, if you know it. Leave empty if not.",
+
+				"When the game runs at a different framerate to the recording, each recorded frame shows whichever "
+				"game frame finished last, so frames aren't evenly spaced in time - recording a 500fps game at "
+				"360fps, some frames are one game frame after the last and some are two. Steady motion comes out "
+				"uneven, and interpolation keeps it that way.",
+
+				"With this set, blur measures how far each frame moved to work out when it was really drawn, and "
+				"interpolates from those times instead. This replaces deduplication - a repeated frame is just one "
+				"that moved zero game frames.",
+
+				"Works best with the game's framerate capped to a steady value. Frames where nothing moves can't be "
+				"timed, and are treated as evenly spaced.",
+			},
+		},
+		{
 			"deduplicate method dropdown",
 			{
 				"What generates the frames that go in place of duplicates. Only needed with interpolation off - "
