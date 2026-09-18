@@ -250,21 +250,19 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
-			"game fps input",
+			"frame timing logs checkbox",
 			{
-				"The framerate the game was running at while it was recorded, if you know it. Leave empty if not.",
+				"Uses the frame timing log saved alongside a recording, when there is one, to work out when each "
+				"frame was really drawn.",
 
-				"When the game runs at a different framerate to the recording, each recorded frame shows whichever "
-				"game frame finished last, so frames aren't evenly spaced in time - recording a 500fps game at "
-				"360fps, some frames are one game frame after the last and some are two. Steady motion comes out "
-				"uneven, and interpolation keeps it that way.",
+				"A recording's frames aren't evenly spaced in game time. Each one shows whichever game frame the "
+				"recorder last got hold of, so a 500fps game recorded at 360fps moves one game frame between some "
+				"frames and two between others, and steady motion comes out uneven. With a log, blur knows which "
+				"game frame every recorded frame shows and when it was drawn, and interpolates on that timeline "
+				"instead. That also says exactly which frames are repeats, so it takes deduplication's place.",
 
-				"With this set, blur measures how far each frame moved to work out when it was really drawn, and "
-				"interpolates from those times instead. This replaces deduplication - a repeated frame is just one "
-				"that moved zero game frames.",
-
-				"Works best with the game's framerate capped to a steady value. Frames where nothing moves can't be "
-				"timed, and are treated as evenly spaced.",
+				"Logs come from the obs-frame-timing-recorder OBS plugin, as a .frametiming file next to the "
+				"recording. Videos without one are deduplicated as usual.",
 			},
 		},
 		{

@@ -23,7 +23,6 @@ from fractions import Fraction
 import math
 import os
 import os.path
-import platform
 import subprocess
 import sys
 import tempfile
@@ -1950,7 +1949,8 @@ def get_engine_path(
 
     if short_path:
         use_short_path = True
-    elif platform.system() == "Windows":
+    # not platform.system(): on python 3.12+ that asks WMI, and a stuck WMI service hangs the render
+    elif sys.platform == "win32":
         # use short path by default
         if short_path is None:
             use_short_path = True
@@ -2296,7 +2296,7 @@ def get_mxr_path(
         f"_{checksum:x}"
     )
 
-    if short_path or (short_path is None and platform.system() == "Windows"):
+    if short_path or (short_path is None and sys.platform == "win32"):
         dirname, basename = os.path.split(network_path)
         return os.path.join(dirname, f"{zlib.crc32((basename + identity).encode()):x}.mxr")
     else:

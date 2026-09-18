@@ -1,6 +1,8 @@
 from vapoursynth import core
 import vapoursynth as vs
 
+from functools import cache
+
 import blur.utils as u
 
 
@@ -83,6 +85,11 @@ def average(clip: vs.VideoNode, weights: list[float], divisor: float | None = No
     return core.akarin.Expr(clips, expr)
 
 
+@cache
+def _gamma_lut(gamma: float) -> list[int]:
+    return [min(65535, round((i / 65535) ** gamma * 65535)) for i in range(65536)]
+
+
 def average_bright(
     _video: vs.VideoNode,
     video_info: u.VideoInfo,
@@ -90,23 +97,16 @@ def average_bright(
     weights: list[float],
     divisor: float | None = None,
 ):
+    # 16 bit with a lookup table rather than float with a pow per pixel - about twice as fast, and within a level
+    # of the float result. colours outside what rgb can show get clipped
     def process(video):
-        def gamma_correct(video, gamma):
-            expr = f"x {gamma} pow"
-            return core.std.Expr(video, expr=expr)
-            # return core.std.Levels(
-            #     video, gamma=gamma, min_in=0.0, max_in=1.0, min_out=0.0, max_out=1.0
-            # )
-
-        video = gamma_correct(video, gamma)
+        video = core.std.Lut(video, lut=_gamma_lut(gamma))
         video = average(video, weights, divisor)
-        video = gamma_correct(video, 1.0 / gamma)
-
-        return video
+        return core.std.Lut(video, lut=_gamma_lut(1.0 / gamma))
 
     return u.with_format(
         _video,
         video_info,
-        vs.RGBS,
+        vs.RGB48,
         process,
     )

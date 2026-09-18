@@ -203,17 +203,20 @@ def with_format(
         orig_format = video.format
         needs_conversion = orig_format.id != target_format
 
+        # rgb made from yuv is full range, float or not, so everything working in rgb can assume it
+        yuv_to_rgb = (
+            core.get_video_format(target_format).color_family == vs.RGB
+            and orig_format.color_family == vs.YUV
+        )
+
         if needs_conversion:
             convert_kwargs = {
                 "format": target_format,
                 "range_in": video_info.is_full_color_range,
-                "range": video_info.is_full_color_range,
+                "range": True if yuv_to_rgb else video_info.is_full_color_range,
             }
 
-            if (
-                target_format in [vs.RGBS, vs.RGBH]
-                and orig_format.color_family == vs.YUV
-            ):
+            if yuv_to_rgb:
                 # @HACK - some videos (adobe -_-) dont set the color transfer & primaries for example which means resizing fails cause it doesnt have the required information
                 # here im just making educated guesses as to what they are but this is so dumb
                 props = dict(video.get_frame(0).props)
@@ -254,14 +257,11 @@ def with_format(
         if needs_conversion:
             convert_back_kwargs = {
                 "format": orig_format.id,
-                "range_in": video_info.is_full_color_range,
+                "range_in": True if yuv_to_rgb else video_info.is_full_color_range,
                 "range": video_info.is_full_color_range,
             }
 
-            if (
-                target_format in [vs.RGBS, vs.RGBH]
-                and orig_format.color_family == vs.YUV
-            ):
+            if yuv_to_rgb:
                 convert_back_kwargs["matrix_s"] = "709"
 
             log.info("conversion back kwargs", convert_back_kwargs)
