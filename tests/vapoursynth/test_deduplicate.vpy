@@ -23,6 +23,7 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(1, str(REPO / "src" / "vapoursynth"))
 
 import blur.deduplicate as dd  # noqa: E402
+import blur.retime as rt  # noqa: E402
 import blur.interpolate as it  # noqa: E402
 
 FAILURES: list[str] = []
@@ -192,7 +193,7 @@ def read(dedupe, j, time=None):
     """The bracket decision `j` gives, for the moment that decision starts at unless told otherwise."""
     props = dedupe.decisions.get_frame(j).props
 
-    return dd.bracket(props, Fraction(j, dedupe.resolution) if time is None else time)
+    return rt.bracket(props, Fraction(j, dedupe.resolution) if time is None else time)
 
 
 # --------------------------------------------------------------- 1. decisions
@@ -389,7 +390,7 @@ for timing in dd.TIMINGS:
 
         for n, frame in enumerate(retimed.frames(close=True)):
             time = Fraction(n) / ratio
-            j = dd.decision_index(dedupe, n, ratio)
+            j = rt.decision_index(dedupe, n, ratio)
             at = read(dedupe, j, time)
             got = dict(frame.props)
 
@@ -547,7 +548,7 @@ def worst_error(clip, dedupe, target, window):
         if not low <= time <= high:
             continue
 
-        at = read(dedupe, dd.decision_index(dedupe, n, ratio), time)
+        at = read(dedupe, rt.decision_index(dedupe, n, ratio), time)
 
         # only where it committed to a pair; a held stretch isn't claiming to be anywhere
         if at.timepoint is None:
@@ -614,18 +615,18 @@ for target in (Fraction(300), Fraction(60)):
 
     for n in range(int(LENGTH * ratio)):
         time = Fraction(n) / ratio
-        at = read(DEDUPE, dd.decision_index(DEDUPE, n, ratio), time)
+        at = read(DEDUPE, rt.decision_index(DEDUPE, n, ratio), time)
 
         held = at.left == at.right
         spans_duplicates = not held and any(
             DIFFS[i] < THRESHOLD for i in range(at.left + 1, at.right + 1)
         )
 
-        check(f"marked @{target}[{n}]", dd.involved(at), held or spans_duplicates)
+        check(f"marked @{target}[{n}]", rt.involved(at), held or spans_duplicates)
 
 MOVING_ALL = grey_clip([(n * 20) % 256 for n in range(30)])
 MOVING_ALL_DEDUPE = dd.analyse(MOVING_ALL, THRESHOLD, 5)
-marked = sum(dd.involved(read(MOVING_ALL_DEDUPE, n)) for n in range(30))
+marked = sum(rt.involved(read(MOVING_ALL_DEDUPE, n)) for n in range(30))
 # only the last frame, which has nothing after it to move towards
 check("frames marked in a clip with no duplicates", marked, 1)
 
@@ -640,7 +641,9 @@ STATIC = grey_clip([100] * 20)
 for timing in dd.TIMINGS:
     static_dedupe = dd.analyse(STATIC, THRESHOLD, 5, timing)
     for j in range(static_dedupe.decisions.num_frames):
-        if not static_dedupe.decisions.get_frame(j).props[dd.PROP_HOLD]:
+        # a held decision holds one real frame, so its bracket has the same frame on both sides
+        at = read(static_dedupe, j)
+        if at.left != at.right:
             fail(f"[{timing}] static decision {j} isn't held")
 
     static_out = it._retimed(

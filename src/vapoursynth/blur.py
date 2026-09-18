@@ -10,6 +10,7 @@ sys.path.insert(1, str(Path(__file__).parent))
 
 import blur.blending
 import blur.deduplicate
+import blur.retime
 import blur.frame_timing
 import blur.interpolate
 import blur.mask
@@ -220,16 +221,16 @@ def main():
         if settings["input_timescale"] != 1:
             video = u.assume_scaled_fps(video, 1 / input_timescale)
 
-    # deduplication doesn't render anything here - it works out which frames are repeats, and interpolation
-    # renders onto the timeline that describes. see blur/deduplicate.py
-    dedupe = logged_timing
-    debug_dedupe = None
+    # nothing is rendered here - a timeline says which frames are real and when they belong, and interpolation
+    # renders onto it. see blur/retime.py
+    timeline = logged_timing
+    debug_timeline = None
     if deduplicating and logged_timing is None:
         deduplicate_range: int | None = int(settings["deduplicate_range"])
         if deduplicate_range == -1:  # -1 = infinite
             deduplicate_range = None
 
-        dedupe = blur.deduplicate.analyse(
+        timeline = blur.deduplicate.analyse(
             video,
             threshold=deduplicate_threshold,
             max_gap=deduplicate_range,
@@ -237,15 +238,15 @@ def main():
             future_checks=settings["max_future_checks"],
         )
 
-    if dedupe is not None and settings["debug"]:
-        # `dedupe` is cleared as soon as an interpolation pass takes it, so the debug overlay - which is
+    if timeline is not None and settings["debug"]:
+        # `timeline` is cleared as soon as an interpolation pass takes it, so the debug overlay - which is
         # drawn right at the end, on frames that are finished and in a format text can go on - keeps its
         # own handle on it, and on the framerate its frame numbers are counted in
-        debug_dedupe = dedupe
+        debug_timeline = timeline
         debug_source_fps = video.fps
 
-    def interpolate_to(method: str, video: vs.VideoNode, new_fps, dedupe=None):
-        """Interpolate `video` up to `new_fps`, filling `dedupe`'s gaps on the way if it was given any."""
+    def interpolate_to(method: str, video: vs.VideoNode, new_fps, timeline=None):
+        """Interpolate `video` up to `new_fps`, filling `timeline`'s gaps on the way if it was given any."""
         match method:
             case "svp":
                 if settings["manual_svp"]:
@@ -261,7 +262,7 @@ def main():
                         super_string=settings["super_string"],
                         vectors_string=settings["vectors_string"],
                         smooth_str=json.dumps(smooth_json),
-                        dedupe=dedupe,
+                        timeline=timeline,
                         new_fps=new_fps,
                     )
 
@@ -275,7 +276,7 @@ def main():
                     overlap=0,
                     masking=interpolation_mask_area,
                     gpu=settings["gpu_interpolation"],
-                    dedupe=dedupe,
+                    timeline=timeline,
                 )
 
             case "rife":
@@ -285,7 +286,7 @@ def main():
                     new_fps=new_fps,
                     model_path=settings["rife_model"],
                     device_index=rife_device_index,
-                    dedupe=dedupe,
+                    timeline=timeline,
                 )
 
             case "rife (tensorrt)":
@@ -296,7 +297,7 @@ def main():
                     model=settings["rife_trt_model"],
                     device_index=tensorrt_device_index,
                     settings_path=settings_path,
-                    dedupe=dedupe,
+                    timeline=timeline,
                 )
 
             case "mvtools":
@@ -305,7 +306,7 @@ def main():
                     new_fps,
                     blocksize=interpolation_blocksize,
                     masking=interpolation_mask_area,
-                    dedupe=dedupe,
+                    timeline=timeline,
                 )
 
             case _:
@@ -377,9 +378,9 @@ def main():
                     settings["pre_interpolation_method"],
                     video,
                     pre_interpolated_fps,
-                    dedupe=dedupe,
+                    timeline=timeline,
                 )
-                dedupe = None
+                timeline = None
 
                 fps_added = video.fps - old_fps
                 log.info(
@@ -393,9 +394,9 @@ def main():
             old_fps = video.fps
 
             video = interpolate_to(
-                settings["interpolation_method"], video, interpolated_fps, dedupe=dedupe
+                settings["interpolation_method"], video, interpolated_fps, timeline=timeline
             )
-            dedupe = None
+            timeline = None
 
             fps_added = video.fps - old_fps
             log.info(
@@ -404,7 +405,7 @@ def main():
 
         interpolated = video.num_frames != frames_before_interpolation
 
-    if dedupe is not None:
+    if timeline is not None:
         # nothing interpolated, so deduplication fills its own gaps, at the framerate the video already has.
         # this is the only place 'deduplicate method' is read - when interpolation runs it takes the timeline
         # instead, and fills the gaps with whatever method it was already going to use
@@ -424,7 +425,7 @@ def main():
                 debug=settings["debug"],
             )
         else:
-            video = interpolate_to(method, video, video.fps, dedupe=dedupe)
+            video = interpolate_to(method, video, video.fps, timeline=timeline)
 
     # masking. deduplication is included because filling a dropped frame means interpolating one, and it's
     # interpolation that warps an overlay - but if neither actually ran there are no artifacts to put back
@@ -447,9 +448,9 @@ def main():
     # debug: write over the frames deduplication had a hand in, and only those. drawn after masking so the
     # text can't be masked away, and before blending - which averages frames together, and will smear this
     # along with everything else, so turn blur off to read it
-    if debug_dedupe is not None:
-        video = blur.deduplicate.annotate(
-            video, debug_dedupe, video.fps / debug_source_fps
+    if debug_timeline is not None:
+        video = blur.retime.annotate(
+            video, debug_timeline, video.fps / debug_source_fps
         )
 
     # output timescale
