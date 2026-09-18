@@ -10,7 +10,7 @@ from fractions import Fraction
 from typing import Any, Callable
 from pathlib import Path
 
-import blur.deduplicate as deduplicate
+import blur.retime as retime
 import blur.utils as u
 
 if sys.platform in ("win32", "linux"):
@@ -44,7 +44,7 @@ SVP_REQUIRES_GPU = sys.platform == "darwin"
 
 # Retiming
 #
-# Deduplication doesn't hand interpolation a clip with the gaps already filled - see blur/deduplicate.py for
+# Retiming doesn't hand interpolation a clip with the gaps already filled - see blur/retime.py for
 # why. It hands over a decision per frame instead, and interpolation renders straight onto the timeline those
 # decisions describe: every output frame is generated from the two frames either side of it that were really
 # captured, at the time point it falls between them.
@@ -77,17 +77,17 @@ def _steps(ratio: Fraction, max_gap: int) -> int:
 
 def _retimed(
     video: vs.VideoNode,
-    dedupe: deduplicate.Dedupe,
+    timeline: retime.Timeline,
     dst_fps: Fraction,
     build: Callable[[vs.VideoNode, int], vs.VideoNode],
 ) -> vs.VideoNode:
-    """Interpolate `video` to `dst_fps`, filling deduplication's gaps in the same pass.
+    """Interpolate `video` to `dst_fps`, filling the timeline's gaps in the same pass.
 
     `build(clip, fps)` is the plain interpolation call for whichever method is in use, against a clip running
     at 1fps - so `fps` is a straight multiplier, and choosing it is this function's business rather than the
     caller's.
 
-    What gets interpolated is a clip of *pairs*: for each of deduplication's decisions, frame 2j is the real
+    What gets interpolated is a clip of *pairs*: for each of the timeline's decisions, frame 2j is the real
     frame before it and frame 2j + 1 is the real frame after. Interpolating that by `steps` puts `steps`
     frames between each pair, evenly spread across however long the gap between them really lasted - so the
     frame an output frame wants is the step nearest its own time, and picking it is all that's left to do.
@@ -100,23 +100,23 @@ def _retimed(
     frame, and one indexing that always holds is worth more than a shorter clip for the ones that would.
     """
     ratio = dst_fps / video.fps
-    dst_frames = deduplicate.output_frames(dedupe.length, ratio)
-    steps = _steps(ratio, dedupe.max_gap)
+    dst_frames = retime.output_frames(timeline.length, ratio)
+    steps = _steps(ratio, timeline.max_gap)
 
-    decisions = dedupe.decisions
+    decisions = timeline.decisions
     sides = core.std.BlankClip(video, length=decisions.num_frames, keep=True)
 
     def side(index: int) -> vs.VideoNode:
         return core.std.FrameEval(
             sides,
-            lambda n, f: video[deduplicate.frame_at(f.props, index)],
+            lambda n, f: video[retime.frame_at(f.props, index)],
             prop_src=decisions,
         )
 
     # a decision's pairs sit one after another, `slots` of them whether or not it uses them all
     pairs = core.std.AssumeFPS(
         core.std.Interleave(
-            [side(slot + end) for slot in range(dedupe.slots) for end in (0, 1)]
+            [side(slot + end) for slot in range(timeline.slots) for end in (0, 1)]
         ),
         fpsnum=1,
         fpsden=1,
@@ -125,23 +125,23 @@ def _retimed(
     generated = build(pairs, steps)
     last_generated = generated.num_frames - 1
 
-    over_output = deduplicate.over_output(dedupe, dst_frames, ratio)
+    output_decisions = retime.over_output(timeline, dst_frames, ratio)
 
     def pick(n: int, f: vs.VideoFrame) -> vs.VideoNode:
-        at = deduplicate.bracket(f.props, deduplicate.source_time(n, ratio))
+        at = retime.bracket(f.props, retime.source_time(n, ratio))
 
         if at.timepoint is None:
             return video[at.left]
 
         step = min(round(at.timepoint * steps), steps)
-        pair = deduplicate.decision_index(dedupe, n, ratio) * dedupe.slots + at.slot
+        pair = retime.decision_index(timeline, n, ratio) * timeline.slots + at.slot
 
         return generated[min((2 * pair) * steps + step, last_generated)]
 
     out = core.std.FrameEval(
         core.std.BlankClip(video, length=dst_frames, keep=True),
         pick,
-        prop_src=over_output,
+        prop_src=output_decisions,
     )
 
     return core.std.AssumeFPS(out, fpsnum=dst_fps.numerator, fpsden=dst_fps.denominator)
@@ -149,7 +149,7 @@ def _retimed(
 
 def _retimed_rife_merge(
     video: vs.VideoNode,
-    dedupe: deduplicate.Dedupe,
+    timeline: retime.Timeline,
     dst_fps: Fraction,
     merge: Callable[[vs.VideoNode, vs.VideoNode, vs.VideoNode], vs.VideoNode],
 ) -> vs.VideoNode:
@@ -160,15 +160,15 @@ def _retimed_rife_merge(
     the frame after, and the time point - describe the whole output, and one call renders it.
     """
     ratio = dst_fps / video.fps
-    dst_frames = deduplicate.output_frames(dedupe.length, ratio)
-    decisions = deduplicate.over_output(dedupe, dst_frames, ratio)
+    dst_frames = retime.output_frames(timeline.length, ratio)
+    decisions = retime.over_output(timeline, dst_frames, ratio)
 
     base = core.std.BlankClip(video, length=dst_frames, keep=True)
     gray_format = vs.GRAYS if video.format.bits_per_sample == 32 else vs.GRAYH
     gray = core.std.BlankClip(base, format=gray_format, keep=True)
 
-    def at(n: int, props) -> deduplicate.Bracket:
-        return deduplicate.bracket(props, deduplicate.source_time(n, ratio))
+    def at(n: int, props) -> retime.Bracket:
+        return retime.bracket(props, retime.source_time(n, ratio))
 
     before = core.std.FrameEval(
         base, lambda n, f: video[at(n, f.props).left], prop_src=decisions
@@ -301,10 +301,10 @@ def svp(
     super_string: str,
     vectors_string: str,
     smooth_str: str,
-    dedupe: deduplicate.Dedupe | None = None,
+    timeline: retime.Timeline | None = None,
     new_fps=None,
 ):
-    """`new_fps` is only needed alongside `dedupe`.
+    """`new_fps` is only needed alongside `timeline`.
 
     Retiming picks its own framerate to interpolate at, so the one in `smooth_str` gets replaced and the
     target has to be passed separately - which also means a hand written smooth string keeps everything about
@@ -313,12 +313,12 @@ def svp(
     _video = core.fmtc.bitdepth(_video, bits=8)
 
     def process(video):
-        if dedupe is None:
+        if timeline is None:
             return SVP(video, super_string, vectors_string, smooth_str)
 
         return _retimed(
             video,
-            dedupe,
+            timeline,
             _fps(new_fps),
             lambda pairs, steps: SVP(
                 pairs, super_string, vectors_string, _with_rate(smooth_str, steps)
@@ -343,7 +343,7 @@ def interpolate_svp(
     speed=DEFAULT_SPEED,
     masking=DEFAULT_MASKING,
     gpu=DEFAULT_GPU,
-    dedupe: deduplicate.Dedupe | None = None,
+    timeline: retime.Timeline | None = None,
 ):
     preset = preset.lower()
 
@@ -361,7 +361,7 @@ def interpolate_svp(
         super_string,
         vectors_string,
         smooth_string,
-        dedupe=dedupe,
+        timeline=timeline,
         new_fps=new_fps,
     )
 
@@ -431,7 +431,7 @@ def interpolate_mvtools(
     pelsearch=1,
     dct=3,
     blend=False,
-    dedupe: deduplicate.Dedupe | None = None,
+    timeline: retime.Timeline | None = None,
 ):
     settings = dict(
         blocksize=blocksize,
@@ -446,12 +446,12 @@ def interpolate_mvtools(
         blend=blend,
     )
 
-    if dedupe is None:
+    if timeline is None:
         return MVTools(clip, new_fps, **settings)
 
     return _retimed(
         clip,
-        dedupe,
+        timeline,
         _fps(new_fps),
         lambda pairs, steps: MVTools(pairs, steps, **settings),
     )
@@ -479,12 +479,12 @@ def interpolate_rife(
     new_fps: int,
     model_path: str,
     device_index: int,
-    dedupe: deduplicate.Dedupe | None = None,
+    timeline: retime.Timeline | None = None,
 ):
     u.check_model_path(model_path)
 
     def process(video):
-        if dedupe is None:
+        if timeline is None:
             return RIFE(
                 video,
                 new_fps=new_fps,
@@ -494,7 +494,7 @@ def interpolate_rife(
 
         return _retimed(
             video,
-            dedupe,
+            timeline,
             _fps(new_fps),
             lambda pairs, steps: RIFE(
                 pairs,
@@ -631,15 +631,15 @@ def interpolate_rife_vsmlrt(
     model: str,
     device_index: int,
     settings_path: Path,
-    dedupe: deduplicate.Dedupe | None = None,
+    timeline: retime.Timeline | None = None,
 ):
     def process(_video: vs.VideoNode, backend) -> vs.VideoNode:
-        if dedupe is None:
+        if timeline is None:
             return RIFE_vsmlrt(_video, new_fps=new_fps, model=model, backend=backend)
 
         return _retimed_rife_merge(
             _video,
-            dedupe,
+            timeline,
             _fps(new_fps),
             lambda before, after, timepoint: VSMLRT_RIFE_MERGE(
                 clipa=before,

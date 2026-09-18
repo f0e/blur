@@ -1,43 +1,32 @@
-"""Deduplication - putting back the frames a recording dropped.
+"""Deduplication - working out a timeline from the pictures alone.
 
 A game rendering at 30fps captured at 60 gives you every frame twice. Blending across those pairs is what makes
 blurred output look like it stutters: half of the blur window is the same picture held still. The fix is to
 work out which frames are repeats and generate what should have been there instead.
 
-This works by *retiming* rather than by patching frames in. A duplicate isn't replaced by an interpolated frame
-at the rate the video already runs at - instead every frame the render asks for is worked out from the two
-nearest frames that genuinely differ, at the time point it falls between them. Filling the gaps and
-interpolating up to the output framerate become the same operation, done once:
+Two questions have to be answered, and with nothing but the video to go on only the first has a certain
+answer:
 
-    source   A . . B . . C            (`.` is a repeat of the frame before it)
-    before   A a a B b b C            fill the gaps, then interpolate that again for the output framerate
-    now      A - - - - - B - - - - - C    one pass, every frame drawn from a pair that was really captured
+- **which frames are repeats.** A frame that differs from the one before it by less than `threshold` is one,
+  which divides the video into runs of identical frames.
+- **when each run's real picture belongs.** Nothing in the file says, and `timing` below is the choice of
+  which guess to make.
 
-Doing it in one pass is the point. The old way interpolated interpolated frames: a gap was filled from the
-frames around it, and then the interpolation pass proper generated its output from *those*, compounding
-whatever the first pass got wrong and estimating motion from pictures no camera ever took. Here everything
-that comes out is generated directly from two real frames, and the interpolator is asked for each frame once
-instead of being spun up again for every run of duplicates.
+The answers become a timeline, which interpolation renders - see blur/retime.py for what that is and how.
+Where the recording came with a frame timing log, blur/frame_timing.py builds the same timeline from measured
+times instead of guessing, and this doesn't run at all.
 
-Nothing is scanned up front. `analyse` builds a clip of per frame decisions - which two real frames bracket
-this one - and each decision only looks a few frames either side of itself, so previewing one frame reads a
-handful of frames rather than reading through the video.
+Nothing is scanned up front. `analyse` builds a clip of per frame decisions, and each decision only looks a
+few frames either side of itself, so previewing one frame reads a handful of frames rather than reading
+through the video.
 """
 
 import vapoursynth as vs
 from vapoursynth import core
 
-from dataclasses import dataclass
-from fractions import Fraction
-
+import blur.retime as retime
 import blur.utils as u
 from blur import log
-
-# how far apart two frames are allowed to be and still have frames generated between them, and equally how
-# far a frame looks for a pair. a longer gap means more movement to guess at from the same two pictures, and
-# past a point the guess is worse than the stutter it replaces. this is what the 'deduplicate range' setting
-# sets, and what its 'infinite' option lands on
-MAX_GAP_LIMIT = 30
 
 # Which frame of a run of repeats is the real one.
 #
@@ -75,68 +64,6 @@ WINDOW_CLAMPED = False
 # anchor times are counted in half frames. CENTER puts a run's anchor halfway along it, which for an even
 # length run is halfway through a frame - counting in halves keeps every time an exact whole number
 HALF = 2
-
-# what a decision frame carries: the real frames whose stretches of the timeline overlap it, in order, and when
-# each of them belongs, counted in 1/PROP_TIME_SCALE frames. a single frame means the picture is held. the
-# difference that was measured here only comes from deduplication
-PROP_FRAMES = "BlurRetimeFrames"
-PROP_TIMES = "BlurRetimeTimes"
-PROP_TIME_SCALE = "BlurRetimeTimeScale"
-PROP_DIFF = "BlurDedupeDiff"
-
-
-@dataclass(frozen=True)
-class Dedupe:
-    """Everything the interpolator needs to render a video as if it had never dropped a frame.
-
-    `decisions` holds `resolution` frames per frame of the source, carrying the props above. It's a 1x1 clip -
-    only the props matter - and it's built so that reading one of its frames only reads the source around it.
-
-    `slots` is how many pairs a decision can hold. Deduplication's decisions are always one pair, but a timeline
-    whose frames don't land on whole frame numbers can have a real frame land partway through a decision.
-    """
-
-    decisions: vs.VideoNode
-    length: int
-    max_gap: int
-    timing: str
-    resolution: int
-    slots: int = 1
-
-
-@dataclass(frozen=True)
-class Bracket:
-    """The two real frames an output frame sits between, when they belong, and where between them it sits.
-
-    `timepoint` is None when there's nothing to generate - the output frame lands on `left` or before it, or
-    the picture isn't changing - and `left` should be used as it is. `slot` is which of the decision's pairs
-    this is.
-    """
-
-    left: int
-    right: int
-    left_time: Fraction
-    right_time: Fraction
-    timepoint: Fraction | None
-    slot: int = 0
-
-
-def shifted(clip: vs.VideoNode, offset: int) -> vs.VideoNode:
-    """`clip` moved along by `offset`, so its frame n holds whatever frame n + offset held.
-
-    The ends repeat rather than running out, which is what makes a scan that reaches past the start or end of
-    the video read as "nothing changes past here" instead of failing.
-    """
-    length = clip.num_frames
-    offset = max(-(length - 1), min(offset, length - 1))
-
-    if offset > 0:
-        return clip[offset:] + clip[length - 1] * offset
-
-    if offset < 0:
-        return clip[0] * -offset + clip[: length + offset]
-
-    return clip
 
 
 def _resolution(timing: str) -> int:
@@ -177,7 +104,7 @@ def _decisions(
 
     reach = _reach(timing, max_gap)
     offsets = list(range(-reach, reach + 1))
-    window = [shifted(diffs, offset) for offset in offsets]
+    window = [retime.shifted(diffs, offset) for offset in offsets]
 
     resolution = _resolution(timing)
     if resolution != 1:
@@ -359,10 +286,10 @@ def _decisions(
         left, left_time, right, right_time, hold = answer
 
         out = f[0].copy()
-        out.props[PROP_FRAMES] = [left] if hold else [left, right]
-        out.props[PROP_TIMES] = [left_time] if hold else [left_time, right_time]
-        out.props[PROP_TIME_SCALE] = HALF
-        out.props[PROP_DIFF] = diff(source)
+        out.props[retime.PROP_FRAMES] = [left] if hold else [left, right]
+        out.props[retime.PROP_TIMES] = [left_time] if hold else [left_time, right_time]
+        out.props[retime.PROP_TIME_SCALE] = HALF
+        out.props[retime.PROP_DIFF] = diff(source)
 
         return out
 
@@ -375,7 +302,7 @@ def analyse(
     max_gap: int | None,
     timing: str = TIMING_FIRST,
     future_checks: int = 0,
-) -> Dedupe:
+) -> retime.Timeline:
     """Set up deduplication for `clip`, without reading any of it yet."""
     if timing not in TIMINGS:
         raise u.BlurException(
@@ -385,10 +312,10 @@ def analyse(
     future_checks = max(0, int(future_checks))
 
     if max_gap is None:
-        log.info(f"deduplication: unlimited range, capped at {MAX_GAP_LIMIT} frames")
-        max_gap = MAX_GAP_LIMIT
+        log.info(f"deduplication: unlimited range, capped at {retime.MAX_GAP_LIMIT} frames")
+        max_gap = retime.MAX_GAP_LIMIT
     else:
-        max_gap = max(1, min(int(max_gap), MAX_GAP_LIMIT))
+        max_gap = max(1, min(int(max_gap), retime.MAX_GAP_LIMIT))
 
     where = (
         "working from the frames either side of a run"
@@ -399,135 +326,12 @@ def analyse(
         f"deduplicating (threshold {threshold}, up to {max_gap} frames apart, {where})"
     )
 
-    return Dedupe(
+    return retime.Timeline(
         decisions=_decisions(clip, threshold, max_gap, timing, future_checks),
         length=clip.num_frames,
         max_gap=max_gap,
-        timing=timing,
         resolution=_resolution(timing),
     )
-
-
-def source_time(n: int, ratio: Fraction) -> Fraction:
-    """Where output frame `n` falls on the source's timeline, measured in source frames.
-
-    `ratio` is how many output frames there are to a source frame, so this is just the inverse - but it's the
-    one conversion everything here turns on, and it's exact rather than floating point so that an output frame
-    that lands squarely on a source frame is recognised as landing on it.
-    """
-    return Fraction(n) / ratio
-
-
-def output_frames(length: int, ratio: Fraction) -> int:
-    return max(1, int(length * ratio))
-
-
-def decision_index(dedupe: Dedupe, n: int, ratio: Fraction) -> int:
-    """Which of `dedupe.decisions`' frames covers output frame `n`."""
-    return min(
-        int(source_time(n, ratio) * dedupe.resolution),
-        dedupe.decisions.num_frames - 1,
-    )
-
-
-def over_output(dedupe: Dedupe, dst_frames: int, ratio: Fraction) -> vs.VideoNode:
-    """`dedupe.decisions` re-indexed onto the output timeline, for use as a FrameEval prop_src."""
-    decisions = dedupe.decisions
-
-    return core.std.FrameEval(
-        core.std.BlankClip(decisions, length=dst_frames, keep=True),
-        lambda n: decisions[decision_index(dedupe, n, ratio)],
-    )
-
-
-def _ints(value) -> list[int]:
-    # vapoursynth hands a one element array back as a plain value
-    return [int(v) for v in value] if isinstance(value, (list, tuple)) else [int(value)]
-
-
-def frame_at(props, index: int) -> int:
-    """The `index`th real frame a decision holds, or its last if it holds fewer."""
-    frames = _ints(props[PROP_FRAMES])
-    return frames[min(index, len(frames) - 1)]
-
-
-def bracket(props, time: Fraction) -> Bracket:
-    """Read a decision frame's props back out for an output frame at `time`."""
-    frames = _ints(props[PROP_FRAMES])
-    scale = int(props[PROP_TIME_SCALE])
-    times = [Fraction(t, scale) for t in _ints(props[PROP_TIMES])]
-
-    if len(frames) == 1:
-        return Bracket(frames[0], frames[0], times[0], times[0], None)
-
-    slot = 0
-    while slot + 2 < len(frames) and time >= times[slot + 1]:
-        slot += 1
-
-    left, right = frames[slot], frames[slot + 1]
-    left_time, right_time = times[slot], times[slot + 1]
-
-    if right_time <= left_time or time <= left_time:
-        return Bracket(left, right, left_time, right_time, None, slot)
-
-    return Bracket(
-        left,
-        right,
-        left_time,
-        right_time,
-        min((time - left_time) / (right_time - left_time), Fraction(1)),
-        slot,
-    )
-
-
-def involved(at: Bracket) -> bool:
-    """Whether deduplication had a hand in this frame, rather than it being plain interpolation.
-
-    A pair one frame wide is two frames the recording really captured back to back, so anything generated
-    between them is ordinary interpolation. Anything else is deduplication's doing: a wider pair spans
-    frames that were dropped, and a pair of no width at all is the picture being held because nothing new
-    turned up within range.
-    """
-    return at.right_time - at.left_time != 1
-
-
-def describe(n: int, time: Fraction, props, at: Bracket) -> str:
-    """A line about how one output frame was put together, for the debug overlay."""
-    if at.timepoint is None:
-        where = f"held on {at.left}" if at.left == at.right else f"on {at.left}"
-    else:
-        where = (
-            f"{at.left}->{at.right} ({float(at.left_time):g}->{float(at.right_time):g})"
-            f" @ {float(at.timepoint):.3f}"
-        )
-
-    diff = f" | diff {float(props[PROP_DIFF]):.6f}" if PROP_DIFF in props else ""
-    return f"{n} | src {float(time):.3f}{diff} | {where}"
-
-
-def annotate(video: vs.VideoNode, dedupe: Dedupe, ratio: Fraction) -> vs.VideoNode:
-    """Label the frames deduplication had a hand in, for the debug setting.
-
-    Only those frames get written on, so what stands out against a plain render is exactly where the
-    recording dropped something - an interpolated frame between two frames that were both really captured
-    is left alone.
-
-    This runs on the finished frames rather than inside the interpolation, both because that's the only
-    place the text is sure to survive and because it's the only place the format is sure to take it - the
-    tensorrt path interpolates in half float, which text can't be drawn on.
-    """
-    decisions = over_output(dedupe, video.num_frames, ratio)
-
-    def label(n: int, f: vs.VideoFrame) -> vs.VideoNode:
-        time = source_time(n, ratio)
-        at = bracket(f.props, time)
-
-        if not involved(at):
-            return video
-
-        return core.text.Text(video, describe(n, time, f.props, at), alignment=8)
-
-    return core.std.FrameEval(video, label, prop_src=decisions)
 
 
 def fill_drops_old(clip, threshold=0.1, debug=False):
