@@ -361,14 +361,15 @@ def analyse(
     `length` frames from `start`. A picture is held rather than interpolated across a gap wider than `hold`
     frames. No frame of the video is read: everything here comes out of the log.
     """
-    sidecar_path = timing_log.sidecar_path(video_path)
-    if not sidecar_path.exists():
+    logs = timing_log.sidecars_for(video_path)
+    if not logs:
         return None
 
+    sidecar_path = logs[0]
     try:
-        sidecar = timing_log.load_sidecar(sidecar_path)
         sizes = timing_log.packet_sizes(video_path, frames)
-        ticks = timing_log.render_ticks(sidecar, sizes)
+        sidecar_path, sidecar, first = timing_log.find_sidecar(logs, sizes)
+        ticks = timing_log.render_ticks(sidecar, sizes, first)
         read, fingerprint, timed_by = timing_log.reads_for(sidecar, ticks)
         clip = slice(start, start + length)
         presents, missing_reason = timing_log.game_presents(sidecar, read[clip][0] - LEAD, read[clip][-1] + LEAD)
