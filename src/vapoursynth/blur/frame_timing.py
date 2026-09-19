@@ -369,7 +369,7 @@ def analyse(
         sidecar = timing_log.load_sidecar(sidecar_path)
         sizes = timing_log.packet_sizes(video_path, frames)
         ticks = timing_log.render_ticks(sidecar, sizes)
-        read, fingerprint = timing_log.reads_for(sidecar, ticks)
+        read, fingerprint, timed_by = timing_log.reads_for(sidecar, ticks)
         clip = slice(start, start + length)
         presents, missing_reason = timing_log.game_presents(sidecar, read[clip][0] - LEAD, read[clip][-1] + LEAD)
     except (timing_log.LogError, OSError, ValueError, KeyError, IndexError) as e:
@@ -430,6 +430,7 @@ def analyse(
             f"frame timing: {presents.process}'s frames from {sidecar_path.name}, timed by "
             f"{presents.simulated_by}, {covered.mean():.0%} of frames covered, {fitted}"
         )
+        log.info(f"frame timing: obs's reads timed by {timed_by}")
     else:
         log.info(
             f"frame timing: obs's reads from {sidecar_path.name}, without the game's frames ({missing_reason}) - "

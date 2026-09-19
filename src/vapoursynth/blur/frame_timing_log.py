@@ -29,7 +29,7 @@ from pathlib import Path
 import numpy as np
 
 SIDECAR_SUFFIX = ".frametiming"
-SIDECAR_VERSION = 7
+SIDECAR_VERSION = 8
 
 # the share of a video's packets whose size has to differ from the log's by the same amount to match it
 MATCH_SHARE = 0.98
@@ -48,6 +48,10 @@ READ = np.dtype([
     ("submitted_qpc", "<i8"),
     ("done_qpc", "<i8"),
     ("fingerprint", "<u8"),
+    # the gpu's own clock, which shares no zero with qpc - see `read_times`
+    ("gpu_begin", "<u8"),
+    ("gpu_end", "<u8"),
+    ("gpu_frequency", "<u8"),
 ])
 PACKET = np.dtype([
     ("pts", "<i8"),
@@ -103,6 +107,14 @@ PRESENT_FAILED = 1 << 1
 
 # presentdata's FrameType: what the compositor showed. anything above this was generated rather than drawn
 FRAME_TYPE_APPLICATION = 2
+
+# lining the gpu's clock up with the log's: how many frames it takes before it's worth trying, how many go
+# into each of the windows the drift between the two clocks is followed over, how many of those windows a
+# straight line needs, and the share of the smallest waits each window's floor is taken from
+GPU_CLOCK_SAMPLES = 2000
+GPU_CLOCK_WINDOW = 500
+GPU_CLOCK_WINDOWS = 4
+GPU_CLOCK_QUANTILE = 1.0
 
 # why a log has no game frames, from the plugin's point of view
 GAME_TIMING = {1: "OBS had no permission to trace them", 2: "tracing them failed", 3: "tracing never started"}
@@ -349,9 +361,65 @@ def render_ticks(sidecar: Sidecar, sizes: np.ndarray) -> np.ndarray:
     return np.clip(at + sidecar.render_delay, 0, len(tick_time) - 1)
 
 
-def reads_for(sidecar: Sidecar, ticks: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """For each frame of the video, when obs's GPU finished reading its picture, in seconds from the log's
-    zero, and the fingerprint of the picture it read (0 where there isn't one)."""
+def _read_seconds(sidecar: Sidecar, reads: np.ndarray) -> tuple[np.ndarray, str]:
+    """When each read happened, in seconds from the log's zero, and where that came from.
+
+    The probe measures the read twice. `done_qpc` is a thread waking on the event the flush after the draw
+    signals, so it carries however long windows took to signal and schedule that thread - this machine's
+    behaviour rather than anything about the recording. `gpu_end` is the gpu stamping the end of the draw
+    itself, which is the same moment without the wait, but on the gpu's clock.
+
+    D3D11 won't report both clocks at once, so they're lined up against each other. The difference between
+    them is where the gpu's zero sits plus that wait, and the wait is never negative, so the floor of the
+    difference is the offset. The two clocks are also separate crystals running at slightly different rates -
+    measured at about 17ppm here, which is half a millisecond over a thirty second clip, more than enough to
+    matter - so the floor is followed over windows and a straight line fitted through it rather than one
+    offset being taken for the whole recording.
+    """
+    qpc = sidecar.seconds(reads["done_qpc"])
+
+    stamped = (reads["gpu_end"] > 0) & (reads["gpu_frequency"] > 0)
+    if np.count_nonzero(stamped) < GPU_CLOCK_SAMPLES:
+        return qpc, "obs's flush event (the gpu timed too few of the reads to line the two clocks up)"
+
+    # ticks from different gpu clock rates can't be compared, and the plugin already drops the spans the gpu
+    # called disjoint, so the one rate the rest share is the only one worth lining up
+    rates = np.unique(reads["gpu_frequency"][stamped])
+    if len(rates) != 1:
+        return qpc, "obs's flush event (the gpu changed clock rate mid-recording)"
+
+    gpu = reads["gpu_end"].astype(np.float64) / float(rates[0])
+    # the gpu's counter runs from its own zero, which is far enough back to cost precision in a fit
+    gpu -= gpu[stamped][0]
+    wait = qpc[stamped] - gpu[stamped]
+
+    # the floor of each window, which is that window's offset with the waiting taken off
+    edges = np.arange(0, len(wait), GPU_CLOCK_WINDOW)
+    floors = [
+        (float(gpu[stamped][a : a + GPU_CLOCK_WINDOW].mean()), float(np.percentile(window, GPU_CLOCK_QUANTILE)))
+        for a in edges
+        if len(window := wait[a : a + GPU_CLOCK_WINDOW]) >= GPU_CLOCK_WINDOW // 4
+    ]
+    if len(floors) < GPU_CLOCK_WINDOWS:
+        return qpc, "obs's flush event (too little of the recording to follow the gpu's clock over)"
+
+    at, floor = np.array([f[0] for f in floors]), np.array([f[1] for f in floors])
+    drift, offset = np.polyfit(at, floor, 1)
+
+    # the read can't be later than the event that reported it, whatever the fit says
+    read = np.where(stamped, np.minimum(gpu + drift * gpu + offset, qpc), qpc)
+    held = (qpc[stamped] - read[stamped]) * 1e3
+    return read, (
+        f"the gpu's own timestamps for {np.count_nonzero(stamped) / len(reads):.0%} of reads, which the flush "
+        f"event trailed by {np.median(held):.3f}ms typically and {np.percentile(held, 99):.3f}ms at worst; the "
+        f"two clocks differ by {drift * 1e6:+.1f}ppm, {drift * (gpu[stamped][-1] - gpu[stamped][0]) * 1e3:+.3f}ms "
+        f"across this recording"
+    )
+
+
+def reads_for(sidecar: Sidecar, ticks: np.ndarray) -> tuple[np.ndarray, np.ndarray, str]:
+    """For each frame of the video, when obs's GPU read its picture, in seconds from the log's zero, the
+    fingerprint of the picture it read (0 where there isn't one), and what timed the reads."""
     reads = sidecar.reads
     reported = reads["done_qpc"] > 0
     if not np.any(reported):
@@ -360,6 +428,7 @@ def reads_for(sidecar: Sidecar, ticks: np.ndarray) -> tuple[np.ndarray, np.ndarr
     reads = reads[reported]
     reads = reads[np.argsort(reads["frame_time"], kind="stable")]
     logged = reads["frame_time"].astype(np.int64)
+    measured, timed_by = _read_seconds(sidecar, reads)
 
     wanted = sidecar.ticks["frame_time"].astype(np.int64)[ticks]
     at = np.searchsorted(logged, wanted)
@@ -367,7 +436,7 @@ def reads_for(sidecar: Sidecar, ticks: np.ndarray) -> tuple[np.ndarray, np.ndarr
     at = np.minimum(at, len(reads) - 1)
     found &= logged[at] == wanted
 
-    read = np.where(found, sidecar.seconds(reads["done_qpc"][at]), np.nan)
+    read = np.where(found, measured[at], np.nan)
     fingerprint = np.where(found, reads["fingerprint"][at], np.uint64(0))
 
     # a tick the probe didn't report - obs wasn't drawing the capture, or it ran out of events - is taken to
@@ -379,7 +448,7 @@ def reads_for(sidecar: Sidecar, ticks: np.ndarray) -> tuple[np.ndarray, np.ndarr
         tick = sidecar.tick_seconds(wanted)
         read[missing] = tick[missing] + np.median(read[found] - tick[found])
 
-    return read, fingerprint
+    return read, fingerprint, timed_by
 
 
 def _mp4_sample_sizes(path: Path) -> np.ndarray | None:
