@@ -60,6 +60,10 @@ class Timeline:
     `slots` is how many pairs a decision can hold. Deduplication's decisions are always one pair, but a
     timeline whose frames don't land on whole frame numbers can have a real frame land partway through a
     decision.
+
+    `max_gap` is how far apart the furthest pair in this timeline is, which is all interpolation needs it for
+    - how far a picture is *allowed* to be carried before it's held instead is the source's business, and it
+    has already been applied by the time a timeline exists.
     """
 
     decisions: vs.VideoNode

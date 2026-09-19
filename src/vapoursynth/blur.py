@@ -141,21 +141,34 @@ def main():
             f"Deduplicate threshold is not a number: '{settings['deduplicate_threshold']}'"
         )
 
+    # how far a picture is carried before it's held instead. it's deduplication's setting, but it's a
+    # preference about interpolation rather than about deduplication, so a logged timeline honours it too -
+    # except for 0, which means deduplication is off and says nothing about how far to interpolate
+    deduplicate_range: int | None = int(settings["deduplicate_range"])
+    if deduplicate_range == -1:  # -1 = infinite
+        deduplicate_range = None
+
+    hold = blur.retime.MAX_GAP_LIMIT
+    if deduplicate_range:
+        hold = max(1, min(deduplicate_range, hold))
+
     logged_timing = None
     if settings["frame_timing_logs"]:
         logged_timing = blur.frame_timing.analyse(
-            untrimmed,
             video.fps,
+            untrimmed.num_frames,
             start,
             video.num_frames,
             video_path,
-            deduplicate_threshold,
+            hold=hold,
         )
 
-    deduplicating = (
+    # a timeline is rendered by retiming, whichever source it came from, and that needs the masks either way.
+    # the deduplicate setting turns off deduplication, not a log - logs have their own setting
+    retiming = (
         settings["deduplicate"] and settings["deduplicate_range"] != 0
     ) or logged_timing is not None
-    apply_masks = settings["interpolate"] or deduplicating
+    apply_masks = settings["interpolate"] or retiming
     mask_name = settings["mask"] if apply_masks else ""
     auto_mask = settings["auto_mask"] if apply_masks else False
     auto_mask_params = blur.mask.Params.from_settings(settings)
@@ -225,11 +238,7 @@ def main():
     # renders onto it. see blur/retime.py
     timeline = logged_timing
     debug_timeline = None
-    if deduplicating and logged_timing is None:
-        deduplicate_range: int | None = int(settings["deduplicate_range"])
-        if deduplicate_range == -1:  # -1 = infinite
-            deduplicate_range = None
-
+    if retiming and logged_timing is None:
         timeline = blur.deduplicate.analyse(
             video,
             threshold=deduplicate_threshold,
@@ -427,10 +436,10 @@ def main():
         else:
             video = interpolate_to(method, video, video.fps, timeline=timeline)
 
-    # masking. deduplication is included because filling a dropped frame means interpolating one, and it's
+    # masking. retiming is included because filling a dropped frame means interpolating one, and it's
     # interpolation that warps an overlay - but if neither actually ran there are no artifacts to put back
     mask_clips = []
-    if (mask_name or auto_mask) and (deduplicating or interpolated):
+    if (mask_name or auto_mask) and (retiming or interpolated):
         mask_clips = build_mask_clips(
             mask_name,
             auto_mask,

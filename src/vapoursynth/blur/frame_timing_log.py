@@ -8,10 +8,11 @@ short if OBS died mid-recording.
 What's in it:
 
 - `TICK`  - every frame OBS rendered, with the timestamp it gave that frame
-- `READ`  - when OBS's GPU actually read the captured picture, measured by the plugin's probe filter
+- `READ`  - when OBS's GPU actually read the captured picture, measured by the plugin's probe filter, and a
+            hash of the picture it read
 - `PCKT`  - every encoded video packet, which is what lets a saved file be lined up with the log
 - `PRES`  - the captured game's own frames, when the plugin had permission to trace them
-- `GAME`  - which process OBS was capturing, and whether by game capture or window capture
+- `GAME`  - which process OBS was capturing, how, and on what interval its hook copied frames
 
 This module only reads the file and works out the game's frames from it. Turning that into a timeline is
 blur/frame_timing.py's job.
@@ -28,16 +29,26 @@ from pathlib import Path
 import numpy as np
 
 SIDECAR_SUFFIX = ".frametiming"
-SIDECAR_VERSION = 6
+SIDECAR_VERSION = 7
 
 # the share of a video's packets whose size has to differ from the log's by the same amount to match it
 MATCH_SHARE = 0.98
 
-HEADER = struct.Struct("<8sIIqqII")
+# how many packet sizes in a row have to agree for an offset to be worth checking properly, and where in the
+# video those runs are taken from
+MATCH_RUN = 8
+MATCH_ANCHORS = 3
+
+HEADER = struct.Struct("<8sIIqqIII")
 BATCH = struct.Struct("<4sI")
 
 TICK = np.dtype([("qpc", "<i8"), ("frame_time", "<u8"), ("total_frames", "<u8"), ("lagged_frames", "<u8")])
-READ = np.dtype([("frame_time", "<u8"), ("submitted_qpc", "<i8"), ("done_qpc", "<i8")])
+READ = np.dtype([
+    ("frame_time", "<u8"),
+    ("submitted_qpc", "<i8"),
+    ("done_qpc", "<i8"),
+    ("fingerprint", "<u8"),
+])
 PACKET = np.dtype([
     ("pts", "<i8"),
     ("dts", "<i8"),
@@ -55,7 +66,6 @@ PRESENT = np.dtype([
     ("time_in_present", "<u8"),
     ("gpu_start", "<u8"),
     ("ready", "<u8"),
-    ("gpu_duration", "<u8"),
     ("swap_chain", "<u8"),
     ("process_id", "<u8"),
     ("runtime", "<u8"),
@@ -63,11 +73,21 @@ PRESENT = np.dtype([
     ("final_state", "<u8"),
     ("flags", "<u8"),
     ("app_sim_start", "<u8"),
+    ("app_sim_end", "<u8"),
     ("reflex_sim_start", "<u8"),
+    ("reflex_sim_end", "<u8"),
     ("screen_time", "<u8"),
+    ("frame_type", "<u8"),
     ("window", "<u8"),
 ])
-GAME = np.dtype([("process_id", "<u8"), ("capture", "<u8"), ("window", "<u8"), ("name", "S120")])
+GAME = np.dtype([
+    ("process_id", "<u8"),
+    ("capture", "<u8"),
+    ("window", "<u8"),
+    ("flags", "<u8"),
+    ("frame_interval", "<u8"),
+    ("name", "S120"),
+])
 
 DTYPES = {b"TICK": TICK, b"READ": READ, b"PCKT": PACKET, b"PRES": PRESENT, b"GAME": GAME}
 
@@ -75,7 +95,14 @@ DTYPES = {b"TICK": TICK, b"READ": READ, b"PCKT": PACKET, b"PRES": PRESENT, b"GAM
 HOOK_CAPTURE = 0
 WINDOW_CAPTURE = 1
 
+# the capture source's settings that change the model
+CAPTURE_LIMIT_FRAMERATE = 1 << 0
+CAPTURE_SHARED_MEMORY = 1 << 1
+
 PRESENT_FAILED = 1 << 1
+
+# presentdata's FrameType: what the compositor showed. anything above this was generated rather than drawn
+FRAME_TYPE_APPLICATION = 2
 
 # why a log has no game frames, from the plugin's point of view
 GAME_TIMING = {1: "OBS had no permission to trace them", 2: "tracing them failed", 3: "tracing never started"}
@@ -90,12 +117,22 @@ class Sidecar:
     qpc_frequency: int
     saved_qpc: int
     fps: Fraction
+    # how many ticks after the tick whose timestamp a frame carries the frame was rendered, which depends on
+    # whether the output's encoder takes textures or raw frames. the plugin works it out from the encoder
+    render_delay: int
     ticks: np.ndarray
     reads: np.ndarray
     packets: np.ndarray
     presents: np.ndarray
     games: np.ndarray
     game_timing: int
+
+    def seconds(self, qpc: np.ndarray) -> np.ndarray:
+        """QPC values as seconds from the log's zero, which is when it was saved."""
+        return (qpc.astype(np.int64) - self.saved_qpc) / self.qpc_frequency
+
+    def qpc(self, seconds: float) -> int:
+        return int(self.saved_qpc + seconds * self.qpc_frequency)
 
 
 @dataclass
@@ -107,12 +144,13 @@ class Presents:
     present: np.ndarray
     gpu_start: np.ndarray
     gpu_done: np.ndarray
-    # when obs could first read each frame, and whether its capture saw every one of them
+    # when obs could first read each frame
     visible: np.ndarray
-    hooked: bool
     # when each frame was simulated, and what said so
     simulated: np.ndarray
     simulated_by: str
+    # the interval the hook skips presents on, in seconds, or 0 when nothing skips them
+    interval: float
 
 
 def sidecar_path(video_path: Path) -> Path:
@@ -122,11 +160,16 @@ def sidecar_path(video_path: Path) -> Path:
 
 def load_sidecar(path: Path) -> Sidecar:
     data = path.read_bytes()
-    magic, version, game_timing, frequency, saved, num, den = HEADER.unpack_from(data)
+    if len(data) < HEADER.size:
+        raise LogError(f"{path.name} is too short to be a frame timing log")
+
+    magic, version, game_timing, frequency, saved, num, den, render_delay = HEADER.unpack_from(data)
     if magic != b"BLURFTIM":
         raise LogError(f"{path.name} isn't a frame timing log")
     if version != SIDECAR_VERSION:
         raise LogError(f"{path.name} is a version {version} log, and this version of blur reads {SIDECAR_VERSION}")
+    if not frequency or not num or not den:
+        raise LogError(f"{path.name} has no clock or framerate in its header")
 
     batches: dict[bytes, list[np.ndarray]] = {tag: [] for tag in DTYPES}
     offset = HEADER.size
@@ -149,6 +192,7 @@ def load_sidecar(path: Path) -> Sidecar:
         frequency,
         saved,
         Fraction(num, den),
+        render_delay,
         sections[b"TICK"],
         sections[b"READ"],
         sections[b"PCKT"],
@@ -158,33 +202,54 @@ def load_sidecar(path: Path) -> Sidecar:
     )
 
 
-def game_presents(sidecar: Sidecar) -> tuple[Presents | None, str]:
-    """The game's frames from the plugin's own trace, or why there aren't any.
+def captured_game(sidecar: Sidecar, process: int) -> np.ndarray | None:
+    """What the log says about how obs was capturing a process, if it says anything."""
+    captured = sidecar.games[sidecar.games["process_id"] == process]
+    return captured[-1] if len(captured) else None
+
+
+def game_presents(sidecar: Sidecar, first: float, last: float) -> tuple[Presents | None, str]:
+    """The game's frames over the seconds from `first` to `last`, or why there aren't any.
 
     The log holds the captured game's presents and nothing else; its busiest swapchain is the captured one.
     Game capture hooks the game and gets its frames as it presents them, so a frame is readable once the GPU
     has finished it. Window capture is handed the window by the compositor instead, so a frame is readable
     when it reaches the screen, and one that never got there was never captured.
+
+    Everything is decided over the stretch the clip needs rather than over the whole log, which for a
+    recording hours long is a different question.
     """
     records = sidecar.presents
     if len(records) == 0:
         return None, GAME_TIMING.get(sidecar.game_timing, "the log doesn't have them")
-    records = records[(records["flags"] & PRESENT_FAILED) == 0]
+
+    # frames from a little before the clip, so its first frames have something to look back at
+    within = (records["present_start"] >= sidecar.qpc(first)) & (records["present_start"] <= sidecar.qpc(last))
+    records = records[within & ((records["flags"] & PRESENT_FAILED) == 0)]
+    if len(records) < 2:
+        return None, "the log has none of them over this part of the video"
 
     # a game that restarted mid-log presents under a new id, and the one that presented most is the one shown
     process = Counter(int(p) for p in records["process_id"]).most_common(1)[0][0]
     records = records[records["process_id"] == process]
-    captured = sidecar.games[sidecar.games["process_id"] == process]
-    hooked = len(captured) == 0 or int(captured[0]["capture"]) == HOOK_CAPTURE
+    captured = captured_game(sidecar, process)
 
-    # a window capture only sees the window it was pointed at
-    window = int(captured[0]["window"]) if len(captured) else 0
-    if not hooked and window and np.any(records["window"] == window):
+    hooked = captured is None or int(captured["capture"]) == HOOK_CAPTURE
+    if captured is not None and int(captured["flags"]) & CAPTURE_SHARED_MEMORY:
+        # the hook copies into shared memory and obs uploads it on its tick, so a frame isn't readable when
+        # the gpu finishes it and none of the rest holds either
+        return None, "obs was capturing in compatibility mode, which this model doesn't cover"
+
+    # the capture was pointed at one window, so presents to another one aren't in the recording
+    window = int(captured["window"]) if captured is not None else 0
+    if window and np.any(records["window"] == window):
         records = records[records["window"] == window]
 
     chain = Counter(int(c) for c in records["swap_chain"]).most_common(1)[0][0]
     records = records[records["swap_chain"] == chain]
     records = records[np.argsort(records["present_start"], kind="stable")]
+    if len(records) < 2:
+        return None, "the log has none of them over this part of the video"
 
     if hooked:
         # placing frames at their presents instead of at gpu done is worse than not placing them at all
@@ -194,20 +259,21 @@ def game_presents(sidecar: Sidecar) -> tuple[Presents | None, str]:
         shown = records["screen_time"] > 0
         if np.mean(shown) < 0.5:
             return None, "the log doesn't say when its frames reached the screen"
-        # a frame the compositor dropped never reached the capture
-        records = records[shown]
+        # a frame the compositor dropped never reached the capture, and one it generated isn't the game's
+        records = records[shown & (records["frame_type"] <= FRAME_TYPE_APPLICATION)]
+        if len(records) < 2:
+            return None, "the log has none of them over this part of the video"
 
-    frequency, saved = sidecar.qpc_frequency, sidecar.saved_qpc
     present_qpc = records["present_start"].astype(np.int64)
     ready_qpc = records["ready"].astype(np.int64)
-    gpu_start_qpc = records["gpu_start"].astype(np.int64)
 
     # a frame starts when the game comes back from presenting the one before, as presentmon has it
     ended = present_qpc + records["time_in_present"].astype(np.int64)
     start_qpc = np.concatenate([[present_qpc[0]], ended[:-1]])
 
-    # the odd frame without gpu timing is taken to have finished when it was presented
+    # the odd frame without gpu timing is taken to have started and finished when it was presented
     done_qpc = np.where(ready_qpc > 0, ready_qpc, present_qpc)
+    gpu_start_qpc = records["gpu_start"].astype(np.int64)
     gpu_start_qpc = np.where(gpu_start_qpc > 0, gpu_start_qpc, present_qpc)
 
     # the game's own word on when it simulated each frame beats its start, as presentmon has it. a game reports
@@ -223,11 +289,14 @@ def game_presents(sidecar: Sidecar) -> tuple[Presents | None, str]:
 
     visible_qpc = done_qpc if hooked else records["screen_time"].astype(np.int64)
 
+    # the hook's own interval, which obs works out from its framerate and whether the capture limits it
+    interval = float(captured["frame_interval"]) / 1e9 if hooked and captured is not None else 0.0
+
     # the first frame has no previous present to start from, so it's dropped
     def seconds(qpc: np.ndarray) -> np.ndarray:
-        return ((qpc - saved) / frequency)[1:]
+        return sidecar.seconds(qpc)[1:]
 
-    name = captured[0]["name"].decode(errors="replace") if len(captured) else f"process {process}"
+    name = captured["name"].decode(errors="replace") if captured is not None else f"process {process}"
     presents = Presents(
         name,
         seconds(start_qpc),
@@ -235,11 +304,72 @@ def game_presents(sidecar: Sidecar) -> tuple[Presents | None, str]:
         seconds(gpu_start_qpc),
         seconds(done_qpc),
         seconds(visible_qpc),
-        hooked,
         seconds(simulated_qpc),
         simulated_by,
+        interval,
     )
     return presents, ""
+
+
+def render_ticks(sidecar: Sidecar, sizes: np.ndarray) -> np.ndarray:
+    """For each frame of the video, the tick whose render drew it.
+
+    A packet carries `cts`, the timestamp obs gave the frame, which is the same number the tick log carries -
+    so the two line up exactly rather than by rounding microseconds. The frame was rendered `render_delay`
+    ticks after the tick that stamp belongs to; a frame obs duplicated because a tick ran long is stamped on
+    a slot no tick occupies, and lands on the tick that really drew it.
+    """
+    first = match_packets(sidecar, sizes)
+    packets = sidecar.packets[first : first + len(sizes)]
+    packets = packets[np.argsort(packets["pts"], kind="stable")]
+
+    cts = packets["cts"].astype(np.int64)
+    pts = packets["pts"].astype(np.int64)
+    known = np.flatnonzero(cts > 0)
+    if len(known) == 0:
+        raise LogError("the log's packets have no obs timestamps")
+
+    if len(known) < len(cts):
+        # obs didn't give timing for a packet: stamps step by one frame per packet, so its neighbour says
+        steps = np.diff(cts[known]) / np.diff(pts[known])
+        step = np.median(steps[np.isfinite(steps)])
+        nearest = known[np.clip(np.searchsorted(known, np.arange(len(cts))), 0, len(known) - 1)]
+        cts = np.where(cts > 0, cts, cts[nearest] + np.round((pts - pts[nearest]) * step).astype(np.int64))
+
+    tick_time = sidecar.ticks["frame_time"].astype(np.int64)
+    at = np.searchsorted(tick_time, cts, "right") - 1
+    return np.clip(at + sidecar.render_delay, 0, len(tick_time) - 1)
+
+
+def reads_for(sidecar: Sidecar, ticks: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """For each frame of the video, when obs's GPU finished reading its picture, in seconds from the log's
+    zero, and the fingerprint of the picture it read (0 where there isn't one)."""
+    reads = sidecar.reads
+    reported = reads["done_qpc"] > 0
+    if not np.any(reported):
+        raise LogError("the log has no reads - is the Frame Timing Probe filter on the game capture?")
+
+    reads = reads[reported]
+    reads = reads[np.argsort(reads["frame_time"], kind="stable")]
+    logged = reads["frame_time"].astype(np.int64)
+
+    wanted = sidecar.ticks["frame_time"].astype(np.int64)[ticks]
+    at = np.searchsorted(logged, wanted)
+    found = at < len(reads)
+    at = np.minimum(at, len(reads) - 1)
+    found &= logged[at] == wanted
+
+    read = np.where(found, sidecar.seconds(reads["done_qpc"][at]), np.nan)
+    fingerprint = np.where(found, reads["fingerprint"][at], np.uint64(0))
+
+    # a tick the probe didn't report - obs wasn't drawing the capture, or it ran out of events - is taken to
+    # have read as late as reads usually do. nothing is known about its picture
+    missing = np.isnan(read)
+    if missing.any():
+        tick = sidecar.seconds(wanted)
+        read[missing] = tick[missing] + np.nanmedian(read - tick)
+
+    return read, fingerprint
 
 
 def _mp4_sample_sizes(path: Path) -> np.ndarray | None:
@@ -337,16 +467,47 @@ def packet_sizes(video_path: Path, frames: int) -> np.ndarray:
 def match_packets(sidecar: Sidecar, sizes: np.ndarray) -> int:
     """Where the video's first packet sits in the sidecar's packet log.
 
-    Muxing can change every packet's size by the same few bytes - mp4 drops av1's temporal delimiters - so a
-    match is where nearly every size differs from the log's by one amount.
+    Muxing can change every packet's size by the same few bytes - mp4 drops av1's temporal delimiters - so
+    what matches exactly is the *difference* between one packet and the next, and a match is where nearly
+    every size differs from the log's by one amount.
+
+    A run of differences is looked for from a few places in the video, which finds the handful of offsets
+    worth checking properly however the muxer treated any one packet.
     """
     logged = sidecar.packets["size"].astype(np.int64)
     count = len(sizes)
+    room = len(logged) - count
+    if room < 0:
+        raise LogError(f"the log has {len(logged)} packets, fewer than the video's {count}")
 
-    for first in range(len(logged) - count, -1, -1):
+    def share(first: int) -> float:
         difference = logged[first : first + count] - sizes
-        share = np.count_nonzero(difference == np.median(difference)) / count
-        if share >= MATCH_SHARE:
-            return first
+        return float(np.unique(difference, return_counts=True)[1].max() / count)
+
+    steps = np.diff(sizes)
+    logged_steps = np.diff(logged)
+    run = min(MATCH_RUN, len(steps))
+
+    best = (0.0, -1)
+    for anchor in np.linspace(0, max(len(steps) - run, 0), MATCH_ANCHORS, dtype=np.int64):
+        if run == 0:
+            break
+
+        # the run can only sit where the whole video still fits around it
+        wanted = steps[anchor : anchor + run]
+        found = anchor + np.flatnonzero(logged_steps[anchor : anchor + room + 1] == wanted[0])
+        for step in range(1, run):
+            if len(found) <= 1:
+                break
+            found = found[logged_steps[found + step] == wanted[step]]
+
+        for offset in found - anchor:
+            if 0 <= offset <= room:
+                matched = share(int(offset))
+                if matched > best[0]:
+                    best = (matched, int(offset))
+
+        if best[0] >= MATCH_SHARE:
+            return best[1]
 
     raise LogError("the video doesn't match the frame timing log")
