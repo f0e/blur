@@ -198,6 +198,7 @@ def with_format(
     video_info: VideoInfo,
     target_format,
     process_func,
+    expand_range: bool = True,
 ):
     try:
         orig_format = video.format
@@ -209,11 +210,16 @@ def with_format(
             and orig_format.color_family == vs.YUV
         )
 
+        # unless the caller asks to keep the source's own range. expanding limited range to fill
+        # the container clips superwhite off on the way in, and the gamma blend cannot afford that
+        # - the brightest samples are the ones the curve exists to protect
+        rgb_range = True if expand_range else video_info.is_full_color_range
+
         if needs_conversion:
             convert_kwargs = {
                 "format": target_format,
                 "range_in": video_info.is_full_color_range,
-                "range": True if yuv_to_rgb else video_info.is_full_color_range,
+                "range": rgb_range if yuv_to_rgb else video_info.is_full_color_range,
             }
 
             if yuv_to_rgb:
@@ -257,7 +263,7 @@ def with_format(
         if needs_conversion:
             convert_back_kwargs = {
                 "format": orig_format.id,
-                "range_in": True if yuv_to_rgb else video_info.is_full_color_range,
+                "range_in": rgb_range if yuv_to_rgb else video_info.is_full_color_range,
                 "range": video_info.is_full_color_range,
             }
 
