@@ -145,9 +145,9 @@ FILL_PX_1080P = 24
 CLUSTER_RADIUS = 2
 CLUSTER_COVERAGE = 0.06
 
-# how far the mask reaches past what was detected, and how far it ramps off after that, in pixels at 1080p.
-# just enough to cover an overlay's own antialiased edge and to keep the boundary from being a hard seam -
-# see the note above on why this doesn't want to be generous
+# how far the mask reaches past what was detected, and how far it fades out over on the way there, in pixels
+# at 1080p. just enough to cover an overlay's own antialiased edge and to keep the boundary from being a hard
+# seam - see the note above on why this doesn't want to be generous
 GROW_PX = 1
 FEATHER_PX = 1
 
@@ -528,10 +528,12 @@ def shape(scores: vs.VideoNode, params: Params = Params()) -> vs.VideoNode | Non
 
     padding, feather = scaled(params.padding), scaled(params.feather)
 
-    # the blur's ramp is centred on the edge it's given, so growing by padding + feather first leaves
-    # everything within padding of the detection fully protected once the ramp has eaten back into it
-    for _ in range(padding + feather):
-        static = core.std.Maximum(static)
+    # how far the mask reaches is padding's job alone - feather only softens that edge, so the ramp is fitted
+    # inside it. the blur's ramp is centred on the edge it's given, so growing short by feather (pulling the
+    # edge in when there's more feather than padding) leaves the fade ending exactly where padding asked for
+    grow = padding - feather
+    for _ in range(abs(grow)):
+        static = core.std.Maximum(static) if grow > 0 else core.std.Minimum(static)
 
     if feather > 0:
         static = core.std.BoxBlur(static, hradius=feather, vradius=feather)
