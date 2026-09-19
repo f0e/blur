@@ -262,7 +262,9 @@ void configs::option_information(ui::Container& container) {
 				"instead. That also says exactly which frames are repeats, so it takes deduplication's place.",
 
 				"Logs come from the obs-frame-timing-recorder OBS plugin, as a .frametiming file next to the "
-				"recording. Videos without one are deduplicated as usual.",
+				"recording. Videos without one are deduplicated as usual. A clip trimmed out of a recording "
+				"without re-encoding it, in losslesscut or similar, still works: put it beside the "
+				"recording's log and blur finds which part of the recording it is.",
 			},
 		},
 		{

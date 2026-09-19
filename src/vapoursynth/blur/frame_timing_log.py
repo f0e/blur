@@ -18,6 +18,7 @@ This module only reads the file and works out the game's frames from it. Turning
 blur/frame_timing.py's job.
 """
 
+import os
 import shutil
 import struct
 import subprocess
@@ -38,6 +39,9 @@ MATCH_SHARE = 0.98
 # video those runs are taken from
 MATCH_RUN = 8
 MATCH_ANCHORS = 3
+
+# how many other logs beside a video are tried before giving up on finding the one it was cut out of
+MATCH_CANDIDATES = 16
 
 HEADER = struct.Struct("<8sIIqqIII")
 BATCH = struct.Struct("<4sI")
@@ -173,6 +177,43 @@ class Presents:
 def sidecar_path(video_path: Path) -> Path:
     """Where a video's log would be, if it has one."""
     return video_path.with_name(video_path.name + SIDECAR_SUFFIX)
+
+
+def sidecars_for(video_path: Path) -> list[Path]:
+    """Every log a video could have come from, likeliest first.
+
+    Normally that's the one named after it. A video cut out of a recording - losslesscut and the like copy the
+    packets across untouched - carries no log of its own, but its packets are still a run of the recording's,
+    so every other log beside it is worth trying. A trimmed name usually keeps the recording's at the front of
+    it, so the log sharing the longest prefix goes first and the newest after that.
+    """
+    own = sidecar_path(video_path)
+    rest = [path for path in video_path.parent.glob("*" + SIDECAR_SUFFIX) if path != own]
+
+    def likeliest(path: Path) -> tuple[int, float]:
+        shared = len(os.path.commonprefix([path.name, video_path.name]))
+        return -shared, -path.stat().st_mtime
+
+    rest.sort(key=likeliest)
+    return ([own] if own.exists() else []) + rest[:MATCH_CANDIDATES]
+
+
+def find_sidecar(paths: list[Path], sizes: np.ndarray) -> tuple[Path, Sidecar, int]:
+    """Which of those logs holds a video's packets, and where in it they start."""
+    if not paths:
+        raise LogError("there's no frame timing log beside this video")
+
+    closest = None
+    for path in paths:
+        try:
+            sidecar = load_sidecar(path)
+            return path, sidecar, match_packets(sidecar, sizes)
+        except (LogError, OSError, ValueError) as e:
+            closest = closest or e
+
+    if len(paths) == 1:
+        raise closest
+    raise LogError(f"{closest}, and no other log beside it holds the video's packets either")
 
 
 def load_sidecar(path: Path) -> Sidecar:
@@ -331,15 +372,18 @@ def game_presents(sidecar: Sidecar, first: float, last: float) -> tuple[Presents
     return presents, ""
 
 
-def render_ticks(sidecar: Sidecar, sizes: np.ndarray) -> np.ndarray:
+def render_ticks(sidecar: Sidecar, sizes: np.ndarray, first: int | None = None) -> np.ndarray:
     """For each frame of the video, the tick whose render drew it.
 
     A packet carries `cts`, the timestamp obs gave the frame, which is the same number the tick log carries -
     so the two line up exactly rather than by rounding microseconds. The frame was rendered `render_delay`
     ticks after the tick that stamp belongs to; a frame obs duplicated because a tick ran long is stamped on
     a slot no tick occupies, and lands on the tick that really drew it.
+
+    `first` is where the video's packets start in the log, which is 0 unless the video was trimmed.
     """
-    first = match_packets(sidecar, sizes)
+    if first is None:
+        first = match_packets(sidecar, sizes)
     packets = sidecar.packets[first : first + len(sizes)]
     packets = packets[np.argsort(packets["pts"], kind="stable")]
 
