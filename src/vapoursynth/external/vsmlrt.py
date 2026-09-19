@@ -1380,12 +1380,11 @@ def RIFE(
             res = core.std.FrameEval(output0, filter_sc, left0)
         else:
             if not hasattr(core, 'akarin') or \
-                not hasattr(core.akarin, 'PropExpr') or \
-                not hasattr(core.akarin, 'PickFrames'):
+                not hasattr(core.akarin, 'PropExpr'):
                 raise RuntimeError(
                     'fractional multi requires plugin akarin '
                     '(https://github.com/AkarinVS/vapoursynth-plugin/releases)'
-                    ', version v0.96g or later.')
+                    ', version v0.96f or later.')
 
             left_indices = []
             right_indices = []
@@ -1409,8 +1408,8 @@ def RIFE(
                     tp = (current_time - left_time) / src_duration
                     timepoints.append(tp)
 
-            left_clip = core.akarin.PickFrames(clip, left_indices)
-            right_clip = core.akarin.PickFrames(clip, right_indices)
+            left_clip = _pick_frames(clip, left_indices)
+            right_clip = _pick_frames(clip, right_indices)
             tp_clip = core.std.BlankClip(clip, format=gray_format, length=len(timepoints))
             tp_clip = tp_clip.akarin.PropExpr(lambda: dict(_tp=timepoints)).akarin.Expr('x._tp')
 
@@ -1424,7 +1423,7 @@ def RIFE(
             clip0 = bits_as(clip, output0)
             left0 = bits_as(left_clip, output0)
             output = core.akarin.Select([output0, left0], left0, 'x._SceneChangeNext 1 0 ?')
-            res = core.akarin.PickFrames(clip0 + output, output_indices)
+            res = _pick_frames(clip0 + output, output_indices)
 
         if clip.fps_num != 0 and clip.fps_den != 0:
             return res.std.AssumeFPS(fpsnum = dst_fps.numerator, fpsden = dst_fps.denominator)
@@ -3490,3 +3489,10 @@ def _expr(
         return core.akarin.Expr(clip, expr, format)
     except vs.Error:
         return core.std.Expr(clip, expr, format)
+
+def _pick_frames(clip: vs.VideoNode, indices: typing.List[int]) -> vs.VideoNode:
+    try:
+        return core.akarin.PickFrames(clip, indices)
+    # vs.Error raised by missing akarin plugin is already checked before calling this function
+    except AttributeError:
+        return clip.std.SelectEvery(cycle=clip.num_frames, offsets=indices)
