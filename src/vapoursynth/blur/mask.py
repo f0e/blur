@@ -16,6 +16,7 @@ from vapoursynth import core
 import vapoursynth as vs
 
 import hashlib
+import os
 import struct
 import zlib
 from dataclasses import dataclass
@@ -642,22 +643,41 @@ def _store(gray: vs.VideoNode | None, path: Path):
     )
     png = _greyscale_png(eight_bit.get_frame(0)[0], eight_bit.width, eight_bit.height)
 
-    # written alongside and moved into place, so a half written file is never picked up as a cached one
-    partial = path.with_suffix(".partial")
-    partial.write_bytes(png)
-    partial.replace(path.with_suffix(MASK_SUFFIX))
+    # written alongside and moved into place, so a half written file is never picked up as a cached one. the
+    # process id is in the name because a render and a config preview can be analysing the same video at the
+    # same time, and sharing one partial between them would leave whichever won the race holding a file the
+    # other was halfway through writing
+    partial = path.with_suffix(f".{os.getpid()}.partial")
+
+    try:
+        partial.write_bytes(png)
+        partial.replace(path.with_suffix(MASK_SUFFIX))
+    except OSError:
+        partial.unlink(missing_ok=True)
+        raise
 
 
 def _prune(folder: Path, limit: int):
     """Drop the oldest files in a cache folder once there are more than `limit` of them."""
+
+    # another blur can be pruning the same folder, so a file can go between being listed and being asked about
+    def modified(path: Path) -> float:
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return 0.0
+
     kept = sorted(
         (p for p in folder.iterdir() if p.suffix in (MASK_SUFFIX, NOTHING_SUFFIX)),
-        key=lambda p: p.stat().st_mtime,
+        key=modified,
         reverse=True,
     )
 
     for stale in kept[limit:]:
-        stale.unlink(missing_ok=True)
+        try:
+            stale.unlink(missing_ok=True)
+        except OSError:
+            pass  # in use by whoever else is reading it, so it'll go next time round
 
 
 def _cached_path(
@@ -695,7 +715,11 @@ def _scores(
     if score_file.exists():
         try:
             log.info(f"Mask: reusing measurements from {score_file.name}")
-            return load(score_file)
+
+            # read here rather than left wired to the file, so a file that turns out to be unreadable is
+            # caught by this handler instead of failing the render later on, and so nothing holds the file
+            # open afterwards
+            return _detached(load(score_file))
         except Exception as e:
             # unreadable, so it's no better than not having it
             log.info(f"Mask: couldn't read {score_file.name} ({e}), measuring again")
@@ -743,7 +767,9 @@ def cached(
     if mask_file.exists():
         try:
             log.info(f"Mask: reusing {mask_file.name}")
-            return load(mask_file)
+
+            # read here for the same reasons as the measurements above
+            return _detached(load(mask_file))
         except Exception as e:
             # unreadable, so it's no better than not having it
             log.info(f"Mask: couldn't read {mask_file.name} ({e}), analysing again")
