@@ -19,6 +19,7 @@ import blur.utils as u
 from blur import log
 
 EXPECTED_PLUGINS = [
+    "com.f0e.frameblender",
     "com.holywu.rife",
     "com.nodame.mvtools",
     "com.svp-team.flow1",

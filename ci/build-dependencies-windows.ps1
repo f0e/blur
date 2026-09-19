@@ -111,6 +111,13 @@ Write-Host "Running VapourSynth installer..."
 Set-Location $vapoursynthDir
 & $vapoursynthInstallerPath -Unattended -TargetFolder $vapoursynthDir
 
+# the blur scripts need numpy
+Write-Host "Installing numpy into VapourSynth's Python..."
+& (Join-Path $vapoursynthDir "python.exe") -m pip install --no-warn-script-location numpy
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to install numpy into VapourSynth's Python"
+}
+
 Write-Host "Cleaning up VapourSynth"
 Remove-Item -Path doc -Recurse -Force
 Remove-Item -Path Scripts -Recurse -Force
@@ -128,6 +135,11 @@ $plugins = @(
             "vapoursynth/plugins/akarin/libakarin.dll",
             "vapoursynth/plugins/akarin/libzstd.dll" # akarin links against this
         );
+    },
+    @{
+        Name        = "FrameBlender";
+        Url         = "https://github.com/f0e/vs-frameblender/releases/download/v2/frameblender-windows-x64.dll";
+        IsDirectDll = $true;
     },
     @{
         Name         = "BestSource";

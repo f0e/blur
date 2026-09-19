@@ -157,6 +157,12 @@ cp download/akarin/wheel/vapoursynth/plugins/akarin/libakarin.so "$plugins_dir"
 cp download/akarin/wheel/vapoursynth_akarin.libs/* "$plugins_dir"
 patchelf --set-rpath '$ORIGIN' "$plugins_dir/libakarin.so"
 
+# frameblender
+download_library \
+  "https://github.com/f0e/vs-frameblender/releases/download/v2/frameblender-linux-x64.so" \
+  "libframeblender.so" \
+  "vapoursynth-plugins"
+
 # mvtools
 download_library \
   "https://github.com/f0e/blur-plugin-builds/releases/latest/download/libmvtools.so" \

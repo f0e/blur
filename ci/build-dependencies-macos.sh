@@ -228,6 +228,9 @@ install_name_tool -id "$PWD/$out_dir/python/lib/libpython3.12.dylib" $out_dir/py
 $out_dir/python/bin/pip install --upgrade pip
 $out_dir/python/bin/pip install cython
 
+# the blur scripts need numpy
+$out_dir/python/bin/pip install numpy
+
 # builds
 ## vapoursynth
 
@@ -305,6 +308,12 @@ fi
 
 # install_name_tool invalidates the ad-hoc signature, and arm64 won't load an unsigned dylib
 codesign -f -s - "$akarin_plugin"
+
+## frameblender
+download_library \
+  "https://github.com/f0e/vs-frameblender/releases/download/v2/frameblender-macos-arm64.dylib" \
+  "libframeblender.dylib" \
+  "vapoursynth-plugins"
 
 # Define model downloads
 echo "Starting model downloads..."
