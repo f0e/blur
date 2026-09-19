@@ -32,17 +32,19 @@ namespace {
 		explicit PreviewFrame(std::string name) : m_name(std::move(name)) {}
 
 		// background thread
-		void publish(std::vector<uint8_t> jpeg, const FrameKey& key) {
+		void publish(std::vector<uint8_t> jpeg, const FrameKey& key, std::string frame_timing_log = {}) {
 			std::lock_guard lock(m_mutex);
 
 			m_pending_jpeg = std::move(jpeg);
 			m_pending_key = key;
+			m_pending_frame_timing_log = std::move(frame_timing_log);
 		}
 
 		// textures can only be created on the render thread, so this needs calling before using the frame
 		void upload() {
 			std::vector<uint8_t> jpeg;
 			FrameKey key;
+			std::string frame_timing_log;
 
 			{
 				std::lock_guard lock(m_mutex);
@@ -50,12 +52,14 @@ namespace {
 				jpeg = std::move(m_pending_jpeg);
 				m_pending_jpeg.clear();
 				key = m_pending_key;
+				frame_timing_log = m_pending_frame_timing_log;
 			}
 
 			if (auto texture = render::texture_from_jpeg(jpeg)) {
 				m_texture = std::move(texture);
 				m_jpeg = std::move(jpeg);
 				m_key = key;
+				m_frame_timing_log = std::move(frame_timing_log);
 
 				// tells ui::add_image the texture behind the element has changed
 				m_image_id = std::format("{} {}", m_name, ++m_id);
@@ -68,11 +72,13 @@ namespace {
 
 				m_pending_jpeg.clear();
 				m_pending_key = {};
+				m_pending_frame_timing_log.clear();
 			}
 
 			m_texture.reset();
 			m_jpeg.clear();
 			m_key = {};
+			m_frame_timing_log.clear();
 			m_image_id.clear();
 			// m_id deliberately keeps counting - ui::add_image reuses the texture it has when the id matches, so an
 			// id can never be handed out twice
@@ -98,16 +104,22 @@ namespace {
 			return m_jpeg;
 		}
 
+		[[nodiscard]] const std::string& frame_timing_log() const {
+			return m_frame_timing_log;
+		}
+
 	private:
 		std::string m_name;
 
 		std::mutex m_mutex; // guards the pending frame only
 		std::vector<uint8_t> m_pending_jpeg;
 		FrameKey m_pending_key;
+		std::string m_pending_frame_timing_log;
 
 		std::shared_ptr<render::Texture> m_texture;
 		std::vector<uint8_t> m_jpeg;
 		FrameKey m_key;
+		std::string m_frame_timing_log;
 		size_t m_id = 0;
 		std::string m_image_id;
 	};
@@ -271,7 +283,7 @@ namespace {
 				return;
 
 			if (res) {
-				preview.frame.publish(std::move(res->frame_jpeg), key);
+				preview.frame.publish(std::move(res->frame_jpeg), key, state->get_progress().frame_timing_log);
 				u::log(mask ? "mask preview finished rendering" : "config preview finished rendering");
 			}
 			else {
@@ -288,7 +300,7 @@ namespace {
 
 	struct RenderStatus {
 		bool rendering = false;
-		bool analysing_mask = false;
+		rendering::RenderState::InitStage init_stage = rendering::RenderState::InitStage::none;
 	};
 
 	RenderStatus render_status(const PreviewSlot& preview) {
@@ -299,8 +311,7 @@ namespace {
 
 		return {
 			.rendering = true,
-			.analysing_mask =
-				active_render->state->get_progress().init_stage == rendering::RenderState::InitStage::generating_mask,
+			.init_stage = active_render->state->get_progress().init_stage,
 		};
 	}
 
@@ -389,8 +400,8 @@ preview_frames::Result preview_frames::update(const Request& request) {
 
 	Result result{
 		.rendering = status.rendering,
-		.analysing_mask = status.analysing_mask,
 		.video_duration = video_duration(),
+		.init_stage = status.init_stage,
 	};
 
 	const PreviewFrame* frame;
@@ -420,6 +431,8 @@ preview_frames::Result preview_frames::update(const Request& request) {
 			.image_id = frame->image_id(),
 			.up_to_date = up_to_date && !result.rendering,
 		};
+
+		result.frame_timing_log = frame->frame_timing_log();
 	}
 
 	return result;

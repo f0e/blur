@@ -297,6 +297,17 @@ void main::render_progress(
 			);
 		}
 	}
+
+	if (!progress.frame_timing_log.empty()) {
+		ui::add_text(
+			"frame timing log text",
+			container,
+			"using accurate frame timings",
+			gfx::Color::white(renderer::MUTED_SHADE),
+			fonts::dejavu(fonts::size::SMALL),
+			FONT_CENTERED_X
+		);
+	}
 }
 
 void main::render_pending(

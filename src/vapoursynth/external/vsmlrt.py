@@ -2204,8 +2204,7 @@ def trtexec(
 
     args.extend(custom_args)
 
-    # picked up by blur's GUI (which reads trtexec's stdout via vspipe's stderr) to
-    # show a "building engine" message instead of the generic "initialising render"
+    print("[blur:status] stage=tensorrt-engine", file=sys.stderr) # picked up by gui
     print("[blur] Building TensorRT engine (this may take a few minutes, only needed once per settings)...", file=sys.stderr)
 
     try:
@@ -2581,6 +2580,7 @@ def tensorrt_rtx(
 
     args.extend(custom_args)
 
+    print("[blur:status] stage=tensorrt-engine", file=sys.stderr)
     print("[blur] Building TensorRT engine (this may take a few minutes, only needed once per settings)...", file=sys.stderr)
 
     try:

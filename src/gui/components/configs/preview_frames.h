@@ -2,6 +2,7 @@
 
 #include "common/config_app.h"
 #include "common/config_blur.h"
+#include "common/rendering/render_state.h"
 #include "../../render/render.h"
 
 // the images behind the config preview screen.
@@ -33,10 +34,16 @@ namespace gui::components::configs::preview_frames {
 	};
 
 	struct Result {
-		std::optional<Frame> frame;  // the best frame there is to show right now, if there's one at all
-		bool rendering = false;      // a frame of what was asked for is being rendered
-		bool analysing_mask = false; // and it's stuck on working an automatic mask out, which is the slow part
-		float video_duration = 0.f;  // 0 until the video's been read
+		std::optional<Frame> frame; // the best frame there is to show right now, if there's one at all
+		bool rendering = false;     // a frame of what was asked for is being rendered
+		float video_duration = 0.f; // 0 until the video's been read
+
+		// what a running render is stuck on before it can produce a frame, which is the slow part
+		rendering::RenderState::InitStage init_stage = rendering::RenderState::InitStage::none;
+
+		// the frame timing log the frame on screen was rendered with, as blur's python named it, empty when
+		// it wasn't rendered with one
+		std::string frame_timing_log;
 	};
 
 	// call once per ui frame, from the render thread. starts whatever the request needs rendering and hands back
