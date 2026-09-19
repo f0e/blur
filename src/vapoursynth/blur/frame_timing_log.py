@@ -131,6 +131,11 @@ class Sidecar:
         """QPC values as seconds from the log's zero, which is when it was saved."""
         return (qpc.astype(np.int64) - self.saved_qpc) / self.qpc_frequency
 
+    def tick_seconds(self, frame_time: np.ndarray) -> np.ndarray:
+        """Tick timestamps as seconds. These are obs's own nanosecond clock, not QPC, so this shares no zero
+        with `seconds` - only differences within one of the two clocks mean anything."""
+        return frame_time.astype(np.int64) / 1e9
+
     def qpc(self, seconds: float) -> int:
         return int(self.saved_qpc + seconds * self.qpc_frequency)
 
@@ -179,9 +184,12 @@ def load_sidecar(path: Path) -> Sidecar:
         dtype = DTYPES.get(tag)
         if dtype is None:
             raise LogError(f"{path.name} has a {tag!r} batch, which this version of blur doesn't know")
-        # a batch cut short by a crash is kept as far as it got
-        count = min(count, (len(data) - offset) // dtype.itemsize)
-        batches[tag].append(np.frombuffer(data, dtype, count, offset))
+        # a batch cut short by a crash is kept as far as it got. whatever follows it is the rest of that same
+        # record, not another batch header, so nothing after it can be read
+        whole = (len(data) - offset) // dtype.itemsize
+        batches[tag].append(np.frombuffer(data, dtype, min(count, whole), offset))
+        if count > whole:
+            break
         offset += count * dtype.itemsize
 
     sections = {tag: np.concatenate(parts) if parts else np.empty(0, DTYPES[tag]) for tag, parts in batches.items()}
@@ -366,8 +374,10 @@ def reads_for(sidecar: Sidecar, ticks: np.ndarray) -> tuple[np.ndarray, np.ndarr
     # have read as late as reads usually do. nothing is known about its picture
     missing = np.isnan(read)
     if missing.any():
-        tick = sidecar.seconds(wanted)
-        read[missing] = tick[missing] + np.nanmedian(read - tick)
+        if not found.any():
+            raise LogError("the log has no reads for this recording - the probe filter was off while it ran")
+        tick = sidecar.tick_seconds(wanted)
+        read[missing] = tick[missing] + np.median(read[found] - tick[found])
 
     return read, fingerprint
 

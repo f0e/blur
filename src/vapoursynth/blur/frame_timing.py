@@ -32,6 +32,8 @@ the same fallback PresentMon uses.
 Two numbers in the middle of that aren't in the log: the phase of the hook's skip grid, and how much later
 than the probe's flush the picture really counts as read. Both are fitted to the fingerprints - the timing
 that contradicts fewest of the picture changes wins - so neither is tuned per machine and no video is read.
+The fingerprints can't always tell: a game far enough ahead of the recording shows a new picture on nearly
+every read whatever the latency was, and then the read is left exactly as the probe measured it.
 
 The result is when every recorded frame's picture belongs, on the game's timeline, which becomes the timeline
 interpolation renders - see blur/retime.py. A frame that shows the same picture as the one before it drops
@@ -66,6 +68,11 @@ LATENCY_REACH = 1.0
 
 # how many phases of the hook's skip grid are tried, over the one interval they repeat in
 PHASE_STEPS = 16
+
+# how much of the latency search range is allowed to fit the fingerprints just as well before the fit counts
+# as saying nothing - see `fit`. measured: a clip the fingerprints really pin down leaves under a percent of
+# the range, and one they can't leaves a third or more of it, in several separate pieces
+IDENTIFIABLE_SHARE = 0.1
 
 # how many frames the two fitted numbers are fitted over. they're constants, so a stretch of the clip says as
 # much about them as all of it, and this keeps the fit's cost off the length of the recording
@@ -111,9 +118,12 @@ def picture_changes(fingerprint: np.ndarray) -> np.ndarray:
     return changes
 
 
-def _latency(read: np.ndarray, changes: np.ndarray, visible: np.ndarray, reach: float) -> tuple[int, float, float]:
+def _latency(
+    read: np.ndarray, changes: np.ndarray, visible: np.ndarray, reach: float
+) -> tuple[int, float, float, float]:
     """The read latency that contradicts the fingerprints least: how many changes it can't account for, the
-    latency itself, and how wide the range of latencies that score the same is.
+    latency itself, how wide the run of latencies it was taken from is, and how much of the whole search
+    range scores just as well.
 
     A recorded frame shows the newest copy that had become visible by the time obs read it, give or take a
     fixed offset. There is one: the probe's flush finishing isn't quite when the draw sampled the shared
@@ -123,7 +133,8 @@ def _latency(read: np.ndarray, changes: np.ndarray, visible: np.ndarray, reach: 
 
     Every offset that would change which copy a frame saw is tried - those are the differences between a
     copy's time and a read - and of the offsets that disagree least, the middle of the widest run of them
-    wins, which is the one furthest from being a close call.
+    wins, which is the one furthest from being a close call. That run is only worth taking a middle of when
+    the fingerprints rule enough of the range out, which is what the last number is for - see `fit`.
     """
     frames = len(read)
     low = np.searchsorted(visible, read - reach, "right")
@@ -138,39 +149,61 @@ def _latency(read: np.ndarray, changes: np.ndarray, visible: np.ndarray, reach: 
 
     shown = low.astype(np.int64) - 1
 
+    # past the newest copy there is nothing newer for a frame to show, so a change there isn't a contradiction,
+    # it's the end of what the game's frames cover, and scoring it would count the log running out as bad
+    # timing. which frames those are can't depend on the latency being tried, or the running count couldn't be
+    # carried from one latency to the next, so the whole range is allowed for
+    scorable = (read + reach <= visible[-1]) if len(visible) else np.zeros(frames, dtype=bool)
+
     # only one of the two ways the model and the fingerprints can differ is impossible: a frame whose picture
     # changed cannot be showing the same copy as the frame before it. the other way round happens for real -
     # the game can draw two frames that look identical, and often does when nothing is moving - so counting
     # that as an error would fit the timing to how still the game was
     def disagrees(i: int) -> int:
-        if i <= 0 or i >= frames or changes[i] <= 0 or shown[i] < 0 or shown[i - 1] < 0:
+        if i <= 0 or i >= frames or changes[i] <= 0 or not scorable[i] or shown[i] < 0 or shown[i - 1] < 0:
             return 0
         return int(shown[i] == shown[i - 1])
 
     wrong = sum(disagrees(i) for i in range(frames))
 
-    best = (wrong, -reach, reach)
+    # the score only changes where the latency reaches one of those pairs, so the sweep is a row of intervals,
+    # each holding one score over the whole of it
+    bounds = [-reach]
+    scores = []
     step = 0
     while step < len(offset):
-        latency = offset[step]
+        latency = float(offset[step])
+        scores.append(wrong)
+        bounds.append(latency)
         while step < len(offset) and offset[step] == latency:
             frame = int(of[step])
             wrong -= disagrees(frame) + disagrees(frame + 1)
             shown[frame] = copy[step]
             wrong += disagrees(frame) + disagrees(frame + 1)
             step += 1
+    scores.append(wrong)
+    bounds.append(reach)
 
-        until = offset[step] if step < len(offset) else reach
-        if wrong < best[0] or (wrong == best[0] and until - latency > best[2] - best[1]):
-            best = (wrong, latency, until)
+    # neighbouring intervals scoring the same are one run, so the middle is taken from the whole of it rather
+    # than from whichever single interval inside it happens to be widest
+    runs: list[list[float]] = []
+    for score, begin, end in zip(scores, bounds, bounds[1:]):
+        if runs and runs[-1][0] == score:
+            runs[-1][2] = end
+        else:
+            runs.append([float(score), begin, end])
 
-    return best[0], float((best[1] + best[2]) / 2), float(best[2] - best[1])
+    fewest = min(run[0] for run in runs)
+    equal = [run for run in runs if run[0] == fewest]
+    widest = max(equal, key=lambda run: run[2] - run[1])
+    return int(fewest), (widest[1] + widest[2]) / 2, widest[2] - widest[1], sum(r[2] - r[1] for r in equal)
 
 
 def fit(
     present: np.ndarray, visible: np.ndarray, read: np.ndarray, changes: np.ndarray, interval: float, fps: Fraction
-) -> tuple[float, float, int]:
-    """The hook's grid phase and the read latency that fit the fingerprints best.
+) -> tuple[float, float, int, bool]:
+    """The hook's grid phase and the read latency that fit the fingerprints best, and whether the latency was
+    identifiable at all.
 
     The phase only matters when the hook skips presents at all - a game presenting slower than the interval
     has every frame copied whatever the grid is doing - so it's only looked for when it can make a difference.
@@ -179,18 +212,26 @@ def fit(
     skips = len(present) > 1 and float(np.min(np.diff(present))) < interval
     phases = np.linspace(1, 0, PHASE_STEPS, endpoint=False) if skips else np.array([1.0])
 
-    best: tuple[int, float, float, float] | None = None
+    best: tuple[int, float, float, float, float] | None = None
     for phase in phases:
         copied = hook_copies(present, interval, float(phase))
         if len(copied) == 0:
             continue
 
-        wrong, latency, width = _latency(read, changes, np.sort(visible[copied]), reach)
+        wrong, latency, width, span = _latency(read, changes, np.sort(visible[copied]), reach)
         if best is None or (wrong, -width) < (best[0], -best[3]):
-            best = (wrong, latency, float(phase), width)
+            best = (wrong, latency, float(phase), width, span)
 
     # nothing was copied under any phase, so there's nothing to fit and nothing to fit it to
-    return (best[2], best[1], best[0]) if best else (1.0, 0.0, 0)
+    if best is None:
+        return 1.0, 0.0, 0, False
+
+    # a game outrunning the recording shows a new picture on nearly every read whatever the latency is, so
+    # nearly every latency explains the fingerprints equally well and they aren't saying anything about it.
+    # the middle of that would be a number picked out of noise, and picking one is worse than not: the read
+    # stays as the probe measured it, and the caller says so
+    identified = best[4] < IDENTIFIABLE_SHARE * 2 * reach
+    return best[2], (best[1] if identified else 0.0), best[0], identified
 
 
 def game_frames(
@@ -249,10 +290,12 @@ def _pick(times: list[int], n: int) -> tuple[int, int]:
 
 def _timeline(
     frames: list[int], placed: list[float], start: int, length: int, hold: int
-) -> tuple[list[int], list[int]]:
-    """Real frames and their times relative to `start`, holding the picture across gaps longer than `hold`."""
+) -> tuple[list[int], list[int], int]:
+    """Real frames and their times relative to `start`, holding the picture across gaps longer than `hold`, and
+    how many of them the timing didn't manage to separate."""
     frames_out: list[int] = []
     times_out: list[int] = []
+    crowded = 0
     for k, at in zip(frames, placed):
         frame = min(max(k - start, 0), length - 1)
         time = round((at - start) * TIME_SCALE)
@@ -261,30 +304,32 @@ def _timeline(
             frames_out.append(frames_out[-1])
             times_out.append(time - hold * TIME_SCALE)
 
+        # these are pictures something said were different from the one before, so the model putting this one
+        # no later than that one is the model being wrong, not the picture not existing. dropping it would
+        # throw away the one thing that is measured here, so it goes in at the smallest step the timeline can
+        # tell apart and the caller is told how often that happened
         if times_out and time <= times_out[-1]:
-            continue
+            time = times_out[-1] + 1
+            crowded += 1
+
         frames_out.append(frame)
         times_out.append(time)
 
-    return frames_out, times_out
+    return frames_out, times_out, crowded
 
 
 def _decisions(
     new: np.ndarray, placed: np.ndarray, start: int, length: int, hold: int
-) -> tuple[vs.VideoNode, int]:
-    """A decision per frame of the trimmed part, from the frames the log says are real and when they belong."""
-    real = []
-    last_time = -math.inf
-    for k in np.nonzero(new)[0]:
-        if placed[k] > last_time:
-            real.append(int(k))
-            last_time = placed[k]
+) -> tuple[vs.VideoNode, int, int]:
+    """A decision per frame of the trimmed part, from the frames the log says are real and when they belong,
+    and how many of those frames the timing put no later than the one before."""
+    real = [int(k) for k in np.nonzero(new)[0]]
 
     # the real frames in the trimmed part, and one either side so its ends have something to move towards
     low = bisect.bisect_left(real, start)
     high = bisect.bisect_right(real, start + length - 1)
     kept = real[max(low - 1, 0) : min(high + 1, len(real))]
-    frames_list, times_list = _timeline(kept, [placed[k] for k in kept], start, length, hold)
+    frames_list, times_list, crowded = _timeline(kept, [placed[k] for k in kept], start, length, hold)
 
     gaps = np.diff(times_list) / TIME_SCALE if len(times_list) > 1 else np.array([1.0])
     widest = int(max(2, math.ceil(gaps.max())))
@@ -299,7 +344,7 @@ def _decisions(
         out.props[retime.PROP_TIME_SCALE] = TIME_SCALE
         return out
 
-    return core.std.ModifyFrame(holder, holder, decide), widest
+    return core.std.ModifyFrame(holder, holder, decide), widest, crowded
 
 
 def analyse(
@@ -355,7 +400,7 @@ def analyse(
         near = presents.present <= read[sample][-1] + LEAD
 
         if np.any(changes[sample] >= 0) and np.count_nonzero(near) > 1:
-            phase, latency, wrong = fit(
+            phase, latency, wrong, identified = fit(
                 presents.present[near],
                 presents.visible[near],
                 read[sample],
@@ -363,10 +408,18 @@ def analyse(
                 presents.interval,
                 fps,
             )
-            fitted = (
-                f"read {latency * 1e3:+.2f}ms after the probe, "
-                f"{wrong / max(int(np.count_nonzero(changes[sample] > 0)), 1):.1%} of picture changes unexplained"
-            )
+            if identified:
+                fitted = (
+                    f"read {latency * 1e3:+.2f}ms after the probe, "
+                    f"{wrong / max(int(np.count_nonzero(changes[sample] > 0)), 1):.1%} of picture changes "
+                    f"unexplained"
+                )
+            else:
+                fitted = (
+                    "the fingerprints can't say when the read happened - the game outruns the recording, so "
+                    "nearly every read sees a new picture whenever it happened - and the probe's measurement "
+                    "stands"
+                )
         else:
             phase, latency = 1.0, 0.0
             fitted = "nothing to fit it to, so the read is taken as the probe measured it"
@@ -389,7 +442,13 @@ def analyse(
     new = np.where(changes >= 0, changes > 0, shows)
 
     placed = _placed(game, presents, read, fps)
-    decisions, widest = _decisions(new, placed, start, length, hold)
+    decisions, widest, crowded = _decisions(new, placed, start, length, hold)
+    if crowded:
+        log.info(
+            f"frame timing: {crowded} of {int(np.count_nonzero(new[clip]))} pictures were timed no later than "
+            f"the one before them, so the timing disagrees with the fingerprints there and they're only just "
+            f"kept apart"
+        )
 
     return retime.Timeline(
         decisions=decisions,
