@@ -1,25 +1,40 @@
 #include "render_state.h"
 
 namespace {
-	// printed by vsmlrt.py right before it shells out to trtexec/tensorrt_rtx
-	constexpr std::string_view ENGINE_BUILD_SENTINEL = "[blur] Building TensorRT engine";
+	constexpr std::string_view STATUS_PREFIX = "[blur:status] ";
 
-	// printed by blur/mask.py before it reads through the video to work out an automatic mask
-	constexpr std::string_view MASK_SENTINEL = "[blur] Generating mask";
+	constexpr std::string_view STAGE_KEY = "stage";
+	constexpr std::string_view MASK_STAGE = "mask";              // blur/mask.py
+	constexpr std::string_view ENGINE_STAGE = "tensorrt-engine"; // external/vsmlrt.py
+
+	constexpr std::string_view FRAME_TIMING_LOG_KEY = "frame-timing-log";
 }
 
 void rendering::RenderState::report_log_line(const std::string& line) {
-	InitStage stage{};
-
-	if (line.find(ENGINE_BUILD_SENTINEL) != std::string::npos)
-		stage = InitStage::building_engine;
-	else if (line.find(MASK_SENTINEL) != std::string::npos)
-		stage = InitStage::generating_mask;
-	else
+	auto at = line.find(STATUS_PREFIX);
+	if (at == std::string::npos)
 		return;
 
+	std::string_view status = std::string_view(line).substr(at + STATUS_PREFIX.size());
+
+	auto equals = status.find('=');
+	if (equals == std::string_view::npos)
+		return;
+
+	auto key = status.substr(0, equals);
+	auto value = status.substr(equals + 1);
+
 	std::lock_guard lock(m_mutex);
-	m_progress.init_stage = stage;
+
+	if (key == STAGE_KEY) {
+		if (value == MASK_STAGE)
+			m_progress.init_stage = InitStage::generating_mask;
+		else if (value == ENGINE_STAGE)
+			m_progress.init_stage = InitStage::building_engine;
+	}
+	else if (key == FRAME_TIMING_LOG_KEY) {
+		m_progress.frame_timing_log = value;
+	}
 }
 
 void rendering::RenderState::report_frame_progress(int current_frame, int total_frames) {

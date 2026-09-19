@@ -28,6 +28,8 @@ namespace rendering {
 			std::string string;
 
 			InitStage init_stage = InitStage::none;
+
+			std::string frame_timing_log;
 		};
 
 		// -- control (called from the UI thread) --

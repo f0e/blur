@@ -377,6 +377,8 @@ def analyse(
         log.info(f"frame timing: not using {sidecar_path.name} ({e})")
         return None
 
+    log.status("frame-timing-log", sidecar_path.name)
+
     # a recording at a divided framerate is fine - the timeline is built in the video's own frames either way,
     # and a packet is tied to its tick by obs's own timestamp - but anything else isn't this video's log
     if fps <= 0 or sidecar.fps % fps != 0:

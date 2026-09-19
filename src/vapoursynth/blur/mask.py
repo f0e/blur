@@ -416,9 +416,7 @@ def measure(clip: vs.VideoNode, samples: int = SAMPLE_COUNT) -> vs.VideoNode | N
     a mask: everything the settings do to them afterwards is then free. 8 bit because these are fractions of at
     most a few dozen samples, so a 256 step scale is finer than the measurements themselves.
     """
-    # this exact line, prefix included, is what blur watches for to show "analysing video" in place of
-    # the render progress
-    log.info("Generating mask")
+    log.status("stage", "mask")
 
     analysed = _analysed(clip)
 

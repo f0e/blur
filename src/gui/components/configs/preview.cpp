@@ -8,6 +8,7 @@
 #include "../../tasks.h"
 
 #include "../notifications.h"
+#include "../../renderer.h"
 #include "../../render/render.h"
 #include "../../ui/ui.h"
 
@@ -112,6 +113,19 @@ namespace {
 					},
 			}
 		);
+	}
+
+	std::optional<std::string> init_stage_text(rendering::RenderState::InitStage stage) {
+		switch (stage) {
+			case rendering::RenderState::InitStage::generating_mask:
+				return "Analysing video to generate a mask...";
+			case rendering::RenderState::InitStage::building_engine:
+				return "Building TensorRT engine. This may take a few minutes...";
+			case rendering::RenderState::InitStage::none:
+				break;
+		}
+
+		return std::nullopt;
 	}
 
 	void confirm_clear_sample_video() {
@@ -370,9 +384,9 @@ void configs::config_preview(ui::Container& container) {
 		container.pop_element_gap();
 	}
 	else if (preview.rendering) {
-		std::string loading_text = show_mask_preview ? "Loading mask preview..." : "Loading config preview...";
-		if (preview.analysing_mask)
-			loading_text = "Analysing video to generate a mask...";
+		std::string loading_text =
+			init_stage_text(preview.init_stage)
+				.value_or(show_mask_preview ? "Loading mask preview..." : "Loading config preview...");
 
 		container.push_element_gap(preview_image_gap);
 
@@ -403,6 +417,30 @@ void configs::config_preview(ui::Container& container) {
 	}
 
 	add_seek_bar_row();
+
+	if (preview_image_added && preview.rendering) {
+		if (auto stage_text = init_stage_text(preview.init_stage)) {
+			ui::add_text(
+				"preview init stage text",
+				container,
+				*stage_text,
+				gfx::Color::white(gui::renderer::MUTED_SHADE),
+				fonts::dejavu(fonts::size::SMALL),
+				FONT_CENTERED_X
+			);
+		}
+	}
+
+	if (!preview.frame_timing_log.empty()) {
+		ui::add_text(
+			"frame timing log text",
+			container,
+			"using accurate frame timings",
+			gfx::Color::white(gui::renderer::MUTED_SHADE),
+			fonts::dejavu(fonts::size::SMALL),
+			FONT_CENTERED_X
+		);
+	}
 
 	add_mask_controls();
 
