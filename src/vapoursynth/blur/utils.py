@@ -289,6 +289,51 @@ def with_format(
         )
 
 
+def grade(
+    video: vs.VideoNode,
+    video_info: VideoInfo,
+    brightness: float,
+    contrast: float,
+    saturation: float,
+) -> vs.VideoNode:
+    if video.format.color_family not in (vs.YUV, vs.GRAY):
+        return with_format(
+            video,
+            video_info,
+            vs.YUV444PS,
+            lambda v: grade(v, video_info, brightness, contrast, saturation),
+        )
+
+    fmt = video.format
+    full = video_info.is_full_color_range
+
+    if fmt.sample_type == vs.FLOAT:
+        black, luma_scale = (0.0, 1.0) if full else (16 / 255, 219 / 255)
+        neutral = 0.0
+    else:
+        step = 1 << (fmt.bits_per_sample - 8)
+        black, luma_scale = (
+            (0, (1 << fmt.bits_per_sample) - 1) if full else (16 * step, 219 * step)
+        )
+        neutral = 128 * step
+
+    mid = black + luma_scale / 2
+
+    # (y - black) * brightness, then (y - mid) * contrast + mid, folded into one multiply and add
+    gain = brightness * contrast
+    offset = black * contrast * (1 - brightness) + mid * (1 - contrast)
+
+    luma = "" if brightness == 1 and contrast == 1 else f"x {gain} * {offset} +"
+    chroma = (
+        "" if saturation == 1 else f"x {saturation} * {neutral * (1 - saturation)} +"
+    )
+
+    if fmt.color_family == vs.GRAY:
+        return core.std.Expr(video, [luma])
+
+    return core.std.Expr(video, [luma, chroma, chroma])
+
+
 def with_padding(
     video: vs.VideoNode,
     multiple: int | None,

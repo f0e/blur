@@ -175,12 +175,6 @@ download_library \
   "libfmtconv.so" \
   "vapoursynth-plugins"
 
-# adjust
-download_library \
-  "https://github.com/f0e/Vapoursynth-adjust/releases/latest/download/libadjust.so" \
-  "libadjust.so" \
-  "vapoursynth-plugins"
-
 # rife-ncnn-vulkan
 download_library \
   "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/releases/download/r9_mod_v33/librife_linux_x86-64.so" \
