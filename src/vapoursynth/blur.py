@@ -490,16 +490,14 @@ def main():
                     ),
                 )
 
-                gamma = float(settings["blur_gamma"])
-                if gamma == 1.0:
-                    video = blur.blending.average(video, weights)
-                else:
-                    video = blur.blending.average_bright(
-                        video,
-                        video_info,
-                        gamma,
-                        weights,
-                    )
+                video = blur.blending.blend(
+                    video,
+                    video_info,
+                    weights,
+                    settings["preserve_brightness"],
+                    float(settings["bloom_threshold"]),
+                    float(settings["bloom_strength"]) if settings["bloom"] else None,
+                )
 
         # set exact fps
         video = blur.interpolate.change_fps(video, settings["blur_output_fps"])

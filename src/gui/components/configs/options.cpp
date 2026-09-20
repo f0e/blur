@@ -101,7 +101,41 @@ void configs::options(ui::Container& container) {
 			"blur weighting", weighting_dropdown->animations.at(ui::hasher("expand")).goal > 0, RIGHT_TABS[1]
 		);
 
-		ui::add_slider("blur gamma", container, 1.f, 10.f, &settings.blur_gamma, "blur gamma: {:.2f}", fonts::dejavu);
+		ui::add_checkbox(
+			"preserve brightness checkbox",
+			container,
+			"preserve brightness",
+			settings.preserve_brightness,
+			fonts::dejavu
+		);
+
+		ui::add_checkbox("bloom checkbox", container, "bloom", settings.bloom, fonts::dejavu);
+
+		if (settings.bloom) {
+			ui::add_slider(
+				"bloom threshold",
+				container,
+				0.f,
+				1.f,
+				&settings.bloom_threshold,
+				"bloom threshold: {:.2f}",
+				fonts::dejavu,
+				{},
+				0.01f
+			);
+
+			ui::add_slider(
+				"bloom strength",
+				container,
+				0.f,
+				1.f,
+				&settings.bloom_strength,
+				"bloom strength: {:.2f}",
+				fonts::dejavu,
+				{},
+				0.01f
+			);
+		}
 	}
 
 	/*
