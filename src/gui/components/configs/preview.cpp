@@ -295,40 +295,10 @@ void configs::config_preview(ui::Container& container) {
 		}
 	};
 
-	bool preview_image_added = false;
-	if (showing_hovered_mask || preview.frame) {
-		constexpr int preview_image_gap = 2;
-		int seek_bar_height = ui::seek_bar_height(fonts::dejavu(fonts::size::SMALL));
+	constexpr int preview_image_gap = 2;
+	const int seek_bar_height = ui::seek_bar_height(fonts::dejavu(fonts::size::SMALL));
 
-		container.push_element_gap(preview_image_gap);
-
-		if (showing_hovered_mask) {
-			auto mask_path = masks::get_path() / u::string_to_path(hovered_mask);
-			preview_image_added = ui::add_image(
-									  "config preview image",
-									  container,
-									  mask_path,
-									  container.get_usable_rect().size(),
-									  "hovered mask " + hovered_mask,
-									  gfx::Color::white()
-			)
-			                          .has_value();
-		}
-		else {
-			// anything that isn't the finished blurred frame for the current settings is faded out
-			preview_image_added = ui::add_image(
-									  "config preview image",
-									  container,
-									  preview.frame->texture,
-									  container.get_usable_rect().size(),
-									  preview.frame->image_id,
-									  gfx::Color::white(preview.frame->up_to_date ? 255 : 100)
-			)
-			                          .has_value();
-		}
-
-		container.pop_element_gap();
-
+	auto add_seek_bar_row = [&] {
 		container.push_element_gap(SEEK_BAR_BOTTOM_GAP);
 
 		container.push_element_gap(DELETE_ICON_GAP);
@@ -366,13 +336,45 @@ void configs::config_preview(ui::Container& container) {
 		);
 
 		container.pop_element_gap();
+	};
+
+	bool preview_image_added = false;
+	if (showing_hovered_mask || preview.frame) {
+		container.push_element_gap(preview_image_gap);
+
+		if (showing_hovered_mask) {
+			auto mask_path = masks::get_path() / u::string_to_path(hovered_mask);
+			preview_image_added = ui::add_image(
+									  "config preview image",
+									  container,
+									  mask_path,
+									  container.get_usable_rect().size(),
+									  "hovered mask " + hovered_mask,
+									  gfx::Color::white()
+			)
+			                          .has_value();
+		}
+		else {
+			// anything that isn't the finished blurred frame for the current settings is faded out
+			preview_image_added = ui::add_image(
+									  "config preview image",
+									  container,
+									  preview.frame->texture,
+									  container.get_usable_rect().size(),
+									  preview.frame->image_id,
+									  gfx::Color::white(preview.frame->up_to_date ? 255 : 100)
+			)
+			                          .has_value();
+		}
+
+		container.pop_element_gap();
 	}
 	else if (preview.rendering) {
 		std::string loading_text = show_mask_preview ? "Loading mask preview..." : "Loading config preview...";
 		if (preview.analysing_mask)
 			loading_text = "Analysing video to generate a mask...";
 
-		container.push_element_gap(SEEK_BAR_BOTTOM_GAP);
+		container.push_element_gap(preview_image_gap);
 
 		ui::add_text(
 			"loading config preview text",
@@ -386,7 +388,7 @@ void configs::config_preview(ui::Container& container) {
 		container.pop_element_gap();
 	}
 	else {
-		container.push_element_gap(SEEK_BAR_BOTTOM_GAP);
+		container.push_element_gap(preview_image_gap);
 
 		ui::add_text(
 			"failed to generate preview text",
@@ -399,6 +401,8 @@ void configs::config_preview(ui::Container& container) {
 
 		container.pop_element_gap();
 	}
+
+	add_seek_bar_row();
 
 	add_mask_controls();
 
