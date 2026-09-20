@@ -29,7 +29,12 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "blur amount: " << settings.blur_amount << "\n";
 			output << "blur output fps: " << settings.blur_output_fps << "\n";
 			output << "blur weighting: " << settings.blur_weighting << "\n";
-			output << "blur gamma: " << settings.blur_gamma << "\n";
+			output << "preserve brightness: " << (settings.preserve_brightness ? "true" : "false") << "\n";
+			output << "bloom: " << (settings.bloom ? "true" : "false") << "\n";
+			if (!concise || settings.bloom) {
+				output << "bloom threshold: " << settings.bloom_threshold << "\n";
+				output << "bloom strength: " << settings.bloom_strength << "\n";
+			}
 		}
 	}
 
@@ -330,7 +335,18 @@ BlurSettings config_blur::parse_from_map(const std::map<std::string, std::string
 	config_base::extract_config_value(config_map, "blur amount", settings.blur_amount);
 	config_base::extract_config_value(config_map, "blur output fps", settings.blur_output_fps);
 	config_base::extract_config_value(config_map, "blur weighting", settings.blur_weighting);
-	config_base::extract_config_value(config_map, "blur gamma", settings.blur_gamma);
+
+	config_base::extract_config_value(config_map, "preserve brightness", settings.preserve_brightness);
+
+	config_base::extract_config_value(config_map, "bloom", settings.bloom);
+	config_base::extract_config_value(config_map, "bloom threshold", settings.bloom_threshold);
+	config_base::extract_config_value(config_map, "bloom strength", settings.bloom_strength);
+
+	if (!config_map.contains("preserve brightness") && config_map.contains("blur gamma")) {
+		float gamma = 1.f;
+		config_base::extract_config_value(config_map, "blur gamma", gamma);
+		settings.preserve_brightness = gamma > 1.f;
+	}
 
 	config_base::extract_config_value(config_map, "interpolate", settings.interpolate);
 	config_base::extract_config_value(config_map, "interpolated fps", settings.interpolated_fps);
@@ -587,7 +603,10 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 	j["blur_amount"] = this->blur_amount;
 	j["blur_output_fps"] = this->blur_output_fps;
 	j["blur_weighting"] = this->blur_weighting;
-	j["blur_gamma"] = this->blur_gamma;
+	j["preserve_brightness"] = this->preserve_brightness;
+	j["bloom"] = this->bloom;
+	j["bloom_threshold"] = this->bloom_threshold;
+	j["bloom_strength"] = this->bloom_strength;
 
 	j["interpolate"] = this->interpolate;
 	j["interpolated_fps"] = this->interpolated_fps;

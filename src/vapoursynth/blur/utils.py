@@ -270,6 +270,11 @@ def with_format(
             if yuv_to_rgb:
                 convert_back_kwargs["matrix_s"] = "709"
 
+            # @AI: dropping back to 8 bit rounds every pixel in a smooth gradient the same direction, and a
+            # whole area wrong by the same amount is what a visible band is. dithering varies which way
+            # each pixel rounds so the error cancels out instead. does nothing if the depth did not drop
+            convert_back_kwargs["dither_type"] = "error_diffusion"
+
             log.info("conversion back kwargs", convert_back_kwargs)
 
             video = core.resize.Point(video, **convert_back_kwargs)

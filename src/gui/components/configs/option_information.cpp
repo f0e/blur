@@ -24,9 +24,29 @@ void configs::option_information(ui::Container& container) {
 		// 	  "FPS of the output video",
 		//   }, },
 		{
-			"blur gamma",
+			"preserve brightness checkbox",
 			{
-				"Amount that the video is darkened before blurring. Makes highlights stand out",
+				"Blends frames by how much light they hold, rather than averaging the stored values",
+				"Produces a more natural-looking blur",
+			},
+		},
+		{
+			"bloom checkbox",
+			{
+				"Makes bright areas glow, brightening pixels around them",
+			},
+		},
+		{
+			"bloom threshold",
+			{
+				"How bright something has to be before it glows",
+				"(0 = everything glows, 1 = only the very brightest)",
+			},
+		},
+		{
+			"bloom strength",
+			{
+				"How bright the glow is",
 			},
 		},
 		{

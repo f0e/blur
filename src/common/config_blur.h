@@ -52,7 +52,12 @@ struct BlurSettings {
 	float blur_amount = 1.f;
 	int blur_output_fps = 60;
 	std::string blur_weighting = "equal";
-	float blur_gamma = 1.f;
+
+	bool preserve_brightness = false;
+
+	bool bloom = false;
+	float bloom_threshold = 0.75f;
+	float bloom_strength = 0.25f;
 
 	bool interpolate = true;
 #ifdef __APPLE__
