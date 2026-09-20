@@ -162,11 +162,6 @@ $plugins = @(
         IsDirectDll = $true;
     },
     @{
-        Name        = "Adjust";
-        Url         = "https://github.com/f0e/Vapoursynth-adjust/releases/download/v1/adjust.dll";
-        IsDirectDll = $true;
-    },
-    @{
         Name         = "SVPFlow";
         Url          = "https://web.archive.org/web/20190322064557if_/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip";
         FilePatterns = @(

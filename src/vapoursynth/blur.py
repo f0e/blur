@@ -28,7 +28,6 @@ EXPECTED_PLUGINS = [
     "com.vapoursynth.resize",
     "com.vapoursynth.std",
     "com.vapoursynth.text",
-    "com.yuygfgg.adjust",
     "fmtconv",
     "info.akarin.vsplugin",
 ]
@@ -504,22 +503,12 @@ def main():
 
     # filters
     if settings["filters"]:
-        if (
-            settings["brightness"] != 1
-            or settings["contrast"] != 1
-            or settings["saturation"] != 1
-        ):
-            video = u.with_format(
-                video,
-                video_info,
-                vs.YUV444PS,
-                lambda video: core.adjust.Tweak(
-                    video,
-                    bright=settings["brightness"] - 1,
-                    cont=settings["contrast"],
-                    sat=settings["saturation"],
-                ),
-            )
+        brightness = float(settings["brightness"])
+        contrast = float(settings["contrast"])
+        saturation = float(settings["saturation"])
+
+        if brightness != 1 or contrast != 1 or saturation != 1:
+            video = u.grade(video, video_info, brightness, contrast, saturation)
 
     # upscaling (to 4K)
     if settings["upscale"] and video.height < 2160:
