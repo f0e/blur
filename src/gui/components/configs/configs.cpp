@@ -389,7 +389,7 @@ void configs::screen(
 		if (!loading_config) {
 			loading_config = true;
 
-			std::thread([] {
+			std::thread([last_selected = selected_config_name] {
 				ui::reset_tied_sliders();
 
 				config_blur::initialise_configs(); // re-initialise in case the folder got removed since launch
@@ -399,9 +399,15 @@ void configs::screen(
 					edited_configs[name] = config_blur::get_config(name);
 				}
 
-				selected_config_name = config_blur::get_default_name();
-				if (!edited_configs.contains(selected_config_name) && !edited_configs.empty())
-					selected_config_name = edited_configs.begin()->first;
+				// load the last config that was being edited
+				if (edited_configs.contains(last_selected)) {
+					selected_config_name = last_selected;
+				}
+				else {
+					selected_config_name = config_blur::get_default_name();
+					if (!edited_configs.contains(selected_config_name) && !edited_configs.empty())
+						selected_config_name = edited_configs.begin()->first;
+				}
 
 				settings = edited_configs.contains(selected_config_name) ? edited_configs[selected_config_name]
 				                                                         : config_blur::DEFAULT_CONFIG;
