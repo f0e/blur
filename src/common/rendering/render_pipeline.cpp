@@ -60,6 +60,10 @@ namespace {
 						progress_callback();
 				}
 				else {
+					// python writes \r\n on windows, so leave the line for the \n to end
+					if (vspipe_stderr.peek() == '\n')
+						continue;
+
 					// not a frame update - e.g. a \r-terminated status line from a
 					// TensorRT engine build.
 					state->report_log_line(line);
