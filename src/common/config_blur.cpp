@@ -1,5 +1,6 @@
 #include "config_blur.h"
 #include "masks.h"
+#include "rife_models.h"
 #include "config_base.h"
 #include "config_app.h"
 #include "config_rules.h"
@@ -54,6 +55,19 @@ namespace {
 					config.try_emplace("preserve brightness", gamma > 1.f ? "true" : "false");
 
 					config.erase(it);
+					return true;
+				},
+		},
+		{
+			.version = "3.0.0",
+			.description = "'rife (tensorrt) model' from a vs-mlrt version to an onnx filename",
+			.apply =
+				[](config_base::ConfigMap& config) {
+					auto it = config.find("rife (tensorrt) model");
+					if (it == config.end() || it->second.starts_with("rife_"))
+						return false;
+
+					it->second = "rife_" + it->second;
 					return true;
 				},
 		},
@@ -139,6 +153,26 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 	}
 	if (!concise || settings.upscale) {
 		output << "upscale: " << (settings.upscale ? "true" : "false") << "\n";
+	}
+
+	// Rife models section
+	bool uses_rife = settings.uses_interpolation_method("rife");
+#ifdef TENSORRT
+	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
+#else
+	bool uses_rife_trt = false;
+#endif
+	if (!concise || uses_rife || uses_rife_trt) {
+		output << "\n";
+		output << "- rife models" << "\n";
+		if (!concise || uses_rife) {
+			output << "rife model: " << settings.rife_model << "\n";
+		}
+#ifdef TENSORRT
+		if (!concise || uses_rife_trt) {
+			output << "rife (tensorrt) model: " << settings.rife_trt_model << "\n";
+		}
+#endif
 	}
 
 	// GPU acceleration section
@@ -227,10 +261,6 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "svp interpolation algorithm: " << settings.advanced.svp_interpolation_algorithm << "\n";
 			output << "interpolation block size: " << settings.advanced.interpolation_blocksize << "\n";
 			output << "interpolation mask area: " << settings.advanced.interpolation_mask_area << "\n";
-			output << "rife model: " << settings.advanced.rife_model << "\n";
-#ifdef TENSORRT
-			output << "rife (tensorrt) model: " << settings.advanced.rife_trt_model << "\n";
-#endif
 
 			if (!concise || settings.advanced.manual_svp) {
 				output << "\n";
@@ -394,6 +424,10 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "interpolate", settings.interpolate);
 	config_base::extract_config_value(config_map, "interpolated fps", settings.interpolated_fps);
 	config_base::extract_config_value(config_map, "interpolation method", settings.interpolation_method);
+	config_base::extract_config_value(config_map, "rife model", settings.rife_model);
+#ifdef TENSORRT
+	config_base::extract_config_value(config_map, "rife (tensorrt) model", settings.rife_trt_model);
+#endif
 	config_base::extract_config_value(config_map, "mask", settings.mask);
 	if (settings.mask == masks::NONE_OPTION) // what the dropdown shows for no mask; it isn't a filename
 		settings.mask.clear();
@@ -475,10 +509,6 @@ BlurSettings config_blur::parse_from_map(
 		config_base::extract_config_value(
 			config_map, "interpolation mask area", settings.advanced.interpolation_mask_area
 		);
-		config_base::extract_config_value(config_map, "rife model", settings.advanced.rife_model);
-#ifdef TENSORRT
-		config_base::extract_config_value(config_map, "rife (tensorrt) model", settings.advanced.rife_trt_model);
-#endif
 		config_base::extract_config_value(config_map, "manual svp", settings.advanced.manual_svp);
 		config_base::extract_config_value(config_map, "super string", settings.advanced.super_string);
 		config_base::extract_config_value(config_map, "vectors string", settings.advanced.vectors_string);
@@ -624,7 +654,7 @@ void config_blur::initialise_configs() {
 		save(std::string(DEFAULT_CONFIG_NAME), DEFAULT_CONFIG);
 }
 
-tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
+nlohmann::json BlurSettings::to_json() const {
 	nlohmann::json j;
 
 	j["blur"] = this->blur;
@@ -703,14 +733,10 @@ tl::expected<nlohmann::json, std::string> BlurSettings::to_json() const {
 	j["interpolation_blocksize"] = this->advanced.interpolation_blocksize;
 	j["interpolation_mask_area"] = this->advanced.interpolation_mask_area;
 
-	// TODO: doing this here is stupid probably
-	auto rife_model_path = get_rife_model_path();
-	if (!rife_model_path)
-		return tl::unexpected(rife_model_path.error());
-
-	j["rife_model"] = *rife_model_path;
-
-	j["rife_trt_model"] = this->advanced.rife_trt_model;
+	j["rife_model"] = rife_models::get_path() / this->rife_model;
+#ifdef TENSORRT
+	j["rife_trt_model"] = rife_models::get_trt_path() / (this->rife_trt_model + ".onnx");
+#endif
 
 	j["manual_svp"] = this->advanced.manual_svp;
 	j["super_string"] = this->advanced.super_string;
@@ -724,21 +750,10 @@ BlurSettings::BlurSettings() {
 	u::verify_gpu_encoding(*this);
 }
 
-// NOLINTBEGIN(readability-convert-member-functions-to-static) other platforms need it
-tl::expected<std::filesystem::path, std::string> BlurSettings::get_rife_model_path() const {
-	// NOLINTEND(readability-convert-member-functions-to-static)
-	std::filesystem::path rife_model_path;
+bool BlurSettings::uses_interpolation_method(const std::string& method) const {
+	if (this->interpolate)
+		return this->interpolation_method == method ||
+		       (this->pre_interpolate && this->pre_interpolation_method == method);
 
-#if defined(_WIN32)
-	rife_model_path = u::get_resources_path() / "lib/models" / this->advanced.rife_model;
-#elif defined(__linux__)
-	rife_model_path = u::get_resources_path() / "models" / this->advanced.rife_model;
-#elif defined(__APPLE__)
-	rife_model_path = u::get_resources_path() / "models" / this->advanced.rife_model;
-#endif
-
-	if (!std::filesystem::exists(rife_model_path))
-		return tl::unexpected(std::format("RIFE model '{}' could not be found", this->advanced.rife_model));
-
-	return rife_model_path;
+	return this->deduplicate && this->deduplicate_method == method;
 }

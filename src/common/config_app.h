@@ -43,7 +43,7 @@ struct GlobalAppSettings {
 
 	bool operator==(const GlobalAppSettings& other) const = default;
 
-	[[nodiscard]] tl::expected<nlohmann::json, std::string> to_json() const;
+	[[nodiscard]] nlohmann::json to_json() const;
 };
 
 namespace config_app {

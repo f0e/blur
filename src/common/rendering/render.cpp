@@ -50,13 +50,11 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 		return tl::unexpected("Input path does not exist");
 
 	auto merged_settings = detail::merge_settings(settings, app_settings);
-	if (!merged_settings)
-		return tl::unexpected(merged_settings.error());
 
 	auto video_info = u::get_video_info(input_path);
 
 	auto vspipe_args = detail::build_vspipe_video_args(
-		input_path, *merged_settings, video_info, get_seek_start_frame(settings, video_info, seek), {}, {}, preview_mask
+		input_path, merged_settings, video_info, get_seek_start_frame(settings, video_info, seek), {}, {}, preview_mask
 	);
 
 	RenderCommands commands = {
@@ -141,8 +139,6 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 		return tl::unexpected("Input path does not exist");
 
 	auto merged_settings = detail::merge_settings(settings, app_settings);
-	if (!merged_settings)
-		return tl::unexpected(merged_settings.error());
 
 	std::filesystem::path output_path;
 	if (output_path_override) {
@@ -185,7 +181,7 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 	RenderCommands commands = {
 		.vspipe_video = detail::build_vspipe_video_args(
 			input_path,
-			*merged_settings,
+			merged_settings,
 			video_info,
 			start_frame,
 			end_frame,

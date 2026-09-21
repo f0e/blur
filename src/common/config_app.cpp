@@ -164,7 +164,7 @@ GlobalAppSettings config_app::get_app_config() {
 	return config_base::load_config<GlobalAppSettings>(get_app_config_path(), create, parse);
 }
 
-tl::expected<nlohmann::json, std::string> GlobalAppSettings::to_json() const {
+nlohmann::json GlobalAppSettings::to_json() const {
 	nlohmann::json j;
 
 	j["gpu_type"] = this->gpu_type;

@@ -7,7 +7,7 @@
 // Pure functions that turn settings + video info into the vspipe / ffmpeg
 // argument vectors. No process spawning, no shared state - just string building.
 namespace rendering::detail {
-	tl::expected<nlohmann::json, std::string> merge_settings(
+	nlohmann::json merge_settings(
 		const BlurSettings& blur_settings, const GlobalAppSettings& app_settings
 	);
 

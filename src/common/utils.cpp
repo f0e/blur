@@ -1,6 +1,7 @@
 #include "utils.h"
 #include "common/config_encoding_presets.h"
 #include "common/config_app.h"
+#include "common/rife_models.h"
 
 namespace {
 	bool init_hw = false;
@@ -968,12 +969,12 @@ std::optional<size_t> u::get_fastest_rife_device(BlurSettings& settings) {
 	if (blur.rife_devices.size() == 1)
 		return 0;
 
-	auto rife_model_path = settings.get_rife_model_path();
-	if (!rife_model_path)
+	auto rife_model_path = rife_models::get_path() / settings.rife_model;
+	if (!std::filesystem::exists(rife_model_path))
 		return std::nullopt;
 
 	return u::get_fastest_device_index(
-		blur.rife_devices, "rife", { std::format("rife_model_path={}", *rife_model_path) }
+		blur.rife_devices, "rife", { std::format("rife_model_path={}", u::path_to_string(rife_model_path)) }
 	);
 }
 
@@ -989,7 +990,7 @@ std::optional<size_t> u::get_fastest_tensorrt_device(BlurSettings& settings) {
 	if (blur.tensorrt_devices.size() == 1)
 		return 0;
 
-	auto rife_trt_model = settings.advanced.rife_trt_model;
+	auto rife_trt_model = settings.rife_trt_model;
 	if (rife_trt_model.empty())
 		return std::nullopt;
 

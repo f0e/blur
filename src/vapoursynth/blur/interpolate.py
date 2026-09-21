@@ -18,11 +18,10 @@ if sys.platform in ("win32", "linux"):
         RIFE as VSMLRT_RIFE,
         RIFEMerge as VSMLRT_RIFE_MERGE,
         BackendV2,
-        RIFEModel,
         bits_as,
     )
 else:
-    VSMLRT_RIFE = VSMLRT_RIFE_MERGE = BackendV2 = RIFEModel = bits_as = None
+    VSMLRT_RIFE = VSMLRT_RIFE_MERGE = BackendV2 = bits_as = None
 
 LEGACY_PRESETS = ["weak", "film", "smooth", "animation"]
 NEW_PRESETS = ["default", "test"]
@@ -512,28 +511,13 @@ def interpolate_rife(
     )
 
 
-def parse_rife_model(value: str) -> RIFEModel:
-    RIFE_MODEL_MAP: dict[str, RIFEModel] = {
-        member.name.replace("_", "."): member for member in RIFEModel
-    }
-
-    key = value.replace(".", "_")
-
-    try:
-        return RIFEModel[key]
-    except KeyError:
-        raise ValueError(
-            f"Unknown RIFE model: {value!r}. Valid options: {list(RIFE_MODEL_MAP)}"
-        )
-
-
-def RIFE_vsmlrt(video: vs.VideoNode, new_fps: int, model: str, backend):
+def RIFE_vsmlrt(video: vs.VideoNode, new_fps: int, model_path: str, backend):
     multi_frac = Fraction(int(new_fps), int(video.fps))
 
     res = VSMLRT_RIFE(
         video,
         multi=multi_frac,
-        model=parse_rife_model(model),
+        model_path=model_path,
         ensemble=False,
         backend=backend,
         video_player=False,
@@ -628,14 +612,16 @@ def interpolate_rife_vsmlrt(
     video: vs.VideoNode,
     video_info: u.VideoInfo,
     new_fps: int,
-    model: str,
+    model_path: str,
     device_index: int,
     settings_path: Path,
     timeline: retime.Timeline | None = None,
 ):
+    u.check_model_path(model_path)
+
     def process(_video: vs.VideoNode, backend) -> vs.VideoNode:
         if timeline is None:
-            return RIFE_vsmlrt(_video, new_fps=new_fps, model=model, backend=backend)
+            return RIFE_vsmlrt(_video, new_fps=new_fps, model_path=model_path, backend=backend)
 
         return _retimed_rife_merge(
             _video,
@@ -645,7 +631,7 @@ def interpolate_rife_vsmlrt(
                 clipa=before,
                 clipb=after,
                 mask=timepoint,
-                model=parse_rife_model(model),
+                model_path=model_path,
                 ensemble=False,
                 backend=backend,
                 _implementation=2,

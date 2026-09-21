@@ -34,8 +34,6 @@ struct AdvancedSettings {
 	std::string svp_interpolation_algorithm = "13";
 	std::string interpolation_blocksize = "8";
 	int interpolation_mask_area = 0;
-	std::string rife_model = "rife-v4.26_ensembleFalse";
-	std::string rife_trt_model = "v4.26";
 
 	AutoMaskSettings auto_mask;
 
@@ -109,6 +107,9 @@ struct BlurSettings {
 	bool gpu_interpolation = true;
 	bool gpu_encoding = false;
 
+	std::string rife_model = "rife-v4.26_ensembleFalse";
+	std::string rife_trt_model = "rife_v4.26";
+
 	bool override_advanced = false;
 	AdvancedSettings advanced;
 
@@ -119,9 +120,9 @@ public:
 
 	void verify_gpu_encoding();
 
-	[[nodiscard]] tl::expected<nlohmann::json, std::string> to_json() const;
+	[[nodiscard]] nlohmann::json to_json() const;
 
-	[[nodiscard]] tl::expected<std::filesystem::path, std::string> get_rife_model_path() const;
+	[[nodiscard]] bool uses_interpolation_method(const std::string& method) const;
 };
 
 namespace config_blur {

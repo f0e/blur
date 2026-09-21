@@ -483,7 +483,8 @@ ui::AnimatedElement* ui::add_dropdown(
 	std::optional<std::function<void(std::string*)>> on_change,
 	const std::vector<std::string>& muted_options,
 	const std::vector<DropdownOptionAction>& option_actions,
-	std::optional<DropdownAddAction> add_action
+	std::optional<DropdownAddAction> add_action,
+	std::optional<int> width
 ) {
 	// gfx::Size max_text_size(0, font.getSize());
 
@@ -493,11 +494,11 @@ ui::AnimatedElement* ui::add_dropdown(
 	// 	max_text_size.w = std::max(max_text_size.w, text_size.w);
 	// }
 
-	int height = font.height() + (DROPDOWN_PADDING.h * 2);
+	int height = get_dropdown_box_height(font);
 	if (!label.empty())
 		height += font.height() + LABEL_GAP;
 
-	gfx::Size total_size(container.get_usable_rect().w, height);
+	gfx::Size total_size(width.value_or(container.get_usable_rect().w), height);
 
 	Element element(
 		id,
@@ -528,4 +529,8 @@ ui::AnimatedElement* ui::add_dropdown(
 			{ hasher("expand"), AnimationState(30.f) },
 		}
 	);
+}
+
+int ui::get_dropdown_box_height(const render::Font& font) {
+	return font.height() + (DROPDOWN_PADDING.h * 2);
 }
