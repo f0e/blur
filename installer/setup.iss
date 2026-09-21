@@ -71,14 +71,12 @@ Source: "resources\libmpv-2.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "resources\libEGL.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "resources\libGLESv2.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dependencies\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "redist\VC_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{tmp}\VC_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installing Visual C++ runtime..."; Check: VCRedistNeeded
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
@@ -88,7 +86,6 @@ Type: filesandordirs; Name: "{app}\lib"
 ; migrate-32bit uses path's functions, and has to run before tensorrt so it can hand over the old install's copy
 #include "code\path.iss"
 #include "code\migrate-32bit.iss"
-#include "code\vcredist.iss"
 #include "code\tensorrt.iss"
 
 [Code]

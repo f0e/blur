@@ -256,7 +256,6 @@ jobs:
               # Build installer
               cd ../../
               cp -r ci/out/* installer/dependencies/lib
-              curl -L https://aka.ms/vs/17/release/vc_redist.x64.exe -o installer/redist/vc_redist.x64.exe
               cp "$build_dir/blur-cli-$config.exe" installer/resources/blur-cli.exe
               cp "$build_dir/blur-$config.exe" installer/resources/blur-gui.exe
               cp "mpv/libmpv-2.dll" installer/resources/
