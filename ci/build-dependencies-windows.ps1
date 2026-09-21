@@ -126,12 +126,17 @@ Push-Location $vapoursynthDir
 # the blur scripts need numpy
 Write-Host "Installing numpy into VapourSynth's Python..."
 & (Join-Path $vapoursynthDir "python.exe") -m pip install --no-warn-script-location numpy==2.5.3
+& (Join-Path $vapoursynthDir "python.exe") -m pip uninstall --yes pip
 
 Write-Host "Cleaning up VapourSynth"
 Remove-Item -Path doc -Recurse -Force
 Remove-Item -Path Scripts -Recurse -Force
 Remove-Item -Path vs-temp-dl -Recurse -Force
 Remove-Item -Path $vapoursynthInstallerPath
+
+# avfs and the pismo file mount installer it needs aren't used
+Remove-Item -Path AVFS.exe
+Remove-Item -Path pfm-*.exe
 
 Pop-Location
 
@@ -211,12 +216,14 @@ foreach ($plugin in $plugins) {
 }
 
 # Download and process FFmpeg
-$ffmpegUrl = "https://github.com/GyanD/codexffmpeg/releases/download/2025-08-14-git-cdbb5f1b93/ffmpeg-2025-08-14-git-cdbb5f1b93-full_build.7z"
-$ffmpegArchive = Join-Path $ffmpegDir "ffmpeg-git-essentials.7z"
-Download-File -Url $ffmpegUrl -OutFile $ffmpegArchive -Sha256 "bb165e0e9103d2c0102fdba02a14339e715199f790a102168a31d4655cee637e"
+# the shared build, so ffmpeg and ffprobe share the libraries instead of each having a copy
+$ffmpegUrl = "https://github.com/GyanD/codexffmpeg/releases/download/8.0.1/ffmpeg-8.0.1-full_build-shared.7z"
+$ffmpegArchive = Join-Path $ffmpegDir "ffmpeg.7z"
+Download-File -Url $ffmpegUrl -OutFile $ffmpegArchive -Sha256 "8030dc469fbde247b84cfc21a5c421f3965ffe779bc35de08d78966e0c4a272c"
 Extract-Files -ArchivePath $ffmpegArchive -FilePatterns @(
-    "ffmpeg-2025-08-14-git-cdbb5f1b93-full_build\\bin\ffmpeg.exe",
-    "ffmpeg-2025-08-14-git-cdbb5f1b93-full_build\\bin\ffprobe.exe"
+    "ffmpeg-8.0.1-full_build-shared\bin\ffmpeg.exe",
+    "ffmpeg-8.0.1-full_build-shared\bin\ffprobe.exe",
+    "ffmpeg-8.0.1-full_build-shared\bin\*.dll"
 ) -DestinationPath $ffmpegDir
 
 # Define model downloads
