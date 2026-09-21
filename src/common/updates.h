@@ -1,6 +1,8 @@
 #pragma once
 
 namespace updates {
+	bool is_version_newer(std::string_view current, std::string_view latest);
+
 	struct UpdateCheckRes {
 		bool is_latest = true; // assumption for fails
 		std::string latest_tag;

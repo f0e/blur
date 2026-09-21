@@ -13,6 +13,51 @@ namespace {
 
 		return iss.eof() && !iss.fail();
 	}
+
+	// ascending version order
+	constexpr auto MIGRATIONS = std::to_array<config_base::Migration>({
+		{
+			.version = "3.0.0",
+			.description = "'deduplicate frames to interpolate' -> 'deduplicate real frame'",
+			.apply =
+				[](config_base::ConfigMap& config) {
+					auto it = config.find("deduplicate frames to interpolate");
+					if (it == config.end())
+						return false;
+
+					std::string value;
+					if (it->second == "duplicate to next")
+						value = "last";
+					else if (it->second == "previous to duplicate")
+						value = "first";
+					else if (it->second.starts_with("surrounding frames"))
+						value = "surrounding";
+
+					if (!value.empty())
+						config.try_emplace("deduplicate real frame", value);
+
+					config.erase(it);
+					return true;
+				},
+		},
+		{
+			.version = "3.0.0",
+			.description = "'blur gamma' -> 'preserve brightness'",
+			.apply =
+				[](config_base::ConfigMap& config) {
+					auto it = config.find("blur gamma");
+					if (it == config.end())
+						return false;
+
+					float gamma = 1.f;
+					config_base::extract_config_value(config, "blur gamma", gamma);
+					config.try_emplace("preserve brightness", gamma > 1.f ? "true" : "false");
+
+					config.erase(it);
+					return true;
+				},
+		},
+	});
 }
 
 std::string config_blur::generate_config_string(const BlurSettings& settings, bool concise) {
@@ -316,7 +361,7 @@ config_blur::ValidationResult config_blur::validate(
 BlurSettings config_blur::parse(const std::string& config_content) {
 	std::istringstream stream(config_content);
 	auto config_map = config_base::read_config_map(stream);
-	return parse_from_map(config_map);
+	return parse_from_map(config_map, config_base::parse_config_version(config_content));
 }
 
 BlurSettings config_blur::parse(const std::filesystem::path& config_filepath) {
@@ -328,8 +373,12 @@ BlurSettings config_blur::parse(const std::filesystem::path& config_filepath) {
 	return settings;
 }
 
-BlurSettings config_blur::parse_from_map(const std::map<std::string, std::string>& config_map) {
+BlurSettings config_blur::parse_from_map(
+	std::map<std::string, std::string> config_map, const std::optional<std::string>& config_version
+) {
 	BlurSettings settings;
+
+	config_base::apply_migrations(config_map, config_version, MIGRATIONS);
 
 	config_base::extract_config_value(config_map, "blur", settings.blur);
 	config_base::extract_config_value(config_map, "blur amount", settings.blur_amount);
@@ -341,12 +390,6 @@ BlurSettings config_blur::parse_from_map(const std::map<std::string, std::string
 	config_base::extract_config_value(config_map, "bloom", settings.bloom);
 	config_base::extract_config_value(config_map, "bloom threshold", settings.bloom_threshold);
 	config_base::extract_config_value(config_map, "bloom strength", settings.bloom_strength);
-
-	if (!config_map.contains("preserve brightness") && config_map.contains("blur gamma")) {
-		float gamma = 1.f;
-		config_base::extract_config_value(config_map, "blur gamma", gamma);
-		settings.preserve_brightness = gamma > 1.f;
-	}
 
 	config_base::extract_config_value(config_map, "interpolate", settings.interpolate);
 	config_base::extract_config_value(config_map, "interpolated fps", settings.interpolated_fps);
@@ -397,21 +440,6 @@ BlurSettings config_blur::parse_from_map(const std::map<std::string, std::string
 		);
 
 		config_base::extract_config_value(config_map, "use frame timing logs", settings.advanced.frame_timing_logs);
-
-		// 'deduplicate frames to interpolate' is what this used to be called, back when it named the frames to
-		// interpolate between rather than the frame in a run that's real. the two it described that still exist
-		// carry over; the other two hedged between them, which isn't offered any more, so they land on the default
-		if (!config_map.contains("deduplicate real frame")) {
-			std::string legacy;
-			config_base::extract_config_value(config_map, "deduplicate frames to interpolate", legacy);
-
-			if (legacy == "duplicate to next")
-				settings.advanced.duplicate_timing = "last";
-			else if (legacy == "previous to duplicate")
-				settings.advanced.duplicate_timing = "first";
-			else if (legacy.starts_with("surrounding frames"))
-				settings.advanced.duplicate_timing = "surrounding";
-		}
 
 		config_base::extract_config_value(config_map, "video container", settings.advanced.video_container);
 		config_base::extract_config_value(config_map, "custom ffmpeg filters", settings.advanced.ffmpeg_override);
