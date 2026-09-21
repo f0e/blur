@@ -4,21 +4,6 @@
 #define MyAppExeName "blur-gui.exe"
 #define MyAppId "D283CF94-CD1F-432D-B4BE-0516562C258B"
 
-; the version comes from BLUR_VERSION so there's only one place to bump it
-#define VersionHeader FileOpen(AddBackslash(SourcePath) + "..\src\common\blur.h")
-#define MyAppVersion ""
-#sub ReadVersionLine
-  #define Line FileRead(VersionHeader)
-  #if Pos('BLUR_VERSION = "', Line) > 0
-    #define public MyAppVersion Copy(Line, Pos('"', Line) + 1, RPos('"', Line) - Pos('"', Line) - 1)
-  #endif
-#endsub
-#for {0; MyAppVersion == "" && !FileEof(VersionHeader); 0} ReadVersionLine
-#expr FileClose(VersionHeader)
-#if MyAppVersion == ""
-  #error Couldn't find BLUR_VERSION in src/common/blur.h
-#endif
-
 ; installs straight from a release build and ci/build-dependencies-windows.ps1's output. pass /DBinDir= or /DDepsDir=
 ; to use others
 #ifndef BinDir
@@ -26,6 +11,20 @@
 #endif
 #ifndef DepsDir
   #define DepsDir "..\ci\out"
+#endif
+
+; the version comes from the built exe's VERSIONINFO, which cmake fills in from project(blur VERSION ...)
+#if Copy(BinDir, 2, 1) == ':' || Copy(BinDir, 1, 1) == '\'
+  #define MainExePath AddBackslash(BinDir) + MyAppExeName
+#else
+  #define MainExePath AddBackslash(AddBackslash(SourcePath) + BinDir) + MyAppExeName
+#endif
+#if !FileExists(MainExePath)
+  #error Couldn't find blur-gui.exe in BinDir, build blur in release first or pass /DBinDir=
+#endif
+#define MyAppVersion GetStringFileInfo(MainExePath, "FileVersion")
+#if MyAppVersion == ""
+  #error blur-gui.exe has no version info, rebuild it
 #endif
 
 ; the space tensorrt takes up once it's extracted
