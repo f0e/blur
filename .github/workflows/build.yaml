@@ -210,6 +210,21 @@ jobs:
       #   run: ccache -s
 
       # ── Package ───────────────────────────────────────────────────────────
+      # the runner image only has inno setup 6
+      - name: Install Inno Setup 7 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = "$env:RUNNER_TEMP\innosetup.exe"
+          $dir = "$env:RUNNER_TEMP\innosetup"
+          Invoke-WebRequest https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe -OutFile $installer
+          if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne "0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f") {
+            throw "Inno Setup download doesn't match its hash"
+          }
+          Start-Process $installer -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/DIR=$dir" -Wait
+          & "$dir\ISCC.exe" --version
+          $dir | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+
       - name: Prepare Binaries
         id: prep
         shell: bash

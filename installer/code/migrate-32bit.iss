@@ -114,8 +114,8 @@ procedure MigrateRegisterExtraCloseApplicationsResources;
 begin
   if LegacyDir <> '' then
   begin
-    RegisterExtraCloseApplicationsResource(False, LegacyDir + '\{#MyAppExeName}');
-    RegisterExtraCloseApplicationsResource(False, LegacyDir + '\blur-cli.exe');
+    RegisterExtraCloseApplicationsResource(LegacyDir + '\{#MyAppExeName}');
+    RegisterExtraCloseApplicationsResource(LegacyDir + '\blur-cli.exe');
   end;
 end;
 

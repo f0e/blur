@@ -32,16 +32,16 @@ UsePreviousAppDir=yes
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
+; also makes x64compatible the default for ArchitecturesAllowed and ArchitecturesInstallIn64BitMode
+SetupArchitecture=x64
 ChangesEnvironment=yes
 ; the finish page offers to launch blur, restarting it as well would open it twice
 RestartApplications=no
 UninstallDisplayIcon={app}\{#MyAppExeName}
 SetupIconFile=..\resources\blur.ico
 WizardStyle=modern
-WizardImageFile=resources\wizard-large.bmp,resources\wizard-large-2x.bmp
-WizardSmallImageFile=resources\wizard-small.bmp,resources\wizard-small-2x.bmp
+WizardImageFile=resources\wizard-large.png
+WizardSmallImageFile=resources\wizard-small.png
 Compression=lzma2
 SolidCompression=yes
 SetupLogging=yes
