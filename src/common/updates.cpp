@@ -8,52 +8,32 @@ const std::vector<std::string> WINDOWS_INSTALLER_ARGS = { "/UPDATE" };
 const std::string MACOS_INSTALLER_NAME = "blur-macOS-Release-arm64.dmg";
 
 namespace {
-	bool is_version_newer(std::string current, std::string latest) {
-		// Remove leading 'v' if present
-		if (!current.empty() && current[0] == 'v') {
-			current = current.substr(1);
+	// semver
+	std::optional<std::vector<int>> parse_version(std::string_view version) {
+		if (version.starts_with('v'))
+			version.remove_prefix(1);
+
+		std::vector<int> parts;
+
+		try {
+			for (const auto& part : u::split_string(std::string(version), "."))
+				parts.push_back(std::stoi(part));
 		}
-		if (!latest.empty() && latest[0] == 'v') {
-			latest = latest.substr(1);
-		}
-
-		auto current_split = u::split_string(current, ".");
-		auto latest_split = u::split_string(latest, ".");
-
-		// Extract major version numbers
-		int current_major = std::stoi(current_split[0]);
-		int latest_major = std::stoi(latest_split[0]);
-
-		// compare major versions
-		if (current_major < latest_major)
-			return true; // latest major version is newer. e.g. v2.x vs v1.x
-		if (current_major > latest_major)
-			return false; // ..
-
-		// compare subversions
-		if (current_split.size() == 1 && latest_split.size() > 1)
-			return true; // latest version has a subversion where current does not. e.g. v2.1 vs v2
-		if (latest_split.size() == 1 && current_split.size() > 1)
-			return false; // ..
-
-		size_t current_subversions = current_split[1].size();
-		size_t latest_subversions = latest_split[1].size();
-		size_t min_subversions = std::min(current_subversions, latest_subversions);
-		for (size_t i = 0; i < min_subversions; i++) {
-			char current_sub = current_split[1][i] - '0';
-			char latest_sub = latest_split[1][i] - '0';
-
-			if (current_sub < latest_sub)
-				return true; // latest subversion is newer. e.g. v2.1 vs v2.2 or v2.1111 vs v2.1112
-			if (current_sub > latest_sub)
-				return false; // ..
+		catch (const std::exception&) {
+			return {};
 		}
 
-		// they're the same up to the point where one has more subversions
-		return latest_subversions >
-		       current_subversions; // latest is newer if more subversions. e.g. 2.111 > 2.11. note: yes, this will
-		                            // happen for v2.0 vs v2 or v2.10 vs v2.1, but edge case, idc. will never happen.
+		return parts;
 	}
+}
+
+bool updates::is_version_newer(std::string_view current, std::string_view latest) {
+	auto current_version = parse_version(current);
+	auto latest_version = parse_version(latest);
+	if (!current_version || !latest_version)
+		return false;
+
+	return *current_version < *latest_version;
 }
 
 tl::expected<updates::UpdateCheckRes, std::string> updates::is_latest_version(bool include_beta) {

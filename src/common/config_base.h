@@ -1,12 +1,16 @@
 #pragma once
 
+#include "updates.h"
+
 namespace config_base {
+	using ConfigMap = std::map<std::string, std::string>;
+
 	template<typename T>
 	concept HasGetline = requires(T& t, std::string& s) { std::getline(t, s); };
 
 	template<HasGetline InputStream>
-	std::map<std::string, std::string> read_config_map(InputStream& input_stream) {
-		std::map<std::string, std::string> config = {};
+	ConfigMap read_config_map(InputStream& input_stream) {
+		ConfigMap config = {};
 
 		// retrieve all of the variables from the input source
 		std::string line;
@@ -30,6 +34,51 @@ namespace config_base {
 		}
 
 		return config;
+	}
+
+	inline std::optional<std::string> parse_config_version(const std::string& config_content) {
+		std::istringstream stream(config_content);
+
+		std::string line;
+		while (std::getline(stream, line)) {
+			line = u::trim(line);
+			if (line.empty())
+				continue;
+
+			if (!line.starts_with("[blur v") || !line.ends_with("]"))
+				return {}; // the header is always the first line
+
+			return line.substr(7, line.size() - 8);
+		}
+
+		return {};
+	}
+
+	struct Migration {
+		std::string_view version;
+		std::string_view description;
+		bool (*apply)(ConfigMap& config);
+	};
+
+	inline void apply_migrations(
+		ConfigMap& config, const std::optional<std::string>& config_version, std::span<const Migration> migrations
+	) {
+		for (const auto& migration : migrations) {
+			// unversioned configs could be from anything, so run every migration
+			bool needed = !config_version || updates::is_version_newer(*config_version, migration.version);
+			if (!needed)
+				continue;
+
+			if (!migration.apply(config))
+				continue;
+
+			DEBUG_LOG(
+				"migrated config from v{} for v{}: {}",
+				config_version.value_or("?"),
+				migration.version,
+				migration.description
+			);
+		}
 	}
 
 	template<typename T>

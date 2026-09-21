@@ -199,7 +199,9 @@ namespace config_blur {
 
 	BlurSettings parse(const std::string& config_content);
 	BlurSettings parse(const std::filesystem::path& config_filepath);
-	BlurSettings parse_from_map(const std::map<std::string, std::string>& config_map);
+	BlurSettings parse_from_map(
+		std::map<std::string, std::string> config_map, const std::optional<std::string>& config_version
+	);
 
 	std::filesystem::path get_configs_path();
 	std::filesystem::path get_config_path(const std::string& name);

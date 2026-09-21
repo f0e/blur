@@ -10,10 +10,24 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Check BLUR_VERSION matches tag
+      - name: Check versions are semver and match tag
         run: |
+          VERSION=$(sed -n 's/^const std::string BLUR_VERSION = "\(.*\)";$/\1/p' src/common/blur.h)
+          INSTALLER_VERSION=$(sed -n 's/^#define MyAppVersion "\(.*\)"$/\1/p' installer/setup.iss)
           TAG="${GITHUB_REF#refs/tags/v}"
-          if ! grep -qF "const std::string BLUR_VERSION = \"$TAG\";" src/common/blur.h; then
-            echo "BLUR_VERSION doesn't match release tag $GITHUB_REF"
+
+          # check that it's digits only
+          if ! [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "BLUR_VERSION '$VERSION' isn't semver (MAJOR.MINOR.PATCH)"
+            exit 1
+          fi
+
+          if [[ "$VERSION" != "$TAG" ]]; then
+            echo "BLUR_VERSION '$VERSION' doesn't match release tag $GITHUB_REF"
+            exit 1
+          fi
+
+          if [[ "$INSTALLER_VERSION" != "$VERSION" ]]; then
+            echo "installer version '$INSTALLER_VERSION' doesn't match BLUR_VERSION '$VERSION'"
             exit 1
           fi

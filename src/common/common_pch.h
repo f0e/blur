@@ -21,6 +21,7 @@
 #include <set>
 #include <unordered_set>
 #include <ranges>
+#include <span>
 #include <cfloat>
 #include <csignal>
 
