@@ -22,12 +22,22 @@ New-Item -ItemType Directory -Force -Path $modelsBaseDir | Out-Null
 function Download-File {
     param (
         [string]$Url,
-        [string]$OutFile
+        [string]$OutFile,
+        [string]$Sha256 # only needed when the url could change
     )
 
     Write-Host "Downloading $Url to $OutFile"
     $webClient = New-Object System.Net.WebClient
     $webClient.DownloadFile($Url, $OutFile)
+
+    if ($Sha256) {
+        $hash = (Get-FileHash $OutFile -Algorithm SHA256).Hash
+        if ($hash -ne $Sha256) {
+            Remove-Item $OutFile
+            throw "$Url has SHA256 $hash, expected $Sha256"
+        }
+    }
+
     Write-Host "Download completed"
 }
 
@@ -115,7 +125,7 @@ Push-Location $vapoursynthDir
 
 # the blur scripts need numpy
 Write-Host "Installing numpy into VapourSynth's Python..."
-& (Join-Path $vapoursynthDir "python.exe") -m pip install --no-warn-script-location numpy
+& (Join-Path $vapoursynthDir "python.exe") -m pip install --no-warn-script-location numpy==2.5.3
 
 Write-Host "Cleaning up VapourSynth"
 Remove-Item -Path doc -Recurse -Force
@@ -138,11 +148,13 @@ $plugins = @(
     @{
         Name        = "FrameBlender";
         Url         = "https://github.com/f0e/vs-frameblender/releases/download/v2/frameblender-windows-x64.dll";
+        Sha256      = "5e85104ade54eee4875b2f0271e755e511778b7329f7cd68cfc027b444288708";
         IsDirectDll = $true;
     },
     @{
         Name         = "BestSource";
         Url          = "https://github.com/vapoursynth/bestsource/releases/download/R11/BestSource-R11.7z";
+        Sha256       = "d6c88a0b5f6a72d80602a59f5b365dae6ad2d2ad48e7b876a1392e005f5387c0";
         FilePatterns = @("BestSource.dll");
     },
     @{
@@ -153,11 +165,13 @@ $plugins = @(
     @{
         Name         = "MVTools";
         Url          = "https://github.com/dubhater/vapoursynth-mvtools/releases/download/v24/vapoursynth-mvtools-v24-win64.7z";
+        Sha256       = "b9883003eed100d4ffd44344b658554076b89da6d45041b378e675720426bc95";
         FilePatterns = @("libmvtools.dll");
     },
     @{
         Name        = "VapourSynth-RIFE-ncnn-Vulkan";
         Url         = "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/releases/download/r9_mod_v33/librife_windows_x86-64.dll";
+        Sha256      = "36a25b471be88e6f915320c818022dc8657dd9beac22a8c3158bd7f4260cc410";
         IsDirectDll = $true;
     },
     @{
@@ -171,6 +185,7 @@ $plugins = @(
     @{
         Name         = "FmtConv";
         Url          = "https://ldesoras.fr/src/vs/fmtconv-r31.zip";
+        Sha256       = "09038091bc5b1f587f6464ed6324f57b667c09fa65c6fcd6bb86e75da83365e0";
         FilePatterns = @("win64/fmtconv.dll");
     }
 )
@@ -184,13 +199,13 @@ foreach ($plugin in $plugins) {
     if ($isDirectDll) {
         # Direct DLL download (no extraction needed)
         $dllPath = Join-Path $pluginsDir "$($plugin.Name.ToLower()).dll"
-        Download-File -Url $plugin.Url -OutFile $dllPath
+        Download-File -Url $plugin.Url -OutFile $dllPath -Sha256 $plugin.Sha256
     }
     else {
         # Archive download that needs extraction
         $archiveExt = if ($plugin.Url.EndsWith('.zip') -or $plugin.Url.EndsWith('.whl')) { '.zip' } else { '.7z' }
         $archivePath = Join-Path $vapoursynthDir "$($plugin.Name.ToLower())$archiveExt"
-        Download-File -Url $plugin.Url -OutFile $archivePath
+        Download-File -Url $plugin.Url -OutFile $archivePath -Sha256 $plugin.Sha256
         Extract-Files -ArchivePath $archivePath -FilePatterns $plugin.FilePatterns -DestinationPath $pluginsDir
     }
 }
@@ -198,7 +213,7 @@ foreach ($plugin in $plugins) {
 # Download and process FFmpeg
 $ffmpegUrl = "https://github.com/GyanD/codexffmpeg/releases/download/2025-08-14-git-cdbb5f1b93/ffmpeg-2025-08-14-git-cdbb5f1b93-full_build.7z"
 $ffmpegArchive = Join-Path $ffmpegDir "ffmpeg-git-essentials.7z"
-Download-File -Url $ffmpegUrl -OutFile $ffmpegArchive
+Download-File -Url $ffmpegUrl -OutFile $ffmpegArchive -Sha256 "bb165e0e9103d2c0102fdba02a14339e715199f790a102168a31d4655cee637e"
 Extract-Files -ArchivePath $ffmpegArchive -FilePatterns @(
     "ffmpeg-2025-08-14-git-cdbb5f1b93-full_build\\bin\ffmpeg.exe",
     "ffmpeg-2025-08-14-git-cdbb5f1b93-full_build\\bin\ffprobe.exe"
