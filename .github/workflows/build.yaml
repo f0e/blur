@@ -4,6 +4,7 @@ on: [push]
 
 env:
   MPV_VERSION: "20260118-git-468d34c"
+  MPV_SHA256: "0a538daa4fb6e6550ead2c345165ebc4696822dcb648ef9b80e9f5185a9e63e6"
 
 jobs:
   build:
@@ -134,6 +135,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           curl -L https://sourceforge.net/projects/mpv-player-windows/files/libmpv/mpv-dev-x86_64-v3-${{ env.MPV_VERSION }}.7z/download > mpv.7z
+          echo "${{ env.MPV_SHA256 }}  mpv.7z" | sha256sum -c
           7z x mpv.7z
           mkdir mpv
           mv include mpv

@@ -14,6 +14,7 @@ download_zip() {
   local url="$1"
   local dir_name="$2"
   local out_path="$3"
+  local sha256="$4"
 
   mkdir -p download
   cd download
@@ -27,6 +28,13 @@ download_zip() {
     echo "Downloading $dir_name"
 
     wget -q "$url" -O "$dir_name.zip"
+
+    if ! echo "$sha256  $dir_name.zip" | shasum -a 256 -c --quiet -; then
+      echo "$url doesn't match its hash"
+      rm "$dir_name.zip"
+      return 1
+    fi
+
     unzip "$dir_name.zip"
     rm "$dir_name.zip"
   fi
@@ -46,6 +54,7 @@ download_library() {
   local url="$1"
   local filename="$2"
   local out_path="$3"
+  local sha256="$4" # only needed when the url could change
   local dir_name="${filename%.*}" # Remove file extension to get dir name
 
   mkdir -p download/$dir_name
@@ -54,6 +63,12 @@ download_library() {
   if [ ! -f "$filename" ]; then
     echo "Downloading $filename..."
     wget -q "$url" -O "$filename"
+
+    if [ -n "$sha256" ] && ! echo "$sha256  $filename" | shasum -a 256 -c --quiet -; then
+      echo "$url doesn't match its hash"
+      rm "$filename"
+      return 1
+    fi
   else
     echo "$filename already exists. Skipping download."
   fi
@@ -171,13 +186,15 @@ build() {
 download_zip \
   "https://ffmpeg.martin-riedl.de/download/macos/arm64/1744739657_N-119265-g0040d7e608/ffmpeg.zip" \
   "ffmpeg" \
-  "ffmpeg"
+  "ffmpeg" \
+  "07bc646fa3a0ba2b6a9575ffe5e1e43abfe9accb060fd38bf76ea06a1e2de9ca"
 
 ## ffprobe (static) todo: shared? for smaller size?
 download_zip \
   "https://ffmpeg.martin-riedl.de/download/macos/arm64/1744739657_N-119265-g0040d7e608/ffprobe.zip" \
   "ffprobe" \
-  "ffmpeg"
+  "ffmpeg" \
+  "ec9b34a5abd0decc87b150809f82ef8352500b32db9496c917b5ffa8b5c5b8dd"
 
 ## svpflow
 echo "Downloading SVPFlow libraries..."
@@ -204,6 +221,7 @@ cd download/python
 
 if [ ! -d "python" ]; then
   wget -q https://github.com/astral-sh/python-build-standalone/releases/download/20250317/cpython-3.12.9+20250317-aarch64-apple-darwin-install_only.tar.gz -O python.tar.gz
+  echo "7c7fd9809da0382a601a79287b5d62d61ce0b15f5a5ee836233727a516e85381  python.tar.gz" | shasum -a 256 -c --quiet -
   mkdir -p python
   tar -xzf python.tar.gz -C python --strip-components 1
   rm python.tar.gz
@@ -221,10 +239,10 @@ install_name_tool -change /install/lib/libpython3.12.dylib "$PWD/$out_dir/python
 install_name_tool -id "$PWD/$out_dir/python/lib/libpython3.12.dylib" $out_dir/python/lib/libpython3.12.dylib
 
 $out_dir/python/bin/pip install --upgrade pip
-$out_dir/python/bin/pip install cython
+$out_dir/python/bin/pip install cython==3.3.0
 
 # the blur scripts need numpy
-$out_dir/python/bin/pip install numpy
+$out_dir/python/bin/pip install numpy==2.5.3
 
 # builds
 ## vapoursynth
@@ -308,7 +326,8 @@ codesign -f -s - "$akarin_plugin"
 download_library \
   "https://github.com/f0e/vs-frameblender/releases/download/v2/frameblender-macos-arm64.dylib" \
   "libframeblender.dylib" \
-  "vapoursynth-plugins"
+  "vapoursynth-plugins" \
+  "c107b3350575d4c1bd2ed308c1126e9ceca4f21107b9afa74540be1a8ed99e4f"
 
 # Define model downloads
 echo "Starting model downloads..."

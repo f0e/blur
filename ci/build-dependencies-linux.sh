@@ -56,6 +56,7 @@ download_library() {
   local url="$1"
   local filename="$2"
   local out_path="$3"
+  local sha256="$4"
   local dir_name="${filename%.*}" # Remove file extension to get dir name
 
   mkdir -p download/$dir_name
@@ -64,6 +65,12 @@ download_library() {
   if [ ! -f "$filename" ]; then
     echo "Downloading $filename..."
     wget -q "$url" -O "$filename"
+
+    if ! echo "$sha256  $filename" | sha256sum -c --quiet -; then
+      echo "$url doesn't match its hash"
+      rm "$filename"
+      return 1
+    fi
   else
     echo "$filename already exists. Skipping download."
   fi
@@ -120,21 +127,23 @@ download_model_files() {
 
 ## svpflow
 download_archive \
-  "https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip" \
+  "https://web.archive.org/web/20190322064557if_/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip" \
   "svpflow" \
   "vapoursynth-plugins" \
   "svpflow-4.2.0.142/lib-linux"
 
 # bestsource
 download_library \
-  "https://github.com/f0e/blur-plugin-builds/releases/latest/download/bestsource.so" \
+  "https://github.com/f0e/blur-plugin-builds/releases/download/build-20260512-f81d24b/bestsource.so" \
   "bestsource.so" \
-  "vapoursynth-plugins"
+  "vapoursynth-plugins" \
+  "69d0bc2ccaa4dc3f3c41047b04346f61710ebde66ece1a19f807a08a10b5eb78"
 
 download_library \
-  "https://github.com/f0e/blur-plugin-builds/releases/latest/download/libbestsource.so" \
+  "https://github.com/f0e/blur-plugin-builds/releases/download/build-20260512-f81d24b/libbestsource.so" \
   "libbestsource.so" \
-  "vapoursynth-plugins"
+  "vapoursynth-plugins" \
+  "ee291eef4193616b015f6ab303b621fe803d51a2a46df4cb5a6895d396a5a3fc"
 
 # lsmash
 download_wheel \
@@ -161,25 +170,29 @@ patchelf --set-rpath '$ORIGIN' "$plugins_dir/libakarin.so"
 download_library \
   "https://github.com/f0e/vs-frameblender/releases/download/v2/frameblender-linux-x64.so" \
   "libframeblender.so" \
-  "vapoursynth-plugins"
+  "vapoursynth-plugins" \
+  "5d138cdadd1dcd5675c490bd956a0084a6a2fc30f5c2f9a132ea049fb36a12d4"
 
 # mvtools
 download_library \
-  "https://github.com/f0e/blur-plugin-builds/releases/latest/download/libmvtools.so" \
+  "https://github.com/f0e/blur-plugin-builds/releases/download/build-20260512-f81d24b/libmvtools.so" \
   "libmvtools.so" \
-  "vapoursynth-plugins"
+  "vapoursynth-plugins" \
+  "5af1d87c87d120c7c126650553866c55d21ffcfffcafa95fc3f76f2a4c536f31"
 
 # fmtconv
 download_library \
-  "https://github.com/f0e/blur-plugin-builds/releases/latest/download/libfmtconv.so" \
+  "https://github.com/f0e/blur-plugin-builds/releases/download/build-20260512-f81d24b/libfmtconv.so" \
   "libfmtconv.so" \
-  "vapoursynth-plugins"
+  "vapoursynth-plugins" \
+  "b0ec80d5eacd0028365ca76fe3e296beb2ac2db43bd46acc064ef1b28d33ef26"
 
 # rife-ncnn-vulkan
 download_library \
   "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/releases/download/r9_mod_v33/librife_linux_x86-64.so" \
   "librife_linux_x86-64.so" \
-  "vapoursynth-plugins"
+  "vapoursynth-plugins" \
+  "18a00a5e3ac90a5dfcfdf85fdb81d977381a5a2560a4c45dbe9a469d007b1886"
 
 # rife model
 download_model_files \
