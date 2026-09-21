@@ -1,7 +1,11 @@
-# Create necessary directories
+$ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $true
+
 $outDir = Join-Path $PWD "out"
 
-Remove-Item -Path $outDir -Recurse -Force
+if (Test-Path $outDir) {
+    Remove-Item -Path $outDir -Recurse -Force
+}
 
 $vapoursynthDir = Join-Path $outDir "vapoursynth"
 $ffmpegDir = Join-Path $outDir "ffmpeg"
@@ -36,9 +40,7 @@ function Extract-Files {
     )
 
     if (-not (Get-Command "7z" -ErrorAction SilentlyContinue)) {
-        Write-Warning "7z not found. Please install 7-Zip and make sure it's in your PATH."
-        Write-Warning "7z file is located at: $ArchivePath"
-        return
+        throw "7z not found. Please install 7-Zip and make sure it's in your PATH."
     }
 
     $tempDir = [System.IO.Path]::Combine([System.IO.Path]::GetDirectoryName($ArchivePath), "temp-extract-" + [System.IO.Path]::GetRandomFileName())
@@ -60,7 +62,7 @@ function Extract-Files {
                 Write-Host "Copied $pattern to $DestinationPath"
             }
             else {
-                Write-Warning "Could not find $pattern in the extracted files."
+                throw "Could not find $pattern in $ArchivePath"
             }
         }
     }
@@ -108,15 +110,12 @@ Download-File -Url $vapoursynthInstallerUrl -OutFile $vapoursynthInstallerPath
 
 # Run VapourSynth installer
 Write-Host "Running VapourSynth installer..."
-Set-Location $vapoursynthDir
+Push-Location $vapoursynthDir
 & $vapoursynthInstallerPath -Unattended -TargetFolder $vapoursynthDir
 
 # the blur scripts need numpy
 Write-Host "Installing numpy into VapourSynth's Python..."
 & (Join-Path $vapoursynthDir "python.exe") -m pip install --no-warn-script-location numpy
-if ($LASTEXITCODE -ne 0) {
-    throw "Failed to install numpy into VapourSynth's Python"
-}
 
 Write-Host "Cleaning up VapourSynth"
 Remove-Item -Path doc -Recurse -Force
@@ -124,7 +123,7 @@ Remove-Item -Path Scripts -Recurse -Force
 Remove-Item -Path vs-temp-dl -Recurse -Force
 Remove-Item -Path $vapoursynthInstallerPath
 
-Set-Location $PWD
+Pop-Location
 
 # Plugin installations
 $plugins = @(
