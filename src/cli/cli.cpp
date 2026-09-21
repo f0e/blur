@@ -89,6 +89,8 @@ bool cli::run(
 		return false;
 	}
 
+	bool any_failed = false;
+
 	for (size_t i = 0; i < inputs.size(); ++i) {
 		std::filesystem::path input_path = inputs[i];
 
@@ -138,7 +140,21 @@ bool cli::run(
 			0.f,
 			1.f,
 			{},
-			{},
+			[&any_failed](const rendering::VideoRenderDetails& render, const auto& result) {
+				if (result)
+					return;
+
+				any_failed = true;
+
+				const auto& error = result.error();
+				u::log(
+					"Failed to render '{}': {}",
+					render.input_path.stem(),
+					std::holds_alternative<rendering::RenderError>(error)
+						? std::get<rendering::RenderError>(error).to_string()
+						: std::get<std::string>(error)
+				);
+			},
 			config_name,
 			mask_override,
 			auto_mask
@@ -160,5 +176,5 @@ bool cli::run(
 
 	u::log("Finished rendering");
 
-	return true;
+	return !any_failed;
 }
