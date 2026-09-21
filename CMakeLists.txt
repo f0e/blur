@@ -329,8 +329,6 @@ if(APPLE)
     COMMAND ${CMAKE_COMMAND} -E echo "Copying resources to bundle..."
     COMMAND ${CMAKE_COMMAND} -E make_directory
             "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/"
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/vapoursynth"
     COMMAND ${CMAKE_COMMAND} -E echo "Copying ci/out files..."
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/ci/out"
             "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/"

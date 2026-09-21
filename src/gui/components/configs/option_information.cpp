@@ -389,13 +389,6 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
-			"resize chroma location dropdown",
-			{
-				"Sets the chroma location used when resizing. Can fix colours being moved slightly off from where "
-				"they should be",
-			},
-		},
-		{
 			"copy dates checkbox",
 			{
 				"Copies over the modified date from the input",

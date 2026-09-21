@@ -75,7 +75,7 @@ Source: "{#BinDir}\blur-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BinDir}\libmpv-2.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BinDir}\libEGL.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BinDir}\libGLESv2.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#DepsDir}\*"; DestDir: "{app}\lib"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#DepsDir}\*"; DestDir: "{app}\lib"; Excludes: "\redist,\7zip"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\src\vapoursynth\*"; DestDir: "{app}\lib"; Excludes: "__pycache__,*.pyc"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
@@ -94,6 +94,7 @@ Type: filesandordirs; Name: "{app}\lib"
 #include "code\migrate-32bit.iss"
 #include "code\tensorrt.iss"
 #include "code\stale-files.iss"
+#include "code\vcredist.iss"
 
 [Code]
 var

@@ -93,27 +93,21 @@ Blur supports rendering from frameservers. This means you can avoid having to ru
 
 ## Linux dependency requirements
 
-### General list of things you need
-
-If your distro isn't listed below, here's a list of the things you'll need to install.
-
-- VapourSynth
 - FFmpeg
-- VapourSynth plugins (install to your system vapoursynth plugin path or [your blur binary directory]/vapoursynth-plugins)
-  - [SVPflow](https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip)
-  - [BestSource](https://github.com/vapoursynth/bestsource) ([my automated build](https://github.com/f0e/blur-plugin-builds/releases/latest))
-  - [L-SMASH-Works](https://github.com/HomeOfAviSynthPlusEvolution/L-SMASH-Works) - `pip install vapoursynth-lsmas`
-  - [MVTools](https://github.com/dubhater/vapoursynth-mvtools) ([my automated build](https://github.com/f0e/blur-plugin-builds/releases/latest))
-  - [Akarin](https://github.com/Jaded-Encoding-Thaumaturgy/akarin-vapoursynth-plugin)
-  - [RIFE-ncnn-Vulkan](https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/releases/latest)
-  - [Adjust](https://github.com/f0e/Vapoursynth-adjust/releases/latest)
+- FFprobe
+- mpv (for libmpv)
 
-### Arch required packages
+On Arch: `sudo pacman -S ffmpeg mpv`
 
-`paru -S vapoursynth ffmpeg vapoursynth-plugin-svpflow vapoursynth-plugin-bestsource vapoursynth-plugin-mvtools vapoursynth-plugin-rife-ncnn-vulkan`
+- VapourSynth (R79)
 
-And manually install [adjust](https://github.com/f0e/Vapoursynth-adjust/releases/latest) and akarin via `pip install vapoursynth-akarin`
+I recommend installing VapourSynth via `pipx`:
 
+```
+pipx install vapoursynth==79
+pipx inject vapoursynth numpy
+pipx ensurepath
+```
 ---
 
 \*in the future I might buy a dev cert, but $99 a year atm doesn't seem worth it 😅

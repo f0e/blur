@@ -591,11 +591,7 @@ void configs::options(ui::Container& container) {
 
 	static std::string rife_device;
 	device_dropdown(
-		"rife device",
-		devices::rife,
-		app_settings.rife_device,
-		devices::get_auto_rife_device(),
-		rife_device
+		"rife device", devices::rife, app_settings.rife_device, devices::get_auto_rife_device(), rife_device
 	);
 
 #ifdef TENSORRT
@@ -754,15 +750,6 @@ void configs::options(ui::Container& container) {
 		});
 
 		ui::add_checkbox("debug checkbox", container, "debug", settings.advanced.debug, fonts::dejavu);
-
-		ui::add_dropdown(
-			"resize chroma location dropdown",
-			container,
-			"resize chroma location",
-			config_blur::RESIZE_CHROMA_LOCATIONS,
-			settings.advanced.resize_chromaloc,
-			fonts::dejavu
-		);
 
 		ui::add_dropdown(
 			"source plugin dropdown",

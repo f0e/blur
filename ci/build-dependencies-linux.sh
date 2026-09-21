@@ -84,23 +84,25 @@ download_library() {
   cd ../..
 }
 
-download_wheel() {
-  local url="$1"
-  local dir_name="$2"
+# blur doesn't ship vapoursynth on linux, so there's no python to install plugins into - pip just fetches them. their
+# bundled libraries have hashed names that don't end in .so, so the plugin loader ignores them
+install_pypi_plugins() {
+  local target="download/pypi"
+  local plugins_dir="$out_dir/vapoursynth-plugins"
 
-  mkdir -p download/$dir_name
-  cd download/$dir_name
+  rm -rf "$target"
+  # pip doesn't count a newer manylinux tag as covering older ones, so every tag the wheels use is listed
+  python3 -m pip install --no-deps --only-binary=:all: \
+    --platform manylinux_2_35_x86_64 --platform manylinux_2_28_x86_64 --platform manylinux_2_27_x86_64 \
+    --target "$target" "$@"
 
-  if [ ! -d "wheel" ]; then
-    echo "Downloading $dir_name wheel..."
-    wget -q "$url" -O wheel.zip # a wheel is just a zip
-    unzip -q wheel.zip -d wheel
-    rm wheel.zip
-  else
-    echo "$dir_name wheel already extracted. Skipping download."
-  fi
+  mkdir -p "$plugins_dir"
+  find "$target/vapoursynth/plugins" -maxdepth 2 -name "*.so" | while read -r plugin; do
+    cp "$plugin" "$plugins_dir"
+    patchelf --set-rpath '$ORIGIN' "$plugins_dir/$(basename "$plugin")"
+  done
 
-  cd ../..
+  find "$target" -maxdepth 1 -name "vapoursynth_*.libs" -exec sh -c 'cp "$1"/* "$2"' _ {} "$plugins_dir" \;
 }
 
 download_model_files() {
@@ -132,53 +134,19 @@ download_archive \
   "vapoursynth-plugins" \
   "svpflow-4.2.0.142/lib-linux"
 
-# bestsource
-download_library \
-  "https://github.com/f0e/blur-plugin-builds/releases/download/build-20260512-f81d24b/bestsource.so" \
-  "bestsource.so" \
-  "vapoursynth-plugins" \
-  "69d0bc2ccaa4dc3f3c41047b04346f61710ebde66ece1a19f807a08a10b5eb78"
-
-download_library \
-  "https://github.com/f0e/blur-plugin-builds/releases/download/build-20260512-f81d24b/libbestsource.so" \
-  "libbestsource.so" \
-  "vapoursynth-plugins" \
-  "ee291eef4193616b015f6ab303b621fe803d51a2a46df4cb5a6895d396a5a3fc"
-
-# lsmash
-download_wheel \
-  "https://files.pythonhosted.org/packages/ec/de/40a4c15d0ddb4014edb3fd92f1358cf9e2c2b14eb272b04912aaa802e58f/vapoursynth_lsmas-1310.0.0.0-py3-none-manylinux_2_28_x86_64.whl" \
-  "lsmas"
-
-mkdir -p "$out_dir/vapoursynth-plugins"
-cp download/lsmas/wheel/vapoursynth/plugins/liblsmashsource.so "$out_dir/vapoursynth-plugins"
-
-# akarin
-download_wheel \
-  "https://files.pythonhosted.org/packages/88/82/656755adce60bdf2758c0b03eb3ed7b9622c114bed1d5a1c6c7e13fb5e77/vapoursynth_akarin-1.5.0-py3-none-manylinux_2_35_x86_64.whl" \
-  "akarin"
-
-plugins_dir="$out_dir/vapoursynth-plugins"
-cp download/akarin/wheel/vapoursynth/plugins/akarin/libakarin.so "$plugins_dir"
-
-# flatten in the wheel's bundled deps. their hashed names don't end in .so, so the plugin loader
-# ignores them
-cp download/akarin/wheel/vapoursynth_akarin.libs/* "$plugins_dir"
-patchelf --set-rpath '$ORIGIN' "$plugins_dir/libakarin.so"
+# plugins on pypi
+install_pypi_plugins \
+  vapoursynth-akarin==1.5.0 \
+  vapoursynth-bestsource==21.0 \
+  vapoursynth-lsmas==1310.0.0.0 \
+  vapoursynth-mvtools==29
 
 # frameblender
 download_library \
-  "https://github.com/f0e/vs-frameblender/releases/download/v2/frameblender-linux-x64.so" \
+  "https://github.com/f0e/vs-frameblender/releases/download/v2.1/frameblender-linux-x64.so" \
   "libframeblender.so" \
   "vapoursynth-plugins" \
-  "5d138cdadd1dcd5675c490bd956a0084a6a2fc30f5c2f9a132ea049fb36a12d4"
-
-# mvtools
-download_library \
-  "https://github.com/f0e/blur-plugin-builds/releases/download/build-20260512-f81d24b/libmvtools.so" \
-  "libmvtools.so" \
-  "vapoursynth-plugins" \
-  "5af1d87c87d120c7c126650553866c55d21ffcfffcafa95fc3f76f2a4c536f31"
+  "624269bbca909d3be6e9437c5b5a2594b59d3135e39609fcc46606f8d4c979ee"
 
 # fmtconv
 download_library \
