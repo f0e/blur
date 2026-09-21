@@ -36,7 +36,10 @@ endif()
 # force static runtime on windows
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-project(blur LANGUAGES C CXX)
+project(
+  blur
+  VERSION 3.0.0
+  LANGUAGES C CXX)
 
 # global settings
 set(CMAKE_CXX_STANDARD 20)
@@ -46,6 +49,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
     ${PROJECT_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE})
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
+# version comes from project() above, bump it there
+set(BLUR_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
+configure_file("${CMAKE_SOURCE_DIR}/cmake/blur_version.h.in"
+               "${BLUR_GENERATED_DIR}/blur_version.h" @ONLY)
 
 # packages
 find_package(nlohmann_json CONFIG REQUIRED)
@@ -96,7 +104,7 @@ file(GLOB_RECURSE RESOURCES "resources/*")
 
 # common
 add_library(blur-common STATIC ${COMMON_SOURCES})
-target_include_directories(blur-common PUBLIC src)
+target_include_directories(blur-common PUBLIC src ${BLUR_GENERATED_DIR})
 target_link_libraries(
   blur-common
   PUBLIC nlohmann_json::nlohmann_json
@@ -126,7 +134,8 @@ function(setup_target target)
   target_compile_definitions(${target} PRIVATE NOMINMAX BOOST_FILESYSTEM_NO_LIB
                                                BOOST_FILESYSTEM_STATIC_LINK=1)
   if(WIN32)
-    set(${target} resources/resources_win32.rc)
+    target_compile_definitions(
+      ${target} PRIVATE BLUR_RC_FILE_NAME="$<TARGET_FILE_NAME:${target}>")
   endif()
   if(APPLE)
     target_link_libraries(${target} PRIVATE "-framework CoreFoundation")
@@ -285,15 +294,18 @@ if(APPLE)
             "-framework Foundation" "-framework AppKit"
             "-framework UserNotifications" "-framework QuartzCore")
 
-  set(MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/src/Info.plist")
+  configure_file("${CMAKE_SOURCE_DIR}/src/Info.plist.in"
+                 "${BLUR_GENERATED_DIR}/Info.plist" @ONLY)
+
+  set(MACOSX_BUNDLE_INFO_PLIST "${BLUR_GENERATED_DIR}/Info.plist")
 
   set_target_properties(
     blur
     PROPERTIES MACOSX_BUNDLE TRUE
-               MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/src/Info.plist
+               MACOSX_BUNDLE_INFO_PLIST "${BLUR_GENERATED_DIR}/Info.plist"
                MACOSX_BUNDLE_BUNDLE_NAME "Blur"
-               MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
-               MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+               MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+               MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
                MACOSX_BUNDLE_GUI_IDENTIFIER "com.f0e.blur"
                OUTPUT_NAME "Blur"
                XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS
