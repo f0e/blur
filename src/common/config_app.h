@@ -4,8 +4,8 @@ struct GlobalAppSettings {
 	std::string output_prefix;
 
 	std::string gpu_type;
-	int rife_device_index = -1;
-	int tensorrt_device_index = -1;
+	std::string rife_device = "auto";
+	std::string tensorrt_device = "auto";
 
 #ifdef BLUR_COLOR_THEMES
 	std::string gui_color_hex;

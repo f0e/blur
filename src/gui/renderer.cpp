@@ -2,6 +2,7 @@
 
 #include "common/config_app.h"
 #include "common/rendering.h"
+#include "common/devices.h"
 
 #include "gui/ui/keys.h"
 #include "sdl.h"
@@ -417,6 +418,18 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		components::main::invalidate_trim_support();
 
 		last_screen = screen;
+	}
+
+	static bool showing_benchmark_notification = false;
+	if (devices::benchmarking != showing_benchmark_notification) {
+		showing_benchmark_notification = devices::benchmarking;
+
+		if (showing_benchmark_notification)
+			components::notifications::add(
+				"benchmarking notification", "Initialising GPU devices...", ui::NotificationType::INFO, {}, {}, false
+			);
+		else
+			components::notifications::close("benchmarking notification");
 	}
 
 	components::notifications::render(notification_container);

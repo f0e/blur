@@ -42,16 +42,6 @@ public:
 		const std::optional<updates::CancelCallback>& cancel_callback = {}
 	);
 
-	// TODO: this stuff probably shouldn't be here
-	std::map<int, std::string> rife_devices;
-	std::vector<std::string> rife_device_names;
-
-	std::map<int, std::string> tensorrt_devices;
-	std::vector<std::string> tensorrt_device_names;
-	bool initialised_devices = false;
-
-	void initialise_device_lists();
-
 	void setup_signal_handlers();
 };
 

@@ -2,6 +2,7 @@ import vapoursynth as vs
 from vapoursynth import core
 
 import sys
+import time
 from pathlib import Path
 
 # add blur.py folder to path so it can reference scripts
@@ -9,6 +10,7 @@ sys.path.insert(1, str(Path(__file__).parent))
 
 import blur.interpolate
 import blur.utils as u
+from blur import log
 
 if vars().get("macos_bundled") == "true":
     u.load_plugins(".dylib")
@@ -19,6 +21,7 @@ BENCHMARK_WIDTH = 1920
 BENCHMARK_HEIGHT = 1080
 BENCHMARK_FPS = 24
 BENCHMARK_LENGTH = 12
+BENCHMARK_INTERP_MULTIPLIER = 3
 
 
 def generate_benchmark_video() -> vs.VideoNode:
@@ -88,25 +91,40 @@ match benchmark_type:
         video = blur.interpolate.interpolate_rife(
             video,
             video_info,
-            new_fps=video.fps * 3,
+            new_fps=video.fps * BENCHMARK_INTERP_MULTIPLIER,
             model_path=model_path,
             device_index=device_index,
         )
     case "rife (tensorrt)":
-        model = vars().get("rife_trt_model")
-        if not model:
-            raise u.BlurException("RIFE model not provided")
+        model_path = vars().get("rife_trt_model_path")
+        if not model_path or not Path(model_path).exists():
+            raise u.BlurException("RIFE (TensorRT) model path not provided")
 
         video = blur.interpolate.interpolate_rife_vsmlrt(
             video,
             video_info,
-            new_fps=video.fps * 3,
-            model=model,
+            new_fps=video.fps * BENCHMARK_INTERP_MULTIPLIER,
+            model_path=model_path,
             device_index=device_index,
             settings_path=settings_path,
         )
 
     case _:
         raise u.BlurException("Benchmark type invalid")
+
+warmup_frames = BENCHMARK_INTERP_MULTIPLIER
+for n in range(warmup_frames):
+    video.get_frame(n)
+
+max_time = float(vars().get("max_time", "inf"))
+
+start = time.perf_counter()
+for n in range(warmup_frames, video.num_frames):
+    video.get_frame(n)
+
+    if time.perf_counter() - start > max_time:
+        break
+else:
+    log.status("benchmark-time", time.perf_counter() - start)
 
 video.set_output()

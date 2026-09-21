@@ -6,6 +6,7 @@
 #include "common/config_encoding_presets.h"
 #include "common/config_app.h"
 #include "common/masks.h"
+#include "common/devices.h"
 #include "common/rife_models.h"
 
 namespace configs = gui::components::configs;
@@ -35,10 +36,6 @@ void configs::set_interpolated_fps() {
 }
 
 void configs::options(ui::Container& container) {
-	// try set fastest devices if it hasnt been set yet. this will run on config load, but devices may not have been
-	// initialised by the time you switch to the config screen. this catches that case.
-	u::set_fastest_devices(settings);
-
 	hovered_weighting.clear();
 	hovered_mask.clear();
 
@@ -243,7 +240,7 @@ void configs::options(ui::Container& container) {
 			"mvtools",
 		};
 
-		if (blur.initialised_devices && !blur.tensorrt_devices.empty()) {
+		if (devices::initialised && !devices::tensorrt.empty()) {
 			interpolation_options.insert(interpolation_options.begin() + 2, "rife (tensorrt)");
 		}
 
@@ -309,7 +306,7 @@ void configs::options(ui::Container& container) {
 				"rife",
 			};
 
-			if (blur.initialised_devices && !blur.tensorrt_devices.empty()) {
+			if (devices::initialised && !devices::tensorrt.empty()) {
 				pre_interpolation_options.insert(pre_interpolation_options.end(), "rife (tensorrt)");
 			}
 
@@ -501,10 +498,7 @@ void configs::options(ui::Container& container) {
 #ifdef TENSORRT
 		if (uses_rife_trt) {
 			model_dropdown(
-				"rife (tensorrt) model",
-				rife_models::list_trt(),
-				settings.rife_trt_model,
-				rife_models::get_trt_path()
+				"rife (tensorrt) model", rife_models::list_trt(), settings.rife_trt_model, rife_models::get_trt_path()
 			);
 		}
 #endif
@@ -548,70 +542,70 @@ void configs::options(ui::Container& container) {
 		);
 	}
 
-	static std::string rife_device;
+	auto device_dropdown = [&](const std::string& label,
+	                           const std::map<int, std::string>& device_list,
+	                           std::string& device,
+	                           const std::optional<std::string>& auto_device,
+	                           std::string& selected) {
+		if (devices::initialised && device_list.empty()) {
+			selected = "none available";
+			ui::add_dropdown(label + " dropdown", container, label, {}, selected, fonts::dejavu);
+			return;
+		}
 
-	if (app_settings.rife_device_index == -1) {
-		rife_device = "default - will use first available";
-	}
-	else {
-		if (blur.initialised_devices && !blur.rife_devices.empty()) {
-			rife_device = blur.rife_devices.at(app_settings.rife_device_index);
+		std::string auto_option = auto_device ? std::format("auto ({})", *auto_device) : "auto";
+
+		std::vector<std::string> options = { auto_option };
+		if (devices::initialised) {
+			for (const auto& [index, name] : device_list)
+				options.push_back(name);
+		}
+
+		std::vector<std::string> missing;
+		if (device == "auto") {
+			selected = auto_option;
 		}
 		else {
-			rife_device = std::format("gpu {}", app_settings.rife_device_index);
-		}
-	}
+			selected = device;
 
-	ui::add_dropdown(
-		"rife device dropdown",
-		container,
-		"rife device",
-		blur.rife_device_names,
-		rife_device,
-		fonts::dejavu,
-		[&](std::string* new_gpu_name) {
-			for (const auto& [device_index, gpu_name] : blur.rife_devices) {
-				if (gpu_name == *new_gpu_name) {
-					app_settings.rife_device_index = device_index;
-				}
+			// add the current device as a muted option if its not available anymore
+			if (devices::initialised && !u::contains(options, device)) {
+				options.push_back(device);
+				missing.push_back(device);
 			}
 		}
+
+		ui::add_dropdown(
+			label + " dropdown",
+			container,
+			label,
+			options,
+			selected,
+			fonts::dejavu,
+			[&device, auto_option](std::string* new_value) {
+				device = *new_value == auto_option ? "auto" : *new_value;
+			},
+			missing
+		);
+	};
+
+	static std::string rife_device;
+	device_dropdown(
+		"rife device",
+		devices::rife,
+		app_settings.rife_device,
+		devices::get_auto_rife_device(),
+		rife_device
 	);
 
 #ifdef TENSORRT
 	static std::string tensorrt_device;
-
-	if (app_settings.tensorrt_device_index == -1) {
-		if (blur.initialised_devices) {
-			tensorrt_device = "no tensorrt devices available";
-		}
-		else {
-			tensorrt_device = "default - will use first available";
-		}
-	}
-	else {
-		if (blur.initialised_devices && !blur.tensorrt_devices.empty()) {
-			tensorrt_device = blur.tensorrt_devices.at(app_settings.tensorrt_device_index);
-		}
-		else {
-			tensorrt_device = std::format("gpu {}", app_settings.tensorrt_device_index);
-		}
-	}
-
-	ui::add_dropdown(
-		"tensorrt device dropdown",
-		container,
+	device_dropdown(
 		"rife (tensorrt) device",
-		blur.tensorrt_device_names,
-		tensorrt_device,
-		fonts::dejavu,
-		[&](std::string* new_gpu_name) {
-			for (const auto& [device_index, gpu_name] : blur.tensorrt_devices) {
-				if (gpu_name == *new_gpu_name) {
-					app_settings.tensorrt_device_index = device_index;
-				}
-			}
-		}
+		devices::tensorrt,
+		app_settings.tensorrt_device,
+		devices::get_auto_tensorrt_device(),
+		tensorrt_device
 	);
 #endif
 

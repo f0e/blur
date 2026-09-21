@@ -12,10 +12,10 @@ std::string config_app::generate_config_string(const GlobalAppSettings& settings
 
 	if (!shareable_only) {
 		output << "gpu type (nvidia/amd/intel): " << settings.gpu_type << "\n";
-		output << "rife gpu number: " << settings.rife_device_index << "\n";
+		output << "rife gpu: " << settings.rife_device << "\n";
 
 #ifdef TENSORRT
-		output << "rife (tensorrt) gpu number: " << settings.tensorrt_device_index << "\n";
+		output << "rife (tensorrt) gpu: " << settings.tensorrt_device << "\n";
 #endif
 	}
 
@@ -79,8 +79,8 @@ std::string config_app::export_shareable(const GlobalAppSettings& settings) {
 
 void config_app::copy_machine_settings(GlobalAppSettings& to, const GlobalAppSettings& from) {
 	to.gpu_type = from.gpu_type;
-	to.rife_device_index = from.rife_device_index;
-	to.tensorrt_device_index = from.tensorrt_device_index;
+	to.rife_device = from.rife_device;
+	to.tensorrt_device = from.tensorrt_device;
 
 	to.preview_hardware_decoding = from.preview_hardware_decoding;
 
@@ -114,10 +114,10 @@ GlobalAppSettings config_app::parse_from_map(const std::map<std::string, std::st
 
 	config_base::extract_config_value(config_map, "output prefix", settings.output_prefix);
 	config_base::extract_config_value(config_map, "gpu type (nvidia/amd/intel)", settings.gpu_type);
-	config_base::extract_config_value(config_map, "rife gpu number", settings.rife_device_index);
+	config_base::extract_config_value(config_map, "rife gpu", settings.rife_device);
 
 #ifdef TENSORRT
-	config_base::extract_config_value(config_map, "rife (tensorrt) gpu number", settings.tensorrt_device_index);
+	config_base::extract_config_value(config_map, "rife (tensorrt) gpu", settings.tensorrt_device);
 #endif
 
 #ifdef BLUR_COLOR_THEMES
@@ -168,8 +168,6 @@ nlohmann::json GlobalAppSettings::to_json() const {
 	nlohmann::json j;
 
 	j["gpu_type"] = this->gpu_type;
-	j["rife_device_index"] = this->rife_device_index;
-	j["tensorrt_device_index"] = this->tensorrt_device_index;
 
 	return j;
 }

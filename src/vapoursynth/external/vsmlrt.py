@@ -16,6 +16,7 @@ __all__ = [
     "flexible_inference"
 ]
 
+import contextlib
 import copy
 from dataclasses import dataclass, field
 import enum
@@ -1020,7 +1021,7 @@ def RIFEMerge(
     backend: backendT = Backend.OV_CPU(),
     ensemble: bool = False,
     _implementation: typing.Optional[typing.Literal[1, 2]] = None,
-    model_path: typing.Optional[str] = None # blur: load a v2 onnx directly instead of the one named after `model`
+    model_path: typing.Optional[str] = None # blur
 ) -> vs.VideoNode:
     """ temporal MaskedMerge-like interface for the RIFE model
 
@@ -1096,7 +1097,7 @@ def RIFEMerge(
     if (model_major, model_minor) >= (4, 7) and scale != 1.0:
         raise ValueError("not supported")
 
-    # blur: v2 models pad internally, so past picking the file the version doesn't matter to them
+    # blur: v2 models pad internally, so the version only picks the file
     if model_path is not None:
         if scale != 1.0:
             raise ValueError(f'{func_name}: model_path only supports scale 1.0')
@@ -1239,7 +1240,7 @@ def RIFE(
     ensemble: bool = False,
     video_player: bool = False,
     _implementation: typing.Optional[typing.Literal[1, 2]] = None,
-    model_path: typing.Optional[str] = None # blur: see RIFEMerge
+    model_path: typing.Optional[str] = None # blur
 ) -> vs.VideoNode:
     """ RIFE: Real-Time Intermediate Flow Estimation for Video Frame Interpolation
 
@@ -1976,6 +1977,35 @@ def get_engine_path(
         return f"{os.path.join(dirname, basename)}.{identity}.engine"
 
 
+@contextlib.contextmanager
+def _engine_build_lock(engine_path: str):
+    with open(f"{engine_path}.lock", "a+b") as f:
+        if sys.platform == "win32":
+            import msvcrt
+
+            while True:
+                f.seek(0)
+                try:
+                    msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    time.sleep(0.5)
+
+            try:
+                yield
+            finally:
+                f.seek(0)
+                msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+
 def trtexec(
     network_path: str,
     channels: int,
@@ -2057,219 +2087,224 @@ def trtexec(
     if os.access(engine_path, mode=os.R_OK) and os.path.getsize(engine_path) >= 1024:
         return engine_path
 
-    # do not consider alternative path when the engine_folder is given
-    if engine_folder is None:
-        alter_engine_path = os.path.join(
-            tempfile.gettempdir(),
-            os.path.splitdrive(engine_path)[1][1:]
-        )
+    # blur: stop a benchmark and a render building the same engine at once
+    with _engine_build_lock(engine_path):
+        if os.access(engine_path, mode=os.R_OK) and os.path.getsize(engine_path) >= 1024:
+            return engine_path
 
-        if os.access(alter_engine_path, mode=os.R_OK) and os.path.getsize(alter_engine_path) >= 1024:
-            return alter_engine_path
-
-    try:
-        # test writability
-        with open(engine_path, "w") as f:
-            pass
-        os.remove(engine_path)
-    except PermissionError:
+        # do not consider alternative path when the engine_folder is given
         if engine_folder is None:
-            print(f"{engine_path} is not writable", file=sys.stderr)
-            engine_path = alter_engine_path
-            dirname = os.path.dirname(engine_path)
-            if not os.path.exists(dirname):
-                os.makedirs(dirname)
-            print(f"change engine path to {engine_path}", file=sys.stderr)
-        else:
-            # do not consider alternative path when the engine_folder is given
-            raise PermissionError(f"{engine_path} is not writable")
+            alter_engine_path = os.path.join(
+                tempfile.gettempdir(),
+                os.path.splitdrive(engine_path)[1][1:]
+            )
 
-    # trtexec writes here instead of engine_path directly, and we only rename it into
-    # place once the build succeeds. that way a killed/interrupted build (e.g. a
-    # cancelled render) can never leave a corrupt file at the trusted engine_path.
-    tmp_engine_path = f"{engine_path}.building"
+            if os.access(alter_engine_path, mode=os.R_OK) and os.path.getsize(alter_engine_path) >= 1024:
+                return alter_engine_path
 
-    # clean up a stray partial file left behind by a previous interrupted build
-    if os.path.exists(tmp_engine_path):
         try:
-            os.remove(tmp_engine_path)
-        except OSError:
-            pass
-
-    args = [
-        trtexec_path,
-        f"--onnx={network_path}",
-        f"--timingCacheFile={engine_path}.cache",
-        f"--device={device_id}",
-        f"--saveEngine={tmp_engine_path}"
-    ]
-
-    if workspace is not None:
-        if trt_version >= (8, 4, 0):
-            args.append(f"--memPoolSize=workspace:{workspace}")
-        else:
-            args.append(f"--workspace{workspace}")
-
-    if static_shape:
-        args.append(f"--shapes={input_name}:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}")
-    else:
-        args.extend([
-            f"--minShapes={input_name}:1x{channels}x{min_shapes[1]}x{min_shapes[0]}",
-            f"--optShapes={input_name}:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}",
-            f"--maxShapes={input_name}:1x{channels}x{max_shapes[1]}x{max_shapes[0]}"
-        ])
-
-    if fp16:
-        args.append("--fp16")
-
-    if verbose:
-        args.append("--verbose")
-
-    preview_features = []
-    if (use_cublas or use_cudnn) and (8, 6, 0) <= trt_version < (10, 0, 0):
-        preview_features.append("-disableExternalTacticSourcesForCore0805")
-
-    if preview_features and trt_version >= (8, 5, 0):
-        args.append(f"--preview={','.join(preview_features)}")
-
-    tactic_sources = []
-
-    if use_cublas:
-        tactic_sources.extend(["+CUBLAS", "+CUBLAS_LT"])
-    else:
-        tactic_sources.extend(["-CUBLAS", "-CUBLAS_LT"])
-
-    if use_cudnn:
-        tactic_sources.append("+CUDNN")
-    else:
-        tactic_sources.append("-CUDNN")
-
-    if trt_version >= (8, 4, 1):
-        if use_edge_mask_convolutions:
-            tactic_sources.append("+EDGE_MASK_CONVOLUTIONS")
-        else:
-            tactic_sources.append("-EDGE_MASK_CONVOLUTIONS")
-
-    if trt_version >= (8, 5, 0):
-        if use_jit_convolutions:
-            tactic_sources.append("+JIT_CONVOLUTIONS")
-        else:
-            tactic_sources.append("-JIT_CONVOLUTIONS")
-
-    args.append(f"--tacticSources={','.join(tactic_sources)}")
-
-    if use_cuda_graph:
-        args.extend((
-            "--useCudaGraph",
-            "--noDataTransfers"
-        ))
-    else:
-        if trt_version >= (8, 6, 0):
-            args.append("--skipInference")
-        else:
-            args.append("--buildOnly")
-
-    if not tf32:
-        args.append("--noTF32")
-
-    if heuristic and trt_version >= (8, 5, 0) and core.trt.DeviceProperties(device_id)["major"] >= 8:
-        if trt_version < (8, 6, 0):
-            args.append("--heuristic")
-        else:
-            builder_optimization_level = 2
-
-    args.extend([
-        "--inputIOFormats=fp32:chw" if input_format == 0 else "--inputIOFormats=fp16:chw",
-        "--outputIOFormats=fp32:chw" if output_format == 0 else "--outputIOFormats=fp16:chw"
-    ])
-
-    if faster_dynamic_shapes and not static_shape and (8, 5, 0) <= trt_version < (8, 6, 0):
-        args.append("--preview=+fasterDynamicShapes0805")
-
-    if force_fp16:
-        if trt_version >= (8, 4, 1):
-            args.extend([
-                "--layerPrecisions=*:fp16",
-                "--layerOutputTypes=*:fp16",
-                "--precisionConstraints=obey"
-            ])
-        else:
-            raise ValueError('"force_fp16" is not available')
-
-    if trt_version >= (8, 6, 0):
-        args.append(f"--builderOptimizationLevel={builder_optimization_level}")
-
-        if max_aux_streams is not None:
-            args.append(f"--maxAuxStreams={max_aux_streams}")
-
-    if trt_version >= (9, 0, 0):
-        if bf16:
-            args.append("--bf16")
-
-    if trt_version >= (10, 4, 0):
-        if max_tactics is not None:
-            args.append(f"--maxTactics={max_tactics}")
-
-    if trt_version >= (10, 8, 0) and tiling_optimization_level != 0:
-        args.append(f"--tilingOptimizationLevel={tiling_optimization_level}")
-        args.append(f"--l2LimitForTiling={l2_limit_for_tiling}")
-
-    args.extend(custom_args)
-
-    print("[blur:status] stage=tensorrt-engine", file=sys.stderr) # picked up by gui
-    print("[blur] Building TensorRT engine (this may take a few minutes, only needed once per settings)...", file=sys.stderr)
-
-    try:
-        if log:
-            env_key = "TRTEXEC_LOG_FILE"
-            prev_env_value = os.environ.get(env_key)
-
-            if prev_env_value is not None and len(prev_env_value) > 0:
-                # env_key has been set, no extra action
-                env = {env_key: prev_env_value, "CUDA_MODULE_LOADING": "LAZY"}
-                env.update(**custom_env)
-                subprocess.run(args, env=env, check=True, stdout=sys.stderr)
+            # test writability
+            with open(engine_path, "w") as f:
+                pass
+            os.remove(engine_path)
+        except PermissionError:
+            if engine_folder is None:
+                print(f"{engine_path} is not writable", file=sys.stderr)
+                engine_path = alter_engine_path
+                dirname = os.path.dirname(engine_path)
+                if not os.path.exists(dirname):
+                    os.makedirs(dirname)
+                print(f"change engine path to {engine_path}", file=sys.stderr)
             else:
-                time_str = time.strftime('%y%m%d_%H%M%S', time.localtime())
+                # do not consider alternative path when the engine_folder is given
+                raise PermissionError(f"{engine_path} is not writable")
 
-                log_filename = os.path.join(
-                    tempfile.gettempdir(),
-                    f"trtexec_{time_str}.log"
-                )
+        # trtexec writes here instead of engine_path directly, and we only rename it into
+        # place once the build succeeds. that way a killed/interrupted build (e.g. a
+        # cancelled render) can never leave a corrupt file at the trusted engine_path.
+        tmp_engine_path = f"{engine_path}.building"
 
-                env = {env_key: log_filename, "CUDA_MODULE_LOADING": "LAZY"}
-                env.update(**custom_env)
-
-                completed_process = subprocess.run(args, env=env, check=False, stdout=sys.stderr)
-
-                if completed_process.returncode == 0:
-                    try:
-                        os.remove(log_filename)
-                    except FileNotFoundError:
-                        # maybe the official trtexec is used?
-                        pass
-                else:
-                    if os.path.exists(log_filename):
-                        raise RuntimeError(f"trtexec execution fails, log has been written to {log_filename}")
-                    else:
-                        raise RuntimeError(f"trtexec execution fails but no log is found")
-        else:
-            env = {"CUDA_MODULE_LOADING": "LAZY"}
-            env.update(**custom_env)
-            subprocess.run(args, env=env, check=True, stdout=sys.stderr)
-
-        # build succeeded - publish it atomically so it can be trusted as a complete engine
-        os.replace(tmp_engine_path, engine_path)
-    finally:
-        # if we got here without renaming (build failed or was killed), don't leave a
-        # partial/corrupt file around for a future run to mistake for a real engine
+        # clean up a stray partial file left behind by a previous interrupted build
         if os.path.exists(tmp_engine_path):
             try:
                 os.remove(tmp_engine_path)
             except OSError:
                 pass
 
-    return engine_path
+        args = [
+            trtexec_path,
+            f"--onnx={network_path}",
+            f"--timingCacheFile={engine_path}.cache",
+            f"--device={device_id}",
+            f"--saveEngine={tmp_engine_path}"
+        ]
+
+        if workspace is not None:
+            if trt_version >= (8, 4, 0):
+                args.append(f"--memPoolSize=workspace:{workspace}")
+            else:
+                args.append(f"--workspace{workspace}")
+
+        if static_shape:
+            args.append(f"--shapes={input_name}:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}")
+        else:
+            args.extend([
+                f"--minShapes={input_name}:1x{channels}x{min_shapes[1]}x{min_shapes[0]}",
+                f"--optShapes={input_name}:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}",
+                f"--maxShapes={input_name}:1x{channels}x{max_shapes[1]}x{max_shapes[0]}"
+            ])
+
+        if fp16:
+            args.append("--fp16")
+
+        if verbose:
+            args.append("--verbose")
+
+        preview_features = []
+        if (use_cublas or use_cudnn) and (8, 6, 0) <= trt_version < (10, 0, 0):
+            preview_features.append("-disableExternalTacticSourcesForCore0805")
+
+        if preview_features and trt_version >= (8, 5, 0):
+            args.append(f"--preview={','.join(preview_features)}")
+
+        tactic_sources = []
+
+        if use_cublas:
+            tactic_sources.extend(["+CUBLAS", "+CUBLAS_LT"])
+        else:
+            tactic_sources.extend(["-CUBLAS", "-CUBLAS_LT"])
+
+        if use_cudnn:
+            tactic_sources.append("+CUDNN")
+        else:
+            tactic_sources.append("-CUDNN")
+
+        if trt_version >= (8, 4, 1):
+            if use_edge_mask_convolutions:
+                tactic_sources.append("+EDGE_MASK_CONVOLUTIONS")
+            else:
+                tactic_sources.append("-EDGE_MASK_CONVOLUTIONS")
+
+        if trt_version >= (8, 5, 0):
+            if use_jit_convolutions:
+                tactic_sources.append("+JIT_CONVOLUTIONS")
+            else:
+                tactic_sources.append("-JIT_CONVOLUTIONS")
+
+        args.append(f"--tacticSources={','.join(tactic_sources)}")
+
+        if use_cuda_graph:
+            args.extend((
+                "--useCudaGraph",
+                "--noDataTransfers"
+            ))
+        else:
+            if trt_version >= (8, 6, 0):
+                args.append("--skipInference")
+            else:
+                args.append("--buildOnly")
+
+        if not tf32:
+            args.append("--noTF32")
+
+        if heuristic and trt_version >= (8, 5, 0) and core.trt.DeviceProperties(device_id)["major"] >= 8:
+            if trt_version < (8, 6, 0):
+                args.append("--heuristic")
+            else:
+                builder_optimization_level = 2
+
+        args.extend([
+            "--inputIOFormats=fp32:chw" if input_format == 0 else "--inputIOFormats=fp16:chw",
+            "--outputIOFormats=fp32:chw" if output_format == 0 else "--outputIOFormats=fp16:chw"
+        ])
+
+        if faster_dynamic_shapes and not static_shape and (8, 5, 0) <= trt_version < (8, 6, 0):
+            args.append("--preview=+fasterDynamicShapes0805")
+
+        if force_fp16:
+            if trt_version >= (8, 4, 1):
+                args.extend([
+                    "--layerPrecisions=*:fp16",
+                    "--layerOutputTypes=*:fp16",
+                    "--precisionConstraints=obey"
+                ])
+            else:
+                raise ValueError('"force_fp16" is not available')
+
+        if trt_version >= (8, 6, 0):
+            args.append(f"--builderOptimizationLevel={builder_optimization_level}")
+
+            if max_aux_streams is not None:
+                args.append(f"--maxAuxStreams={max_aux_streams}")
+
+        if trt_version >= (9, 0, 0):
+            if bf16:
+                args.append("--bf16")
+
+        if trt_version >= (10, 4, 0):
+            if max_tactics is not None:
+                args.append(f"--maxTactics={max_tactics}")
+
+        if trt_version >= (10, 8, 0) and tiling_optimization_level != 0:
+            args.append(f"--tilingOptimizationLevel={tiling_optimization_level}")
+            args.append(f"--l2LimitForTiling={l2_limit_for_tiling}")
+
+        args.extend(custom_args)
+
+        print("[blur:status] stage=tensorrt-engine", file=sys.stderr) # picked up by gui
+        print("[blur] Building TensorRT engine (this may take a few minutes, only needed once per settings)...", file=sys.stderr)
+
+        try:
+            if log:
+                env_key = "TRTEXEC_LOG_FILE"
+                prev_env_value = os.environ.get(env_key)
+
+                if prev_env_value is not None and len(prev_env_value) > 0:
+                    # env_key has been set, no extra action
+                    env = {env_key: prev_env_value, "CUDA_MODULE_LOADING": "LAZY"}
+                    env.update(**custom_env)
+                    subprocess.run(args, env=env, check=True, stdout=sys.stderr)
+                else:
+                    time_str = time.strftime('%y%m%d_%H%M%S', time.localtime())
+
+                    log_filename = os.path.join(
+                        tempfile.gettempdir(),
+                        f"trtexec_{time_str}.log"
+                    )
+
+                    env = {env_key: log_filename, "CUDA_MODULE_LOADING": "LAZY"}
+                    env.update(**custom_env)
+
+                    completed_process = subprocess.run(args, env=env, check=False, stdout=sys.stderr)
+
+                    if completed_process.returncode == 0:
+                        try:
+                            os.remove(log_filename)
+                        except FileNotFoundError:
+                            # maybe the official trtexec is used?
+                            pass
+                    else:
+                        if os.path.exists(log_filename):
+                            raise RuntimeError(f"trtexec execution fails, log has been written to {log_filename}")
+                        else:
+                            raise RuntimeError(f"trtexec execution fails but no log is found")
+            else:
+                env = {"CUDA_MODULE_LOADING": "LAZY"}
+                env.update(**custom_env)
+                subprocess.run(args, env=env, check=True, stdout=sys.stderr)
+
+            # build succeeded - publish it atomically so it can be trusted as a complete engine
+            os.replace(tmp_engine_path, engine_path)
+        finally:
+            # if we got here without renaming (build failed or was killed), don't leave a
+            # partial/corrupt file around for a future run to mistake for a real engine
+            if os.path.exists(tmp_engine_path):
+                try:
+                    os.remove(tmp_engine_path)
+                except OSError:
+                    pass
+
+        return engine_path
 
 
 def get_mxr_path(

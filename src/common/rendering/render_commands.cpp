@@ -150,10 +150,14 @@ bool rendering::detail::copies_audio(
 }
 
 nlohmann::json rendering::detail::merge_settings(
-	const BlurSettings& blur_settings, const GlobalAppSettings& app_settings
+	const BlurSettings& blur_settings,
+	const GlobalAppSettings& app_settings,
+	const devices::DeviceIndices& device_indices
 ) {
 	auto settings_json = blur_settings.to_json();
 	settings_json.update(app_settings.to_json());
+	settings_json["rife_device_index"] = device_indices.rife;
+	settings_json["tensorrt_device_index"] = device_indices.tensorrt;
 	return settings_json;
 }
 
@@ -163,28 +167,16 @@ std::vector<std::string> rendering::detail::build_vspipe_base_args(
 	std::string path_str = u::path_to_string(input_path);
 	std::ranges::replace(path_str, '\\', '/');
 
-	std::vector<std::string> args = {
-		"-p",
-		"-c",
-		"y4m",
-		"-a",
-		"video_path=" + path_str,
-		"-a",
-		"settings=" + merged_settings.dump(),
-		"-a",
-		"settings_path=" + u::path_to_string(blur.settings_path),
-	};
-
-#ifdef __APPLE__
-	args.insert(args.end(), { "-a", std::format("macos_bundled={}", blur.used_installer ? "true" : "false") });
-#endif
-#ifdef __linux__
-	bool bundled = std::filesystem::exists(blur.resources_path / "vapoursynth-plugins");
-	args.insert(args.end(), { "-a", std::format("linux_bundled={}", bundled ? "true" : "false") });
-#endif
-
-	args.insert(args.end(), { u::path_to_string(blur.resources_path / "lib/blur.py"), "-" });
-	return args;
+	return u::get_vspipe_args(
+		{ "-p", "-c", "y4m" },
+		"blur.py",
+		{
+			"video_path=" + path_str,
+			"settings=" + merged_settings.dump(),
+			"settings_path=" + u::path_to_string(blur.settings_path),
+		},
+		"-"
+	);
 }
 
 std::vector<std::string> rendering::detail::build_vspipe_video_args(
