@@ -4,23 +4,17 @@
 #define MyAppExeName "blur-gui.exe"
 #define MyAppId "D283CF94-CD1F-432D-B4BE-0516562C258B"
 
-; installs straight from a release build and ci/build-dependencies-windows.ps1's output. pass /DBinDir= or /DDepsDir=
-; to use others
-#ifndef BinDir
-  #define BinDir "..\bin\Release"
-#endif
+; installs straight from the win-release build and ci/build-dependencies-windows.ps1's output. pass /DDepsDir= to use
+; other dependencies
+#define BinDir "..\bin\Release"
 #ifndef DepsDir
   #define DepsDir "..\ci\out"
 #endif
 
 ; the version comes from the built exe's VERSIONINFO, which cmake fills in from project(blur VERSION ...)
-#if Copy(BinDir, 2, 1) == ':' || Copy(BinDir, 1, 1) == '\'
-  #define MainExePath AddBackslash(BinDir) + MyAppExeName
-#else
-  #define MainExePath AddBackslash(AddBackslash(SourcePath) + BinDir) + MyAppExeName
-#endif
+#define MainExePath AddBackslash(AddBackslash(SourcePath) + BinDir) + MyAppExeName
 #if !FileExists(MainExePath)
-  #error Couldn't find blur-gui.exe in BinDir, build blur in release first or pass /DBinDir=
+  #error Couldn't find blur-gui.exe in bin/Release, build blur with the win-release preset first
 #endif
 #define MyAppVersion GetStringFileInfo(MainExePath, "FileVersion")
 #if MyAppVersion == ""
