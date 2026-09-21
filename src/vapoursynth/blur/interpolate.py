@@ -14,6 +14,12 @@ import blur.retime as retime
 import blur.utils as u
 
 
+TENSORRT_NOT_INSTALLED = (
+    "TensorRT RIFE isn't installed. Rerun the installer and select \"NVIDIA TensorRT RIFE interpolation\", "
+    "or use a different interpolation method"
+)
+
+
 def _vsmlrt():
     if sys.platform not in ("win32", "linux"):
         raise u.BlurException("RIFE (TensorRT) is not supported on this platform.")
@@ -21,9 +27,7 @@ def _vsmlrt():
     try:
         from external import vsmlrt
     except RuntimeError:
-        raise u.BlurException(
-            "RIFE (TensorRT) is not installed. Rerun the installer with the TensorRT component selected."
-        )
+        raise u.BlurException(TENSORRT_NOT_INSTALLED)
 
     return vsmlrt
 
@@ -550,6 +554,10 @@ def prepare_rife_vsmlrt(
 
     match backend_str:
         case "tensorrt":
+            # vsmlrt imports fine with any of its plugins, so this one might still be missing
+            if not hasattr(core, "trt"):
+                raise u.BlurException(TENSORRT_NOT_INSTALLED)
+
             backend = vsmlrt.BackendV2.TRT(
                 num_streams=4,
                 fp16=True,
