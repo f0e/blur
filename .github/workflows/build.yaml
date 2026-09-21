@@ -9,6 +9,9 @@ env:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    # the release step needs to write to the repo, nothing else does
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -200,7 +203,7 @@ jobs:
 
       - name: Use Developer Command Prompt for Microsoft Visual C++
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
       - name: Configure CMake
         run: cmake --preset ${{ steps.select-preset.outputs.preset }}
@@ -326,7 +329,7 @@ jobs:
           path: bundle/
 
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
         with:
           files: bundle/*
