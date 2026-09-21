@@ -48,36 +48,6 @@ begin
   Result := LegacyDirIsDefault and (CompareText(LegacyDir, ExpandConstant('{app}')) <> 0);
 end;
 
-// vs-mlrt names everything it puts in the plugins dir vs*, apart from models. anything else is a plugin an old
-// version shipped, which shouldn't come along
-function IsTensorRTFile(Name: String): Boolean;
-begin
-  Result := (CompareText(Copy(Name, 1, 2), 'vs') = 0) or (CompareText(Name, 'models') = 0);
-end;
-
-// bring tensorrt along so it doesn't need downloading again
-procedure MoveLegacyTensorRT;
-var
-  LegacyPlugins, Plugins: String;
-  FindRec: TFindRec;
-begin
-  LegacyPlugins := LegacyDir + '\lib\vapoursynth\vs-plugins';
-  Plugins := ExpandConstant('{app}\lib\vapoursynth\vs-plugins');
-  if not FileExists(LegacyPlugins + '\vstrt.dll') or FileExists(Plugins + '\vstrt.dll') then
-    Exit;
-
-  if FindFirst(LegacyPlugins + '\*', FindRec) then
-  try
-    repeat
-      if IsTensorRTFile(FindRec.Name) and not FileOrDirExists(Plugins + '\' + FindRec.Name) and
-         not RenameFile(LegacyPlugins + '\' + FindRec.Name, Plugins + '\' + FindRec.Name) then
-        Log('Failed to move ' + FindRec.Name + ' from the old install.');
-    until not FindNext(FindRec);
-  finally
-    FindClose(FindRec);
-  end;
-end;
-
 procedure UninstallLegacy;
 var
   Uninstaller: String;
@@ -128,10 +98,7 @@ begin
   if (CurStep = ssInstall) and not MovingFromLegacyDir then
     UninstallLegacy
   else if (CurStep = ssPostInstall) and MovingFromLegacyDir then
-  begin
-    MoveLegacyTensorRT;
     RemoveMovedLegacyInstall;
-  end;
 end;
 
 <event('DeinitializeSetup')>
