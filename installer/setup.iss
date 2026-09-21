@@ -93,7 +93,7 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 ; tensorrt is downloaded after install so the uninstaller doesn't know about it
 Type: filesandordirs; Name: "{app}\lib"
 
-; migrate-32bit uses path's functions, and has to run before tensorrt so it can hand over the old install's copy
+; migrate-32bit uses path's functions
 #include "code\path.iss"
 #include "code\migrate-32bit.iss"
 #include "code\tensorrt.iss"

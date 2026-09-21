@@ -1,15 +1,50 @@
 [Code]
 // downloads and extracts vs-mlrt's tensorrt plugins and the rife model when the vstrt component is selected. they're
-// too big to bundle, and skipped if they're already there
+// too big to bundle. each gets a version marker once it's extracted, so it's skipped if it's already there and
+// downloaded again when the version here changes or an earlier extraction didn't finish
 
-#define VsMlrtUrl "https://github.com/AmusementClub/vs-mlrt/releases/download/v15.16/vsmlrt-windows-x64-tensorrt.v15.16.7z"
+#define VsMlrtVersion "v15.16"
+#define VsMlrtUrl "https://github.com/AmusementClub/vs-mlrt/releases/download/" + VsMlrtVersion + "/vsmlrt-windows-x64-tensorrt." + VsMlrtVersion + ".7z"
 #define VsMlrtSha256Part1 "9fe674f62b9d33a369e7bd6584052986af4c81b12a82b75e5d82aad7c06733cb"
 #define VsMlrtSha256Part2 "387b295726bd159f5b4965d0ee8d55bb377f1d8a2add7f623324c60cece44a16"
-#define RifeUrl "https://github.com/AmusementClub/vs-mlrt/releases/download/external-models/rife_v4.26.7z"
+#define RifeVersion "rife_v4.26"
+#define RifeUrl "https://github.com/AmusementClub/vs-mlrt/releases/download/external-models/" + RifeVersion + ".7z"
 #define RifeSha256 "dfdabd84a2a3db773f87604b8cc255e94a6a72f13550d910ccd3b4ee2606cd4f"
 
 var
   DownloadPage: TDownloadWizardPage;
+
+function TensorRTPluginsDir: String;
+begin
+  Result := ExpandConstant('{app}\lib\vapoursynth\vs-plugins');
+end;
+
+function IsInstalled(Marker, Version: String): Boolean;
+var
+  Installed: AnsiString;
+begin
+  Result := LoadStringFromFile(Marker, Installed) and (Trim(String(Installed)) = Version);
+end;
+
+// clears out an older version's plugins (and its marker) so none of its files are left mixed in with the new ones
+procedure RemoveTensorRTPlugins;
+var
+  FindRec: TFindRec;
+  Path: String;
+begin
+  if FindFirst(TensorRTPluginsDir + '\vs*', FindRec) then
+  try
+    repeat
+      Path := TensorRTPluginsDir + '\' + FindRec.Name;
+      if FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
+        DelTree(Path, True, True, True)
+      else
+        DeleteFile(Path);
+    until not FindNext(FindRec);
+  finally
+    FindClose(FindRec);
+  end;
+end;
 
 function Extract7z(Archive, DestDir, Switches: String): Boolean;
 var
@@ -42,12 +77,14 @@ end;
 
 procedure InstallTensorRT;
 var
-  PluginsDir: String;
+  PluginsMarker, ModelDir, ModelMarker: String;
   NeedPlugins, NeedModel: Boolean;
 begin
-  PluginsDir := ExpandConstant('{app}\lib\vapoursynth\vs-plugins');
-  NeedPlugins := not FileExists(PluginsDir + '\vstrt.dll');
-  NeedModel := not DirExists(PluginsDir + '\models\rife_v2');
+  PluginsMarker := TensorRTPluginsDir + '\vsmlrt.version';
+  ModelDir := TensorRTPluginsDir + '\models\rife_v2';
+  ModelMarker := ModelDir + '\rife.version';
+  NeedPlugins := not IsInstalled(PluginsMarker, '{#VsMlrtVersion}');
+  NeedModel := not IsInstalled(ModelMarker, '{#RifeVersion}');
 
   if not NeedPlugins and not NeedModel then
     Exit;
@@ -70,13 +107,21 @@ begin
     // the plugins archive bundles every vs-mlrt model, and the model archive has an older copy in rife\ - blur
     // only uses rife_v2
     if NeedPlugins then
-      Extract7z(ExpandConstant('{tmp}\vsmlrt.7z.001'), PluginsDir, '-x!models');
+    begin
+      RemoveTensorRTPlugins;
+      if Extract7z(ExpandConstant('{tmp}\vsmlrt.7z.001'), TensorRTPluginsDir, '-x!models') then
+        SaveStringToFile(PluginsMarker, '{#VsMlrtVersion}', False);
+    end;
 
     if NeedModel then
-      Extract7z(ExpandConstant('{tmp}\rife.7z'), PluginsDir + '\models', '-x!rife');
+    begin
+      DelTree(ModelDir, True, True, True);
+      if Extract7z(ExpandConstant('{tmp}\rife.7z'), TensorRTPluginsDir + '\models', '-x!rife') then
+        SaveStringToFile(ModelMarker, '{#RifeVersion}', False);
+    end;
   end;
 
-  if not FileExists(PluginsDir + '\vstrt.dll') or not DirExists(PluginsDir + '\models\rife_v2') then
+  if not IsInstalled(PluginsMarker, '{#VsMlrtVersion}') or not IsInstalled(ModelMarker, '{#RifeVersion}') then
     SuppressibleMsgBox('TensorRT RIFE couldn''t be installed. Rerun the installer to try again.', mbError, MB_OK, IDOK);
 end;
 
