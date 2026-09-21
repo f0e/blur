@@ -63,7 +63,7 @@ int main(int argc, char* argv[]) {
 	auto outputs = to_paths(output_strs);
 	auto config_paths = to_paths(config_path_strs);
 
-	cli::run(
+	bool success = cli::run(
 		inputs,
 		outputs,
 		config_paths,
@@ -75,5 +75,5 @@ int main(int argc, char* argv[]) {
 		config_names
 	);
 
-	return 0;
+	return success ? 0 : 1;
 }
