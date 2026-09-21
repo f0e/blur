@@ -2,6 +2,7 @@
 #include "render_commands.h"
 #include "render_pipeline.h"
 #include "common/devices.h"
+#include "common/rife_models.h"
 
 namespace {
 	constexpr int FRAMES_NEEDED_FOR_VSPIPE_TO_NOT_POO_ITSELF =
@@ -34,6 +35,29 @@ namespace {
 
 		return offset < start_frame ? start_frame - offset : 0;
 	}
+
+	std::optional<std::string> check_tensorrt_installed(const BlurSettings& settings) {
+#ifdef TENSORRT
+		if (!settings.uses_interpolation_method("rife (tensorrt)"))
+			return {};
+
+		if (!rife_models::trt_installed()) {
+			return "TensorRT RIFE isn't installed. Rerun the installer and select \"NVIDIA TensorRT RIFE "
+				   "interpolation\", or use a different interpolation method";
+		}
+
+		std::error_code ec;
+		if (!std::filesystem::exists(rife_models::get_trt_path() / (settings.rife_trt_model + ".onnx"), ec)) {
+			return std::format(
+				"TensorRT RIFE model '{}' wasn't found in {}",
+				settings.rife_trt_model,
+				u::path_to_string(rife_models::get_trt_path())
+			);
+		}
+#endif
+
+		return {};
+	}
 }
 
 tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::RenderError>> rendering::render_frame(
@@ -49,6 +73,9 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 
 	if (!std::filesystem::exists(input_path))
 		return tl::unexpected("Input path does not exist");
+
+	if (auto error = check_tensorrt_installed(settings))
+		return tl::unexpected(*error);
 
 	auto merged_settings =
 		detail::merge_settings(settings, app_settings, devices::get_device_indices(settings, app_settings));
@@ -139,6 +166,9 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 
 	if (!std::filesystem::exists(input_path))
 		return tl::unexpected("Input path does not exist");
+
+	if (auto error = check_tensorrt_installed(settings))
+		return tl::unexpected(*error);
 
 	auto merged_settings =
 		detail::merge_settings(settings, app_settings, devices::get_device_indices(settings, app_settings));
