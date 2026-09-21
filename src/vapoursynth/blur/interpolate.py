@@ -13,15 +13,20 @@ from pathlib import Path
 import blur.retime as retime
 import blur.utils as u
 
-if sys.platform in ("win32", "linux"):
-    from external.vsmlrt import (
-        RIFE as VSMLRT_RIFE,
-        RIFEMerge as VSMLRT_RIFE_MERGE,
-        BackendV2,
-        bits_as,
-    )
-else:
-    VSMLRT_RIFE = VSMLRT_RIFE_MERGE = BackendV2 = bits_as = None
+
+def _vsmlrt():
+    if sys.platform not in ("win32", "linux"):
+        raise u.BlurException("RIFE (TensorRT) is not supported on this platform.")
+
+    try:
+        from external import vsmlrt
+    except RuntimeError:
+        raise u.BlurException(
+            "RIFE (TensorRT) is not installed. Rerun the installer with the TensorRT component selected."
+        )
+
+    return vsmlrt
+
 
 LEGACY_PRESETS = ["weak", "film", "smooth", "animation"]
 NEW_PRESETS = ["default", "test"]
@@ -186,7 +191,7 @@ def _retimed_rife_merge(
     merged = merge(before, after, timepoint)
 
     # frames that land squarely on a real frame, or between two identical ones, don't go near the model
-    held = bits_as(before, merged)
+    held = _vsmlrt().bits_as(before, merged)
 
     def pick(n: int, f: vs.VideoFrame) -> vs.VideoNode:
         return held if at(n, f.props).timepoint is None else merged
@@ -514,7 +519,7 @@ def interpolate_rife(
 def RIFE_vsmlrt(video: vs.VideoNode, new_fps: int, model_path: str, backend):
     multi_frac = Fraction(int(new_fps), int(video.fps))
 
-    res = VSMLRT_RIFE(
+    res = _vsmlrt().RIFE(
         video,
         multi=multi_frac,
         model_path=model_path,
@@ -536,8 +541,7 @@ def prepare_rife_vsmlrt(
     settings_path: Path,
     override_format: str | None = None,
 ):
-    if VSMLRT_RIFE is None:
-        raise u.BlurException("RIFE (TensorRT) is not supported on this platform.")
+    vsmlrt = _vsmlrt()
 
     pad_mult: int | None = None
     target_format = vs.RGBH
@@ -546,7 +550,7 @@ def prepare_rife_vsmlrt(
 
     match backend_str:
         case "tensorrt":
-            backend = BackendV2.TRT(
+            backend = vsmlrt.BackendV2.TRT(
                 num_streams=4,
                 fp16=True,
                 output_format=1,
@@ -557,7 +561,7 @@ def prepare_rife_vsmlrt(
             pad_mult = 64
 
         case "tensorrt rtx":
-            backend = BackendV2.TRT_RTX(
+            backend = vsmlrt.BackendV2.TRT_RTX(
                 num_streams=4,
                 fp16=True,
                 use_cuda_graph=True,
@@ -567,24 +571,24 @@ def prepare_rife_vsmlrt(
             pad_mult = 64
 
         case "vsort cuda":
-            backend = BackendV2.ORT_CUDA(
+            backend = vsmlrt.BackendV2.ORT_CUDA(
                 num_streams=4,
                 fp16=True,
                 device_id=device_index,
             )
 
         case "openvino cpu":
-            backend = BackendV2.OV_CPU(num_streams=4, bf16=True)
+            backend = vsmlrt.BackendV2.OV_CPU(num_streams=4, bf16=True)
 
         case "openvino gpu":
-            backend = BackendV2.OV_GPU(
+            backend = vsmlrt.BackendV2.OV_GPU(
                 num_streams=4,
                 fp16=True,
                 device_id=device_index,
             )
 
         case "ncnn":
-            backend = BackendV2.NCNN_VK(
+            backend = vsmlrt.BackendV2.NCNN_VK(
                 num_streams=4,
                 fp16=True,
                 device_id=device_index,
@@ -621,13 +625,15 @@ def interpolate_rife_vsmlrt(
 
     def process(_video: vs.VideoNode, backend) -> vs.VideoNode:
         if timeline is None:
-            return RIFE_vsmlrt(_video, new_fps=new_fps, model_path=model_path, backend=backend)
+            return RIFE_vsmlrt(
+                _video, new_fps=new_fps, model_path=model_path, backend=backend
+            )
 
         return _retimed_rife_merge(
             _video,
             timeline,
             _fps(new_fps),
-            lambda before, after, timepoint: VSMLRT_RIFE_MERGE(
+            lambda before, after, timepoint: _vsmlrt().RIFEMerge(
                 clipa=before,
                 clipb=after,
                 mask=timepoint,
