@@ -516,7 +516,6 @@ BlurSettings config_blur::parse_from_map(
 	}
 
 	u::verify_gpu_encoding(settings);
-	u::set_fastest_devices(settings);
 
 	return settings;
 }

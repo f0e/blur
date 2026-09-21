@@ -6,6 +6,7 @@
 #include "config_base.h"
 #include "config_blur.h"
 #include "config_app.h"
+#include "devices.h"
 #include "config_encoding_presets.h"
 #include "config_rules.h"
 #include "masks.h"
@@ -124,7 +125,7 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 	initialised = true;
 
 	std::thread([this] {
-		initialise_device_lists();
+		devices::initialise();
 	}).detach();
 
 	return {};
@@ -163,36 +164,6 @@ bool Blur::update(
 	const std::optional<updates::CancelCallback>& cancel_callback
 ) {
 	return updates::update_to_tag(tag, progress_callback, cancel_callback);
-}
-
-void Blur::initialise_device_lists() {
-	rife_devices = u::get_devices("rife");
-
-	std::ranges::copy(
-		std::ranges::transform_view(
-			rife_devices,
-			[](const auto& pair) {
-				return pair.second;
-			}
-		),
-		std::back_inserter(rife_device_names)
-	);
-
-#ifdef TENSORRT
-	tensorrt_devices = u::get_devices("tensorrt");
-
-	std::ranges::copy(
-		std::ranges::transform_view(
-			tensorrt_devices,
-			[](const auto& pair) {
-				return pair.second;
-			}
-		),
-		std::back_inserter(tensorrt_device_names)
-	);
-#endif
-
-	initialised_devices = true;
 }
 
 void cleanup_handler(int signal) {

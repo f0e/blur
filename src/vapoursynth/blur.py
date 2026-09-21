@@ -208,14 +208,6 @@ def main():
     if settings["blur_output_fps"] <= 0:
         raise u.BlurException("Output FPS must be above 0")
 
-    rife_device_index = settings["rife_device_index"]
-    if rife_device_index == -1:  # haven't benchmarked yet..?
-        rife_device_index = 0
-
-    tensorrt_device_index = settings["tensorrt_device_index"]
-    if tensorrt_device_index == -1:  # haven't benchmarked yet..?
-        tensorrt_device_index = 0
-
     video_info = u.VideoInfo(
         is_full_color_range=color_range == "pc",
         orig_width=video.width,
@@ -294,7 +286,7 @@ def main():
                     video_info=video_info,
                     new_fps=new_fps,
                     model_path=settings["rife_model"],
-                    device_index=rife_device_index,
+                    device_index=settings["rife_device_index"],
                     timeline=timeline,
                 )
 
@@ -304,7 +296,7 @@ def main():
                     video_info=video_info,
                     new_fps=new_fps,
                     model_path=settings["rife_trt_model"],
-                    device_index=tensorrt_device_index,
+                    device_index=settings["tensorrt_device_index"],
                     settings_path=settings_path,
                     timeline=timeline,
                 )

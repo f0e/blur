@@ -468,6 +468,13 @@ namespace u {
 
 	boost::process::environment setup_vspipe_environment();
 
+	std::vector<std::string> get_vspipe_args(
+		const std::vector<std::string>& vspipe_flags,
+		const std::string& script,
+		const std::vector<std::string>& script_args,
+		const std::string& output
+	);
+
 	struct VideoInfo {
 		bool has_video_stream = false;
 		std::optional<std::string> color_range;
@@ -523,20 +530,6 @@ namespace u {
 
 	std::vector<std::string> ffmpeg_string_to_args(const std::string& str);
 
-	std::map<int, std::string> get_devices(const std::string& type);
-
-	int get_fastest_device_index(
-		const std::map<int, std::string>& device_map,
-		const std::string& benchmark_type,
-		const std::vector<std::string>& extra_args
-	);
-
-	std::optional<size_t> get_fastest_rife_device(BlurSettings& settings);
-#ifdef TENSORRT
-	std::optional<size_t> get_fastest_tensorrt_device(BlurSettings& settings);
-#endif
-
-	void set_fastest_devices(BlurSettings& settings);
 	void verify_gpu_encoding(BlurSettings& settings);
 
 #ifdef WIN32

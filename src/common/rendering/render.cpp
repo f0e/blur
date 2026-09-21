@@ -1,6 +1,7 @@
 #include "render.h"
 #include "render_commands.h"
 #include "render_pipeline.h"
+#include "common/devices.h"
 
 namespace {
 	constexpr int FRAMES_NEEDED_FOR_VSPIPE_TO_NOT_POO_ITSELF =
@@ -49,7 +50,8 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 	if (!std::filesystem::exists(input_path))
 		return tl::unexpected("Input path does not exist");
 
-	auto merged_settings = detail::merge_settings(settings, app_settings);
+	auto merged_settings =
+		detail::merge_settings(settings, app_settings, devices::get_device_indices(settings, app_settings));
 
 	auto video_info = u::get_video_info(input_path);
 
@@ -138,7 +140,8 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 	if (!std::filesystem::exists(input_path))
 		return tl::unexpected("Input path does not exist");
 
-	auto merged_settings = detail::merge_settings(settings, app_settings);
+	auto merged_settings =
+		detail::merge_settings(settings, app_settings, devices::get_device_indices(settings, app_settings));
 
 	std::filesystem::path output_path;
 	if (output_path_override) {

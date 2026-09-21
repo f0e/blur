@@ -1,39 +1,21 @@
 #include "render_state.h"
-
-namespace {
-	constexpr std::string_view STATUS_PREFIX = "[blur:status] ";
-
-	constexpr std::string_view STAGE_KEY = "stage";
-	constexpr std::string_view MASK_STAGE = "mask";              // blur/mask.py
-	constexpr std::string_view ENGINE_STAGE = "tensorrt-engine"; // external/vsmlrt.py
-
-	constexpr std::string_view FRAME_TIMING_LOG_KEY = "frame-timing-log";
-}
+#include "common/script_status.h"
 
 void rendering::RenderState::report_log_line(const std::string& line) {
-	auto at = line.find(STATUS_PREFIX);
-	if (at == std::string::npos)
+	auto status = script_status::parse(line);
+	if (!status)
 		return;
-
-	std::string_view status = std::string_view(line).substr(at + STATUS_PREFIX.size());
-
-	auto equals = status.find('=');
-	if (equals == std::string_view::npos)
-		return;
-
-	auto key = status.substr(0, equals);
-	auto value = status.substr(equals + 1);
 
 	std::lock_guard lock(m_mutex);
 
-	if (key == STAGE_KEY) {
-		if (value == MASK_STAGE)
+	if (status->key == "stage") {
+		if (status->value == "mask") // blur/mask.py
 			m_progress.init_stage = InitStage::generating_mask;
-		else if (value == ENGINE_STAGE)
+		else if (status->value == "tensorrt-engine") // external/vsmlrt.py
 			m_progress.init_stage = InitStage::building_engine;
 	}
-	else if (key == FRAME_TIMING_LOG_KEY) {
-		m_progress.frame_timing_log = value;
+	else if (status->key == "frame-timing-log") {
+		m_progress.frame_timing_log = status->value;
 	}
 }
 

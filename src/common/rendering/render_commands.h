@@ -3,12 +3,15 @@
 #include "common/config_app.h"
 #include "common/config_blur.h"
 #include "common/config_encoding_presets.h"
+#include "common/devices.h"
 
 // Pure functions that turn settings + video info into the vspipe / ffmpeg
 // argument vectors. No process spawning, no shared state - just string building.
 namespace rendering::detail {
 	nlohmann::json merge_settings(
-		const BlurSettings& blur_settings, const GlobalAppSettings& app_settings
+		const BlurSettings& blur_settings,
+		const GlobalAppSettings& app_settings,
+		const devices::DeviceIndices& device_indices
 	);
 
 	// the vspipe args common to frame and video renders
