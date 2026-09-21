@@ -3,8 +3,6 @@ output/
 resources/*.exe
 resources/*.dll
 
-redist/*
-
 **/vapoursynth/*
 !**/vapoursynth/*.gitkeep
 **/ffmpeg/*
