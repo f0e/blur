@@ -57,7 +57,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: /var/cache/apt/archives
-          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml') }}
+          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yaml') }}
           restore-keys: apt-${{ runner.os }}-
 
       - name: Add GCC repository
@@ -98,6 +98,7 @@ jobs:
 
       # ── Project dependencies ──────────────────────────────────────────────
       - name: Cache build dependencies (macOS)
+        id: deps-cache-macos
         if: runner.os == 'macOS'
         uses: actions/cache@v5
         with:
@@ -105,6 +106,7 @@ jobs:
           key: deps-macos-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-macos.sh') }}
 
       - name: Cache build dependencies (Linux)
+        id: deps-cache-linux
         if: runner.os == 'Linux'
         uses: actions/cache@v5
         with:
@@ -112,21 +114,26 @@ jobs:
           key: deps-linux-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-linux.sh') }}
 
       - name: Cache build dependencies (Windows)
+        id: deps-cache-windows
         if: runner.os == 'Windows'
         uses: actions/cache@v5
         with:
           path: ci/out
           key: deps-windows-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-windows.ps1') }}
 
-      - name: Collect dependencies (macOS)
+      - name: Install Homebrew packages (macOS)
         if: runner.os == 'macOS'
         run: |
           brew install ffmpeg libass zimg imagemagick autoconf automake libtool gcc ffmpeg meson xxhash vapoursynth fftw dylibbundler vulkan-loader molten-vk mpv
+
+      - name: Collect dependencies (macOS)
+        if: runner.os == 'macOS' && steps.deps-cache-macos.outputs.cache-hit != 'true'
+        run: |
           cd ci
           bash build-dependencies-macos.sh
 
       - name: Collect dependencies (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.deps-cache-windows.outputs.cache-hit != 'true'
         run: |
           cd ci
           pwsh build-dependencies-windows.ps1
@@ -146,7 +153,7 @@ jobs:
         shell: bash
 
       - name: Collect dependencies (Linux)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && steps.deps-cache-linux.outputs.cache-hit != 'true'
         run: |
           cd ci
           bash build-dependencies-linux.sh
