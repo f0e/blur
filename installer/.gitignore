@@ -1,9 +1,1 @@
 output/
-
-resources/*.exe
-resources/*.dll
-
-**/vapoursynth/*
-!**/vapoursynth/*.gitkeep
-**/ffmpeg/*
-!**/ffmpeg/*.gitkeep

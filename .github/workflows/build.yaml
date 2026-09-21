@@ -249,24 +249,12 @@ jobs:
 
           case "${{ runner.os }}" in
             "Windows")
-              # Rename binaries
-              mv blur-cli.exe "blur-cli-$config.exe"
-              mv blur-gui.exe "blur-$config.exe"
+              # the installer picks everything up from the build and ci/out itself
+              iscc ../../installer/setup.iss
 
-              # Build installer
-              cd ../../
-              cp -r ci/out/* installer/dependencies/lib
-              cp "$build_dir/blur-cli-$config.exe" installer/resources/blur-cli.exe
-              cp "$build_dir/blur-$config.exe" installer/resources/blur-gui.exe
-              cp "mpv/libmpv-2.dll" installer/resources/
-              cp "$build_dir/libEGL.dll" installer/resources/
-              cp "$build_dir/libGLESv2.dll" installer/resources/
-              iscc installer/setup.iss
-
-              # Copy everything to bundle
-              cp "$build_dir/blur-cli-$config.exe" "$bundle_dir/"
-              cp "$build_dir/blur-$config.exe" "$bundle_dir/"
-              cp installer/output/blur-installer.exe "$bundle_dir/blur-Windows-Installer-x64.exe"
+              cp blur-cli.exe "$bundle_dir/blur-cli-$config.exe"
+              cp blur-gui.exe "$bundle_dir/blur-$config.exe"
+              cp ../../installer/output/blur-installer.exe "$bundle_dir/blur-Windows-Installer-x64.exe"
               ;;
 
             "Linux")
