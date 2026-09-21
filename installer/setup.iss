@@ -28,6 +28,9 @@
   #define DepsDir "..\ci\out"
 #endif
 
+; the space tensorrt takes up once it's extracted
+#define TensorRTSize "3757471855"
+
 [Setup]
 AppId={{{#MyAppId}}
 AppName={#MyAppName}
@@ -67,7 +70,7 @@ Name: "custom"; Description: "Custom installation"; Flags: iscustom
 
 [Components]
 Name: "main"; Description: "blur (required)"; Types: full compact custom; Flags: fixed
-Name: "vstrt"; Description: "NVIDIA TensorRT RIFE interpolation (~2.5GB download)"; Types: full; ExtraDiskSpaceRequired: 3757471855
+Name: "vstrt"; Description: "NVIDIA TensorRT RIFE interpolation (~2.5GB download)"; Types: full; ExtraDiskSpaceRequired: {#TensorRTSize}
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked

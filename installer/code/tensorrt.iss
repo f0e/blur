@@ -7,9 +7,11 @@
 #define VsMlrtUrl "https://github.com/AmusementClub/vs-mlrt/releases/download/" + VsMlrtVersion + "/vsmlrt-windows-x64-tensorrt." + VsMlrtVersion + ".7z"
 #define VsMlrtSha256Part1 "9fe674f62b9d33a369e7bd6584052986af4c81b12a82b75e5d82aad7c06733cb"
 #define VsMlrtSha256Part2 "387b295726bd159f5b4965d0ee8d55bb377f1d8a2add7f623324c60cece44a16"
+#define VsMlrtDownloadSize "2676014172"
 #define RifeVersion "rife_v4.26"
 #define RifeUrl "https://github.com/AmusementClub/vs-mlrt/releases/download/external-models/" + RifeVersion + ".7z"
 #define RifeSha256 "dfdabd84a2a3db773f87604b8cc255e94a6a72f13550d910ccd3b4ee2606cd4f"
+#define RifeDownloadSize "19591599"
 
 var
   DownloadPage: TDownloadWizardPage;
@@ -17,6 +19,24 @@ var
 function TensorRTPluginsDir: String;
 begin
   Result := ExpandConstant('{app}\lib\vapoursynth\vs-plugins');
+end;
+
+// the downloads go to {tmp}, which setup's own disk space check doesn't cover. they're still there while they're
+// extracted into {app}, so both count when it's the same drive
+function HasSpaceToDownload(DownloadSize, ExtractedSize: Int64): Boolean;
+var
+  TmpDrive: String;
+  Needed, Free, Total: Int64;
+begin
+  TmpDrive := ExtractFileDrive(ExpandConstant('{tmp}'));
+  Needed := DownloadSize;
+  if CompareText(TmpDrive, ExtractFileDrive(ExpandConstant('{app}'))) = 0 then
+    Needed := Needed + ExtractedSize;
+
+  Result := not GetSpaceOnDisk64(TmpDrive + '\', Free, Total) or (Free >= Needed);
+  if not Result then
+    SuppressibleMsgBox('TensorRT RIFE needs ' + IntToStr(Needed div 1073741824 + 1) + ' GB free on ' + TmpDrive +
+      ' to download. Free up some space and rerun the installer.', mbError, MB_OK, IDOK);
 end;
 
 function IsInstalled(Marker, Version: String): Boolean;
@@ -79,6 +99,7 @@ procedure InstallTensorRT;
 var
   PluginsMarker, ModelDir, ModelMarker: String;
   NeedPlugins, NeedModel: Boolean;
+  DownloadSize, ExtractedSize: Int64;
 begin
   PluginsMarker := TensorRTPluginsDir + '\vsmlrt.version';
   ModelDir := TensorRTPluginsDir + '\models\rife_v2';
@@ -90,15 +111,25 @@ begin
     Exit;
 
   DownloadPage.Clear;
+  DownloadSize := 0;
+  ExtractedSize := 0;
 
   if NeedPlugins then
   begin
     DownloadPage.Add('{#VsMlrtUrl}.001', 'vsmlrt.7z.001', '{#VsMlrtSha256Part1}');
     DownloadPage.Add('{#VsMlrtUrl}.002', 'vsmlrt.7z.002', '{#VsMlrtSha256Part2}');
+    DownloadSize := DownloadSize + {#VsMlrtDownloadSize};
+    ExtractedSize := {#TensorRTSize};
   end;
 
   if NeedModel then
+  begin
     DownloadPage.Add('{#RifeUrl}', 'rife.7z', '{#RifeSha256}');
+    DownloadSize := DownloadSize + {#RifeDownloadSize};
+  end;
+
+  if not HasSpaceToDownload(DownloadSize, ExtractedSize) then
+    Exit;
 
   if DownloadWithRetry then
   begin
