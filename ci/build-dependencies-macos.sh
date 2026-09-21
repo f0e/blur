@@ -234,47 +234,41 @@ cp -R python/* "$python_dest_path"
 
 cd ../..
 
-# it uses /install - change it to what it actually is, it'll be changed later anyway by dylibbundler (https://gregoryszorc.com/docs/python-build-standalone/main/quirks.html)
-install_name_tool -change /install/lib/libpython3.12.dylib "$PWD/$out_dir/python/lib/libpython3.12.dylib" $out_dir/python/lib/libpython3.12.dylib
-install_name_tool -id "$PWD/$out_dir/python/lib/libpython3.12.dylib" $out_dir/python/lib/libpython3.12.dylib
-
 $out_dir/python/bin/pip install --upgrade pip
-$out_dir/python/bin/pip install cython==3.3.0
 
-# the blur scripts need numpy
-$out_dir/python/bin/pip install numpy==2.5.3
+# the blur scripts need numpy. plugins on pypi install into vapoursynth's own plugins folder, which it autoloads - the
+# ones whose wheels need macos 15 are built or extracted below instead
+$out_dir/python/bin/pip install \
+  numpy==2.5.3 \
+  vapoursynth==79 \
+  vapoursynth-akarin==1.5.0
 
-# builds
-## vapoursynth
+# build the plugins against the vapoursynth we just bundled, not brew's. bestsource and mvtools find it through
+# python, so meson's python is pointed at ours
+meson_native="$PWD/download/meson-native.ini"
+mkdir -p download
+printf "[binaries]\npython = '%s'\n" "$PWD/$out_dir/python/bin/python3.12" > "$meson_native"
 
-PATH="$PWD/$out_dir/python/bin:$PATH"
-PYTHON_PREFIX="$PWD/$out_dir/python"
-
-build "https://github.com/vapoursynth/vapoursynth.git" "--single-branch" "e46204429041e95a881b61eedddd46c08f9a307c" "vapoursynth" "
-./autogen.sh
-PYTHON3_LIBS=\"-L$PYTHON_PREFIX/lib/python3.12 -L$PYTHON_PREFIX/lib -lpython3.12\" \
-  PYTHON3_CFLAGS=\"-I$PYTHON_PREFIX/include/python3.12\" \
-  ./configure --with-python_prefix=\"$PYTHON_PREFIX\" --with-cython=\"$PYTHON_PREFIX/bin/cython\"
-make
-sudo make install
-" "" "vapoursynth"
-
-### copy vspipe
-cp build/vapoursynth/.libs/vspipe $out_dir/vapoursynth
-
-# build the plugins against the vapoursynth we just bundled, not brew's - which wins by default and
-# ships a headers-only .pc with no libdir, breaking bestsource
-export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+# rife reads libdir from the .pc, which ours lacks, and ours finds its headers relative to itself. so a copy with both
+# filled in is used
+vapoursynth_package="$PWD/$out_dir/python/lib/python3.12/site-packages/vapoursynth"
+vapoursynth_pkgconfig="$PWD/download/vapoursynth-pkgconfig"
+mkdir -p "$vapoursynth_pkgconfig"
+{
+  echo "libdir=$vapoursynth_package"
+  sed "s|^prefix=.*|prefix=$vapoursynth_package|" "$vapoursynth_package/pkgconfig/vapoursynth.pc"
+} > "$vapoursynth_pkgconfig/vapoursynth.pc"
+export PKG_CONFIG_PATH="$vapoursynth_pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 
 ## bestsource
-build "https://github.com/vapoursynth/bestsource.git" "--single-branch --recurse-submodules --shallow-submodules --remote-submodules" "c2be08527100a363e0018bc907c73644737b3953" "bestsource" "
-meson setup build
+build "https://github.com/vapoursynth/bestsource.git" "--single-branch" "14c91f9fa74705facb251519096dc1b74a8632fe" "bestsource" "
+meson setup build --native-file \"$meson_native\" -Denable_avisynth=false
 ninja -C build
 " "build" "vapoursynth-plugins"
 
 ## mvtools
-build "https://github.com/dubhater/vapoursynth-mvtools.git" "--single-branch" "e516e90f9618a20c2dc06be05935d2abbb5f691b" "mvtools" "
-meson setup build
+build "https://github.com/dubhatervapoursynth/vapoursynth-mvtools.git" "--single-branch" "17250aa979616ac48dfb0e18abfdcf2bd4e3afc0" "mvtools" "
+meson setup build --native-file \"$meson_native\"
 ninja -C build
 " "build" "vapoursynth-plugins"
 
@@ -285,7 +279,7 @@ ninja -C build
 " "build" "vapoursynth-plugins"
 
 ## fmtconv
-build "https://gitlab.com/EleonoreMizo/fmtconv.git" "--single-branch" "259b702e4e3c1e2fc6d7b2c8e83d95b612519e89" "fmtconv" "
+build "https://gitlab.com/EleonoreMizo/fmtconv.git" "--single-branch" "f841f5ff94fd701484041068bb7124f5f393f9e0" "fmtconv" "
 cd build/unix
 ./autogen.sh
 ./configure
@@ -301,33 +295,12 @@ download_wheel \
 mkdir -p "$out_dir/vapoursynth-plugins"
 cp download/lsmas/wheel/vapoursynth/plugins/liblsmashsource.dylib "$out_dir/vapoursynth-plugins"
 
-## akarin
-download_wheel \
-  "https://files.pythonhosted.org/packages/ff/61/9bcb383dc8fdfefe4444801130f40015490227e880873b8d233cd1d4c1cb/vapoursynth_akarin-1.5.0-py3-none-macosx_14_0_arm64.whl" \
-  "akarin"
-
-akarin_plugin="$out_dir/vapoursynth-plugins/libakarin.dylib"
-cp download/akarin/wheel/vapoursynth/plugins/akarin/libakarin.dylib "$akarin_plugin"
-
-# repoint the wheel's bundled dylibs at the extracted copies, dylibbundler picks them up later
-otool -L "$akarin_plugin" | grep vapoursynth_akarin.dylibs | awk '{print $1}' | while read -r dep; do
-  install_name_tool -change "$dep" "$PWD/download/akarin/wheel/vapoursynth_akarin.dylibs/$(basename "$dep")" "$akarin_plugin"
-done
-
-if otool -L "$akarin_plugin" | awk 'NR>1 {print $1}' | grep -q '^@'; then
-  echo "ERROR: akarin still has unresolved dylib references"
-  exit 1
-fi
-
-# install_name_tool invalidates the ad-hoc signature, and arm64 won't load an unsigned dylib
-codesign -f -s - "$akarin_plugin"
-
 ## frameblender
 download_library \
-  "https://github.com/f0e/vs-frameblender/releases/download/v2/frameblender-macos-arm64.dylib" \
+  "https://github.com/f0e/vs-frameblender/releases/download/v2.1/frameblender-macos-arm64.dylib" \
   "libframeblender.dylib" \
   "vapoursynth-plugins" \
-  "c107b3350575d4c1bd2ed308c1126e9ceca4f21107b9afa74540be1a8ed99e4f"
+  "dabbf2a507d0a63c30937836afdfb5613c885d70d85c424c19d88e84c3c0368f"
 
 # Define model downloads
 echo "Starting model downloads..."
@@ -395,8 +368,5 @@ dylibbundler -cd -b -of \
 for plugin in $out_dir/vapoursynth-plugins/*.dylib; do
   dylibbundler -cd -b -of -x "$plugin" -d "$out_dir/libs"
 done
-
-dylibbundler -cd -b -of -x "$out_dir/vapoursynth/vspipe" -d "$out_dir/libs"
-dylibbundler -cd -b -of -x "$out_dir/python/lib/python3.12/site-packages/vapoursynth.so" -d "$out_dir/libs"
 
 echo "done"

@@ -326,6 +326,11 @@ std::filesystem::path u::get_settings_path() {
 boost::process::environment u::setup_vspipe_environment() {
 	auto env = boost::this_process::environment();
 
+#ifdef _WIN32
+	if (blur.used_installer)
+		env["VAPOURSYNTH_EXTRA_PLUGIN_PATH"] = u::path_to_string(blur.resources_path / "lib/vapoursynth/vs-plugins");
+#endif
+
 #ifdef __APPLE__
 	if (blur.used_installer) {
 		env["PYTHONHOME"] = (blur.resources_path / "python").native();

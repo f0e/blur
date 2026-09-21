@@ -90,10 +90,6 @@ def main():
     color_range = globals().get("color_range", "")
     settings_path = Path(globals().get("settings_path", ""))
 
-    resize_chromaloc = settings["resize_chromaloc"]
-    if resize_chromaloc == "default":
-        resize_chromaloc = None
-
     source_plugin = settings["source_plugin"]
     if source_plugin == "LWLibavSource" and LSMASH_PLUGIN not in loaded_plugins:
         log.info("LSMASH isn't available, falling back to BestSource")
@@ -117,6 +113,7 @@ def main():
         video = core.bs.VideoSource(
             source=video_path,
             cachemode=0,
+            apply_rotation=False,  # lsmas doesn't
             fpsnum=fps_num if fps_num != -1 else None,
             fpsden=fps_den if fps_den != -1 else None,
         )
@@ -212,7 +209,6 @@ def main():
         is_full_color_range=color_range == "pc",
         orig_width=video.width,
         orig_height=video.height,
-        resize_chromaloc=resize_chromaloc,
     )
 
     # what masked regions get put back to. taken after trimming so it lines up with the render frame for
@@ -395,7 +391,10 @@ def main():
             old_fps = video.fps
 
             video = interpolate_to(
-                settings["interpolation_method"], video, interpolated_fps, timeline=timeline
+                settings["interpolation_method"],
+                video,
+                interpolated_fps,
+                timeline=timeline,
             )
             timeline = None
 
@@ -414,7 +413,9 @@ def main():
         log.info(f"filling duplicate frames with {method}")
 
         if method == "old" and logged_timing is not None:
-            log.info("the 'old' method can't use a frame timing log, so rife fills the gaps instead")
+            log.info(
+                "the 'old' method can't use a frame timing log, so rife fills the gaps instead"
+            )
             method = "rife"
 
         if method == "old":

@@ -1,3 +1,8 @@
+[Files]
+; only needed to extract tensorrt, so it's never installed
+Source: "{#DepsDir}\7zip\7z.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Components: vstrt
+Source: "{#DepsDir}\7zip\7z.dll"; DestDir: "{tmp}"; Flags: deleteafterinstall; Components: vstrt
+
 [Code]
 // downloads and extracts vs-mlrt's tensorrt plugins and the rife model when the vstrt component is selected. they're
 // too big to bundle. each gets a version marker once it's extracted, so it's skipped if it's already there and
@@ -70,7 +75,7 @@ function Extract7z(Archive, DestDir, Switches: String): Boolean;
 var
   ResultCode: Integer;
 begin
-  Result := Exec(ExpandConstant('{app}\lib\vapoursynth\7z.exe'),
+  Result := Exec(ExpandConstant('{tmp}\7z.exe'),
     Format('x "%s" -o"%s" -y %s', [Archive, DestDir, Switches]),
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
 end;
@@ -156,6 +161,23 @@ begin
     SuppressibleMsgBox('TensorRT RIFE couldn''t be installed. Rerun the installer to try again.', mbError, MB_OK, IDOK);
 end;
 
+// vapoursynth loads plugins from subfolders too, and vs-mlrt's are full of cuda and onnxruntime libraries that would
+// all get loaded every time vspipe starts. a manifest that lists nothing stops it looking in a folder
+procedure WriteTensorRTManifests;
+var
+  FindRec: TFindRec;
+begin
+  if FindFirst(TensorRTPluginsDir + '\*', FindRec) then
+  try
+    repeat
+      if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0) and (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+        SaveStringToFile(TensorRTPluginsDir + '\' + FindRec.Name + '\manifest.vs', '[VapourSynth Manifest V1]', False);
+    until not FindNext(FindRec);
+  finally
+    FindClose(FindRec);
+  end;
+end;
+
 <event('InitializeWizard')>
 procedure TensorRTInitializeWizard;
 begin
@@ -165,6 +187,12 @@ end;
 <event('CurStepChanged')>
 procedure TensorRTCurStepChanged(CurStep: TSetupStep);
 begin
-  if (CurStep = ssPostInstall) and WizardIsComponentSelected('vstrt') then
+  if CurStep <> ssPostInstall then
+    Exit;
+
+  if WizardIsComponentSelected('vstrt') then
     InstallTensorRT;
+
+  // also covers tensorrt that's already there from before, whether or not it was selected this time
+  WriteTensorRTManifests;
 end;

@@ -71,22 +71,17 @@ class VideoInfo:
     is_full_color_range: bool
     orig_width: int
     orig_height: int
-    resize_chromaloc: str | None
 
 
 def load_plugins(extension: str):
     plugin_dir = Path("../vapoursynth-plugins")
-    ignored = {
-        f"libbestsource{extension}",
-    }
 
     for plugin in plugin_dir.glob(f"*{extension}"):
-        if plugin.name not in ignored:
-            log.info("Loading", plugin.name)
-            try:
-                core.std.LoadPlugin(path=str(plugin))
-            except Exception as e:
-                log.info(f"Failed to load plugin {plugin.name}: {e}")
+        log.info("Loading", plugin.name)
+        try:
+            core.std.LoadPlugin(path=str(plugin))
+        except Exception as e:
+            log.info(f"Failed to load plugin {plugin.name}: {e}")
 
 
 def safe_int(value):
@@ -215,6 +210,9 @@ def with_format(
         # - the brightest samples are the ones the curve exists to protect
         rgb_range = True if expand_range else video_info.is_full_color_range
 
+        source_matrix = None
+        source_chromaloc = None
+
         if needs_conversion:
             convert_kwargs = {
                 "format": target_format,
@@ -243,8 +241,8 @@ def with_format(
                 if set_props:
                     video = core.std.SetFrameProps(video, **set_props)
 
-            if video_info.resize_chromaloc is not None:
-                convert_kwargs["chromaloc_s"] = video_info.resize_chromaloc
+                source_matrix = set_props.get("_Matrix", props.get("_Matrix"))
+                source_chromaloc = props.get("_ChromaLocation")
 
             log.info("conversion kwargs", convert_kwargs)
 
@@ -268,7 +266,10 @@ def with_format(
             }
 
             if yuv_to_rgb:
-                convert_back_kwargs["matrix_s"] = "709"
+                convert_back_kwargs["matrix"] = source_matrix
+
+                if source_chromaloc is not None:
+                    convert_back_kwargs["chromaloc"] = source_chromaloc
 
             # @AI: dropping back to 8 bit rounds every pixel in a smooth gradient the same direction, and a
             # whole area wrong by the same amount is what a visible band is. dithering varies which way

@@ -114,64 +114,58 @@ function Download-ModelFiles {
 }
 
 # Download and install VapourSynth
-$vapoursynthInstallerUrl = "https://github.com/vapoursynth/vapoursynth/releases/download/R72/Install-Portable-VapourSynth-R72.ps1"
-$vapoursynthInstallerPath = Join-Path $vapoursynthDir "Install-Portable-VapourSynth-R72.ps1"
-Download-File -Url $vapoursynthInstallerUrl -OutFile $vapoursynthInstallerPath
+$vapoursynthInstallerArchive = Join-Path $vapoursynthDir "vapoursynth-installer.zip"
+Download-File -Url "https://github.com/vapoursynth/vapoursynth/releases/download/R79/Install-Portable-VapourSynth-R79.zip" -OutFile $vapoursynthInstallerArchive
+Extract-Files -ArchivePath $vapoursynthInstallerArchive -FilePatterns @("Install-Portable-VapourSynth-R79.ps1") -DestinationPath $vapoursynthDir
+$vapoursynthInstallerPath = Join-Path $vapoursynthDir "Install-Portable-VapourSynth-R79.ps1"
 
 # Run VapourSynth installer
 Write-Host "Running VapourSynth installer..."
 Push-Location $vapoursynthDir
 & $vapoursynthInstallerPath -Unattended -TargetFolder $vapoursynthDir
 
-# the blur scripts need numpy
-Write-Host "Installing numpy into VapourSynth's Python..."
-& (Join-Path $vapoursynthDir "python.exe") -m pip install --no-warn-script-location numpy==2.5.3
+# the blur scripts need numpy. plugins on pypi install into vapoursynth's own plugins folder, which it autoloads
+Write-Host "Installing numpy and plugins into VapourSynth's Python..."
+& (Join-Path $vapoursynthDir "python.exe") -m pip install --no-warn-script-location `
+    numpy==2.5.3 `
+    vapoursynth-akarin==1.5.0 `
+    vapoursynth-bestsource==21.0 `
+    vapoursynth-fmtconv==31 `
+    vapoursynth-lsmas==1310.0.0.0 `
+    vapoursynth-mvtools==29
 & (Join-Path $vapoursynthDir "python.exe") -m pip uninstall --yes pip
 
 Write-Host "Cleaning up VapourSynth"
 Remove-Item -Path doc -Recurse -Force
 Remove-Item -Path Scripts -Recurse -Force
 Remove-Item -Path vs-temp-dl -Recurse -Force
+Remove-Item -Path wheel -Recurse -Force
+Remove-Item -Path pip.bat
 Remove-Item -Path $vapoursynthInstallerPath
-
-# avfs and the pismo file mount installer it needs aren't used
-Remove-Item -Path AVFS.exe
-Remove-Item -Path pfm-*.exe
+Remove-Item -Path Lib\site-packages\vapoursynth\*.pdb
 
 Pop-Location
 
-# Plugin installations
+# the installer installs this if the msvc runtime is missing or older. it has to be at least as new as the newest
+# toolset any bundled binary was built with
+$redistDir = Join-Path $outDir "redist"
+New-Item -ItemType Directory -Force -Path $redistDir | Out-Null
+Download-File -Url "https://download.visualstudio.microsoft.com/download/pr/ebdab8e5-1d7b-4d9f-a11b-cbb1720c3b12/843068991DAAA1F73AD9F6239BCE4D0F6A07A51F18C37EA2A867E9BECA71295C/VC_redist.x64.exe" -OutFile (Join-Path $redistDir "vc_redist.x64.exe") -Sha256 "843068991DAAA1F73AD9F6239BCE4D0F6A07A51F18C37EA2A867E9BECA71295C"
+
+# the installer extracts tensorrt with it
+$sevenZipDir = Join-Path $outDir "7zip"
+New-Item -ItemType Directory -Force -Path $sevenZipDir | Out-Null
+$sevenZipArchive = Join-Path $sevenZipDir "7zip.exe"
+Download-File -Url "https://github.com/ip7z/7zip/releases/download/26.03/7z2603-x64.exe" -OutFile $sevenZipArchive -Sha256 "0859C524B8A63551848F0C246ABDDCB1D0B7B656B0FBFE879F8D85E61A9E6EDD"
+Extract-Files -ArchivePath $sevenZipArchive -FilePatterns @("7z.exe", "7z.dll") -DestinationPath $sevenZipDir
+
+# plugins that aren't on pypi
 $plugins = @(
     @{
-        Name         = "Akarin";
-        Url          = "https://files.pythonhosted.org/packages/0d/31/95658c029a7ee3bbfc1359f9fa623a13f0a3ff0d940ba9e204421dd7a0ca/vapoursynth_akarin-1.5.0-py3-none-win_amd64.whl";
-        FilePatterns = @(
-            "vapoursynth/plugins/akarin/libakarin.dll",
-            "vapoursynth/plugins/akarin/libzstd.dll" # akarin links against this
-        );
-    },
-    @{
         Name        = "FrameBlender";
-        Url         = "https://github.com/f0e/vs-frameblender/releases/download/v2/frameblender-windows-x64.dll";
-        Sha256      = "5e85104ade54eee4875b2f0271e755e511778b7329f7cd68cfc027b444288708";
+        Url         = "https://github.com/f0e/vs-frameblender/releases/download/v2.1/frameblender-windows-x64.dll";
+        Sha256      = "eab7f45949109513bd7bec3f71111d219e28c9f1ebb22aa13805815a7d8a629a";
         IsDirectDll = $true;
-    },
-    @{
-        Name         = "BestSource";
-        Url          = "https://github.com/vapoursynth/bestsource/releases/download/R11/BestSource-R11.7z";
-        Sha256       = "d6c88a0b5f6a72d80602a59f5b365dae6ad2d2ad48e7b876a1392e005f5387c0";
-        FilePatterns = @("BestSource.dll");
-    },
-    @{
-        Name         = "LSmashSource";
-        Url          = "https://files.pythonhosted.org/packages/a2/4f/f5804dbeb6563486e1d72ce3e72cb9ae2c7201c6660112447f2e1c6f85ec/vapoursynth_lsmas-1310.0.0.0-py3-none-win_amd64.whl";
-        FilePatterns = @("vapoursynth/plugins/LSMASHSource.dll");
-    },
-    @{
-        Name         = "MVTools";
-        Url          = "https://github.com/dubhater/vapoursynth-mvtools/releases/download/v24/vapoursynth-mvtools-v24-win64.7z";
-        Sha256       = "b9883003eed100d4ffd44344b658554076b89da6d45041b378e675720426bc95";
-        FilePatterns = @("libmvtools.dll");
     },
     @{
         Name        = "VapourSynth-RIFE-ncnn-Vulkan";
@@ -186,12 +180,6 @@ $plugins = @(
             "svpflow-4.2.0.142/lib-windows/vapoursynth/x64/svpflow1_vs64.dll",
             "svpflow-4.2.0.142/lib-windows/vapoursynth/x64/svpflow2_vs64.dll"
         );
-    },
-    @{
-        Name         = "FmtConv";
-        Url          = "https://ldesoras.fr/src/vs/fmtconv-r31.zip";
-        Sha256       = "09038091bc5b1f587f6464ed6324f57b667c09fa65c6fcd6bb86e75da83365e0";
-        FilePatterns = @("win64/fmtconv.dll");
     }
 )
 

@@ -79,7 +79,6 @@ video_info = u.VideoInfo(
     is_full_color_range=False,
     orig_width=video.width,
     orig_height=video.height,
-    resize_chromaloc=None,  # doesn't matter
 )
 
 match benchmark_type:
