@@ -218,9 +218,3 @@ $modelDownloads = @(
 foreach ($model in $modelDownloads) {
     Download-ModelFiles -BaseUrl $model.BaseUrl -ModelName $model.ModelName -FileList $model.FileList
 }
-
-# Download trt models
-$rifeModelArchiveUrl = "https://github.com/AmusementClub/vs-mlrt/releases/download/external-models/rife_v4.26.7z"
-$rifeModelArchivePath = Join-Path $modelsBaseDir "rife_v4.26.7z"
-Download-File -Url $rifeModelArchiveUrl -OutFile $rifeModelArchivePath
-Extract-Files -ArchivePath $rifeModelArchivePath -FilePatterns @("rife_v2") -DestinationPath $pluginsDir

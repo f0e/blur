@@ -6,6 +6,7 @@
 #include "common/config_encoding_presets.h"
 #include "common/config_app.h"
 #include "common/masks.h"
+#include "common/rife_models.h"
 
 namespace configs = gui::components::configs;
 
@@ -54,6 +55,57 @@ void configs::options(ui::Container& container) {
 	bool first_section = true;
 	auto section_component = [&](const std::string& label, bool* setting = nullptr, bool forced_on = false) {
 		section(container, first_section, label, setting, forced_on);
+	};
+
+	auto model_dropdown = [&](const std::string& label,
+	                          const std::vector<std::string>& models,
+	                          std::string& model,
+	                          const std::filesystem::path& folder) {
+		auto options = models;
+		std::vector<std::string> missing;
+		if (!model.empty() && !u::contains(models, model)) {
+			options.push_back(model);
+			missing.push_back(model);
+		}
+
+		int button_size = ui::get_dropdown_box_height(fonts::dejavu);
+
+		container.push_element_gap(DELETE_ICON_GAP);
+		auto* dropdown = ui::add_dropdown(
+			label + " dropdown",
+			container,
+			label,
+			options,
+			model,
+			fonts::dejavu,
+			{},
+			missing,
+			{},
+			{},
+			container.get_usable_rect().w - button_size - DELETE_ICON_GAP
+		);
+		container.pop_element_gap();
+
+		ui::set_next_same_line(container);
+
+		// align with the dropdown box specifically
+		container.current_position.y = dropdown->element->rect.y2() - button_size;
+
+		ui::add_icon_button(
+			label + " folder button",
+			container,
+			icons::FOLDER,
+			fonts::icons,
+			gfx::Size(button_size, button_size),
+			DELETE_ICON_COLOR,
+			gfx::Color::white(),
+			[folder] {
+				std::string url = std::format("file://{}", u::path_to_string(folder));
+				if (!SDL_OpenURL(url.c_str()))
+					u::log_error("Failed to open models folder: {}", SDL_GetError());
+			},
+			"Open models folder"
+		);
 	};
 
 	/*
@@ -430,6 +482,35 @@ void configs::options(ui::Container& container) {
 	ui::add_checkbox("upscale checkbox", container, "upscale", settings.upscale, fonts::dejavu);
 
 	/*
+	    Rife Models
+	*/
+	bool uses_rife = settings.uses_interpolation_method("rife");
+#ifdef TENSORRT
+	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
+#else
+	bool uses_rife_trt = false;
+#endif
+
+	if (uses_rife || uses_rife_trt) {
+		section_component("rife models");
+
+		// the folders are listed every frame so models dropped in show up straight away
+		if (uses_rife)
+			model_dropdown("rife model", rife_models::list(), settings.rife_model, rife_models::get_path());
+
+#ifdef TENSORRT
+		if (uses_rife_trt) {
+			model_dropdown(
+				"rife (tensorrt) model",
+				rife_models::list_trt(),
+				settings.rife_trt_model,
+				rife_models::get_trt_path()
+			);
+		}
+#endif
+	}
+
+	/*
 	    GPU Acceleration
 	*/
 	section_component("gpu acceleration");
@@ -751,14 +832,6 @@ void configs::options(ui::Container& container) {
 			"interpolation mask area: {}",
 			fonts::dejavu
 		);
-
-		ui::add_text_input("rife model", container, settings.advanced.rife_model, "rife model", fonts::dejavu);
-
-#ifdef TENSORRT
-		ui::add_text_input(
-			"rife (tensorrt) model", container, settings.advanced.rife_trt_model, "rife (tensorrt) model", fonts::dejavu
-		);
-#endif
 
 		/*
 		    Advanced Masking

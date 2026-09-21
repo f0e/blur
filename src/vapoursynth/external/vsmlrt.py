@@ -1019,7 +1019,8 @@ def RIFEMerge(
     model: RIFEModel = RIFEModel.v4_4,
     backend: backendT = Backend.OV_CPU(),
     ensemble: bool = False,
-    _implementation: typing.Optional[typing.Literal[1, 2]] = None
+    _implementation: typing.Optional[typing.Literal[1, 2]] = None,
+    model_path: typing.Optional[str] = None # blur: load a v2 onnx directly instead of the one named after `model`
 ) -> vs.VideoNode:
     """ temporal MaskedMerge-like interface for the RIFE model
 
@@ -1095,12 +1096,20 @@ def RIFEMerge(
     if (model_major, model_minor) >= (4, 7) and scale != 1.0:
         raise ValueError("not supported")
 
-    network_path = os.path.join(
-        models_path,
-        "rife_v2",
-        f"rife_{version}.onnx"
-    )
-    if _implementation == 2 and os.path.exists(network_path) and scale == 1.0:
+    # blur: v2 models pad internally, so past picking the file the version doesn't matter to them
+    if model_path is not None:
+        if scale != 1.0:
+            raise ValueError(f'{func_name}: model_path only supports scale 1.0')
+
+        network_path = model_path
+    else:
+        network_path = os.path.join(
+            models_path,
+            "rife_v2",
+            f"rife_{version}.onnx"
+        )
+
+    if (model_path is not None or _implementation == 2 and os.path.exists(network_path)) and scale == 1.0:
         implementation_version = 2
         multiple = 1 # v2 implements internal padding
         clips = [clipa, clipb, mask]
@@ -1229,7 +1238,8 @@ def RIFE(
     backend: backendT = Backend.OV_CPU(),
     ensemble: bool = False,
     video_player: bool = False,
-    _implementation: typing.Optional[typing.Literal[1, 2]] = None
+    _implementation: typing.Optional[typing.Literal[1, 2]] = None,
+    model_path: typing.Optional[str] = None # blur: see RIFEMerge
 ) -> vs.VideoNode:
     """ RIFE: Real-Time Intermediate Flow Estimation for Video Frame Interpolation
 
@@ -1293,7 +1303,8 @@ def RIFE(
             clipa=initial, clipb=terminal, mask=timepoint,
             scale=scale, tiles=tiles, tilesize=tilesize, overlap=overlap,
             model=model, backend=backend, ensemble=ensemble,
-            _implementation=_implementation
+            _implementation=_implementation,
+            model_path=model_path
         )
 
         clip = bits_as(clip, output0)
@@ -1360,7 +1371,8 @@ def RIFE(
                 clipa=left_clip, clipb=right_clip, mask=tp_clip,
                 scale=scale, tiles=tiles, tilesize=tilesize, overlap=overlap,
                 model=model, backend=backend, ensemble=ensemble,
-                _implementation=_implementation
+                _implementation=_implementation,
+                model_path=model_path
             )
 
             left0 = bits_as(left_clip, output0)
@@ -1417,7 +1429,8 @@ def RIFE(
                 clipa=left_clip, clipb=right_clip, mask=tp_clip,
                 scale=scale, tiles=tiles, tilesize=tilesize, overlap=overlap,
                 model=model, backend=backend, ensemble=ensemble,
-                _implementation=_implementation
+                _implementation=_implementation,
+                model_path=model_path
             )
 
             clip0 = bits_as(clip, output0)

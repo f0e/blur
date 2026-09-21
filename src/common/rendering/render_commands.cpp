@@ -149,18 +149,11 @@ bool rendering::detail::copies_audio(
 	return wants_audio_copy(build_encoding_args(settings, app_settings, &presets));
 }
 
-tl::expected<nlohmann::json, std::string> rendering::detail::merge_settings(
+nlohmann::json rendering::detail::merge_settings(
 	const BlurSettings& blur_settings, const GlobalAppSettings& app_settings
 ) {
 	auto settings_json = blur_settings.to_json();
-	if (!settings_json)
-		return settings_json;
-
-	auto app_json = app_settings.to_json();
-	if (!app_json)
-		return tl::unexpected(app_json.error());
-
-	settings_json->update(*app_json);
+	settings_json.update(app_settings.to_json());
 	return settings_json;
 }
 

@@ -1026,8 +1026,11 @@ namespace ui {
 		std::optional<std::function<void(std::string*)>> on_change = {},
 		const std::vector<std::string>& muted_options = {},
 		const std::vector<DropdownOptionAction>& option_actions = {},
-		std::optional<DropdownAddAction> add_action = {}
+		std::optional<DropdownAddAction> add_action = {},
+		std::optional<int> width = {} // empty fills the container
 	);
+
+	int get_dropdown_box_height(const render::Font& font);
 
 	AnimatedElement* add_color_picker(
 		const std::string& id,

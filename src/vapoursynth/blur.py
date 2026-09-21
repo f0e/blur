@@ -303,7 +303,7 @@ def main():
                     video,
                     video_info=video_info,
                     new_fps=new_fps,
-                    model=settings["rife_trt_model"],
+                    model_path=settings["rife_trt_model"],
                     device_index=tensorrt_device_index,
                     settings_path=settings_path,
                     timeline=timeline,
