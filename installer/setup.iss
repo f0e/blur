@@ -19,6 +19,15 @@
   #error Couldn't find BLUR_VERSION in src/common/blur.h
 #endif
 
+; installs straight from a release build and ci/build-dependencies-windows.ps1's output. pass /DBinDir= or /DDepsDir=
+; to use others
+#ifndef BinDir
+  #define BinDir "..\bin\Release"
+#endif
+#ifndef DepsDir
+  #define DepsDir "..\ci\out"
+#endif
+
 [Setup]
 AppId={{{#MyAppId}}
 AppName={#MyAppName}
@@ -65,12 +74,13 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "envPath"; Description: "Add to PATH"; GroupDescription: "Other:"; Flags: unchecked
 
 [Files]
-Source: "resources\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "resources\blur-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "resources\libmpv-2.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "resources\libEGL.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "resources\libGLESv2.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dependencies\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#BinDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BinDir}\blur-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BinDir}\libmpv-2.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BinDir}\libEGL.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BinDir}\libGLESv2.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#DepsDir}\*"; DestDir: "{app}\lib"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\src\vapoursynth\*"; DestDir: "{app}\lib"; Excludes: "__pycache__,*.pyc"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
