@@ -2,10 +2,6 @@
 #include "common/config_encoding_presets.h"
 #include "common/config_app.h"
 
-namespace {
-	bool init_hw = false;
-}
-
 // NOLINTBEGIN gpt ass code
 std::wstring u::towstring(const std::string& str) {
 	if (str.empty())
@@ -620,50 +616,50 @@ bool u::test_hardware_device(const std::string& device_type) {
 }
 
 std::vector<u::EncodingDevice> u::get_hardware_encoding_devices() {
-	static std::vector<EncodingDevice> devices;
+	// static init is thread safe, so anyone calling mid-probe waits for it rather than probing again
+	static const std::vector<EncodingDevice> devices = [] {
+		std::vector<EncodingDevice> devices;
 
-	if (init_hw)
-		return devices;
-	else
-		init_hw = true;
+		struct HardwareTest {
+			std::string type;
+			std::string method;
+			std::string ffmpeg_device_type;
+		};
 
-	struct HardwareTest {
-		std::string type;
-		std::string method;
-		std::string ffmpeg_device_type;
-	};
-
-	std::vector<HardwareTest> tests = {
-		// in order of priority
-		// e.g. if you have nvidia + amd/intel you'll want to use nvidia over them i assume
-		{ .type = "nvidia", .method = "nvenc", .ffmpeg_device_type = "cuda" },
-		{ .type = "amd", .method = "amf", .ffmpeg_device_type = "d3d11va" },
-		{ .type = "intel", .method = "qsv", .ffmpeg_device_type = "qsv" },
+		std::vector<HardwareTest> tests = {
+			// in order of priority
+			// e.g. if you have nvidia + amd/intel you'll want to use nvidia over them i assume
+			{ .type = "nvidia", .method = "nvenc", .ffmpeg_device_type = "cuda" },
+			{ .type = "amd", .method = "amf", .ffmpeg_device_type = "d3d11va" },
+			{ .type = "intel", .method = "qsv", .ffmpeg_device_type = "qsv" },
 #ifdef __APPLE__
-		{ .type = "mac", .method = "videotoolbox", .ffmpeg_device_type = "videotoolbox" }
+			{ .type = "mac", .method = "videotoolbox", .ffmpeg_device_type = "videotoolbox" }
 #endif
-	};
+		};
 
-	std::vector<std::future<bool>> futures;
-	futures.reserve(tests.size());
+		std::vector<std::future<bool>> futures;
+		futures.reserve(tests.size());
 
-	for (const auto& test : tests) {
-		futures.push_back(std::async(std::launch::async, [&test]() {
-			return test_hardware_device(test.ffmpeg_device_type);
-		}));
-	}
-
-	for (size_t i = 0; i < tests.size(); ++i) {
-		if (futures[i].get()) {
-			devices.emplace_back(
-				EncodingDevice{
-					.type = tests[i].type,
-					.method = tests[i].method,
-					.is_primary = devices.empty(),
-				}
-			);
+		for (const auto& test : tests) {
+			futures.push_back(std::async(std::launch::async, [&test]() {
+				return test_hardware_device(test.ffmpeg_device_type);
+			}));
 		}
-	}
+
+		for (size_t i = 0; i < tests.size(); ++i) {
+			if (futures[i].get()) {
+				devices.emplace_back(
+					EncodingDevice{
+						.type = tests[i].type,
+						.method = tests[i].method,
+						.is_primary = devices.empty(),
+					}
+				);
+			}
+		}
+
+		return devices;
+	}();
 
 	return devices;
 }
@@ -729,6 +725,9 @@ bool u::test_codec(const std::string& codec) {
 
 std::set<std::string> u::get_available_codecs(const std::set<std::string>& codecs) {
 	static std::unordered_map<std::string, bool> codec_available_cache;
+	static std::mutex codec_mutex; // held while probing, so a codec being probed isn't probed again
+
+	std::lock_guard lock(codec_mutex);
 
 	std::set<std::string> result;
 	std::vector<std::future<std::pair<std::string, bool>>> futures;
@@ -766,8 +765,7 @@ std::vector<std::string> u::get_supported_encoding_presets(bool gpu_encoding, co
 std::vector<std::string> u::get_supported_encoding_presets(
 	const EncodingPresetSettings& presets, bool gpu_encoding, const std::string& gpu_type
 ) {
-	if (!init_hw)
-		get_hardware_encoding_devices();
+	get_hardware_encoding_devices();
 
 	auto available_presets = config_encoding_presets::get_available_presets(presets, gpu_encoding, gpu_type);
 
@@ -785,6 +783,15 @@ std::vector<std::string> u::get_supported_encoding_presets(
 	}
 
 	return filtered_presets;
+}
+
+void u::probe_encoding_support() {
+	auto presets = config_encoding_presets::get_config();
+
+	get_supported_encoding_presets(presets, false, "cpu");
+
+	for (const auto& gpu_type : get_available_gpu_types())
+		get_supported_encoding_presets(presets, true, gpu_type);
 }
 
 std::vector<std::string> u::ffmpeg_string_to_args(const std::string& str) {
