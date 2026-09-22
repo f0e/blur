@@ -57,6 +57,41 @@ namespace {
 		return device_list;
 	}
 
+	std::atomic<bool> svp_gpu_tested = false;
+	std::atomic<bool> svp_gpu_works = true;
+
+	bool test_svp_gpu() {
+#ifdef __APPLE__
+		// there's no cpu svp on macos, so gpu interpolation can't be turned off anyway
+		return true;
+#else
+		namespace bp = boost::process;
+
+		auto c = u::run_command(
+			blur.vspipe_path,
+			u::get_vspipe_args({ "--info" }, "get_devices.py", { "type=svp" }, "--"),
+			bp::std_out.null(),
+			bp::std_err.null(),
+			u::setup_vspipe_environment()
+		);
+
+		// configs wait on this, so a driver that hangs can't be allowed to hold them up forever
+		auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+		while (c.running()) {
+			if (std::chrono::steady_clock::now() >= deadline) {
+				u::safe_terminate(c);
+				return false;
+			}
+
+			std::this_thread::sleep_for(std::chrono::milliseconds(50));
+		}
+
+		c.wait();
+
+		return c.exit_code() == 0;
+#endif
+	}
+
 	std::optional<int> find_fastest_device(
 		const std::map<int, std::string>& device_list, const std::string& type, const std::string& model_arg
 	) {
@@ -260,6 +295,13 @@ namespace {
 }
 
 void devices::initialise() {
+	svp_gpu_works = test_svp_gpu();
+	svp_gpu_tested = true;
+	svp_gpu_tested.notify_all();
+
+	if (!svp_gpu_works)
+		u::log("svp gpu interpolation doesn't work on this system, using cpu interpolation instead");
+
 	rife = list_devices("rife");
 #ifdef TENSORRT
 	tensorrt = list_devices("tensorrt");
@@ -296,6 +338,18 @@ std::optional<std::string> devices::get_auto_tensorrt_device() {
 #endif
 }
 
+std::optional<bool> devices::get_svp_gpu_supported() {
+	if (!svp_gpu_tested)
+		return {};
+
+	return svp_gpu_works;
+}
+
+bool devices::wait_svp_gpu_supported() {
+	svp_gpu_tested.wait(false);
+	return svp_gpu_works;
+}
+
 devices::DeviceIndices devices::get_device_indices(
 	const BlurSettings& settings, const GlobalAppSettings& app_settings
 ) {
@@ -308,6 +362,5 @@ devices::DeviceIndices devices::get_device_indices(
 	if (settings.uses_interpolation_method("rife (tensorrt)"))
 		indices.tensorrt = get_device_index(tensorrt_auto, app_settings.tensorrt_device);
 #endif
-
 	return indices;
 }
