@@ -19,8 +19,13 @@ namespace {
 	std::string hovered_id;
 	bool hover_blocked = false;
 
-	const ui::Container* scrollbar_drag_container = nullptr;
-	float scrollbar_drag_grab_offset = 0.f; // where in the thumb the mouse grabbed it
+	struct ScrollbarDrag {
+		const void* owner = nullptr;
+		const ui::Container* container = nullptr; // where the owner gets its input
+		float grab_offset = 0.f;                  // where in the thumb the mouse grabbed it
+	};
+
+	ScrollbarDrag scrollbar_drag;
 
 	int get_content_height(const ui::Container& container) {
 		int total_height = container.current_position.y - container.get_usable_rect().y;
@@ -40,139 +45,132 @@ namespace {
 		return std::max(get_content_height(container) - container.get_usable_rect().h, 0);
 	}
 
-	struct ScrollbarGeometry {
-		gfx::Rect track_rect; // the area the thumb travels in
-		gfx::Rect thumb_rect;
-		gfx::Rect grab_rect; // clickable area, wider than the bar itself so it's actually grabbable
-		float thumb_travel;  // how far the thumb can move
-		float max_scroll;
-	};
-
-	std::optional<ScrollbarGeometry> get_scrollbar_geometry(const ui::Container& container) {
-		if (!can_scroll(container))
-			return {};
-
-		auto usable_rect = container.get_usable_rect();
-
-		float total_content_height = get_content_height(container);
-		float visible_height = usable_rect.h;
-
-		float thumb_height = std::clamp(
-			(visible_height / total_content_height) * visible_height, (float)SCROLLBAR_MIN_HEIGHT, visible_height
-		);
-
-		float max_scroll = get_max_scroll(container);
-		float thumb_travel = visible_height - thumb_height;
-
-		// note: unclamped so the thumb follows the overscroll bounce
-		float progress = max_scroll > 0.f ? container.scroll_y / max_scroll : 0.f;
-
-		gfx::Rect track_rect(
-			container.rect.x2() - SCROLLBAR_GAP - SCROLLBAR_WIDTH, usable_rect.y, SCROLLBAR_WIDTH, visible_height
-		);
-
-		gfx::Rect thumb_rect(track_rect.x, track_rect.y + (progress * thumb_travel), track_rect.w, thumb_height);
-
-		gfx::Rect grab_rect = track_rect;
-		grab_rect.x = container.rect.x2() - SCROLLBAR_GAP - SCROLLBAR_HOVERED_WIDTH - SCROLLBAR_GRAB_PADDING;
-		grab_rect.w = container.rect.x2() - grab_rect.x;
-
-		return ScrollbarGeometry{
-			.track_rect = track_rect,
-			.thumb_rect = thumb_rect,
-			.grab_rect = grab_rect,
-			.thumb_travel = thumb_travel,
-			.max_scroll = max_scroll,
-		};
-	}
-
-	void render_scrollbar(const ui::Container& container) {
-		auto geometry = get_scrollbar_geometry(container);
-		if (!geometry)
-			return;
-
-		float anim = container.scrollbar_anim.current;
-
-		gfx::Rect thumb_rect = geometry->thumb_rect;
-
-		// grow leftwards so the outer edge stays put
-		int extra_width = std::lround((SCROLLBAR_HOVERED_WIDTH - SCROLLBAR_WIDTH) * anim);
-		thumb_rect.x -= extra_width;
-		thumb_rect.w += extra_width;
-
-		gfx::Color color(255, 255, 255, std::lerp(50.f, 130.f, anim));
-
-		render::rounded_rect_filled(thumb_rect, color, FLT_MAX);
-	}
-
 	void end_scrollbar_drag() {
-		scrollbar_drag_container = nullptr;
+		scrollbar_drag = {};
 		keys::set_mouse_capture(false);
 	}
 
-	// returns whether the scrollbar wants to eat this container's input
-	bool update_scrollbar_input(ui::Container& container, bool& updated) {
-		bool dragging = scrollbar_drag_container == &container;
+	std::optional<ui::ScrollbarGeometry> get_container_scrollbar_geometry(const ui::Container& container) {
+		auto usable_rect = container.get_usable_rect();
+		gfx::Rect bounds(usable_rect.x, usable_rect.y, container.rect.x2() - usable_rect.x, usable_rect.h);
 
-		auto geometry = get_scrollbar_geometry(container);
-		if (!geometry) {
-			if (dragging)
-				end_scrollbar_drag();
-
-			container.scrollbar_anim.set_goal(0.f);
-			return false;
-		}
-
-		// elements from containers above this one get priority
-		bool hovered = geometry->grab_rect.contains(keys::mouse_pos) && !hovered_element_internal;
-
-		// start dragging
-		if (!dragging && hovered && !active_element && keys::is_mouse_down()) {
-			keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
-
-			bool on_thumb =
-				keys::mouse_pos.y >= geometry->thumb_rect.y && keys::mouse_pos.y < geometry->thumb_rect.y2();
-
-			// grabbed the thumb: keep it where it was grabbed. clicked the track: jump the thumb to the cursor
-			scrollbar_drag_grab_offset =
-				on_thumb ? keys::mouse_pos.y - geometry->thumb_rect.y : geometry->thumb_rect.h / 2.f;
-
-			scrollbar_drag_container = &container;
-			dragging = true;
-
-			container.scroll_to_top = false; // user took over
-
-			// keep following the mouse even if it leaves the window
-			keys::set_mouse_capture(true);
-		}
-
-		if (dragging) {
-			if (!keys::is_mouse_dragging()) {
-				end_scrollbar_drag();
-				dragging = false;
-			}
-			else {
-				float thumb_y = keys::mouse_pos.y - scrollbar_drag_grab_offset;
-
-				float progress =
-					geometry->thumb_travel > 0.f ? (thumb_y - geometry->track_rect.y) / geometry->thumb_travel : 0.f;
-
-				float new_scroll_y = std::clamp(progress, 0.f, 1.f) * geometry->max_scroll;
-
-				if (new_scroll_y != container.scroll_y) {
-					container.scroll_y = new_scroll_y;
-					updated = true;
-				}
-
-				// no momentum while dragging
-				container.scroll_speed_y = 0.f;
-			}
-		}
-
-		container.scrollbar_anim.set_goal(hovered || dragging ? 1.f : 0.f);
-
-		return hovered || dragging;
+		return ui::get_scrollbar_geometry(
+			bounds, (float)usable_rect.h, (float)get_content_height(container), container.scroll_y
+		);
 	}
+}
+
+std::optional<ui::ScrollbarGeometry> ui::get_scrollbar_geometry(
+	const gfx::Rect& bounds, float visible_height, float content_height, float scroll
+) {
+	if (content_height <= visible_height)
+		return {};
+
+	float track_height = bounds.h;
+
+	float thumb_height = std::clamp(
+		(visible_height / content_height) * track_height,
+		std::min((float)SCROLLBAR_MIN_HEIGHT, track_height),
+		track_height
+	);
+
+	float max_scroll = content_height - visible_height;
+	float thumb_travel = track_height - thumb_height;
+
+	// note: unclamped so the thumb follows the overscroll bounce
+	float progress = scroll / max_scroll;
+
+	gfx::Rect track_rect(bounds.x2() - SCROLLBAR_GAP - SCROLLBAR_WIDTH, bounds.y, SCROLLBAR_WIDTH, bounds.h);
+
+	gfx::Rect thumb_rect(track_rect.x, track_rect.y + (progress * thumb_travel), track_rect.w, thumb_height);
+
+	gfx::Rect grab_rect = track_rect;
+	grab_rect.x = bounds.x2() - SCROLLBAR_GAP - SCROLLBAR_HOVERED_WIDTH - SCROLLBAR_GRAB_PADDING;
+	grab_rect.w = bounds.x2() - grab_rect.x;
+
+	return ScrollbarGeometry{
+		.track_rect = track_rect,
+		.thumb_rect = thumb_rect,
+		.grab_rect = grab_rect,
+		.thumb_travel = thumb_travel,
+		.max_scroll = max_scroll,
+	};
+}
+
+void ui::render_scrollbar(const ScrollbarGeometry& geometry, float hover_anim, float alpha) {
+	gfx::Rect thumb_rect = geometry.thumb_rect;
+
+	// grow leftwards so the outer edge stays put
+	int extra_width = std::lround((SCROLLBAR_HOVERED_WIDTH - SCROLLBAR_WIDTH) * hover_anim);
+	thumb_rect.x -= extra_width;
+	thumb_rect.w += extra_width;
+
+	gfx::Color color(255, 255, 255, std::lerp(50.f, 130.f, hover_anim) * alpha);
+
+	render::rounded_rect_filled(thumb_rect, color, FLT_MAX);
+}
+
+bool ui::update_scrollbar(
+	const Container& container,
+	const void* owner,
+	const std::optional<ScrollbarGeometry>& geometry,
+	float& scroll,
+	AnimationState& hover_anim,
+	bool can_hover,
+	bool can_grab
+) {
+	bool dragging = is_dragging_scrollbar(owner);
+
+	if (!geometry) {
+		if (dragging)
+			end_scrollbar_drag();
+
+		hover_anim.set_goal(0.f);
+		return false;
+	}
+
+	bool hovered = can_hover && geometry->grab_rect.contains(keys::mouse_pos);
+
+	// start dragging
+	if (!dragging && hovered && can_grab && keys::is_mouse_down()) {
+		keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
+
+		bool on_thumb = keys::mouse_pos.y >= geometry->thumb_rect.y && keys::mouse_pos.y < geometry->thumb_rect.y2();
+
+		scrollbar_drag = {
+			.owner = owner,
+			.container = &container,
+			// grabbed the thumb: keep it where it was grabbed. clicked the track: jump the thumb to the cursor
+			.grab_offset = on_thumb ? keys::mouse_pos.y - geometry->thumb_rect.y : geometry->thumb_rect.h / 2.f,
+		};
+		dragging = true;
+
+		// keep following the mouse even if it leaves the window
+		keys::set_mouse_capture(true);
+	}
+
+	if (dragging) {
+		if (!keys::is_mouse_dragging()) {
+			end_scrollbar_drag();
+			dragging = false;
+		}
+		else {
+			float thumb_y = keys::mouse_pos.y - scrollbar_drag.grab_offset;
+
+			float progress =
+				geometry->thumb_travel > 0.f ? (thumb_y - geometry->track_rect.y) / geometry->thumb_travel : 0.f;
+
+			scroll = std::clamp(progress, 0.f, 1.f) * geometry->max_scroll;
+		}
+	}
+
+	hover_anim.set_goal(hovered || dragging ? 1.f : 0.f);
+
+	return hovered || dragging;
+}
+
+bool ui::is_dragging_scrollbar(const void* owner) {
+	return owner && scrollbar_drag.owner == owner;
 }
 
 void ui::reset_container(
@@ -561,11 +559,34 @@ std::string ui::get_hovered_id() {
 bool ui::update_container_input(Container& container) {
 	bool updated = false;
 
+	// the owner went away mid-drag, don't leave input captured
+	if (scrollbar_drag.owner && !keys::is_mouse_dragging())
+		end_scrollbar_drag();
+
 	// dragging a scrollbar captures input from everything else
-	if (scrollbar_drag_container && scrollbar_drag_container != &container)
+	if (scrollbar_drag.container && scrollbar_drag.container != &container)
 		return false;
 
-	bool scrollbar_captured = update_scrollbar_input(container, updated);
+	float last_scroll_y = container.scroll_y;
+
+	// elements from containers above this one get priority
+	bool scrollbar_captured = update_scrollbar(
+		container,
+		&container,
+		get_container_scrollbar_geometry(container),
+		container.scroll_y,
+		container.scrollbar_anim,
+		!hovered_element_internal,
+		!active_element
+	);
+
+	if (is_dragging_scrollbar(&container)) {
+		container.scroll_to_top = false; // user took over
+		container.scroll_speed_y = 0.f;  // no momentum while dragging
+	}
+
+	if (container.scroll_y != last_scroll_y)
+		updated = true;
 
 	// don't hover elements underneath the scrollbar while it's being used
 	hover_blocked = scrollbar_captured;
@@ -694,7 +715,7 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 
 	// keep rendering while dragging the scrollbar, otherwise the frame loop idles at the low tickrate between mouse
 	// events and the drag stutters
-	if (scrollbar_drag_container == &container)
+	if (scrollbar_drag.container == &container)
 		need_to_render_animation_update = true;
 
 	// update elements
@@ -771,7 +792,8 @@ void ui::render_container(Container& container) {
 		element.element->render_fn(container, element);
 	}
 
-	render_scrollbar(container);
+	if (auto scrollbar = get_container_scrollbar_geometry(container))
+		render_scrollbar(*scrollbar, container.scrollbar_anim.current);
 
 	// render::pop_clip_rect();
 }
