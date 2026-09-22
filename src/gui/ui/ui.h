@@ -1143,6 +1143,29 @@ namespace ui {
 
 	std::vector<decltype(Container::elements)::iterator> get_sorted_container_elements(Container& container);
 
+	struct ScrollbarGeometry {
+		gfx::Rect track_rect;
+		gfx::Rect thumb_rect;
+		gfx::Rect grab_rect; // wider than the bar so it's grabbable
+		float thumb_travel{};
+		float max_scroll{};
+	};
+
+	std::optional<ScrollbarGeometry> get_scrollbar_geometry(
+		const gfx::Rect& bounds, float visible_height, float content_height, float scroll
+	);
+	void render_scrollbar(const ScrollbarGeometry& geometry, float hover_anim, float alpha = 1.f);
+	bool update_scrollbar(
+		const Container& container,
+		const void* owner,
+		const std::optional<ScrollbarGeometry>& geometry,
+		float& scroll,
+		AnimationState& hover_anim,
+		bool can_hover = true,
+		bool can_grab = true
+	);
+	bool is_dragging_scrollbar(const void* owner);
+
 	void set_cursor(SDL_SystemCursor cursor);
 
 	void set_active_element(AnimatedElement& element, const std::string& type = "");

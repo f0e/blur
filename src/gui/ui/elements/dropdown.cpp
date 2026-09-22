@@ -14,6 +14,9 @@ const int DROPDOWN_ARROW_PAD = 2;
 const gfx::Size OPTION_ACTION_SIZE(19, 19);
 const int OPTION_ACTION_GAP = 1;
 const int TEXT_ICON_GAP = 5;
+const int MIN_VISIBLE_ROWS = 3;
+const float SCROLL_ROWS_PER_TICK = 2.f;
+const int SCREEN_PADDING = 6;
 
 namespace {
 	struct Positions {
@@ -23,6 +26,10 @@ namespace {
 		gfx::Rect options_rect;
 		float option_line_height{};
 		size_t row_count{};
+		int content_height{};
+		int visible_height{};
+		float scroll{};
+		float max_scroll{};
 	};
 
 	size_t get_row_count(const ui::DropdownElementData& dropdown_data) {
@@ -51,20 +58,25 @@ namespace {
 		float option_line_height = dropdown_data.font.height() + OPTION_LINE_HEIGHT_ADD;
 		size_t row_count = get_row_count(dropdown_data);
 
-		gfx::Rect options_rect = element.element->rect;
-		options_rect.y = options_rect.y2() + OPTIONS_GAP;
-		options_rect.h = option_line_height * row_count + OPTIONS_PADDING.h * 2;
+		int content_height = (int)(option_line_height * row_count) + (OPTIONS_PADDING.h * 2);
 
-		if (options_rect.y + options_rect.h + OPTIONS_GAP > container.get_usable_rect().y2() &&
-		    options_rect.y - options_rect.h - OPTIONS_GAP > container.get_usable_rect().y)
-		{
-			// open upwards
-			options_rect.h *= anim;
-			options_rect.y = dropdown_rect.y - options_rect.h - OPTIONS_GAP;
-		}
-		else {
-			options_rect.h *= anim;
-		}
+		// the list draws over everything, so it can use the whole window
+		int below_y = element.element->rect.y2() + OPTIONS_GAP;
+		int space_below = render::window_size.h - SCREEN_PADDING - below_y;
+		int space_above = dropdown_rect.y - OPTIONS_GAP - SCREEN_PADDING;
+
+		bool open_upwards =
+			content_height > space_below && (content_height <= space_above || space_above > space_below);
+
+		int min_height =
+			std::min(content_height, (int)(option_line_height * MIN_VISIBLE_ROWS) + (OPTIONS_PADDING.h * 2));
+		int visible_height = std::clamp(open_upwards ? space_above : space_below, min_height, content_height);
+
+		gfx::Rect options_rect = element.element->rect;
+		options_rect.h = visible_height * anim;
+		options_rect.y = open_upwards ? dropdown_rect.y - options_rect.h - OPTIONS_GAP : below_y;
+
+		float max_scroll = content_height - visible_height;
 
 		return {
 			.label_pos = label_pos,
@@ -73,13 +85,28 @@ namespace {
 			.options_rect = options_rect,
 			.option_line_height = option_line_height,
 			.row_count = row_count,
+			.content_height = content_height,
+			.visible_height = visible_height,
+			.scroll = std::clamp(element.animations.at(ui::hasher("scroll")).current, 0.f, max_scroll),
+			.max_scroll = max_scroll,
 		};
+	}
+
+	std::optional<ui::ScrollbarGeometry> get_scrollbar_geometry(const Positions& pos) {
+		// keep clear of the rounded corners
+		int inset = (int)DROPDOWN_ROUNDING;
+
+		gfx::Rect bounds = pos.options_rect;
+		bounds.y += inset;
+		bounds.h = std::max(bounds.h - (inset * 2), 0);
+
+		return ui::get_scrollbar_geometry(bounds, (float)pos.visible_height, (float)pos.content_height, pos.scroll);
 	}
 
 	gfx::Rect get_row_rect(const Positions& pos, size_t row) {
 		return {
 			pos.options_rect.x,
-			(int)(pos.options_rect.y + OPTIONS_PADDING.h + (row * pos.option_line_height)),
+			(int)(pos.options_rect.y + OPTIONS_PADDING.h + (row * pos.option_line_height) - pos.scroll),
 			pos.options_rect.w,
 			(int)pos.option_line_height,
 		};
@@ -135,6 +162,10 @@ namespace {
 
 	size_t get_add_row_hover_key() {
 		return ui::hasher("add_row_hover");
+	}
+
+	size_t get_scrollbar_hover_key() {
+		return ui::hasher("scrollbar_hover");
 	}
 
 	ui::AnimationState& get_hover_animation(ui::AnimatedElement& element, size_t key) {
@@ -242,11 +273,15 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 		});
 
 		// Render options
-		gfx::Point option_text_pos = pos.options_rect.origin();
-		option_text_pos.y += OPTIONS_PADDING.h + OPTION_LINE_HEIGHT_ADD / 2 - 1;
-		option_text_pos.x = pos.options_rect.origin().x + OPTIONS_PADDING.w;
-
 		for (size_t i = 0; i < dropdown_data.options.size(); i++) {
+			gfx::Rect row_rect = get_row_rect(pos, i);
+			if (row_rect.y2() < pos.options_rect.y || row_rect.y > pos.options_rect.y2())
+				continue;
+
+			gfx::Point option_text_pos(
+				row_rect.x + OPTIONS_PADDING.w, row_rect.y + (int)(OPTION_LINE_HEIGHT_ADD / 2) - 1
+			);
+
 			const auto& option = dropdown_data.options[i];
 			bool selected = option == *dropdown_data.selected;
 			float option_hover_anim = get_hover_animation_value(element, get_option_hover_key(i));
@@ -289,8 +324,6 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 					);
 				});
 			}
-
-			option_text_pos.y += pos.option_line_height;
 		}
 
 		if (dropdown_data.add_action) {
@@ -307,6 +340,14 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 			});
 		}
 
+		if (auto scrollbar = get_scrollbar_geometry(pos)) {
+			float scrollbar_anim = get_hover_animation_value(element, get_scrollbar_hover_key());
+
+			render::late_draw_calls.emplace_back([scrollbar = *scrollbar, scrollbar_anim, anim] {
+				render_scrollbar(scrollbar, scrollbar_anim, anim);
+			});
+		}
+
 		render::late_draw_calls.emplace_back([] {
 			render::pop_clip_rect();
 		});
@@ -318,8 +359,10 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 
 	auto& hover_anim = element.animations.at(hasher("hover"));
 	auto& expand_anim = element.animations.at(hasher("expand"));
+	auto& scroll_anim = element.animations.at(hasher("scroll"));
 
 	auto pos = get_positions(container, element, dropdown_data, expand_anim.current);
+	scroll_anim.set_goal(std::clamp(scroll_anim.goal, 0.f, pos.max_scroll));
 
 	bool hovered = pos.dropdown_rect.contains(keys::mouse_pos) && set_hovered_element(element);
 	hover_anim.set_goal(hovered ? 1.f : 0.f);
@@ -334,6 +377,9 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 		else {
 			set_active_element(element);
 			active = true;
+
+			scroll_anim.current = 0.f;
+			scroll_anim.set_goal(0.f);
 		}
 
 		expand_anim.set_goal(active ? 1.f : 0.f);
@@ -358,13 +404,42 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 	size_t hovered_row = -1;
 	size_t hovered_action = -1; // indexes option_actions, not the slot it's drawn in
 
+	bool scrollbar_hovered = false;
+	float scroll = scroll_anim.current;
+
 	if (!activated && active) {
+		auto scrollbar = get_scrollbar_geometry(pos);
+
+		if (scrollbar && pos.options_rect.contains(keys::mouse_pos) && keys::scroll_delta != 0.f) {
+			scroll_anim.set_goal(
+				std::clamp(
+					scroll_anim.goal + (keys::scroll_delta * pos.option_line_height * SCROLL_ROWS_PER_TICK),
+					0.f,
+					pos.max_scroll
+				)
+			);
+			keys::scroll_delta = 0.f;
+			activated = true;
+		}
+
+		scrollbar_hovered = update_scrollbar(
+			container, &element, scrollbar, scroll, get_hover_animation(element, get_scrollbar_hover_key())
+		);
+
+		if (is_dragging_scrollbar(&element)) {
+			scroll_anim.current = scroll;
+			scroll_anim.set_goal(scroll);
+			activated = true;
+		}
+
 		if (pos.options_rect.contains(keys::mouse_pos)) {
 			// prevent elements behind the open list from receiving hover tooltips
 			set_hovered_element(element);
 			set_cursor(SDL_SYSTEM_CURSOR_POINTER);
+		}
 
-			int y_offset = keys::mouse_pos.y - pos.options_rect.y - OPTIONS_PADDING.h;
+		if (pos.options_rect.contains(keys::mouse_pos) && !scrollbar_hovered) {
+			int y_offset = keys::mouse_pos.y - pos.options_rect.y - OPTIONS_PADDING.h + (int)pos.scroll;
 
 			if (y_offset >= 0) {
 				hovered_row = y_offset / pos.option_line_height;
@@ -462,6 +537,10 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 		get_hover_animation(element, get_add_row_hover_key()).set_goal(add_row_hovered ? 1.f : 0.f);
 	}
 
+	// ends any drag left over from when it was open
+	if (!active)
+		update_scrollbar(container, &element, {}, scroll, get_hover_animation(element, get_scrollbar_hover_key()));
+
 	// update z index
 	int z_index = 0;
 	if (active)
@@ -527,6 +606,7 @@ ui::AnimatedElement* ui::add_dropdown(
 			{ hasher("main"), AnimationState(25.f) },
 			{ hasher("hover"), AnimationState(80.f) },
 			{ hasher("expand"), AnimationState(30.f) },
+			{ hasher("scroll"), AnimationState(20.f, 0.f, 0.5f) },
 		}
 	);
 }
