@@ -4,6 +4,7 @@
 #include "render_state.h"
 #include "common/config_app.h"
 #include "common/config_blur.h"
+#include "common/media.h"
 
 // Top-level render orchestration: turn settings into commands, run the
 // pipeline, and deal with the output file.
@@ -22,16 +23,16 @@ namespace rendering {
 		bool preview_mask = false
 	);
 
-	float get_preview_frame_timestamp(const BlurSettings& settings, const u::VideoInfo& video_info, float seek);
+	float get_preview_frame_timestamp(const BlurSettings& settings, const media::VideoInfo& video_info, float seek);
 
-	std::pair<size_t, size_t> get_trim_frame_range(const u::VideoInfo& video_info, float start, float end);
+	std::pair<size_t, size_t> get_trim_frame_range(const media::VideoInfo& video_info, float start, float end);
 
-	bool has_enough_frames_to_render(const u::VideoInfo& video_info, float start, float end);
+	bool has_enough_frames_to_render(const media::VideoInfo& video_info, float start, float end);
 
 	namespace detail {
 		tl::expected<RenderResult, std::variant<std::string, RenderError>> render_video(
 			const std::filesystem::path& input_path,
-			const u::VideoInfo& video_info,
+			const media::VideoInfo& video_info,
 			const BlurSettings& settings,
 			const std::shared_ptr<RenderState>& state,
 			const GlobalAppSettings& app_settings,

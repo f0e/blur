@@ -1,4 +1,5 @@
 #include "render_pipeline.h"
+#include "common/vspipe.h"
 
 namespace bp = boost::process;
 
@@ -217,7 +218,7 @@ namespace {
 	rendering::RenderError assemble_render_error(const std::string& vspipe_errors, const std::string& ffmpeg_errors) {
 		rendering::RenderError err;
 
-		auto parsed = u::parse_error_output(vspipe_errors);
+		auto parsed = rendering::detail::parse_error_output(vspipe_errors);
 		if (parsed) {
 			err = *parsed;
 		}
@@ -228,7 +229,8 @@ namespace {
 
 		// the blobs a blur exception was parsed out of are already the error message, so they come out - but
 		// what the script logged on its way there stays, since that's the part that says what it was doing
-		err.vspipe_errors = err.is_blur_exception ? u::without_error_objects(vspipe_errors) : vspipe_errors;
+		err.vspipe_errors =
+			err.is_blur_exception ? rendering::detail::without_error_objects(vspipe_errors) : vspipe_errors;
 		err.ffmpeg_errors = ffmpeg_errors;
 
 		return err;
@@ -243,7 +245,7 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 	const std::function<void()>& progress_callback
 ) {
 	try {
-		auto env = u::setup_vspipe_environment();
+		auto env = vspipe::setup_environment();
 
 		bp::pipe vspipe_stdout;
 		bp::ipstream ffmpeg_stdout;

@@ -1,12 +1,13 @@
 #include "config_encoding_presets.h"
 #include "config_base.h"
+#include "encoding.h"
 
 namespace {
 	std::vector<std::string> get_ffmpeg_args(std::string params_str, int quality) {
 		// replace quality placeholder
 		params_str = u::replace_all(params_str, "{quality}", std::to_string(quality));
 
-		return u::ffmpeg_string_to_args(params_str);
+		return encoding::ffmpeg_string_to_args(params_str);
 	}
 
 	std::optional<std::string> get_preset_error(
@@ -44,7 +45,7 @@ namespace {
 	}
 
 	std::optional<std::string> get_preset_warning(const EncodingPresetSettings::Preset& preset) {
-		auto args = u::ffmpeg_string_to_args(preset.args);
+		auto args = encoding::ffmpeg_string_to_args(preset.args);
 
 		if (args.size() < 2 || !config_encoding_presets::extract_codec_from_args(args))
 			return "no video codec (-c:v), this won't show up as an encode preset";

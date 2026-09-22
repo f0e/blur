@@ -157,7 +157,7 @@ bool ui::update_video(const Container& container, AnimatedElement& element) {
 void ui::remove_video(AnimatedElement& element) {
 	const auto& data = std::get<VideoElementData>(element.element->data);
 
-	gui_utils::delete_thumbnail(data.video.path);
+	thumbnails::remove(data.video.path);
 
 	if (!videos::player)
 		return;

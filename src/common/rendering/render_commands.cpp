@@ -1,12 +1,14 @@
 #include "render_commands.h"
 #include "common/config_encoding_presets.h"
+#include "common/vspipe.h"
+#include "common/encoding.h"
 
 namespace {
 	// audio: trim each stream to the render's cut points and apply the timescale
 	// (either by resampling to change pitch, or chained atempo to preserve it)
 	void append_audio_filter_args(
 		std::vector<std::string>& args,
-		const u::VideoInfo& video_info,
+		const media::VideoInfo& video_info,
 		const BlurSettings& settings,
 		size_t start_frame,
 		size_t end_frame
@@ -74,7 +76,7 @@ namespace {
 	}
 
 	// carry the source's colour metadata through so the output isn't reinterpreted
-	void append_colour_param_args(std::vector<std::string>& args, const u::VideoInfo& video_info) {
+	void append_colour_param_args(std::vector<std::string>& args, const media::VideoInfo& video_info) {
 		std::vector<std::string> params;
 
 		if (video_info.color_range && *video_info.color_range != "") {
@@ -113,7 +115,7 @@ namespace {
 		const BlurSettings& settings, const GlobalAppSettings& app_settings, const EncodingPresetSettings* presets
 	) {
 		if (!settings.advanced.ffmpeg_override.empty())
-			return u::ffmpeg_string_to_args(settings.advanced.ffmpeg_override);
+			return encoding::ffmpeg_string_to_args(settings.advanced.ffmpeg_override);
 
 		std::string gpu_type = settings.gpu_encoding ? app_settings.gpu_type : "cpu";
 		std::string preset = u::to_lower(settings.encode_preset.empty() ? "h264" : settings.encode_preset);
@@ -167,7 +169,7 @@ std::vector<std::string> rendering::detail::build_vspipe_base_args(
 	std::string path_str = u::path_to_string(input_path);
 	std::ranges::replace(path_str, '\\', '/');
 
-	return u::get_vspipe_args(
+	return vspipe::get_args(
 		{ "-p", "-c", "y4m" },
 		"blur.py",
 		{
@@ -182,7 +184,7 @@ std::vector<std::string> rendering::detail::build_vspipe_base_args(
 std::vector<std::string> rendering::detail::build_vspipe_video_args(
 	const std::filesystem::path& input_path,
 	const nlohmann::json& merged_settings,
-	const u::VideoInfo& video_info,
+	const media::VideoInfo& video_info,
 	std::optional<size_t> start_frame,
 	std::optional<size_t> end_frame,
 	std::optional<std::pair<size_t, size_t>> mask_range,
@@ -283,7 +285,7 @@ std::optional<std::string> rendering::detail::get_audio_copy_conflict(const Blur
 
 tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffmpeg_video_args(
 	const std::filesystem::path& input_path,
-	const u::VideoInfo& video_info,
+	const media::VideoInfo& video_info,
 	const BlurSettings& settings,
 	const GlobalAppSettings& app_settings,
 	const std::filesystem::path& output_path,

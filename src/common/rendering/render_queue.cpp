@@ -2,6 +2,7 @@
 #include "render.h"
 #include "render_commands.h"
 #include "common/config_blur.h"
+#include "common/encoding.h"
 
 bool rendering::VideoRenderQueue::process_next() {
 	if (m_queue.empty() || !m_active)
@@ -87,7 +88,7 @@ void rendering::VideoRenderQueue::stop_and_wait() {
 
 rendering::QueueAddRes rendering::VideoRenderQueue::add(
 	const std::filesystem::path& input_path,
-	const u::VideoInfo& video_info,
+	const media::VideoInfo& video_info,
 	const std::optional<std::filesystem::path>& config_path,
 	const GlobalAppSettings& app_settings,
 	const std::optional<std::filesystem::path>& output_path_override,
@@ -140,7 +141,7 @@ rendering::QueueAddRes rendering::VideoRenderQueue::add(
 	}
 
 	// check if preset is valid
-	auto valid_presets = u::get_supported_encoding_presets(settings.gpu_encoding, app_settings.gpu_type);
+	auto valid_presets = encoding::get_supported_encoding_presets(settings.gpu_encoding, app_settings.gpu_type);
 	if (!u::contains(valid_presets, settings.encode_preset)) {
 		return {
 			.error = std::format("preset '{}' is not valid", settings.encode_preset),

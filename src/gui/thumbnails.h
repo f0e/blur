@@ -4,7 +4,7 @@ namespace render {
 	class Texture;
 }
 
-namespace gui_utils {
+namespace thumbnails {
 	struct ThumbnailRes {
 		std::string error;
 		std::shared_ptr<render::Texture> texture;
@@ -13,9 +13,9 @@ namespace gui_utils {
 	};
 
 	// must be called from main thread
-	std::optional<ThumbnailRes> get_thumbnail(
+	std::optional<ThumbnailRes> get(
 		const std::filesystem::path& video_path, std::optional<gfx::Size> size = {}, double timestamp = 0.0
 	);
 
-	void delete_thumbnail(const std::filesystem::path& video_path);
+	void remove(const std::filesystem::path& video_path);
 }

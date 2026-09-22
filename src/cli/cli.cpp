@@ -2,6 +2,7 @@
 #include "common/rendering.h"
 #include "common/config_rules.h"
 #include "common/masks.h"
+#include "common/media.h"
 
 bool cli::run(
 	std::vector<std::filesystem::path> inputs,
@@ -102,7 +103,7 @@ bool cli::run(
 
 		input_path = std::filesystem::canonical(input_path);
 
-		auto video_info = u::get_video_info(input_path);
+		auto video_info = media::get_video_info(input_path);
 		if (!video_info.has_video_stream) {
 			u::log("Video '{}' is not a valid video or is unreadable", input_path);
 			continue;

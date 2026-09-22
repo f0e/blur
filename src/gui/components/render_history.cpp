@@ -10,6 +10,7 @@
 #include "../ui/keys.h"
 #include "../render/render.h"
 #include "../fonts/icons.h"
+#include "common/media.h"
 
 namespace history = gui::components::render_history;
 using gui::components::main::MainScreen;
@@ -91,11 +92,11 @@ namespace {
 	// pull a frame out of the video in the background, it shells out to ffmpeg
 	void load_thumbnail_async(size_t entry_id, const std::filesystem::path& path, float timestamp) {
 		std::thread([entry_id, path, timestamp] {
-			std::vector<uint8_t> jpeg = u::get_video_frame_jpeg(path, timestamp);
+			std::vector<uint8_t> jpeg = media::get_video_frame_jpeg(path, timestamp);
 
 			// short videos can have nothing at the offset, fall back to the very first frame
 			if (jpeg.empty() && timestamp > 0.f)
-				jpeg = u::get_video_frame_jpeg(path, 0.f);
+				jpeg = media::get_video_frame_jpeg(path, 0.f);
 
 			if (jpeg.empty())
 				return;

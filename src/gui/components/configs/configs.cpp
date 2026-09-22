@@ -5,6 +5,7 @@
 #include "../../render/render.h"
 #include "../../os/file_browser.h"
 #include "../notifications.h"
+#include "common/encoding.h"
 
 namespace configs = gui::components::configs;
 
@@ -467,7 +468,7 @@ void configs::screen(
 
 	if (needs_load) {
 		// parsing checks the gpu and codecs, which blocks until the startup probe is done
-		if (blur.initialised && !u::encoding_support_probed()) {
+		if (blur.initialised && !encoding::support_probed()) {
 			ui::add_text(
 				"config loading text", config_container, "Loading config...", gfx::Color::white(100), fonts::dejavu
 			);

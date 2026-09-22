@@ -9,6 +9,7 @@
 #include "../fonts/dejavu_sans.h"
 #include "../fonts/nv_garamond.h"
 #include "../fonts/icons.h"
+#include "common/waveforms.h"
 
 namespace {
 	gfx::Color interpolate_color(const std::vector<gfx::Color>& colors, const std::vector<float>& positions, float t) {
@@ -776,7 +777,7 @@ void render::waveform(
 	const size_t sample_range = end_idx - start_idx;
 	const float samples_per_pixel = static_cast<float>(sample_range) / width;
 
-	int16_t display_max = u::get_audio_percentile_peak(samples, 1.f); // 0.999f);
+	int16_t display_max = waveforms::get_audio_percentile_peak(samples, 1.f); // 0.999f);
 
 	if (samples_per_pixel >= 2.0f) {
 		// Zoomed out: draw amplitude envelope

@@ -1,10 +1,11 @@
 #include "rife_models.h"
+#include "paths.h"
 
 std::filesystem::path rife_models::get_path() {
 #if defined(_WIN32)
-	return u::get_resources_path() / "lib/models";
+	return paths::get_resources_path() / "lib/models";
 #else
-	return u::get_resources_path() / "models";
+	return paths::get_resources_path() / "models";
 #endif
 }
 
@@ -24,12 +25,12 @@ std::vector<std::string> rife_models::list() {
 
 #ifdef TENSORRT
 std::filesystem::path rife_models::get_trt_path() {
-	return u::get_resources_path() / "lib/vapoursynth/vs-plugins/models/rife_v2";
+	return paths::get_resources_path() / "lib/vapoursynth/vs-plugins/models/rife_v2";
 }
 
 bool rife_models::trt_installed() {
 	std::error_code ec;
-	return std::filesystem::exists(u::get_resources_path() / "lib/vapoursynth/vs-plugins/vstrt.dll", ec);
+	return std::filesystem::exists(paths::get_resources_path() / "lib/vapoursynth/vs-plugins/vstrt.dll", ec);
 }
 
 std::vector<std::string> rife_models::list_trt() {

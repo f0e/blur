@@ -4,6 +4,7 @@
 #include "common/rendering/render_state.h"
 
 #include "../notifications.h"
+#include "common/media.h"
 
 namespace preview_frames = gui::components::configs::preview_frames;
 
@@ -183,12 +184,12 @@ namespace {
 	struct {
 		std::mutex mutex;
 		std::filesystem::path path;
-		u::VideoInfo info;
+		media::VideoInfo info;
 	} video;
 
 	void fetch_video_info(const std::filesystem::path& path) {
 		std::thread([path] {
-			auto info = u::get_video_info(path);
+			auto info = media::get_video_info(path);
 
 			std::lock_guard lock(video.mutex);
 
@@ -345,7 +346,7 @@ namespace {
 					source_frame_worker.queued.reset();
 				}
 
-				auto jpeg = u::get_video_frame_jpeg(next.key.video_path, next.timestamp);
+				auto jpeg = media::get_video_frame_jpeg(next.key.video_path, next.timestamp);
 
 				if (!jpeg.empty())
 					source_frame.publish(std::move(jpeg), next.key);

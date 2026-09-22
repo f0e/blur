@@ -186,7 +186,7 @@ void ui::add_videos(
 			video_rect,
 			VideoElementData{
 				.video = ui_video,
-				.thumbnail = ui_video.video_info ? gui_utils::get_thumbnail(ui_video.path) : std::nullopt,
+				.thumbnail = ui_video.video_info ? thumbnails::get(ui_video.path) : std::nullopt,
 				.active = active,
 				.fade = fade,
 				.index = &index,
