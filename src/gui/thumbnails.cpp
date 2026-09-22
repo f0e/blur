@@ -1,4 +1,4 @@
-#include "gui_utils.h"
+#include "thumbnails.h"
 #include "render/render.h"
 
 namespace {
@@ -15,7 +15,7 @@ namespace {
 		std::shared_ptr<render::Texture> texture;
 	};
 
-	std::unordered_map<std::string, Thumbnail> thumbnails;
+	std::unordered_map<std::string, Thumbnail> thumbnail_cache;
 	std::mutex thumbnail_mutex;
 
 	SDL_Surface* ffmpeg_get_thumbnail_surface(
@@ -73,7 +73,7 @@ namespace {
 
 			std::unique_lock lock(thumbnail_mutex);
 
-			auto& thumb = thumbnails[key];
+			auto& thumb = thumbnail_cache[key];
 			if (!surface) {
 				thumb.state = ThumbnailState::FAILED;
 				return;
@@ -85,17 +85,17 @@ namespace {
 	}
 }
 
-std::optional<gui_utils::ThumbnailRes> gui_utils::get_thumbnail(
+std::optional<thumbnails::ThumbnailRes> thumbnails::get(
 	const std::filesystem::path& video_path, std::optional<gfx::Size> size, double timestamp
 ) {
 	const auto key = video_path.string();
 
 	std::unique_lock lock(thumbnail_mutex);
 
-	auto it = thumbnails.find(key);
+	auto it = thumbnail_cache.find(key);
 
-	if (it == thumbnails.end()) {
-		thumbnails[key] = {};
+	if (it == thumbnail_cache.end()) {
+		thumbnail_cache[key] = {};
 
 		ffmpeg_get_thumbnail_surface_async(video_path, key, size, timestamp);
 
@@ -139,15 +139,15 @@ std::optional<gui_utils::ThumbnailRes> gui_utils::get_thumbnail(
 	return {};
 }
 
-void gui_utils::delete_thumbnail(const std::filesystem::path& video_path) {
+void thumbnails::remove(const std::filesystem::path& video_path) {
 	std::unique_lock lock(thumbnail_mutex);
 
-	auto it = thumbnails.find(video_path.string());
-	if (it == thumbnails.end())
+	auto it = thumbnail_cache.find(video_path.string());
+	if (it == thumbnail_cache.end())
 		return;
 
 	if (it->second.surface)
 		SDL_DestroySurface(it->second.surface);
 
-	thumbnails.erase(it);
+	thumbnail_cache.erase(it);
 }

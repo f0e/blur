@@ -6,6 +6,7 @@
 #include "config_rules.h"
 #include "rendering/render_commands.h"
 #include "devices.h"
+#include "encoding.h"
 
 namespace {
 	void verify_gpu_interpolation(BlurSettings& settings) {
@@ -522,7 +523,7 @@ BlurSettings config_blur::parse_from_map(
 		config_base::extract_config_value(config_map, "smooth string", settings.advanced.smooth_string);
 	}
 
-	u::verify_gpu_encoding(settings);
+	encoding::verify_gpu_encoding(settings);
 	verify_gpu_interpolation(settings);
 
 	return settings;
@@ -753,7 +754,7 @@ nlohmann::json BlurSettings::to_json() const {
 }
 
 BlurSettings::BlurSettings() {
-	u::verify_gpu_encoding(*this);
+	encoding::verify_gpu_encoding(*this);
 	verify_gpu_interpolation(*this);
 }
 

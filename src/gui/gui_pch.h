@@ -23,5 +23,3 @@
 #include <SDL3/SDL_surface.h>
 
 #define IMGUI_USER_CONFIG "gui/render/imconfig.h"
-
-#include "gui_utils.h"

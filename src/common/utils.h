@@ -1,7 +1,5 @@
 #pragma once
 
-#include "config_blur.h"
-
 #ifdef _DEBUG
 #	define DEBUG_LOG(...) u::debug_log(__VA_ARGS__)
 #else
@@ -463,105 +461,7 @@ namespace u {
 
 	void sleep(double seconds); // https://blog.bearcats.nl/perfect-sleep-function/ kill windows
 
-	std::filesystem::path get_resources_path();
-	std::filesystem::path get_settings_path();
-
-	boost::process::environment setup_vspipe_environment();
-
-	std::vector<std::string> get_vspipe_args(
-		const std::vector<std::string>& vspipe_flags,
-		const std::string& script,
-		const std::vector<std::string>& script_args,
-		const std::string& output
-	);
-
-	struct VideoInfo {
-		bool has_video_stream = false;
-		std::optional<std::string> color_range;
-		std::optional<std::string> pix_fmt;
-		std::optional<std::string> color_space;
-		std::optional<std::string> color_transfer;
-		std::optional<std::string> color_primaries;
-		int sample_rate = -1;
-		int fps_num = -1;
-		int fps_den = -1;
-		float duration = 0.f;
-		int width = -1;
-		int height = -1;
-
-		std::vector<int> audio_sample_rates;
-
-		double video_start_time = 0.0;
-		std::vector<double> audio_start_times;
-
-		int preroll_frames = 0;
-
-		bool operator==(const VideoInfo& other) const = default;
-	};
-
-	int get_video_preroll_frames(const std::filesystem::path& path, double fps, double max_preroll_seconds = 5.0);
-	VideoInfo get_video_info(const std::filesystem::path& path);
-
-	// grab a single frame from the video as a jpeg, straight from the source video (no blur pipeline).
-	// fast enough to use while scrubbing
-	std::vector<uint8_t> get_video_frame_jpeg(const std::filesystem::path& path, float timestamp);
-
-	int16_t get_audio_percentile_peak(const std::vector<int16_t>& samples, float percentile);
-
-	struct EncodingDevice {
-		std::string type;   // "nvidia", "amd", "intel", "mac"
-		std::string method; // Specific encoding method (e.g., "nvenc", "amf", "qsv", "videotoolbox")
-		bool is_primary;    // Whether this is likely the primary GPU
-	};
-
-	bool test_hardware_device(const std::string& device_type);
-
-	std::vector<EncodingDevice> get_hardware_encoding_devices();
-	std::vector<std::string> get_available_gpu_types();
-	std::string get_primary_gpu_type();
-
-	bool test_codec(const std::string& codec);
-	std::set<std::string> get_available_codecs(const std::set<std::string>& codecs);
-
-	std::vector<std::string> get_supported_encoding_presets(bool gpu_encoding, const std::string& gpu_type);
-	std::vector<std::string> get_supported_encoding_presets(
-		const EncodingPresetSettings& presets, bool gpu_encoding, const std::string& gpu_type
-	);
-
-	// runs the gpu and codec checks up front so their results are cached before anything needs them
-	void probe_encoding_support();
-	bool encoding_support_probed();
-
-	std::vector<std::string> ffmpeg_string_to_args(const std::string& str);
-
-	void verify_gpu_encoding(BlurSettings& settings);
-
 #ifdef WIN32
 	bool windows_toggle_suspend_process(DWORD pid, bool to_suspend);
 #endif
-
-	struct ParsedError {
-		std::string user_message;
-		std::string technical_details;
-		bool is_blur_exception = false;
-		std::string vspipe_errors;
-		std::string ffmpeg_errors;
-
-		[[nodiscard]] std::string to_string() const {
-			std::string result = user_message;
-
-			if (!technical_details.empty())
-				result += "\n\n" + technical_details;
-			if (!vspipe_errors.empty())
-				result += "\n\n--- [vspipe] ---\n" + vspipe_errors;
-			if (!ffmpeg_errors.empty())
-				result += "\n\n--- [ffmpeg] ---\n" + ffmpeg_errors;
-
-			return result;
-		}
-	};
-
-	tl::expected<ParsedError, std::string> parse_error_output(const std::string& stderr_output);
-
-	std::string without_error_objects(const std::string& stderr_output);
 }

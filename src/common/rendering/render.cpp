@@ -3,6 +3,7 @@
 #include "render_pipeline.h"
 #include "common/devices.h"
 #include "common/rife_models.h"
+#include "common/media.h"
 
 namespace {
 	constexpr int FRAMES_NEEDED_FOR_VSPIPE_TO_NOT_POO_ITSELF =
@@ -16,7 +17,7 @@ namespace {
 		return 1.0 / settings.blur_output_fps;
 	}
 
-	size_t get_seek_start_frame(const BlurSettings& settings, const u::VideoInfo& video_info, float seek) {
+	size_t get_seek_start_frame(const BlurSettings& settings, const media::VideoInfo& video_info, float seek) {
 		if (!video_info.has_video_stream || video_info.fps_num <= 0 || video_info.fps_den <= 0 ||
 		    video_info.duration <= 0.f)
 			return 0;
@@ -80,7 +81,7 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 	auto merged_settings =
 		detail::merge_settings(settings, app_settings, devices::get_device_indices(settings, app_settings));
 
-	auto video_info = u::get_video_info(input_path);
+	auto video_info = media::get_video_info(input_path);
 
 	auto vspipe_args = detail::build_vspipe_video_args(
 		input_path, merged_settings, video_info, get_seek_start_frame(settings, video_info, seek), {}, {}, preview_mask
@@ -118,7 +119,9 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 }
 
 // get_seek_start_frame handles the rest of the unusable-video cases itself
-float rendering::get_preview_frame_timestamp(const BlurSettings& settings, const u::VideoInfo& video_info, float seek) {
+float rendering::get_preview_frame_timestamp(
+	const BlurSettings& settings, const media::VideoInfo& video_info, float seek
+) {
 	if (video_info.fps_num <= 0 || video_info.fps_den <= 0)
 		return 0.f;
 
@@ -127,7 +130,7 @@ float rendering::get_preview_frame_timestamp(const BlurSettings& settings, const
 	return static_cast<float>((get_seek_start_frame(settings, video_info, seek) / fps) + get_output_seek(settings));
 }
 
-std::pair<size_t, size_t> rendering::get_trim_frame_range(const u::VideoInfo& video_info, float start, float end) {
+std::pair<size_t, size_t> rendering::get_trim_frame_range(const media::VideoInfo& video_info, float start, float end) {
 	if (video_info.fps_num <= 0 || video_info.fps_den <= 0)
 		return { 0, 0 };
 
@@ -144,7 +147,7 @@ std::pair<size_t, size_t> rendering::get_trim_frame_range(const u::VideoInfo& vi
 	return { start_frame, end_frame };
 }
 
-bool rendering::has_enough_frames_to_render(const u::VideoInfo& video_info, float start, float end) {
+bool rendering::has_enough_frames_to_render(const media::VideoInfo& video_info, float start, float end) {
 	auto [start_frame, end_frame] = get_trim_frame_range(video_info, start, end);
 	return end_frame > start_frame;
 }
@@ -152,7 +155,7 @@ bool rendering::has_enough_frames_to_render(const u::VideoInfo& video_info, floa
 tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>> rendering::detail::
 	render_video(
 		const std::filesystem::path& input_path,
-		const u::VideoInfo& video_info,
+		const media::VideoInfo& video_info,
 		const BlurSettings& settings,
 		const std::shared_ptr<RenderState>& state,
 		const GlobalAppSettings& app_settings,

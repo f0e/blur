@@ -108,3 +108,22 @@ std::optional<std::vector<int16_t>> waveforms::get_waveform(const std::filesyste
 
 	return samples;
 }
+
+int16_t waveforms::get_audio_percentile_peak(const std::vector<int16_t>& samples, float percentile) {
+	if (samples.empty())
+		return 1;
+
+	// sort samples from quietest->loudest
+	std::vector<int16_t> abs_samples;
+	abs_samples.reserve(samples.size());
+	for (int16_t sample : samples) {
+		abs_samples.push_back(std::abs(sample));
+	}
+
+	std::ranges::sort(abs_samples);
+
+	// get xth percentile amplitude
+	auto idx = static_cast<size_t>(percentile * abs_samples.size());
+	idx = std::min(idx, abs_samples.size() - 1);
+	return std::max(abs_samples[idx], static_cast<int16_t>(1));
+}

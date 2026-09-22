@@ -1,12 +1,15 @@
 #pragma once
 
+#include "common/config_blur.h"
+#include "common/media.h"
+
 namespace tasks {
 	inline int finished_renders = 0;
 
 	struct PendingVideo {
 		size_t video_id;
 		std::filesystem::path video_path;
-		std::optional<u::VideoInfo> video_info;
+		std::optional<media::VideoInfo> video_info;
 		float start = 0.f;
 		float end = 1.f;
 		bool start_immediately = false;

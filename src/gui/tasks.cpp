@@ -11,6 +11,7 @@
 #include "components/notifications.h"
 #include "components/update_notice.h"
 #include "components/configs/configs.h"
+#include "common/encoding.h"
 
 namespace {
 	size_t pending_index = 0;
@@ -66,7 +67,7 @@ void tasks::run(const std::vector<std::string>& arguments) {
 	// each of these spawns ffmpeg, which would otherwise hold up the first config parse
 	std::thread probe_thread;
 	if (gui::initialisation_res)
-		probe_thread = std::thread(u::probe_encoding_support);
+		probe_thread = std::thread(encoding::probe_support);
 
 	auto update_res = Blur::check_updates();
 	if (update_res) {
@@ -175,7 +176,7 @@ void tasks::process_pending_files() {
 	auto video_path = (*it)->video_path;
 	auto index = std::ranges::distance(pending_videos.begin(), it);
 
-	auto video_info = u::get_video_info(video_path);
+	auto video_info = media::get_video_info(video_path);
 
 	if (index < pending_videos.size() && pending_videos[index]->video_path == video_path) {
 		if (!video_info.has_video_stream) {
@@ -210,7 +211,7 @@ void tasks::add_sample_video(const std::filesystem::path& path_str) {
 	if (path.empty() || !std::filesystem::exists(path))
 		return;
 
-	const auto video_info = u::get_video_info(path);
+	const auto video_info = media::get_video_info(path);
 	if (!video_info.has_video_stream) {
 		gui::components::notifications::add(
 			std::format("File is not a valid video or is unreadable: {}", path.filename()),

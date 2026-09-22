@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config_blur.h"
+
 namespace weighting {
 	std::vector<double> normalize(const std::vector<double>& weights);
 	std::vector<double> scale_range(int n, double start, double end);

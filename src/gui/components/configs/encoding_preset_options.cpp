@@ -3,6 +3,7 @@
 #include "../../ui/ui.h"
 #include "../../render/render.h"
 #include "../../renderer.h"
+#include "common/encoding.h"
 
 namespace configs = gui::components::configs;
 
@@ -67,7 +68,7 @@ void configs::encoding_preset_options(ui::Container& container) {
 
 	// devices without hardware encoding on this machine still get their presets shown (configs are shared between
 	// machines), they're just greyed out
-	auto available_gpu_types = u::get_available_gpu_types();
+	auto available_gpu_types = encoding::get_available_gpu_types();
 	std::vector<std::string> unavailable_gpu_types;
 	for (const auto& gpu_type : gpu_types) {
 		if (gpu_type != "cpu" && !u::contains(available_gpu_types, gpu_type))

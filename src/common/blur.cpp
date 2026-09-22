@@ -10,10 +10,11 @@
 #include "config_encoding_presets.h"
 #include "config_rules.h"
 #include "masks.h"
+#include "paths.h"
 
 tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_preview) {
-	resources_path = u::get_resources_path();
-	settings_path = u::get_settings_path();
+	resources_path = paths::get_resources_path();
+	settings_path = paths::get_settings_path();
 
 	// before anything below creates a default in its place
 	config_base::migrate_file(

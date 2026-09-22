@@ -1,8 +1,10 @@
 #pragma once
 
 #include "../render/render.h"
+#include "../thumbnails.h"
 #include "helpers/text_input.h"
 #include "helpers/video.h"
+#include "common/media.h"
 
 namespace ui {
 	inline constexpr gfx::Color DEFAULT_HIGHLIGHT_COLOR = { 133, 24, 16, 255 };
@@ -156,7 +158,7 @@ namespace ui {
 	struct UIVideo {
 		size_t video_id;
 		std::filesystem::path path;
-		std::optional<u::VideoInfo> video_info;
+		std::optional<media::VideoInfo> video_info;
 		float* start = nullptr;
 		float* end = nullptr;
 		bool trim_disabled = false;
@@ -171,7 +173,7 @@ namespace ui {
 
 	struct VideoElementData {
 		UIVideo video;
-		std::optional<gui_utils::ThumbnailRes> thumbnail;
+		std::optional<thumbnails::ThumbnailRes> thumbnail;
 		bool active = false;
 		float fade = 0.f;
 		size_t* index = nullptr;

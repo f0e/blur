@@ -4,6 +4,7 @@
 #include "common/config_blur.h"
 #include "common/config_encoding_presets.h"
 #include "common/devices.h"
+#include "common/media.h"
 
 // Pure functions that turn settings + video info into the vspipe / ffmpeg
 // argument vectors. No process spawning, no shared state - just string building.
@@ -23,7 +24,7 @@ namespace rendering::detail {
 	std::vector<std::string> build_vspipe_video_args(
 		const std::filesystem::path& input_path,
 		const nlohmann::json& merged_settings,
-		const u::VideoInfo& video_info,
+		const media::VideoInfo& video_info,
 		std::optional<size_t> start_frame = {},
 		std::optional<size_t> end_frame = {},
 
@@ -50,7 +51,7 @@ namespace rendering::detail {
 	// pipe, which also toggles render state, is appended by the caller.
 	tl::expected<std::vector<std::string>, std::string> build_ffmpeg_video_args(
 		const std::filesystem::path& input_path,
-		const u::VideoInfo& video_info,
+		const media::VideoInfo& video_info,
 		const BlurSettings& settings,
 		const GlobalAppSettings& app_settings,
 		const std::filesystem::path& output_path,

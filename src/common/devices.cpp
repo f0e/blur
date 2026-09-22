@@ -1,6 +1,7 @@
 #include "devices.h"
 #include "rife_models.h"
 #include "script_status.h"
+#include "vspipe.h"
 
 namespace {
 	std::map<int, std::string> list_devices(const std::string& type) {
@@ -11,10 +12,10 @@ namespace {
 
 		auto c = u::run_command(
 			blur.vspipe_path,
-			u::get_vspipe_args({ "--info" }, "get_devices.py", { std::format("type={}", type) }, "--"),
+			vspipe::get_args({ "--info" }, "get_devices.py", { std::format("type={}", type) }, "--"),
 			bp::std_out > out_stream,
 			bp::std_err > err_stream,
-			u::setup_vspipe_environment()
+			vspipe::setup_environment()
 		);
 
 		std::map<int, std::string> device_list;
@@ -69,10 +70,10 @@ namespace {
 
 		auto c = u::run_command(
 			blur.vspipe_path,
-			u::get_vspipe_args({ "--info" }, "get_devices.py", { "type=svp" }, "--"),
+			vspipe::get_args({ "--info" }, "get_devices.py", { "type=svp" }, "--"),
 			bp::std_out.null(),
 			bp::std_err.null(),
-			u::setup_vspipe_environment()
+			vspipe::setup_environment()
 		);
 
 		// configs wait on this, so a driver that hangs can't be allowed to hold them up forever
@@ -116,10 +117,10 @@ namespace {
 			bp::ipstream err_stream;
 			auto c = u::run_command(
 				blur.vspipe_path,
-				u::get_vspipe_args({ "--info" }, "benchmarks.py", script_args, "--"),
+				vspipe::get_args({ "--info" }, "benchmarks.py", script_args, "--"),
 				bp::std_out.null(),
 				bp::std_err > err_stream,
-				u::setup_vspipe_environment()
+				vspipe::setup_environment()
 			);
 
 			auto statuses = script_status::read_all(err_stream);

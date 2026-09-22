@@ -8,6 +8,7 @@
 #include "common/masks.h"
 #include "common/devices.h"
 #include "common/rife_models.h"
+#include "common/encoding.h"
 
 namespace configs = gui::components::configs;
 
@@ -400,8 +401,9 @@ void configs::options(ui::Container& container) {
 	*/
 	section_component("rendering");
 
-	auto presets =
-		u::get_supported_encoding_presets(encoding_preset_settings, settings.gpu_encoding, app_settings.gpu_type);
+	auto presets = encoding::get_supported_encoding_presets(
+		encoding_preset_settings, settings.gpu_encoding, app_settings.gpu_type
+	);
 
 	if (!presets.empty() && !u::contains(presets, settings.encode_preset)) {
 		settings.encode_preset = presets[0];
@@ -530,7 +532,7 @@ void configs::options(ui::Container& container) {
 		ui::add_checkbox("gpu encoding checkbox", container, "gpu encoding", settings.gpu_encoding, fonts::dejavu);
 
 		if (settings.gpu_encoding) {
-			auto gpu_types = u::get_available_gpu_types();
+			auto gpu_types = encoding::get_available_gpu_types();
 			if (gpu_types.size() > 1) {
 				ui::add_dropdown(
 					"gpu encoding type dropdown",

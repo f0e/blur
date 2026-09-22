@@ -4,11 +4,12 @@
 #include "render_types.h"
 #include "common/config_app.h"
 #include "common/config_blur.h"
+#include "common/media.h"
 
 namespace rendering {
 	struct VideoRenderDetails {
 		std::filesystem::path input_path;
-		u::VideoInfo video_info;
+		media::VideoInfo video_info;
 		BlurSettings settings;
 		GlobalAppSettings app_settings;
 		std::optional<std::filesystem::path> output_path_override;
@@ -35,7 +36,7 @@ namespace rendering {
 	public:
 		QueueAddRes add(
 			const std::filesystem::path& input_path,
-			const u::VideoInfo& video_info,
+			const media::VideoInfo& video_info,
 			const std::optional<std::filesystem::path>& config_path = {},
 			const GlobalAppSettings& app_settings = config_app::get_app_config(),
 			const std::optional<std::filesystem::path>& output_path_override = {},
