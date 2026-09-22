@@ -3,6 +3,7 @@
 
 #include "../../ui/ui.h"
 #include "../../render/render.h"
+#include "../../os/file_browser.h"
 #include "../notifications.h"
 
 namespace configs = gui::components::configs;
@@ -277,12 +278,14 @@ void configs::config_actions(ui::Container& container) {
 	const std::string& tab = selected_config_tab;
 
 	std::string label;
+	std::filesystem::path config_path;
 	std::function<std::string()> do_export;
 	std::function<void(const std::string&)> do_import;
 	std::optional<std::function<void()>> do_restore_defaults;
 
 	if (tab == "blur") {
 		label = "blur config";
+		config_path = config_blur::get_config_path(selected_config_name);
 
 		do_export = [] {
 			return config_blur::export_concise(settings);
@@ -306,6 +309,7 @@ void configs::config_actions(ui::Container& container) {
 	}
 	else if (tab == "app") {
 		label = "app config";
+		config_path = config_app::get_app_config_path();
 
 		do_export = [] {
 			return config_app::export_shareable(app_settings);
@@ -328,6 +332,7 @@ void configs::config_actions(ui::Container& container) {
 	}
 	else {
 		label = "encoding";
+		config_path = config_encoding_presets::get_config_path();
 
 		do_export = [] {
 			return config_encoding_presets::generate_config_string(encoding_preset_settings);
@@ -400,6 +405,20 @@ void configs::config_actions(ui::Container& container) {
 			}
 		}
 	);
+
+	add_action_button("open config button", icons::FOLDER, "Show config in folder", [config_path] {
+		std::error_code ec;
+		if (std::filesystem::exists(config_path, ec)) {
+			if (!os::file_browser::reveal_file(config_path))
+				u::log_error("Failed to reveal '{}' in the file browser", u::path_to_string(config_path));
+			return;
+		}
+
+		// not saved yet, open the folder it'll be saved to
+		std::string url = std::format("file://{}", u::path_to_string(config_path.parent_path()));
+		if (!SDL_OpenURL(url.c_str()))
+			u::log_error("Failed to open config folder: {}", SDL_GetError());
+	});
 
 	if (do_restore_defaults) {
 		add_action_button(
