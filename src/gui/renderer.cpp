@@ -246,10 +246,6 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 			break;
 		}
 		case Screens::MAIN: {
-			if (components::configs::should_load_config) {
-				components::configs::loaded_config = false;
-			}
-
 			auto main_screen =
 				components::main::screen(main_container, queue_config_container, queue_container, delta_time);
 
@@ -351,7 +347,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 					"Config",
 					fonts::dejavu,
 					[] {
-						screen = Screens::CONFIG;
+						components::configs::enter_screen();
 					},
 					{},
 					icons::SETTINGS
@@ -365,8 +361,6 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 			break;
 		}
 		case Screens::CONFIG: {
-			components::configs::should_load_config = true;
-
 			components::render_history::render_button(history_button_container);
 			components::render_history::render_panel(history_panel_container, delta_time);
 

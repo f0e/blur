@@ -64,9 +64,6 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	inline bool show_mask_preview = false;
 
-	inline bool loaded_config = false;
-	inline bool should_load_config = true;
-
 	inline bool interpolate_scale = true;
 	inline float interpolated_fps_mult = 5.f;
 	inline int interpolated_fps = 1200;
@@ -125,6 +122,7 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	void parse_interp();
 	bool has_unsaved_changes();
+	void enter_screen();
 	void leave_screen(const std::function<void()>& on_leave);
 	void save_config();
 	void on_load();

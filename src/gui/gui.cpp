@@ -106,13 +106,10 @@ int gui::run() {
 						try {
 							const auto file_settings = config_blur::parse(path);
 
+							gui::components::configs::enter_screen();
+
 							ui::reset_tied_sliders();
 							gui::components::configs::settings = file_settings;
-
-							gui::components::configs::loaded_config = true;
-							gui::components::configs::should_load_config = false;
-
-							gui::renderer::screen = gui::renderer::Screens::CONFIG;
 
 							// it lands on whichever config is open rather than becoming one of its own, so
 							// say which - that's someone's existing config being overwritten otherwise
@@ -140,7 +137,7 @@ int gui::run() {
 					}
 
 					if (gui::renderer::screen == gui::renderer::Screens::CONFIG &&
-					    gui::components::configs::loaded_config && !gui::components::configs::has_sample_video())
+					    !gui::components::configs::has_sample_video())
 					{
 						tasks::add_sample_video(path);
 

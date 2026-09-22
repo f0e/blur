@@ -172,6 +172,38 @@ bool configs::has_unsaved_changes() {
 	       rule_settings != current_rule_settings || encoding_preset_settings != current_encoding_preset_settings;
 }
 
+void configs::enter_screen() {
+	if (gui::renderer::screen == gui::renderer::Screens::CONFIG)
+		return; // reloading would throw away the edits on screen
+
+	// reloaded every time so outside edits show up and changes discarded on leaving are gone
+	ui::reset_tied_sliders();
+
+	config_blur::initialise_configs(); // re-initialise in case the folder got removed since launch
+
+	edited_configs.clear();
+	for (const auto& name : config_blur::list()) {
+		edited_configs[name] = config_blur::get_config(name);
+	}
+
+	// keep the last config that was being edited
+	if (!edited_configs.contains(selected_config_name)) {
+		selected_config_name = config_blur::get_default_name();
+		if (!edited_configs.contains(selected_config_name) && !edited_configs.empty())
+			selected_config_name = edited_configs.begin()->first;
+	}
+
+	settings = edited_configs.contains(selected_config_name) ? edited_configs[selected_config_name]
+	                                                         : config_blur::DEFAULT_CONFIG;
+
+	app_settings = config_app::get_app_config();
+	encoding_preset_settings = config_encoding_presets::get_config();
+	rule_settings = config_rules::get_config();
+	on_load();
+
+	gui::renderer::screen = gui::renderer::Screens::CONFIG;
+}
+
 void configs::leave_screen(const std::function<void()>& on_leave) {
 	if (!has_unsaved_changes()) {
 		on_leave();
@@ -383,68 +415,6 @@ void configs::screen(
 		}
 	}
 	config_container.pop_element_gap();
-
-	static bool loading_config = false;
-	if (!loaded_config) {
-		if (!loading_config) {
-			loading_config = true;
-
-			std::thread([last_selected = selected_config_name] {
-				ui::reset_tied_sliders();
-
-				config_blur::initialise_configs(); // re-initialise in case the folder got removed since launch
-
-				edited_configs.clear();
-				for (const auto& name : config_blur::list()) {
-					edited_configs[name] = config_blur::get_config(name);
-				}
-
-				// load the last config that was being edited
-				if (edited_configs.contains(last_selected)) {
-					selected_config_name = last_selected;
-				}
-				else {
-					selected_config_name = config_blur::get_default_name();
-					if (!edited_configs.contains(selected_config_name) && !edited_configs.empty())
-						selected_config_name = edited_configs.begin()->first;
-				}
-
-				settings = edited_configs.contains(selected_config_name) ? edited_configs[selected_config_name]
-				                                                         : config_blur::DEFAULT_CONFIG;
-
-				app_settings = config_app::get_app_config();
-				encoding_preset_settings = config_encoding_presets::get_config();
-				rule_settings = config_rules::get_config();
-				on_load();
-				loading_config = false;
-				loaded_config = true;
-			}).detach();
-		}
-
-		const int content_y = config_container.current_position.y;
-		auto* loading_text = ui::add_text(
-			"config loading text",
-			config_container,
-			"Loading config...",
-			gfx::Color::white(100),
-			fonts::dejavu,
-			FONT_CENTERED_X
-		);
-
-		const auto usable_rect = config_container.get_usable_rect();
-		loading_text->element->rect.y = content_y + (usable_rect.y2() - content_y - loading_text->element->rect.h) / 2;
-		loading_text->element->orig_rect.y = loading_text->element->rect.y;
-
-		// stuff that doesnt need configs to be loaded
-		if (selected_config_tab == "blur") {
-			preview_tabs(preview_content_container);
-		}
-		else if (selected_config_tab == "app") {
-			about(preview_content_container);
-		}
-
-		return;
-	}
 
 	if (has_unsaved_changes()) {
 		ui::set_next_same_line(nav_container);
