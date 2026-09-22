@@ -63,6 +63,11 @@ namespace {
 void tasks::run(const std::vector<std::string>& arguments) {
 	gui::initialisation_res = blur.initialise(false, true);
 
+	// each of these spawns ffmpeg, which would otherwise hold up the first config parse
+	std::thread probe_thread;
+	if (gui::initialisation_res)
+		probe_thread = std::thread(u::probe_encoding_support);
+
 	auto update_res = Blur::check_updates();
 	if (update_res) {
 		gui::components::update_notice::set_available(*update_res);
@@ -95,6 +100,9 @@ void tasks::run(const std::vector<std::string>& arguments) {
 	}
 
 	video_info_thread.join();
+
+	if (probe_thread.joinable())
+		probe_thread.join();
 }
 
 void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
