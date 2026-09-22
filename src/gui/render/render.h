@@ -37,7 +37,7 @@ enum ERoundingFlags : unsigned int { // c+p from imgui
 namespace fonts {
 	namespace size {
 		inline constexpr float BODY = 13.f;
-		inline constexpr float SMALL = 11.f;
+		inline constexpr float SMALL = 12.f;
 		inline constexpr float HEADER = 32.f;
 		inline constexpr float SMALL_HEADER = 20.f;
 		inline constexpr float ICON = 14.f;
