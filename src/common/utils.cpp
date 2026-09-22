@@ -2,6 +2,10 @@
 #include "common/config_encoding_presets.h"
 #include "common/config_app.h"
 
+namespace {
+	std::atomic<bool> encoding_probe_done = false;
+}
+
 // NOLINTBEGIN gpt ass code
 std::wstring u::towstring(const std::string& str) {
 	if (str.empty())
@@ -792,6 +796,12 @@ void u::probe_encoding_support() {
 
 	for (const auto& gpu_type : get_available_gpu_types())
 		get_supported_encoding_presets(presets, true, gpu_type);
+
+	encoding_probe_done = true;
+}
+
+bool u::encoding_support_probed() {
+	return encoding_probe_done;
 }
 
 std::vector<std::string> u::ffmpeg_string_to_args(const std::string& str) {
