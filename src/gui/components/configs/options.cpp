@@ -511,9 +511,20 @@ void configs::options(ui::Container& container) {
 
 	ui::add_checkbox("gpu decoding checkbox", container, "gpu decoding", settings.gpu_decoding, fonts::dejavu);
 
-	ui::add_checkbox(
-		"gpu interpolation checkbox", container, "gpu interpolation", settings.gpu_interpolation, fonts::dejavu
-	);
+	if (devices::get_svp_gpu_supported() == false) {
+		ui::add_text(
+			"gpu interpolation unsupported warning",
+			container,
+			"gpu interpolation isn't supported by your gpu",
+			WARNING_COLOR,
+			fonts::dejavu
+		);
+	}
+	else {
+		ui::add_checkbox(
+			"gpu interpolation checkbox", container, "gpu interpolation", settings.gpu_interpolation, fonts::dejavu
+		);
+	}
 
 	if (settings.advanced.ffmpeg_override.empty()) {
 		ui::add_checkbox("gpu encoding checkbox", container, "gpu encoding", settings.gpu_encoding, fonts::dejavu);

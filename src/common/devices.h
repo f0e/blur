@@ -15,6 +15,9 @@ namespace devices {
 	std::optional<std::string> get_auto_rife_device();
 	std::optional<std::string> get_auto_tensorrt_device();
 
+	std::optional<bool> get_svp_gpu_supported();
+	bool wait_svp_gpu_supported();
+
 	struct DeviceIndices {
 		int rife = -1;
 		int tensorrt = -1;

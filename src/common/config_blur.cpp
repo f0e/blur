@@ -5,8 +5,17 @@
 #include "config_app.h"
 #include "config_rules.h"
 #include "rendering/render_commands.h"
+#include "devices.h"
 
 namespace {
+	void verify_gpu_interpolation(BlurSettings& settings) {
+		if (!blur.initialised)
+			return;
+
+		if (settings.gpu_interpolation && !devices::wait_svp_gpu_supported())
+			settings.gpu_interpolation = false;
+	}
+
 	bool deduplicate_threshold_valid(const std::string& threshold) {
 		std::istringstream iss(threshold);
 		float f = NAN;
@@ -514,6 +523,7 @@ BlurSettings config_blur::parse_from_map(
 	}
 
 	u::verify_gpu_encoding(settings);
+	verify_gpu_interpolation(settings);
 
 	return settings;
 }
@@ -744,6 +754,7 @@ nlohmann::json BlurSettings::to_json() const {
 
 BlurSettings::BlurSettings() {
 	u::verify_gpu_encoding(*this);
+	verify_gpu_interpolation(*this);
 }
 
 bool BlurSettings::uses_interpolation_method(const std::string& method) const {
