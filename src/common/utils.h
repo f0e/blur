@@ -530,6 +530,7 @@ namespace u {
 
 	// runs the gpu and codec checks up front so their results are cached before anything needs them
 	void probe_encoding_support();
+	bool encoding_support_probed();
 
 	std::vector<std::string> ffmpeg_string_to_args(const std::string& str);
 

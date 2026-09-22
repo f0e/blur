@@ -104,25 +104,7 @@ int gui::run() {
 						u::log("loading config: {}", path);
 
 						try {
-							const auto file_settings = config_blur::parse(path);
-
-							gui::components::configs::enter_screen();
-
-							ui::reset_tied_sliders();
-							gui::components::configs::settings = file_settings;
-
-							// it lands on whichever config is open rather than becoming one of its own, so
-							// say which - that's someone's existing config being overwritten otherwise
-							gui::components::notifications::add(
-								gui::components::configs::selected_config_name.empty()
-									? "Imported config"
-									: std::format(
-										  "Imported config into '{}'", gui::components::configs::selected_config_name
-									  ),
-								ui::NotificationType::INFO,
-								{},
-								std::chrono::duration<float>(2.f)
-							);
+							gui::components::configs::import_config(config_blur::parse(path));
 						}
 						catch (const std::exception& e) {
 							gui::components::notifications::add(

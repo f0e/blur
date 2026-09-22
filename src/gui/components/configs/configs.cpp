@@ -172,36 +172,66 @@ bool configs::has_unsaved_changes() {
 	       rule_settings != current_rule_settings || encoding_preset_settings != current_encoding_preset_settings;
 }
 
+namespace {
+	bool needs_load = false;
+
+	void load() {
+		using namespace configs;
+
+		needs_load = false;
+
+		ui::reset_tied_sliders();
+
+		config_blur::initialise_configs(); // re-initialise in case the folder got removed since launch
+
+		edited_configs.clear();
+		for (const auto& name : config_blur::list()) {
+			edited_configs[name] = config_blur::get_config(name);
+		}
+
+		// keep the last config that was being edited
+		if (!edited_configs.contains(selected_config_name)) {
+			selected_config_name = config_blur::get_default_name();
+			if (!edited_configs.contains(selected_config_name) && !edited_configs.empty())
+				selected_config_name = edited_configs.begin()->first;
+		}
+
+		settings = edited_configs.contains(selected_config_name) ? edited_configs[selected_config_name]
+		                                                         : config_blur::DEFAULT_CONFIG;
+
+		app_settings = config_app::get_app_config();
+		encoding_preset_settings = config_encoding_presets::get_config();
+		rule_settings = config_rules::get_config();
+		on_load();
+	}
+}
+
 void configs::enter_screen() {
 	if (gui::renderer::screen == gui::renderer::Screens::CONFIG)
 		return; // reloading would throw away the edits on screen
 
 	// reloaded every time so outside edits show up and changes discarded on leaving are gone
-	ui::reset_tied_sliders();
-
-	config_blur::initialise_configs(); // re-initialise in case the folder got removed since launch
-
-	edited_configs.clear();
-	for (const auto& name : config_blur::list()) {
-		edited_configs[name] = config_blur::get_config(name);
-	}
-
-	// keep the last config that was being edited
-	if (!edited_configs.contains(selected_config_name)) {
-		selected_config_name = config_blur::get_default_name();
-		if (!edited_configs.contains(selected_config_name) && !edited_configs.empty())
-			selected_config_name = edited_configs.begin()->first;
-	}
-
-	settings = edited_configs.contains(selected_config_name) ? edited_configs[selected_config_name]
-	                                                         : config_blur::DEFAULT_CONFIG;
-
-	app_settings = config_app::get_app_config();
-	encoding_preset_settings = config_encoding_presets::get_config();
-	rule_settings = config_rules::get_config();
-	on_load();
-
+	needs_load = true;
 	gui::renderer::screen = gui::renderer::Screens::CONFIG;
+}
+
+void configs::import_config(const BlurSettings& imported) {
+	enter_screen();
+
+	if (needs_load)
+		load();
+
+	ui::reset_tied_sliders();
+	settings = imported;
+	parse_interp();
+
+	gui::components::notifications::add(
+		selected_config_name.empty() ? "Imported config"
+									 : std::format("Imported config into '{}'", selected_config_name),
+		ui::NotificationType::INFO,
+		{},
+		std::chrono::duration<float>(2.f)
+	);
 }
 
 void configs::leave_screen(const std::function<void()>& on_leave) {
@@ -415,6 +445,18 @@ void configs::screen(
 		}
 	}
 	config_container.pop_element_gap();
+
+	if (needs_load) {
+		// parsing checks the gpu and codecs, which blocks until the startup probe is done
+		if (blur.initialised && !u::encoding_support_probed()) {
+			ui::add_text(
+				"config loading text", config_container, "Loading config...", gfx::Color::white(100), fonts::dejavu
+			);
+			return;
+		}
+
+		load();
+	}
 
 	if (has_unsaved_changes()) {
 		ui::set_next_same_line(nav_container);
