@@ -9,9 +9,8 @@ env:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
-    # the release step needs to write to the repo, nothing else does
     permissions:
-      contents: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -20,9 +19,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           submodules: recursive
+          persist-credentials: false
 
       # # ── ccache ────────────────────────────────────────────────────────────
       # - name: Install ccache (Linux)
@@ -38,7 +38,7 @@ jobs:
       #   run: choco install ccache --no-progress
 
       # - name: Cache ccache
-      #   uses: actions/cache@v5
+      #   uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       #   with:
       #     path: |
       #       ~/.ccache
@@ -57,7 +57,7 @@ jobs:
       # ── Linux setup ───────────────────────────────────────────────────────
       - name: Cache apt packages
         if: runner.os == 'Linux'
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: /var/cache/apt/archives
           key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yaml') }}
@@ -66,8 +66,11 @@ jobs:
       - name: Add GCC repository
         if: runner.os == 'Linux'
         run: |
-          for i in {1..5}; do
-            sudo apt-get update && sudo apt-get install -y software-properties-common && break || sleep 10
+          for _ in {1..5}; do
+            if sudo apt-get update && sudo apt-get install -y software-properties-common; then
+              break
+            fi
+            sleep 10
           done
           sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
 
@@ -103,7 +106,7 @@ jobs:
       - name: Cache build dependencies (macOS)
         id: deps-cache-macos
         if: runner.os == 'macOS'
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ci/out
           key: deps-macos-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-macos.sh') }}
@@ -111,7 +114,7 @@ jobs:
       - name: Cache build dependencies (Linux)
         id: deps-cache-linux
         if: runner.os == 'Linux'
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ci/out
           key: deps-linux-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-linux.sh') }}
@@ -119,7 +122,7 @@ jobs:
       - name: Cache build dependencies (Windows)
         id: deps-cache-windows
         if: runner.os == 'Windows'
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ci/out
           key: deps-windows-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-windows.ps1') }}
@@ -172,10 +175,10 @@ jobs:
       - name: Get vcpkg commit hash
         id: vcpkg-commit
         shell: bash
-        run: echo "hash=$(git -C vcpkg rev-parse HEAD)" >> $GITHUB_OUTPUT
+        run: echo "hash=$(git -C vcpkg rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Cache vcpkg packages
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             out/build/*/vcpkg_installed/
@@ -199,22 +202,24 @@ jobs:
             prefix="mac"
           fi
           preset="${prefix}-$(echo "${{ matrix.build-type }}" | tr '[:upper:]' '[:lower:]')"
-          echo "preset=$preset" >> $GITHUB_OUTPUT
+          echo "preset=$preset" >> "$GITHUB_OUTPUT"
 
       - name: Use Developer Command Prompt for Microsoft Visual C++
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
       - name: Configure CMake
-        run: cmake --preset ${{ steps.select-preset.outputs.preset }}
+        run: cmake --preset "$PRESET"
         env:
+          PRESET: ${{ steps.select-preset.outputs.preset }}
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
           # CMAKE_C_COMPILER_LAUNCHER: ccache
           # CMAKE_CXX_COMPILER_LAUNCHER: ccache
 
       - name: Build
-        run: cmake --build --preset ${{ steps.select-preset.outputs.preset }}
+        run: cmake --build --preset "$PRESET"
         env:
+          PRESET: ${{ steps.select-preset.outputs.preset }}
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
       # - name: Print ccache stats
@@ -280,6 +285,7 @@ jobs:
               cp -r ../../ci/out/* package/
 
               linux_gui="package/blur-$config"
+              # shellcheck disable=SC2016 # looking for a literal $ORIGIN
               if ! readelf -d "$linux_gui" | grep -Fq '$ORIGIN'; then
                 echo "Linux GUI does not have a relocatable \$ORIGIN RUNPATH" >&2
                 readelf -d "$linux_gui" >&2
@@ -320,16 +326,35 @@ jobs:
           esac
 
           # Set outputs
-          echo "config=$config" >> $GITHUB_OUTPUT
+          echo "config=$config" >> "$GITHUB_OUTPUT"
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: Blur-${{ steps.prep.outputs.config }}
           path: bundle/
 
-      - name: Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          files: bundle/*
+          pattern: Blur-*
+          path: bundle/
+          merge-multiple: true
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes ""
+          fi
+          gh release upload "$TAG" bundle/* --clobber
