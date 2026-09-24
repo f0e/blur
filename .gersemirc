@@ -1,0 +1,4 @@
+definitions: [CMakeLists.txt, cmake]
+indent: 2
+line_length: 80
+list_expansion: favour-inlining
