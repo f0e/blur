@@ -27,6 +27,9 @@ Checks: >
   -misc-include-cleaner,
   -readability-function-cognitive-complexity,
   -readability-else-after-return,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-type-vararg,
 
 WarningsAsErrors: ""
 
@@ -61,6 +64,8 @@ CheckOptions:
   - key: readability-identifier-naming.VariableIgnoredRegexp
     value: "^_?[a-z][a-z0-9]*(_[a-z0-9]+)*$" # allow leading underscore
   - key: readability-identifier-naming.EnumConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.ConstexprVariableCase
     value: UPPER_CASE
 
   # # Function size limits
