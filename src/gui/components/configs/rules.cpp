@@ -139,7 +139,7 @@ namespace {
 				drag = Drag{
 					.index = i,
 					.grab_offset = to_row_space(container, keys::mouse_pos.y) -
-					               (row_states[i].y + std::lround(row_states[i].offset)),
+					               (row_states[i].y + static_cast<int>(std::lround(row_states[i].offset))),
 				};
 
 				break;
