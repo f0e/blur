@@ -1,6 +1,6 @@
 [tasks.setup]
 run = """
-pre-commit install
+hk install
 """
 
 [tasks.check]
@@ -14,7 +14,8 @@ uv run ci/run-clangd-tidy.py -use-color \
 cmake = "latest"
 meson = "latest"
 ninja = "latest"
-"pipx:pre-commit" = "latest"
+hk = "v2.1.0"
+"pipx:clang-format" = "20.1.8"
 "pipx:clangd-tidy" = "latest"
 "pipx:gersemi" = "latest"
 uv = "latest"

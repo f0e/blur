@@ -1,0 +1,36 @@
+amends "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Builtins.pkl"
+
+exclude = List("dependencies/**")
+
+steps {
+    ["clang-format"] = Builtins.clang_format
+    ["gersemi"] {
+        glob = List("**/CMakeLists.txt", "**/*.cmake")
+        check = "gersemi --check {{files}}"
+        fix = "gersemi --in-place {{files}}"
+    }
+    ["hk-validate"] {
+        glob = "hk.pkl"
+        check = "hk validate"
+    }
+    ["newlines"] = Builtins.newlines
+    ["trailing-whitespace"] = Builtins.trailing_whitespace
+    ["check-added-large-files"] = (Builtins.check_added_large_files) {
+        check = "hk util check-added-large-files --maxkb 1000 {{files}}"
+        exclude = List("src/gui/fonts/*.h")
+    }
+}
+
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+    }
+
+    ["commit-msg"] {
+        steps {
+            ["check-conventional-commit"] = Builtins.check_conventional_commit
+        }
+    }
+}
