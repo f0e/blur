@@ -1,14 +1,11 @@
 [tasks.setup]
-run = """
-hk install
-"""
+run = "hk install"
 
 [tasks.check]
-run = """
-uv run ci/run-clangd-tidy.py -use-color \
-  -source-filter='^((?!/dependencies/|/vcpkg_installed/).)*$' \
-  -p='./build'
-"""
+run = "hk check --all"
+
+[tasks.fix]
+run = "hk fix --all"
 
 [tools]
 cmake = "latest"
