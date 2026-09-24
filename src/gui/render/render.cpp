@@ -772,7 +772,7 @@ void render::waveform(
 	const float scale = height * 0.5f;
 
 	const size_t total_samples = samples.size();
-	const auto start_idx = static_cast<size_t>(zoom_start * total_samples);
+	const size_t start_idx = static_cast<size_t>(zoom_start * total_samples);
 	const size_t end_idx = std::min(static_cast<size_t>(zoom_end * total_samples), total_samples);
 
 	if (start_idx >= end_idx)
