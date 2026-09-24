@@ -32,10 +32,8 @@ steps {
 
     // shell
     ["shellcheck"] = (Builtins.shellcheck) { check = "shellcheck --color=always {{files}}" }
-    ["shfmt"] = (Builtins.shfmt) {
-        check = "shfmt -i 2 -d --apply-ignore {{files}}"
-        fix = "shfmt -i 2 -w --apply-ignore {{files}}"
-    }
+    // indentation comes from .editorconfig
+    ["shfmt"] = Builtins.shfmt
 
     // github actions
     ["actionlint"] = (Builtins.actionlint) { check = "actionlint -color {{files}}" }
