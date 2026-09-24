@@ -236,11 +236,11 @@ namespace {
 				return { .detail = "Paused" };
 
 			switch (progress.init_stage) {
-				case rendering::RenderState::InitStage::generating_mask:
+				case rendering::RenderState::InitStage::GENERATING_MASK:
 					return { .detail = "Generating mask..." };
-				case rendering::RenderState::InitStage::building_engine:
+				case rendering::RenderState::InitStage::BUILDING_ENGINE:
 					return { .detail = "Building TensorRT engine..." };
-				case rendering::RenderState::InitStage::none:
+				case rendering::RenderState::InitStage::NONE:
 					return { .detail = "Initialising..." };
 			}
 		}
@@ -580,7 +580,7 @@ void history::render_panel(ui::Container& container, float delta_time) {
 	int padding_bottom = container.padding ? container.padding->bottom : 0;
 	int content_height = container.current_position.y - container.element_gap + padding_bottom - container.rect.y;
 
-	float goal_height = static_cast<float>(std::min(content_height, container.rect.h));
+	auto goal_height = static_cast<float>(std::min(content_height, container.rect.h));
 
 	if (!panel_showing && panel_collapse_rect)
 		panel_transforming = true;

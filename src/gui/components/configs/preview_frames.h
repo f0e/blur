@@ -17,11 +17,13 @@
 namespace gui::components::configs::preview_frames {
 	// built fresh every ui frame, so it just borrows what it's given
 	struct Request {
+		// NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members) only lives for the ui frame it's built in
 		// the sample video, or empty when there isn't a usable one - the preview then tears itself down
 		const std::filesystem::path& video_path;
 		const BlurSettings& settings;
 		const GlobalAppSettings& app_settings; // config_preview_seek is where the seek comes from
-		bool seeking = false;                  // the seek bar is being dragged
+		// NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
+		bool seeking = false; // the seek bar is being dragged
 
 		// show the mask the render would apply instead of the render itself
 		bool show_mask = false;
@@ -39,7 +41,7 @@ namespace gui::components::configs::preview_frames {
 		float video_duration = 0.f; // 0 until the video's been read
 
 		// what a running render is stuck on before it can produce a frame, which is the slow part
-		rendering::RenderState::InitStage init_stage = rendering::RenderState::InitStage::none;
+		rendering::RenderState::InitStage init_stage = rendering::RenderState::InitStage::NONE;
 
 		// the frame timing log the frame on screen was rendered with, as blur's python named it, empty when
 		// it wasn't rendered with one

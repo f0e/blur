@@ -7,7 +7,6 @@
 #include "gui/renderer.h"
 #include "gui/ui/ui.h"
 
-#include "components/main.h"
 #include "components/notifications.h"
 #include "components/update_notice.h"
 #include "components/configs/configs.h"

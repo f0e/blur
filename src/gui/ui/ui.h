@@ -3,7 +3,6 @@
 #include "../render/render.h"
 #include "../thumbnails.h"
 #include "helpers/text_input.h"
-#include "helpers/video.h"
 #include "common/media.h"
 
 namespace ui {

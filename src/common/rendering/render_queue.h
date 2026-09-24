@@ -2,6 +2,7 @@
 
 #include "render_state.h"
 #include "render_types.h"
+#include "render_errors.h"
 #include "common/config_app.h"
 #include "common/config_blur.h"
 #include "common/media.h"

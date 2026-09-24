@@ -112,8 +112,8 @@ namespace {
 		if (!state->preview_capture_enabled())
 			return;
 
-		static constexpr size_t CHUNK_SIZE = 64 * 1024;
-		static constexpr size_t INITIAL_JPEG_CAPACITY = 1024 * 512;
+		static constexpr size_t CHUNK_SIZE = size_t{ 64 } * 1024;
+		static constexpr size_t INITIAL_JPEG_CAPACITY = size_t{ 1024 } * 512;
 
 		// a render going much faster than realtime produces preview frames far quicker than
 		// anything can display them, and every one the gui picks up costs a jpeg decode and a

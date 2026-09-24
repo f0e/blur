@@ -170,7 +170,7 @@ bool ui::update_scrollbar(
 }
 
 bool ui::is_dragging_scrollbar(const void* owner) {
-	return owner && scrollbar_drag.owner == owner;
+	return owner != nullptr && scrollbar_drag.owner == owner;
 }
 
 void ui::reset_container(
@@ -576,8 +576,8 @@ bool ui::update_container_input(Container& container) {
 		get_container_scrollbar_geometry(container),
 		container.scroll_y,
 		container.scrollbar_anim,
-		!hovered_element_internal,
-		!active_element
+		hovered_element_internal == nullptr,
+		active_element == nullptr
 	);
 
 	if (is_dragging_scrollbar(&container)) {

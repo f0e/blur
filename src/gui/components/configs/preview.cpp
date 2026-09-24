@@ -1,4 +1,5 @@
 #include "configs.h"
+#include "../../fonts/icons.h"
 
 #include "preview_frames.h"
 
@@ -117,11 +118,11 @@ namespace {
 
 	std::optional<std::string> init_stage_text(rendering::RenderState::InitStage stage) {
 		switch (stage) {
-			case rendering::RenderState::InitStage::generating_mask:
+			case rendering::RenderState::InitStage::GENERATING_MASK:
 				return "Analysing video to generate a mask...";
-			case rendering::RenderState::InitStage::building_engine:
+			case rendering::RenderState::InitStage::BUILDING_ENGINE:
 				return "Building TensorRT engine. This may take a few minutes...";
-			case rendering::RenderState::InitStage::none:
+			case rendering::RenderState::InitStage::NONE:
 				break;
 		}
 
@@ -223,9 +224,8 @@ void configs::config_preview(ui::Container& container) {
 			const std::array filters = {
 				SDL_DialogFileFilter{
 					.name = "Video files",
-					.pattern = "webm;mkv;flv;vob;ogv;ogg;rrc;gifv;mng;mov;avi;qt;wmv;yuv;rm;rmvb;asf;amv;mp4;m4p;m4v;"
-							   "mpg;mp2;mpeg;mpe;mpv;svi;3gp;3g2;mxf;roq;nsv;f4v;f4p;f4a;f4b;mod;ts;m2ts;mts;divx;"
-							   "bik;wtv;drc",
+					.pattern =
+						"webm;mkv;flv;vob;ogv;ogg;rrc;gifv;mng;mov;avi;qt;wmv;yuv;rm;rmvb;asf;amv;mp4;m4p;m4v;mpg;mp2;mpeg;mpe;mpv;svi;3gp;3g2;mxf;roq;nsv;f4v;f4p;f4a;f4b;mod;ts;m2ts;mts;divx;bik;wtv;drc",
 				},
 			};
 
@@ -309,7 +309,7 @@ void configs::config_preview(ui::Container& container) {
 		}
 	};
 
-	constexpr int preview_image_gap = 2;
+	constexpr int PREVIEW_IMAGE_GAP = 2;
 	const int seek_bar_height = ui::seek_bar_height(fonts::dejavu(fonts::size::SMALL));
 
 	auto add_seek_bar_row = [&] {
@@ -354,7 +354,7 @@ void configs::config_preview(ui::Container& container) {
 
 	bool preview_image_added = false;
 	if (showing_hovered_mask || preview.frame) {
-		container.push_element_gap(preview_image_gap);
+		container.push_element_gap(PREVIEW_IMAGE_GAP);
 
 		if (showing_hovered_mask) {
 			auto mask_path = masks::get_path() / u::string_to_path(hovered_mask);
@@ -388,7 +388,7 @@ void configs::config_preview(ui::Container& container) {
 			init_stage_text(preview.init_stage)
 				.value_or(show_mask_preview ? "Loading mask preview..." : "Loading config preview...");
 
-		container.push_element_gap(preview_image_gap);
+		container.push_element_gap(PREVIEW_IMAGE_GAP);
 
 		ui::add_text(
 			"loading config preview text",
@@ -402,7 +402,7 @@ void configs::config_preview(ui::Container& container) {
 		container.pop_element_gap();
 	}
 	else {
-		container.push_element_gap(preview_image_gap);
+		container.push_element_gap(PREVIEW_IMAGE_GAP);
 
 		ui::add_text(
 			"failed to generate preview text",

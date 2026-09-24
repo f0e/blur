@@ -10,7 +10,7 @@ bool os::window::disable_live_resize_scaling(SDL_Window* window) {
 		return false;
 
 	// plain cast, not __bridge - the .mm files here are built without arc
-	NSWindow* ns_window = (NSWindow*)SDL_GetPointerProperty(
+	auto* ns_window = (NSWindow*)SDL_GetPointerProperty(
 		SDL_GetWindowProperties(window), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr
 	);
 	if (!ns_window)

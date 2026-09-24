@@ -1,6 +1,7 @@
 #pragma once
 
 #include "render_types.h"
+#include "render_errors.h"
 #include "render_state.h"
 
 // Runs a built vspipe | ffmpeg pipeline: spawns the two processes, streams

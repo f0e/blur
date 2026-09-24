@@ -7,7 +7,7 @@
 namespace gui::components::main {
 	void open_files_button(ui::Container& container, const std::string& label);
 
-	enum class MainScreen {
+	enum class MainScreen : uint8_t {
 		PROGRESS,
 		PENDING,
 		HOME

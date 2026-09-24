@@ -1,7 +1,7 @@
 #include "configs.h"
+#include "../../fonts/icons.h"
 
 #include "../../ui/ui.h"
-#include "../../renderer.h"
 
 namespace configs = gui::components::configs;
 

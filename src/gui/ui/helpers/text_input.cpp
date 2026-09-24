@@ -40,8 +40,8 @@ namespace {
 		if (len == 1 || p + len > end)
 			return lead;
 
-		static constexpr std::array<unsigned int, 5> lead_mask = { 0, 0x7F, 0x1F, 0x0F, 0x07 };
-		unsigned int c = lead & lead_mask[len];
+		static constexpr std::array<unsigned int, 5> LEAD_MASK = { 0, 0x7F, 0x1F, 0x0F, 0x07 };
+		unsigned int c = lead & LEAD_MASK.at(len);
 		for (int i = 1; i < len; ++i)
 			c = (c << 6) | (static_cast<unsigned char>(p[i]) & 0x3F);
 
@@ -225,12 +225,12 @@ namespace {
 	}
 
 	bool is_separator(unsigned int c) {
-		static constexpr std::array<unsigned int, 29> separators = {
+		static constexpr std::array<unsigned int, 29> SEPARATORS = {
 			',', 0x3001, '.', 0x3002, ';', 0xFF1B, '(',  0xFF08, ')', 0xFF09, '{',    0xFF5B, '}',  0xFF5D, '[', 0x300C,
 			']', 0x300D, '|', 0xFF5C, '!', 0xFF01, '\\', 0xFFE5, '/', 0x30FB, 0xFF0F, '\n',   '\r',
 		};
 
-		return std::ranges::find(separators, c) != separators.end();
+		return std::ranges::find(SEPARATORS, c) != SEPARATORS.end();
 	}
 
 	unsigned int char_at(IMSTB_TEXTEDIT_STRING* str, int idx) {
@@ -304,6 +304,7 @@ namespace {
 	}
 }
 
+// NOLINTBEGIN(cppcoreguidelines-macro-usage,cppcoreguidelines-macro-to-enum) stb is configured through macros
 #define STB_TEXTEDIT_STRINGLEN(obj)  string_len(obj)
 #define STB_TEXTEDIT_LAYOUTROW       textedit_layoutrow
 #define STB_TEXTEDIT_GETWIDTH        textedit_getwidth
@@ -337,6 +338,7 @@ namespace {
 #define STB_TEXTEDIT_K_PGUP      0x20000E
 #define STB_TEXTEDIT_K_PGDOWN    0x20000F
 #define STB_TEXTEDIT_K_SHIFT     0x400000
+// NOLINTEND(cppcoreguidelines-macro-usage,cppcoreguidelines-macro-to-enum)
 
 #define IMSTB_TEXTEDIT_IMPLEMENTATION
 #include <imstb_textedit.h>
@@ -360,10 +362,20 @@ namespace {
 
 		switch (scan) {
 			case SDL_SCANCODE_LEFT:
-				key = word_move ? STB_TEXTEDIT_K_WORDLEFT : (doc_move ? STB_TEXTEDIT_K_LINESTART : STB_TEXTEDIT_K_LEFT);
+				if (word_move)
+					key = STB_TEXTEDIT_K_WORDLEFT;
+				else if (doc_move)
+					key = STB_TEXTEDIT_K_LINESTART;
+				else
+					key = STB_TEXTEDIT_K_LEFT;
 				break;
 			case SDL_SCANCODE_RIGHT:
-				key = word_move ? STB_TEXTEDIT_K_WORDRIGHT : (doc_move ? STB_TEXTEDIT_K_LINEEND : STB_TEXTEDIT_K_RIGHT);
+				if (word_move)
+					key = STB_TEXTEDIT_K_WORDRIGHT;
+				else if (doc_move)
+					key = STB_TEXTEDIT_K_LINEEND;
+				else
+					key = STB_TEXTEDIT_K_RIGHT;
 				break;
 			case SDL_SCANCODE_UP:
 				key = doc_move ? STB_TEXTEDIT_K_TEXTSTART : STB_TEXTEDIT_K_UP;

@@ -1,10 +1,10 @@
 #include "file_browser.h"
 
-#include <cstdint>
-#include <format>
-#include <string>
-
 #ifndef __APPLE__
+
+#	include <cstdint>
+#	include <format>
+#	include <string>
 
 #	ifdef _WIN32
 

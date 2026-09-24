@@ -107,20 +107,20 @@ void main::open_files_button(ui::Container& container, const std::string& label)
 			}
 		};
 
-		const SDL_DialogFileFilter filters[] = {
-			{ "Video files",
-			  "webm;mkv;flv;vob;ogv;ogg;rrc;gifv;mng;mov;avi;qt;wmv;yuv;rm;rmvb;asf;amv;mp4;m4p;m4v;mpg;mp2;mpeg;mpe;"
-			  "mpv;svi;3gp;3g2;mxf;roq;nsv;f4v;f4p;f4a;f4b;mod;ts;m2ts;mts;divx;bik;wtv;drc" }
-		};
+		static constexpr std::array<SDL_DialogFileFilter, 1> FILTERS = { {
+			{ .name = "Video files",
+			  .pattern =
+			      "webm;mkv;flv;vob;ogv;ogg;rrc;gifv;mng;mov;avi;qt;wmv;yuv;rm;rmvb;asf;amv;mp4;m4p;m4v;mpg;mp2;mpeg;mpe;mpv;svi;3gp;3g2;mxf;roq;nsv;f4v;f4p;f4a;f4b;mod;ts;m2ts;mts;divx;bik;wtv;drc" },
+		} };
 
 		SDL_ShowOpenFileDialog(
-			file_callback, // Properly typed callback function
-			nullptr,       // userdata
-			nullptr,       // parent window (nullptr for default)
-			filters,       // file filters
-			1,             // number of filters
-			"",            // default path
-			true           // allow multiple files
+			file_callback,                    // Properly typed callback function
+			nullptr,                          // userdata
+			nullptr,                          // parent window (nullptr for default)
+			FILTERS.data(),                   // file filters
+			static_cast<int>(FILTERS.size()), // number of filters
+			"",                               // default path
+			true                              // allow multiple files
 		);
 	});
 };
@@ -277,13 +277,13 @@ void main::render_progress(
 
 			std::string initialising_text = "Initialising render...";
 			switch (progress.init_stage) {
-				case rendering::RenderState::InitStage::generating_mask:
+				case rendering::RenderState::InitStage::GENERATING_MASK:
 					initialising_text = "Analysing video to generate a mask...";
 					break;
-				case rendering::RenderState::InitStage::building_engine:
+				case rendering::RenderState::InitStage::BUILDING_ENGINE:
 					initialising_text = "Building TensorRT engine. This may take a few minutes...";
 					break;
-				case rendering::RenderState::InitStage::none:
+				case rendering::RenderState::InitStage::NONE:
 					break;
 			}
 
@@ -318,7 +318,7 @@ void main::render_pending(
 ) {
 	pending_index = (size_t)std::clamp((int)pending_index, 0, int(pending.size() - 1));
 
-	auto& pending_video = pending[pending_index];
+	const auto& pending_video = pending[pending_index];
 
 	std::string render_title_text = u::path_to_string(pending_video->video_path.stem());
 

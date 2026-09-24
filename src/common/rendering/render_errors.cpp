@@ -61,7 +61,7 @@ std::string rendering::detail::without_error_objects(const std::string& stderr_o
 		copied = end + 1;
 	}
 
-	kept.append(stderr_output, copied, std::string::npos);
+	kept += std::string_view(stderr_output).substr(copied);
 
 	return kept;
 }

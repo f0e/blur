@@ -50,11 +50,11 @@ void ui::render_button(const Container& container, const AnimatedElement& elemen
 	const int icon_and_gap_width =
 		button_data.icon ? icon_size.w + (button_data.text.empty() ? 0 : BUTTON_ICON_GAP) : 0;
 	const int content_width = icon_and_gap_width + text_size.w;
-	const int content_x = element.element->rect.center().x - content_width / 2;
+	const int content_x = element.element->rect.center().x - (content_width / 2);
 
 	if (button_data.icon) {
 		render::text(
-			gfx::Point(content_x + icon_size.w / 2, element.element->rect.center().y),
+			gfx::Point(content_x + (icon_size.w / 2), element.element->rect.center().y),
 			text_color,
 			*button_data.icon,
 			fonts::icons,

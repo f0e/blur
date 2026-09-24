@@ -50,7 +50,7 @@ gfx::Rect render::Font::calc_ink_bounds(const std::string& text) const {
 	const char* end = s + text.size();
 
 	while (s < end) {
-		unsigned int c = (unsigned int)*s;
+		auto c = static_cast<unsigned int>(static_cast<unsigned char>(*s));
 		if (c < 0x80)
 			s++;
 		else

@@ -125,9 +125,9 @@ namespace {
 		std::string m_image_id;
 	};
 
-	enum class PreviewKind {
-		blurred,
-		mask,
+	enum class PreviewKind : uint8_t {
+		BLURRED,
+		MASK,
 	};
 
 	struct LastRender {
@@ -145,8 +145,8 @@ namespace {
 	};
 
 	// kept apart so switching views can immediately show the last frame rendered for each
-	PreviewSlot blurred_preview(PreviewKind::blurred, "blurred");
-	PreviewSlot mask_preview(PreviewKind::mask, "mask");
+	PreviewSlot blurred_preview(PreviewKind::BLURRED, "blurred");
+	PreviewSlot mask_preview(PreviewKind::MASK, "mask");
 
 	// bumped whenever the settings stop agreeing with what the mask on screen was rendered from, which is what
 	// makes that mask frame stale. only the mask needs this: everything that changes the blurred frame is in its
@@ -245,7 +245,7 @@ namespace {
 
 	// starts a render of the requested view unless that request is already cached or in flight
 	void render_preview_frame(const preview_frames::Request& request, const FrameKey& key, PreviewSlot& preview) {
-		bool mask = preview.kind == PreviewKind::mask;
+		bool mask = preview.kind == PreviewKind::MASK;
 
 		// no point rendering positions a drag is only passing through, they'd be thrown away on the next mouse move
 		if (request.seeking)
@@ -301,7 +301,7 @@ namespace {
 
 	struct RenderStatus {
 		bool rendering = false;
-		rendering::RenderState::InitStage init_stage = rendering::RenderState::InitStage::none;
+		rendering::RenderState::InitStage init_stage = rendering::RenderState::InitStage::NONE;
 	};
 
 	RenderStatus render_status(const PreviewSlot& preview) {
@@ -405,8 +405,8 @@ preview_frames::Result preview_frames::update(const Request& request) {
 		.init_stage = status.init_stage,
 	};
 
-	const PreviewFrame* frame;
-	bool up_to_date;
+	const PreviewFrame* frame = nullptr;
+	bool up_to_date = false;
 
 	if (request.show_mask) {
 		frame = &mask_preview.frame;

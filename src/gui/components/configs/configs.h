@@ -3,8 +3,6 @@
 #include "common/config_app.h"
 #include "common/config_encoding_presets.h"
 #include "common/config_rules.h"
-#include "common/rendering.h"
-#include "../../fonts/icons.h"
 #include "../../ui/ui.h"
 
 namespace gui::components::configs { // naming it configs to avoid conflict with common lol

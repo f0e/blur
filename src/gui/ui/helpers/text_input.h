@@ -9,13 +9,15 @@ namespace ui::helpers::text_input {
 // we use dear imgui's fork of stb_textedit rather than upstream, because it adds UTF-8 support (cursor movement
 // and deletion step over whole codepoints instead of bytes) plus fixes for redo discarding and last-line charpos.
 // the fork reads two members straight off the string object, so those have to keep imgui's names.
-struct STB_TexteditState;
+struct STB_TexteditState; // NOLINT(readability-identifier-naming) stb's name
 
+// NOLINTBEGIN(cppcoreguidelines-macro-usage,cppcoreguidelines-macro-to-enum) stb is configured through macros
 #define IMSTB_TEXTEDIT_STRING         ui::helpers::text_input::TextInputData
 #define IMSTB_TEXTEDIT_CHARTYPE       char
 #define IMSTB_TEXTEDIT_POSITIONTYPE   int
 #define IMSTB_TEXTEDIT_UNDOSTATECOUNT 99
 #define IMSTB_TEXTEDIT_UNDOCHARCOUNT  999
+// NOLINTEND(cppcoreguidelines-macro-usage,cppcoreguidelines-macro-to-enum)
 
 // only the type configuration lives here, since it's needed to declare STB_TexteditState below. the callback
 // and key macros stay in text_input.cpp so they don't leak into every TU that pulls in ui.h.
@@ -31,8 +33,11 @@ namespace ui::helpers::text_input {
 
 		// these two are named for imgui's stb_textedit fork, which reads them directly out of the string object
 		// (see stb_textedit_click/_drag/_find_charpos). Stb points back at the owning state's edit_state.
+		// NOLINTBEGIN(readability-identifier-naming)
 		STB_TexteditState* Stb{};
 		ImS8 LastMoveDirectionLR = ImGuiDir_None;
+
+		// NOLINTEND(readability-identifier-naming)
 
 		bool operator==(const TextInputData& other) const {
 			return text == other.text && font == other.font && read_only == other.read_only &&

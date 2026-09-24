@@ -9,9 +9,9 @@ namespace rendering {
 		// what a render is busy with before it starts producing frames, so the UI can say why it's taking a
 		// while (see RenderState::report_log_line). these happen in order, so the latest one reported wins
 		enum class InitStage : uint8_t {
-			none,
-			generating_mask,
-			building_engine,
+			NONE,
+			GENERATING_MASK,
+			BUILDING_ENGINE,
 		};
 
 		struct Progress {
@@ -27,7 +27,7 @@ namespace rendering {
 
 			std::string string;
 
-			InitStage init_stage = InitStage::none;
+			InitStage init_stage = InitStage::NONE;
 
 			std::string frame_timing_log;
 		};

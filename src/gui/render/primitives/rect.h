@@ -1,5 +1,9 @@
 #pragma once
 
+#include <algorithm>
+
+#include "point.h"
+
 namespace gfx {
 	class Point;
 	class Size;
@@ -46,15 +50,41 @@ namespace gfx {
 			return y + h;
 		}
 
-		[[nodiscard]] constexpr Point top_left() const;
-		[[nodiscard]] constexpr Point top_right() const;
-		[[nodiscard]] constexpr Point bottom_left() const;
-		[[nodiscard]] constexpr Point bottom_right() const;
-		[[nodiscard]] constexpr Point top_center() const;
-		[[nodiscard]] constexpr Point bottom_center() const;
-		[[nodiscard]] constexpr Point left_center() const;
-		[[nodiscard]] constexpr Point right_center() const;
-		[[nodiscard]] constexpr Point center() const;
+		[[nodiscard]] constexpr Point top_left() const {
+			return { x, y };
+		}
+
+		[[nodiscard]] constexpr Point top_right() const {
+			return { x + w, y };
+		}
+
+		[[nodiscard]] constexpr Point bottom_left() const {
+			return { x, y + h };
+		}
+
+		[[nodiscard]] constexpr Point bottom_right() const {
+			return { x + w, y + h };
+		}
+
+		[[nodiscard]] constexpr Point top_center() const {
+			return { x + (w / 2), y };
+		}
+
+		[[nodiscard]] constexpr Point bottom_center() const {
+			return { x + (w / 2), y + h };
+		}
+
+		[[nodiscard]] constexpr Point left_center() const {
+			return { x, y + (h / 2) };
+		}
+
+		[[nodiscard]] constexpr Point right_center() const {
+			return { x + w, y + (h / 2) };
+		}
+
+		[[nodiscard]] constexpr Point center() const {
+			return { x + (w / 2), y + (h / 2) };
+		}
 
 		[[nodiscard]] constexpr Point origin() const {
 			return top_left();

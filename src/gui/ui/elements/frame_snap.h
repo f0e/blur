@@ -1,6 +1,5 @@
 #pragma once
 
-#include <optional>
 #include <cmath>
 
 namespace video::frame_snap {
