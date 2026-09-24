@@ -32,7 +32,8 @@ find_path(
   MPV_INCLUDE_DIR
   NAMES mpv/client.h
   HINTS ${PC_MPV_INCLUDEDIR} ${PC_MPV_INCLUDE_DIRS} # Unused for MPV but anyway
-  DOC "MPV include directory")
+  DOC "MPV include directory"
+)
 
 if(WIN32)
   # don't ask me why this is needed
@@ -47,7 +48,8 @@ if(WIN32)
       $ENV{MPV_DIR}
       $ENV{MPV_DIR}/lib
     NO_DEFAULT_PATH
-    DOC "MPV import library")
+    DOC "MPV import library"
+  )
 
   find_file(
     MPV_DLL
@@ -58,7 +60,8 @@ if(WIN32)
       $ENV{MPV_DIR}
       $ENV{MPV_DIR}/bin
     NO_DEFAULT_PATH
-    DOC "MPV runtime DLL")
+    DOC "MPV runtime DLL"
+  )
 
   if(MPV_LIBRARY)
     get_filename_component(_MPV_LIBRARY_DIR ${MPV_LIBRARY} DIRECTORY)
@@ -77,7 +80,8 @@ else()
       MPV_LIBRARY_${l}
       NAMES ${l}
       HINTS ${PC_MPV_LIBDIR} ${PC_MPV_LIBRARY_DIRS} # Unused for MPV but anyway
-      PATH_SUFFIXES lib${LIB_SUFFIX})
+      PATH_SUFFIXES lib${LIB_SUFFIX}
+    )
     list(APPEND MPV_LIBRARY ${MPV_LIBRARY_${l}})
   endforeach()
 
@@ -99,4 +103,5 @@ include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(
   MPV
   REQUIRED_VARS ${_MPV_REQUIRED_VARS}
-  VERSION_VAR MPV_VERSION_STRING)
+  VERSION_VAR MPV_VERSION_STRING
+)

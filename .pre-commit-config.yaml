@@ -27,6 +27,11 @@ repos:
     hooks:
       - id: clang-format
 
+  - repo: https://github.com/BlankSpruce/gersemi-pre-commit
+    rev: 0.29.1
+    hooks:
+      - id: gersemi
+
   # - repo: https://github.com/f0e/clangd-tidy-pre-commit
   #   rev: v1.0.0
   #   hooks:
