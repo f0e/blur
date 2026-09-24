@@ -3,7 +3,6 @@
 
 import argparse
 import asyncio
-from dataclasses import dataclass
 import glob
 import json
 import multiprocessing
@@ -15,11 +14,12 @@ import sys
 import tempfile
 import time
 import traceback
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from types import ModuleType
-from typing import Any, Awaitable, Callable, List, Optional, TypeVar
+from typing import Any, TypeVar
 
-
-yaml: Optional[ModuleType] = None
+yaml: ModuleType | None = None
 try:
     import yaml
 except ImportError:
@@ -36,9 +36,7 @@ def strtobool(val: str) -> bool:
         return False
 
     # Return ArgumentTypeError so that argparse does not substitute its own error message
-    raise argparse.ArgumentTypeError(
-        f"'{val}' is invalid value for boolean argument! Try 0 or 1."
-    )
+    raise argparse.ArgumentTypeError(f"'{val}' is invalid value for boolean argument! Try 0 or 1.")
 
 
 def find_compilation_database(path: str) -> str:
@@ -54,25 +52,25 @@ def find_compilation_database(path: str) -> str:
 
 
 def get_tidy_invocation(
-    f: Optional[str],
+    f: str | None,
     clangd_tidy_binary: str,
     checks: str,
-    tmpdir: Optional[str],
+    tmpdir: str | None,
     build_path: str,
-    header_filter: Optional[str],
+    header_filter: str | None,
     allow_enabling_alpha_checkers: bool,
-    extra_arg: List[str],
-    extra_arg_before: List[str],
+    extra_arg: list[str],
+    extra_arg_before: list[str],
     quiet: bool,
     config_file_path: str,
     config: str,
-    line_filter: Optional[str],
+    line_filter: str | None,
     use_color: bool,
-    plugins: List[str],
-    warnings_as_errors: Optional[str],
-    exclude_header_filter: Optional[str],
+    plugins: list[str],
+    warnings_as_errors: str | None,
+    exclude_header_filter: str | None,
     allow_no_checks: bool,
-) -> List[str]:
+) -> list[str]:
     """Gets a command line for clangd-tidy."""
     start = [clangd_tidy_binary]
     if allow_enabling_alpha_checkers:
@@ -151,9 +149,7 @@ def find_binary(arg: str, name: str, build_path: str) -> str:
         if shutil.which(arg):
             return arg
         else:
-            raise SystemExit(
-                f"error: passed binary '{arg}' was not found or is not executable"
-            )
+            raise SystemExit(f"error: passed binary '{arg}' was not found or is not executable")
 
     built_path = os.path.join(build_path, "bin", name)
     binary = shutil.which(name) or shutil.which(built_path)
@@ -163,9 +159,7 @@ def find_binary(arg: str, name: str, build_path: str) -> str:
         raise SystemExit(f"error: failed to find {name} in $PATH or at {built_path}")
 
 
-def apply_fixes(
-    args: argparse.Namespace, clang_apply_replacements_binary: str, tmpdir: str
-) -> None:
+def apply_fixes(args: argparse.Namespace, clang_apply_replacements_binary: str, tmpdir: str) -> None:
     """Calls clang-apply-fixes on a given directory."""
     invocation = [clang_apply_replacements_binary]
     invocation.append("-ignore-insert-conflict")
@@ -194,7 +188,7 @@ async def run_with_semaphore(
 @dataclass
 class ClangTidyResult:
     filename: str
-    invocation: List[str]
+    invocation: list[str]
     returncode: int
     stdout: str
     stderr: str
@@ -233,9 +227,7 @@ async def run_tidy(
     )
 
     try:
-        process = await asyncio.create_subprocess_exec(
-            *invocation, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
+        process = await asyncio.create_subprocess_exec(*invocation, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         start = time.time()
         stdout, stderr = await process.communicate()
         end = time.time()
@@ -267,9 +259,7 @@ async def main() -> None:
         action="store_true",
         help="Allow alpha checkers from clang-analyzer.",
     )
-    parser.add_argument(
-        "-clangd-tidy-binary", metavar="PATH", help="Path to clangd-tidy binary."
-    )
+    parser.add_argument("-clangd-tidy-binary", metavar="PATH", help="Path to clangd-tidy binary.")
     parser.add_argument(
         "-clang-apply-replacements-binary",
         metavar="PATH",
@@ -360,9 +350,7 @@ async def main() -> None:
         help="Files to be processed (regex on path).",
     )
     parser.add_argument("-fix", action="store_true", help="apply fix-its.")
-    parser.add_argument(
-        "-format", action="store_true", help="Reformat code after applying fixes."
-    )
+    parser.add_argument("-format", action="store_true", help="Reformat code after applying fixes.")
     parser.add_argument(
         "-style",
         default="file",
@@ -377,9 +365,7 @@ async def main() -> None:
         " default behavior. This option overrides the 'UseColor"
         "' option in .clang-tidy file, if any.",
     )
-    parser.add_argument(
-        "-p", dest="build_path", help="Path used to read a compile command database."
-    )
+    parser.add_argument("-p", dest="build_path", help="Path used to read a compile command database.")
     parser.add_argument(
         "-extra-arg",
         dest="extra_arg",
@@ -394,9 +380,7 @@ async def main() -> None:
         default=[],
         help="Additional argument to prepend to the compiler command line.",
     )
-    parser.add_argument(
-        "-quiet", action="store_true", help="Run clangd-tidy in quiet mode."
-    )
+    parser.add_argument("-quiet", action="store_true", help="Run clangd-tidy in quiet mode.")
     parser.add_argument(
         "-load",
         dest="plugins",
@@ -432,13 +416,11 @@ async def main() -> None:
         )
 
     combine_fixes = False
-    export_fixes_dir: Optional[str] = None
+    export_fixes_dir: str | None = None
     delete_fixes_dir = False
     if args.export_fixes is not None:
         # if a directory is given, create it if it does not exist
-        if args.export_fixes.endswith(os.path.sep) and not os.path.isdir(
-            args.export_fixes
-        ):
+        if args.export_fixes.endswith(os.path.sep) and not os.path.isdir(args.export_fixes):
             os.makedirs(args.export_fixes)
 
         if not os.path.isdir(args.export_fixes):
@@ -480,9 +462,7 @@ async def main() -> None:
         # invocation.append("-list-checks")
         invocation.append("-")
         # Even with -quiet we still want to check if we can call clangd-tidy.
-        subprocess.check_call(
-            invocation, stdout=subprocess.DEVNULL if args.quiet else None
-        )
+        subprocess.check_call(invocation, stdout=subprocess.DEVNULL if args.quiet else None)
     except:
         print("Unable to run clangd-tidy.", file=sys.stderr)
         sys.exit(1)

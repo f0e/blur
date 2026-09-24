@@ -1,8 +1,8 @@
 import sys
 from pathlib import Path
 
-from matplotlib import pyplot as plt
 import numpy as np
+from matplotlib import pyplot as plt
 
 sys.path.insert(1, str((Path(__file__).parent / "../../src/vapoursynth").resolve()))
 
@@ -22,9 +22,7 @@ def plot_analysis(frames: int):
         "Ascending": blur.weighting.ascending(frames),
         "Descending": blur.weighting.descending(frames),
         "Gaussian": blur.weighting.gaussian(frames, standard_deviation=1),
-        "Gaussian Reverse": blur.weighting.gaussian_reverse(
-            frames, standard_deviation=1
-        ),
+        "Gaussian Reverse": blur.weighting.gaussian_reverse(frames, standard_deviation=1),
         "Gaussian Sym": blur.weighting.gaussian_sym(frames, standard_deviation=1),
         "Pyramid": blur.weighting.pyramid(frames),
         "Vegas": blur.weighting.vegas(frames),
@@ -89,9 +87,7 @@ def plot_analysis(frames: int):
     for i, mean in enumerate(means):
         axes[1, 1].plot(
             x,
-            blur.weighting.gaussian(
-                frames, mean=mean, standard_deviation=0.8, bound=(0, 2)
-            ),
+            blur.weighting.gaussian(frames, mean=mean, standard_deviation=0.8, bound=(0, 2)),
             linewidth=2,
             color=colors2[i],
             label=f"μ={mean}",

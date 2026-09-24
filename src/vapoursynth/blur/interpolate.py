@@ -1,21 +1,20 @@
 # credit to InterFrame - https://www.spirton.com/uploads/InterFrame/InterFrame2.html and https://github.com/HomeOfVapourSynthEvolution/havsfunc
 
-import vapoursynth as vs
-from vapoursynth import core
-
 import json
 import math
 import sys
+from collections.abc import Callable
 from fractions import Fraction
-from typing import Any, Callable
 from pathlib import Path
+from typing import Any
 
-import blur.retime as retime
 import blur.utils as u
-
+import vapoursynth as vs
+from blur import retime
+from vapoursynth import core
 
 TENSORRT_NOT_INSTALLED = (
-    "TensorRT RIFE isn't installed. Rerun the installer and select \"NVIDIA TensorRT RIFE interpolation\", "
+    'TensorRT RIFE isn\'t installed. Rerun the installer and select "NVIDIA TensorRT RIFE interpolation", '
     "or use a different interpolation method"
 )
 
@@ -78,9 +77,7 @@ def _fps(value) -> Fraction:
 
 
 def _steps(ratio: Fraction, max_gap: int) -> int:
-    return int(
-        min(MAX_STEPS, max(2, math.ceil(ratio * max_gap * STEPS_PER_OUTPUT_FRAME)))
-    )
+    return int(min(MAX_STEPS, max(2, math.ceil(ratio * max_gap * STEPS_PER_OUTPUT_FRAME))))
 
 
 def _retimed(
@@ -123,9 +120,7 @@ def _retimed(
 
     # a decision's pairs sit one after another, `slots` of them whether or not it uses them all
     pairs = core.std.AssumeFPS(
-        core.std.Interleave(
-            [side(slot + end) for slot in range(timeline.slots) for end in (0, 1)]
-        ),
+        core.std.Interleave([side(slot + end) for slot in range(timeline.slots) for end in (0, 1)]),
         fpsnum=1,
         fpsden=1,
     )
@@ -178,17 +173,11 @@ def _retimed_rife_merge(
     def at(n: int, props) -> retime.Bracket:
         return retime.bracket(props, retime.source_time(n, ratio))
 
-    before = core.std.FrameEval(
-        base, lambda n, f: video[at(n, f.props).left], prop_src=decisions
-    )
-    after = core.std.FrameEval(
-        base, lambda n, f: video[at(n, f.props).right], prop_src=decisions
-    )
+    before = core.std.FrameEval(base, lambda n, f: video[at(n, f.props).left], prop_src=decisions)
+    after = core.std.FrameEval(base, lambda n, f: video[at(n, f.props).right], prop_src=decisions)
     timepoint = core.std.FrameEval(
         gray,
-        lambda n, f: gray.std.BlankClip(
-            color=float(at(n, f.props).timepoint or 0), keep=True
-        ),
+        lambda n, f: gray.std.BlankClip(color=float(at(n, f.props).timepoint or 0), keep=True),
         prop_src=decisions,
     )
 
@@ -243,9 +232,7 @@ def generate_svp_strings(
 
     match preset:
         case "test":
-            vectors_json["main"] = {
-                "search": {"type": 3, "satd": True, "coarse": {"type": 3}}
-            }
+            vectors_json["main"] = {"search": {"type": 3, "satd": True, "coarse": {"type": 3}}}
         case _ if preset in LEGACY_PRESETS:
             vectors_json["main"] = {"search": {"distance": 0, "coarse": {}}}
 
@@ -328,9 +315,7 @@ def svp(
             video,
             timeline,
             _fps(new_fps),
-            lambda pairs, steps: SVP(
-                pairs, super_string, vectors_string, _with_rate(smooth_str, steps)
-            ),
+            lambda pairs, steps: SVP(pairs, super_string, vectors_string, _with_rate(smooth_str, steps)),
         )
 
     return u.with_scaled_luminance(
@@ -384,9 +369,7 @@ def change_fps(
 
     factor = (fpsnum / fpsden) * (src_den / src_num)
 
-    new_fps_clip = clip.std.BlankClip(
-        length=math.floor(clip.num_frames * factor), fpsnum=fpsnum, fpsden=fpsden
-    )
+    new_fps_clip = clip.std.BlankClip(length=math.floor(clip.num_frames * factor), fpsnum=fpsnum, fpsden=fpsden)
 
     return new_fps_clip.std.FrameEval(lambda n: clip[round(n / factor)])
 
@@ -405,9 +388,7 @@ def MVTools(
     dct=3,
     blend=False,
 ):
-    super = core.mv.Super(
-        clip, hpad=blocksize, vpad=blocksize, pel=pel, rfilter=1, sharp=sharp
-    )
+    super = core.mv.Super(clip, hpad=blocksize, vpad=blocksize, pel=pel, rfilter=1, sharp=sharp)
 
     analyse_args = dict(
         blksize=blocksize,
@@ -421,9 +402,7 @@ def MVTools(
     bv = core.mv.Analyse(super, isb=True, **analyse_args)
     fv = core.mv.Analyse(super, isb=False, **analyse_args)
 
-    return core.mv.FlowFPS(
-        clip, super, bv, fv, num=int(new_fps), den=1, blend=blend, ml=max(masking, 1)
-    )
+    return core.mv.FlowFPS(clip, super, bv, fv, num=int(new_fps), den=1, blend=blend, ml=max(masking, 1))
 
 
 def interpolate_mvtools(
@@ -633,9 +612,7 @@ def interpolate_rife_vsmlrt(
 
     def process(_video: vs.VideoNode, backend) -> vs.VideoNode:
         if timeline is None:
-            return RIFE_vsmlrt(
-                _video, new_fps=new_fps, model_path=model_path, backend=backend
-            )
+            return RIFE_vsmlrt(_video, new_fps=new_fps, model_path=model_path, backend=backend)
 
         return _retimed_rife_merge(
             _video,

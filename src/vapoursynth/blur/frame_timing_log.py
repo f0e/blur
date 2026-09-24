@@ -47,55 +47,63 @@ HEADER = struct.Struct("<8sIIqqIII")
 BATCH = struct.Struct("<4sI")
 
 TICK = np.dtype([("qpc", "<i8"), ("frame_time", "<u8"), ("total_frames", "<u8"), ("lagged_frames", "<u8")])
-READ = np.dtype([
-    ("frame_time", "<u8"),
-    ("submitted_qpc", "<i8"),
-    ("done_qpc", "<i8"),
-    ("fingerprint", "<u8"),
-    # the gpu's own clock, which shares no zero with qpc - see `read_times`
-    ("gpu_begin", "<u8"),
-    ("gpu_end", "<u8"),
-    ("gpu_frequency", "<u8"),
-])
-PACKET = np.dtype([
-    ("pts", "<i8"),
-    ("dts", "<i8"),
-    ("dts_usec", "<i8"),
-    ("sys_dts_usec", "<i8"),
-    ("size", "<u8"),
-    ("keyframe", "<u8"),
-    ("cts", "<u8"),
-    ("fer", "<u8"),
-    ("ferc", "<u8"),
-    ("received_qpc", "<i8"),
-])
-PRESENT = np.dtype([
-    ("present_start", "<u8"),
-    ("time_in_present", "<u8"),
-    ("gpu_start", "<u8"),
-    ("ready", "<u8"),
-    ("swap_chain", "<u8"),
-    ("process_id", "<u8"),
-    ("runtime", "<u8"),
-    ("present_mode", "<u8"),
-    ("final_state", "<u8"),
-    ("flags", "<u8"),
-    ("app_sim_start", "<u8"),
-    ("app_sim_end", "<u8"),
-    ("reflex_sim_start", "<u8"),
-    ("reflex_sim_end", "<u8"),
-    ("screen_time", "<u8"),
-    ("frame_type", "<u8"),
-    ("window", "<u8"),
-])
-GAME = np.dtype([
-    ("process_id", "<u8"),
-    ("capture", "<u8"),
-    ("window", "<u8"),
-    ("flags", "<u8"),
-    ("frame_interval", "<u8"),
-    ("name", "S120"),
-])
+READ = np.dtype(
+    [
+        ("frame_time", "<u8"),
+        ("submitted_qpc", "<i8"),
+        ("done_qpc", "<i8"),
+        ("fingerprint", "<u8"),
+        # the gpu's own clock, which shares no zero with qpc - see `read_times`
+        ("gpu_begin", "<u8"),
+        ("gpu_end", "<u8"),
+        ("gpu_frequency", "<u8"),
+    ]
+)
+PACKET = np.dtype(
+    [
+        ("pts", "<i8"),
+        ("dts", "<i8"),
+        ("dts_usec", "<i8"),
+        ("sys_dts_usec", "<i8"),
+        ("size", "<u8"),
+        ("keyframe", "<u8"),
+        ("cts", "<u8"),
+        ("fer", "<u8"),
+        ("ferc", "<u8"),
+        ("received_qpc", "<i8"),
+    ]
+)
+PRESENT = np.dtype(
+    [
+        ("present_start", "<u8"),
+        ("time_in_present", "<u8"),
+        ("gpu_start", "<u8"),
+        ("ready", "<u8"),
+        ("swap_chain", "<u8"),
+        ("process_id", "<u8"),
+        ("runtime", "<u8"),
+        ("present_mode", "<u8"),
+        ("final_state", "<u8"),
+        ("flags", "<u8"),
+        ("app_sim_start", "<u8"),
+        ("app_sim_end", "<u8"),
+        ("reflex_sim_start", "<u8"),
+        ("reflex_sim_end", "<u8"),
+        ("screen_time", "<u8"),
+        ("frame_type", "<u8"),
+        ("window", "<u8"),
+    ]
+)
+GAME = np.dtype(
+    [
+        ("process_id", "<u8"),
+        ("capture", "<u8"),
+        ("window", "<u8"),
+        ("flags", "<u8"),
+        ("frame_interval", "<u8"),
+        ("name", "S120"),
+    ]
+)
 
 DTYPES = {b"TICK": TICK, b"READ": READ, b"PCKT": PACKET, b"PRES": PRESENT, b"GAME": GAME}
 
@@ -554,9 +562,20 @@ def _ffprobe_sample_sizes(path: Path) -> np.ndarray | None:
         return None
 
     out = subprocess.run(
-        [ffprobe, "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=dts,size", "-of", "csv=p=0",
-         str(path)],
-        capture_output=True, text=True,
+        [
+            ffprobe,
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "packet=dts,size",
+            "-of",
+            "csv=p=0",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
     )
     if out.returncode != 0:
         return None

@@ -1,9 +1,9 @@
-import vapoursynth as vs
-from vapoursynth import core
-
+import json
 import sys
 from pathlib import Path
-import json
+
+import vapoursynth as vs
+from vapoursynth import core
 
 # add blur.py folder to path so it can reference scripts
 sys.path.insert(1, str(Path(__file__).parent))
@@ -18,9 +18,7 @@ elif vars().get("linux_bundled") == "true":
 
 list_type = vars().get("type", "")
 
-video = core.std.BlankClip(
-    width=1, height=1, length=2, fpsnum=1, fpsden=1, format=vs.RGBS
-)
+video = core.std.BlankClip(width=1, height=1, length=2, fpsnum=1, fpsden=1, format=vs.RGBS)
 
 match list_type:
     case "rife":
@@ -42,9 +40,7 @@ match list_type:
             i = 0
             while True:
                 device_props = core.trt.DeviceProperties(device_id=i)
-                devices.append(
-                    {"device_id": i, "properties": serialize_device(device_props)}
-                )
+                devices.append({"device_id": i, "properties": serialize_device(device_props)})
                 i += 1
         except vs.Error as err:
             if "invalid device ordinal" in err.value:
@@ -55,9 +51,7 @@ match list_type:
         print(json.dumps(devices))
 
     case "svp":
-        svp_video = core.std.BlankClip(
-            width=256, height=256, length=4, fpsnum=4, fpsden=1, format=vs.YUV420P8
-        )
+        svp_video = core.std.BlankClip(width=256, height=256, length=4, fpsnum=4, fpsden=1, format=vs.YUV420P8)
 
         svp_video = blur.interpolate.SVP(
             svp_video,

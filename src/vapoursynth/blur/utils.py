@@ -1,16 +1,15 @@
-import vapoursynth as vs
-from vapoursynth import core
-
-import os
-import sys
 import json
 import math
+import os
+import sys
 import traceback
-from pathlib import Path
-from fractions import Fraction
 from dataclasses import dataclass
+from fractions import Fraction
+from pathlib import Path
 
+import vapoursynth as vs
 from blur import log
+from vapoursynth import core
 
 
 class BlurException(Exception):
@@ -24,12 +23,8 @@ class BlurException(Exception):
 
         tech_parts = []
         if original_exception:
-            tech_parts.append(
-                f"Original error: {type(original_exception).__name__}: {str(original_exception)}"
-            )
-            tech_parts.append(
-                f"Traceback:\n{''.join(traceback.format_tb(original_exception.__traceback__))}"
-            )
+            tech_parts.append(f"Original error: {type(original_exception).__name__}: {original_exception!s}")
+            tech_parts.append(f"Traceback:\n{''.join(traceback.format_tb(original_exception.__traceback__))}")
 
         self.full_technical_details = "\n".join(tech_parts)
 
@@ -106,9 +101,7 @@ def assume_scaled_fps(clip, timescale):
     new_fps = clip.fps * timescale
     fps_frac = Fraction(new_fps).limit_denominator()
 
-    return core.std.AssumeFPS(
-        clip, fpsnum=fps_frac.numerator, fpsden=fps_frac.denominator
-    )
+    return core.std.AssumeFPS(clip, fpsnum=fps_frac.numerator, fpsden=fps_frac.denominator)
 
 
 def scale_luminance(video: vs.VideoNode, upscale: bool, y_scale_w: int, y_scale_h: int):
@@ -124,9 +117,7 @@ def scale_luminance(video: vs.VideoNode, upscale: bool, y_scale_w: int, y_scale_
     else:  # downscale
         y = core.resize.Point(y, width=y.width / y_scale_w, height=y.height / y_scale_h)
 
-    video = core.std.ShufflePlanes(
-        clips=[y, u, v], planes=[0, 0, 0], colorfamily=vs.YUV
-    )
+    video = core.std.ShufflePlanes(clips=[y, u, v], planes=[0, 0, 0], colorfamily=vs.YUV)
 
     return video
 
@@ -143,12 +134,8 @@ def with_scaled_luminance(
     scale_h = 1
 
     if video.format.color_family == vs.ColorFamily.YUV:
-        subsampling_diff_w = (
-            target_format_info.subsampling_w - in_format_info.subsampling_w
-        )
-        subsampling_diff_h = (
-            target_format_info.subsampling_h - in_format_info.subsampling_h
-        )
+        subsampling_diff_w = target_format_info.subsampling_w - in_format_info.subsampling_w
+        subsampling_diff_h = target_format_info.subsampling_h - in_format_info.subsampling_h
 
         scale_w = (
             # for each increase in subsampling level, chroma resolution halves
@@ -200,10 +187,7 @@ def with_format(
         needs_conversion = orig_format.id != target_format
 
         # rgb made from yuv is full range, float or not, so everything working in rgb can assume it
-        yuv_to_rgb = (
-            core.get_video_format(target_format).color_family == vs.RGB
-            and orig_format.color_family == vs.YUV
-        )
+        yuv_to_rgb = core.get_video_format(target_format).color_family == vs.RGB and orig_format.color_family == vs.YUV
 
         # unless the caller asks to keep the source's own range. expanding limited range to fill
         # the container clips superwhite off on the way in, and the gamma blend cannot afford that
@@ -313,9 +297,7 @@ def grade(
         neutral = 0.0
     else:
         step = 1 << (fmt.bits_per_sample - 8)
-        black, luma_scale = (
-            (0, (1 << fmt.bits_per_sample) - 1) if full else (16 * step, 219 * step)
-        )
+        black, luma_scale = (0, (1 << fmt.bits_per_sample) - 1) if full else (16 * step, 219 * step)
         neutral = 128 * step
 
     mid = black + luma_scale / 2
@@ -325,9 +307,7 @@ def grade(
     offset = black * contrast * (1 - brightness) + mid * (1 - contrast)
 
     luma = "" if brightness == 1 and contrast == 1 else f"x {gain} * {offset} +"
-    chroma = (
-        "" if saturation == 1 else f"x {saturation} * {neutral * (1 - saturation)} +"
-    )
+    chroma = "" if saturation == 1 else f"x {saturation} * {neutral * (1 - saturation)} +"
 
     if fmt.color_family == vs.GRAY:
         return core.std.Expr(video, [luma])
