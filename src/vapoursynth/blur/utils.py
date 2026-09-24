@@ -75,7 +75,7 @@ def load_plugins(extension: str):
         log.info("Loading", plugin.name)
         try:
             core.std.LoadPlugin(path=str(plugin))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a broken plugin shouldn't stop the others loading
             log.info(f"Failed to load plugin {plugin.name}: {e}")
 
 
@@ -237,7 +237,7 @@ def with_format(
         raise BlurException(
             "Failed to convert video format. You may need to convert your input video's colorspace manually.",
             e,
-        )
+        ) from e
 
     video = process_func(video)
 
@@ -271,7 +271,7 @@ def with_format(
         raise BlurException(
             "Failed to convert video format back after processing. Please copy the extended log and report this to GitHub issues or the Discord.",
             e,
-        )
+        ) from e
 
 
 def grade(
@@ -331,8 +331,7 @@ def with_padding(
 
     video = process_func(video)
 
-    if multiple is not None:
-        if needs_padding:
-            video = video.std.Crop(right=pad_w - w, bottom=pad_h - h)
+    if multiple is not None and needs_padding:
+        video = video.std.Crop(right=pad_w - w, bottom=pad_h - h)
 
     return video

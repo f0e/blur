@@ -491,7 +491,7 @@ def main():
         scale_factor = HEIGHT_4K / video.height
         video = core.resize.Point(
             video,
-            width=int(round(video.width * scale_factor)),
+            width=round(video.width * scale_factor),
             height=HEIGHT_4K,
         )
 
@@ -502,5 +502,5 @@ try:
     main()
 except u.BlurException as e:
     u.handle_blur_exception(e)
-except Exception as e:
+except Exception as e:  # noqa: BLE001 - last resort, reports anything unexpected to blur
     u.handle_unexpected_exception(e)

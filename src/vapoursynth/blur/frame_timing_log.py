@@ -576,6 +576,7 @@ def _ffprobe_sample_sizes(path: Path) -> np.ndarray | None:
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     if out.returncode != 0:
         return None
