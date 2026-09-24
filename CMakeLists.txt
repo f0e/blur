@@ -1,5 +1,20 @@
 cmake_minimum_required(VERSION 3.20)
 
+# catch a missing vcpkg before project() fails with a vaguer toolchain error
+if(
+  CMAKE_TOOLCHAIN_FILE MATCHES "vcpkg\\.cmake$"
+  AND NOT EXISTS "${CMAKE_TOOLCHAIN_FILE}"
+)
+  message(
+    FATAL_ERROR
+    "vcpkg toolchain not found at:\n  ${CMAKE_TOOLCHAIN_FILE}\n"
+    "VCPKG_ROOT is \"$ENV{VCPKG_ROOT}\". Install vcpkg there, e.g.:\n"
+    "  git clone https://github.com/microsoft/vcpkg \"$ENV{VCPKG_ROOT}\"\n"
+    "  \"$ENV{VCPKG_ROOT}/bootstrap-vcpkg.sh\"\n"
+    "or point VCPKG_ROOT at an existing install()."
+  )
+endif()
+
 set(
   VCPKG_OVERLAY_TRIPLETS
   "${CMAKE_CURRENT_LIST_DIR}/cmake/triplets"
