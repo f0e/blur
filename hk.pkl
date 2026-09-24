@@ -10,12 +10,12 @@ local cppGlob = List("src/**/*.{c,h,cpp,hpp,cc,cxx,mm}")
 steps {
     // c++
     ["clang-format"] = (Builtins.clang_format) { glob = cppGlob }
-    // ["clangd-tidy"] {
-    //     glob = cppGlob
-    //     // uses the most recently configured cmake preset's compile_commands.json.
-    //     // background indexing is wasted work for a one-off lint run
-    //     check = #"CLANGD_FLAGS=--background-index=false clangd-tidy --color=always -j "$(getconf _NPROCESSORS_ONLN)" --allow-extensions c,h,cpp,hpp,cc,cxx,mm -p "$(dirname "$(ls -t out/build/*/compile_commands.json | head -1)")" {{files}}"#
-    // }
+    ["clangd-tidy"] {
+        glob = cppGlob
+        // uses the most recently configured cmake preset's compile_commands.json.
+        // background indexing is wasted work for a one-off lint run
+        check = #"CLANGD_FLAGS=--background-index=false clangd-tidy --color=always -j "$(getconf _NPROCESSORS_ONLN)" --allow-extensions c,h,cpp,hpp,cc,cxx,mm -p "$(dirname "$(ls -t out/build/*/compile_commands.json | head -1)")" {{files}}"#
+    }
 
     // cmake, mirrors https://github.com/BlankSpruce/gersemi-pre-commit
     ["gersemi"] {
