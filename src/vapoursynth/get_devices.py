@@ -46,7 +46,7 @@ match list_type:
             if "invalid device ordinal" in err.value:
                 pass
             else:
-                raise err
+                raise
 
         print(json.dumps(devices))
 

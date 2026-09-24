@@ -13,6 +13,7 @@ be used on its own; with both, a pixel is protected if either of them protects i
 """
 
 import hashlib
+import itertools
 import os
 import struct
 import zlib
@@ -236,6 +237,9 @@ class Params:
         )
 
 
+DEFAULT_PARAMS = Params()
+
+
 def _detached(clip: vs.VideoNode) -> vs.VideoNode:
     """Work out `clip`'s only frame now, and hand back a clip that does nothing but hold it.
 
@@ -354,7 +358,7 @@ def _held_still(samples: list[vs.VideoNode]) -> vs.VideoNode:
     is survivable - it can only ever spoil the two pairs it belongs to.
     """
     counted = core.std.BlankClip(samples[0], color=0.0)
-    for a, b in zip(samples, samples[1:]):
+    for a, b in itertools.pairwise(samples):
         counted = core.std.Expr([counted, a, b], f"y z - abs {SAME_PIXEL_THRESHOLD} < x 1 + x ?")
 
     return core.std.Expr(counted, f"x {len(samples) - 1} /")
@@ -447,7 +451,7 @@ def measure(clip: vs.VideoNode, samples: int = SAMPLE_COUNT) -> vs.VideoNode | N
     )
 
 
-def shape(scores: vs.VideoNode, params: Params = Params()) -> vs.VideoNode | None:
+def shape(scores: vs.VideoNode, params: Params = DEFAULT_PARAMS) -> vs.VideoNode | None:
     """Cut `measure`'s scores at the settings' thresholds and tidy what's left into a mask.
 
     Returns a one frame GRAY clip in the same convention as a mask png, or None when there was nothing worth
@@ -527,7 +531,7 @@ def shape(scores: vs.VideoNode, params: Params = Params()) -> vs.VideoNode | Non
     return _detached(core.std.Expr(static, "1 x -"))
 
 
-def generate(clip: vs.VideoNode, params: Params = Params()) -> vs.VideoNode | None:
+def generate(clip: vs.VideoNode, params: Params = DEFAULT_PARAMS) -> vs.VideoNode | None:
     """Work out a mask from `clip` by finding the parts of the frame that never change.
 
     Both halves in one go, for a caller that has no use for the scores in between. `cached` is what blur
@@ -687,7 +691,7 @@ def _scores(
             # caught by this handler instead of failing the render later on, and so nothing holds the file
             # open afterwards
             return _detached(load(score_file))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # unreadable, so it's no better than not having it
             log.info(f"Mask: couldn't read {score_file.name} ({e}), measuring again")
 
@@ -708,7 +712,7 @@ def cached(
     folder: Path,
     score_folder: Path,
     analysed: tuple[int, int],
-    params: Params = Params(),
+    params: Params = DEFAULT_PARAMS,
 ) -> vs.VideoNode | None:
     """`generate`, but remembering both halves of it on disk between runs.
 
@@ -737,7 +741,7 @@ def cached(
 
             # read here for the same reasons as the measurements above
             return _detached(load(mask_file))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # unreadable, so it's no better than not having it
             log.info(f"Mask: couldn't read {mask_file.name} ({e}), analysing again")
 

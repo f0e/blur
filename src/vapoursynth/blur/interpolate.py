@@ -390,14 +390,14 @@ def MVTools(
 ):
     super = core.mv.Super(clip, hpad=blocksize, vpad=blocksize, pel=pel, rfilter=1, sharp=sharp)
 
-    analyse_args = dict(
-        blksize=blocksize,
-        overlap=overlap,
-        search=search,
-        searchparam=searchparam,
-        pelsearch=pelsearch,
-        dct=dct,
-    )
+    analyse_args = {
+        "blksize": blocksize,
+        "overlap": overlap,
+        "search": search,
+        "searchparam": searchparam,
+        "pelsearch": pelsearch,
+        "dct": dct,
+    }
 
     bv = core.mv.Analyse(super, isb=True, **analyse_args)
     fv = core.mv.Analyse(super, isb=False, **analyse_args)
@@ -420,18 +420,18 @@ def interpolate_mvtools(
     blend=False,
     timeline: retime.Timeline | None = None,
 ):
-    settings = dict(
-        blocksize=blocksize,
-        masking=masking,
-        pel=pel,
-        sharp=sharp,
-        overlap=overlap,
-        search=search,
-        searchparam=searchparam,
-        pelsearch=pelsearch,
-        dct=dct,
-        blend=blend,
-    )
+    settings = {
+        "blocksize": blocksize,
+        "masking": masking,
+        "pel": pel,
+        "sharp": sharp,
+        "overlap": overlap,
+        "search": search,
+        "searchparam": searchparam,
+        "pelsearch": pelsearch,
+        "dct": dct,
+        "blend": blend,
+    }
 
     if timeline is None:
         return MVTools(clip, new_fps, **settings)

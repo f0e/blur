@@ -303,7 +303,7 @@ def fill_drops_old(clip, threshold=0.1, debug=False):
     that's the whole of its case.
     """
     if not isinstance(clip, vs.VideoNode):
-        raise ValueError("This is not a clip")
+        raise TypeError("This is not a clip")
 
     differences = core.std.PlaneStats(clip, clip[0] + clip)
 
