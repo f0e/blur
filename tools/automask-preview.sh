@@ -14,23 +14,29 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 resources=""
 for build in Debug RelWithDebInfo Release MinSizeRel; do
-	candidate="$repo/bin/$build/Blur.app/Contents/Resources"
-	if [ -d "$candidate/python" ] && [ -x "$candidate/ffmpeg/ffmpeg" ]; then
-		resources="$candidate"
-		break
-	fi
+  candidate="$repo/bin/$build/Blur.app/Contents/Resources"
+  if [ -d "$candidate/python" ] && [ -x "$candidate/ffmpeg/ffmpeg" ]; then
+    resources="$candidate"
+    break
+  fi
 done
 
 if [ -z "$resources" ]; then
-	echo "couldn't find a built Blur.app under $repo/bin - build it first:" >&2
-	echo "  cmake --build out/build/mac-debug" >&2
-	exit 1
+  echo "couldn't find a built Blur.app under $repo/bin - build it first:" >&2
+  echo "  cmake --build out/build/mac-debug" >&2
+  exit 1
 fi
 
-python="$(ls "$resources"/python/bin/python3.[0-9]* 2>/dev/null | head -1)"
+python=""
+for candidate in "$resources"/python/bin/python3.[0-9]*; do
+  if [ -x "$candidate" ]; then
+    python="$candidate"
+    break
+  fi
+done
 if [ -z "$python" ]; then
-	echo "no bundled python in $resources/python/bin" >&2
-	exit 1
+  echo "no bundled python in $resources/python/bin" >&2
+  exit 1
 fi
 
 # the bundled python loads vapoursynth.so, which links against the dylibs sat next to the app
