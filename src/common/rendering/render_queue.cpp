@@ -5,7 +5,16 @@
 #include "common/encoding.h"
 
 bool rendering::VideoRenderQueue::process_next() {
-	if (m_queue.empty() || !m_active)
+	// set before checking m_active so stop_and_wait either sees this render or stops it from starting
+	m_processing = true;
+	bool processed = m_active && process_front();
+	m_processing = false;
+
+	return processed;
+}
+
+bool rendering::VideoRenderQueue::process_front() {
+	if (m_queue.empty())
 		return false;
 
 	auto cur = m_queue.front();
@@ -73,17 +82,11 @@ bool rendering::VideoRenderQueue::cancel(const std::shared_ptr<RenderState>& sta
 void rendering::VideoRenderQueue::stop_and_wait() {
 	stop();
 
-	std::lock_guard lock(m_mutex);
-	if (m_queue.empty())
-		return;
+	if (auto cur = front())
+		cur->state->stop();
 
-	// still rendering the video at the front, so tell it to stop
-	auto cur = m_queue.front();
-	cur.state->stop();
-
-	while (!is_empty()) {
+	while (m_processing)
 		std::this_thread::sleep_for(std::chrono::milliseconds(50));
-	}
 }
 
 rendering::QueueAddRes rendering::VideoRenderQueue::add(

@@ -300,7 +300,7 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 
 		bool killed = false;
 		while (ffmpeg_process.running()) {
-			if (state->wants_stop()) {
+			if (state->wants_stop() || blur.exiting) {
 				u::safe_terminate(vspipe_group);
 				u::safe_terminate(ffmpeg_process);
 				killed = true;

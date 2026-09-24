@@ -66,7 +66,7 @@ int gui::run() {
 
 	bool rendered_last = false;
 
-	while (true) {
+	while (!blur.exiting) {
 		auto frame_start = std::chrono::steady_clock::now();
 
 		sdl::update_vsync();
@@ -196,4 +196,7 @@ int gui::run() {
 			SDL_WaitEventTimeout(nullptr, (int)sdl::TICKRATE_MS);
 		}
 	}
+
+	sdl::cleanup();
+	return 0;
 }

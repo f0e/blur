@@ -170,20 +170,22 @@ bool Blur::update(
 	return updates::update_to_tag(tag, progress_callback, cancel_callback);
 }
 
-void cleanup_handler(int signal) {
-	// Restore default handler immediately to prevent re-entry
-	std::signal(signal, SIG_DFL);
+namespace {
+	void exit_handler(int signal) {
+		(void)std::signal(signal, SIG_DFL); // let a second signal force quit
+		blur.exiting = true;
+	}
 
-	blur.cleanup();
-
-	// Re-raise the signal for proper exit code
-	std::raise(signal);
+	void add_handler(int signal) {
+		if (std::signal(signal, exit_handler) == SIG_ERR)
+			DEBUG_LOG("failed to register handler for signal {}", signal);
+	}
 }
 
 void Blur::setup_signal_handlers() {
-	std::signal(SIGINT, cleanup_handler);
-	std::signal(SIGTERM, cleanup_handler);
+	add_handler(SIGINT);
+	add_handler(SIGTERM);
 #ifndef _WIN32
-	std::signal(SIGHUP, cleanup_handler);
+	add_handler(SIGHUP);
 #endif
 }
