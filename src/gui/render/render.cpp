@@ -168,7 +168,7 @@ void render::ImGuiWrap::begin(SDL_Window* window) {
 
 void render::ImGuiWrap::end(SDL_Window* window) { // NOLINT(readability-convert-member-functions-to-static)
 	                                              // ^ yeah, but this is nicer to call
-	static constexpr ImVec4 clear_colour = ImVec4(0.f, 0.f, 0.f, 1.f);
+	static constexpr ImVec4 CLEAR_COLOUR = ImVec4(0.f, 0.f, 0.f, 1.f);
 
 	for (auto& call : late_draw_calls) {
 		call();
@@ -184,10 +184,10 @@ void render::ImGuiWrap::end(SDL_Window* window) { // NOLINT(readability-convert-
 	glViewport(0, 0, drawable_width, drawable_height);
 
 	glClearColor(
-		clear_colour.x * clear_colour.w,
-		clear_colour.y * clear_colour.w,
-		clear_colour.z * clear_colour.w,
-		clear_colour.w
+		CLEAR_COLOUR.x * CLEAR_COLOUR.w,
+		CLEAR_COLOUR.y * CLEAR_COLOUR.w,
+		CLEAR_COLOUR.z * CLEAR_COLOUR.w,
+		CLEAR_COLOUR.w
 	);
 	glClear(GL_COLOR_BUFFER_BIT);
 
@@ -713,14 +713,14 @@ void render::spinner(
 		float segment_start_fraction = (float)i / SPIN_SEGMENTS;
 		float segment_end_fraction = (float)(i + 1) / SPIN_SEGMENTS;
 
-		float segment_start_angle = u::deg_to_rad(tail_degree + trail_degrees * segment_start_fraction);
-		float segment_end_angle = u::deg_to_rad(tail_degree + trail_degrees * segment_end_fraction);
+		float segment_start_angle = u::deg_to_rad(tail_degree + (trail_degrees * segment_start_fraction));
+		float segment_end_angle = u::deg_to_rad(tail_degree + (trail_degrees * segment_end_fraction));
 
 		ImVec2 segment_start_pos(
-			center.x + std::cos(segment_start_angle) * radius, center.y + std::sin(segment_start_angle) * radius
+			center.x + (std::cos(segment_start_angle) * radius), center.y + (std::sin(segment_start_angle) * radius)
 		);
 		ImVec2 segment_end_pos(
-			center.x + std::cos(segment_end_angle) * radius, center.y + std::sin(segment_end_angle) * radius
+			center.x + (std::cos(segment_end_angle) * radius), center.y + (std::sin(segment_end_angle) * radius)
 		);
 
 		gfx::Color segment_color = highlight_color.adjust_alpha(segment_end_fraction * alpha);
@@ -730,19 +730,23 @@ void render::spinner(
 	}
 }
 
-static gfx::Point catmull_rom(
-	const gfx::Point& p0, const gfx::Point& p1, const gfx::Point& p2, const gfx::Point& p3, float t
-) {
-	float t2 = t * t;
-	float t3 = t2 * t;
+namespace {
+	gfx::Point catmull_rom(
+		const gfx::Point& p0, const gfx::Point& p1, const gfx::Point& p2, const gfx::Point& p3, float t
+	) {
+		float t2 = t * t;
+		float t3 = t2 * t;
 
-	float x = 0.5f * ((2.0f * p1.x) + (-p0.x + p2.x) * t + (2.0f * p0.x - 5.0f * p1.x + 4.0f * p2.x - p3.x) * t2 +
-	                  (-p0.x + 3.0f * p1.x - 3.0f * p2.x + p3.x) * t3);
+		float x = 0.5f * ((2.0f * p1.x) + ((-p0.x + p2.x) * t) +
+		                  (((2.0f * p0.x) - (5.0f * p1.x) + (4.0f * p2.x) - p3.x) * t2) +
+		                  ((-p0.x + (3.0f * p1.x) - (3.0f * p2.x) + p3.x) * t3));
 
-	float y = 0.5f * ((2.0f * p1.y) + (-p0.y + p2.y) * t + (2.0f * p0.y - 5.0f * p1.y + 4.0f * p2.y - p3.y) * t2 +
-	                  (-p0.y + 3.0f * p1.y - 3.0f * p2.y + p3.y) * t3);
+		float y = 0.5f * ((2.0f * p1.y) + ((-p0.y + p2.y) * t) +
+		                  (((2.0f * p0.y) - (5.0f * p1.y) + (4.0f * p2.y) - p3.y) * t2) +
+		                  ((-p0.y + (3.0f * p1.y) - (3.0f * p2.y) + p3.y) * t3));
 
-	return { (int)x, (int)y };
+		return { (int)x, (int)y };
+	}
 }
 
 void render::waveform(
@@ -764,11 +768,11 @@ void render::waveform(
 
 	const int width = rect.w;
 	const int height = rect.h;
-	const int y_center = rect.y + height / 2;
+	const int y_center = rect.y + (height / 2);
 	const float scale = height * 0.5f;
 
 	const size_t total_samples = samples.size();
-	const size_t start_idx = static_cast<size_t>(zoom_start * total_samples);
+	const auto start_idx = static_cast<size_t>(zoom_start * total_samples);
 	const size_t end_idx = std::min(static_cast<size_t>(zoom_end * total_samples), total_samples);
 
 	if (start_idx >= end_idx)

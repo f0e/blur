@@ -1,8 +1,5 @@
 #pragma once
 
-#include "common/config_app.h"
-#include "render_errors.h"
-
 // the two subprocess argument vectors a render is made of
 struct RenderCommands {
 	std::vector<std::string> vspipe_video;

@@ -341,10 +341,10 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 		}
 
 		if (auto scrollbar = get_scrollbar_geometry(pos)) {
-			float scrollbar_anim = get_hover_animation_value(element, get_scrollbar_hover_key());
+			float hover_anim = get_hover_animation_value(element, get_scrollbar_hover_key());
 
-			render::late_draw_calls.emplace_back([scrollbar = *scrollbar, scrollbar_anim, anim] {
-				render_scrollbar(scrollbar, scrollbar_anim, anim);
+			render::late_draw_calls.emplace_back([scrollbar = *scrollbar, hover_anim, anim] {
+				render_scrollbar(scrollbar, hover_anim, anim);
 			});
 		}
 

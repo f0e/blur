@@ -233,8 +233,7 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 		catch (...) {
 			throw std::runtime_error(
 				"Invalid blur_weighting value: " + settings.blur_weighting +
-				". Valid options: 'equal', 'gaussian_sym', 'vegas', 'pyramid', 'gaussian', 'ascending', "
-				"'descending', 'gaussian_reverse', or a comma-separated list (e.g. '1, 2, 3')."
+				". Valid options: 'equal', 'gaussian_sym', 'vegas', 'pyramid', 'gaussian', 'ascending', 'descending', 'gaussian_reverse', or a comma-separated list (e.g. '1, 2, 3')."
 			);
 		}
 	}

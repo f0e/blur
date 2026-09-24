@@ -138,7 +138,7 @@ rendering::QueueAddRes rendering::VideoRenderQueue::add(
 	if (!video_info.audio_sample_rates.empty() && detail::copies_audio(settings, app_settings)) {
 		if (auto conflict = detail::get_audio_copy_conflict(settings, start != 0.f || end != 1.f)) {
 			return {
-				.error = *conflict,
+				.error = conflict,
 			};
 		}
 	}

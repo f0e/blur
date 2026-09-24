@@ -1,4 +1,5 @@
 #include "configs.h"
+#include "../../fonts/icons.h"
 
 #include "../../ui/ui.h"
 #include "../../render/render.h"
@@ -60,8 +61,7 @@ void configs::encoding_preset_options(ui::Container& container) {
 	ui::add_text(
 		"presets description",
 		container,
-		"encoding presets are the ffmpeg arguments used to encode renders. {quality} is replaced with the quality "
-		"setting.",
+		"encoding presets are the ffmpeg arguments used to encode renders. {quality} is replaced with the quality setting.",
 		gfx::Color::white(renderer::MUTED_SHADE),
 		fonts::dejavu
 	);
@@ -103,8 +103,7 @@ void configs::encoding_preset_options(ui::Container& container) {
 
 	bool any_defaults = false;
 
-	for (size_t i = 0; i < presets->size(); i++) {
-		const auto& preset = (*presets)[i];
+	for (const auto& preset : *presets) {
 		if (!preset.is_default)
 			continue;
 

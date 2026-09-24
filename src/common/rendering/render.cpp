@@ -2,7 +2,9 @@
 #include "render_commands.h"
 #include "render_pipeline.h"
 #include "common/devices.h"
-#include "common/rife_models.h"
+#ifdef TENSORRT
+#	include "common/rife_models.h"
+#endif
 #include "common/media.h"
 
 namespace {
@@ -25,7 +27,7 @@ namespace {
 		double ffmpeg_required_extra_time = get_output_seek(settings);
 		double fps = static_cast<double>(video_info.fps_num) / video_info.fps_den;
 
-		size_t total_frames = static_cast<size_t>(video_info.duration * fps);
+		auto total_frames = static_cast<size_t>(video_info.duration * fps);
 
 		size_t total_usable_frames = static_cast<size_t>(std::max(
 			0.0, ((video_info.duration - ffmpeg_required_extra_time) * fps) - FRAMES_NEEDED_FOR_VSPIPE_TO_NOT_POO_ITSELF
@@ -43,8 +45,7 @@ namespace {
 			return {};
 
 		if (!rife_models::trt_installed()) {
-			return "TensorRT RIFE isn't installed. Rerun the installer and select \"NVIDIA TensorRT RIFE "
-				   "interpolation\", or use a different interpolation method";
+			return "TensorRT RIFE isn't installed. Rerun the installer and select \"NVIDIA TensorRT RIFE interpolation\", or use a different interpolation method";
 		}
 
 		std::error_code ec;
@@ -138,10 +139,10 @@ std::pair<size_t, size_t> rendering::get_trim_frame_range(const media::VideoInfo
 	double abs_end_time = video_info.video_start_time + (end * video_info.duration);
 
 	auto start_frame = static_cast<size_t>(
-		((abs_start_time - video_info.video_start_time) * video_info.fps_num / video_info.fps_den) + 0.5
+		std::llround((abs_start_time - video_info.video_start_time) * video_info.fps_num / video_info.fps_den)
 	);
 	auto end_frame = static_cast<size_t>(
-		((abs_end_time - video_info.video_start_time) * video_info.fps_num / video_info.fps_den) + 0.5
+		std::llround((abs_end_time - video_info.video_start_time) * video_info.fps_num / video_info.fps_den)
 	);
 
 	return { start_frame, end_frame };

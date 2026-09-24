@@ -1,13 +1,13 @@
 #include "script_status.h"
 
 std::optional<script_status::Status> script_status::parse(std::string_view line) {
-	constexpr std::string_view prefix = "[blur:status] ";
+	constexpr std::string_view STATUS_PREFIX = "[blur:status] ";
 
-	auto at = line.find(prefix);
+	auto at = line.find(STATUS_PREFIX);
 	if (at == std::string_view::npos)
 		return {};
 
-	auto status = line.substr(at + prefix.size());
+	auto status = line.substr(at + STATUS_PREFIX.size());
 
 	auto equals = status.find('=');
 	if (equals == std::string_view::npos)

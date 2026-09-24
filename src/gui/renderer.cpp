@@ -105,12 +105,13 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	const int config_page_container_gap = PAD_X / 2;
 
 	const int config_container_element_gap = 9;
-	const int base_config_width = 200 + PAD_X * 2;
+	const int base_config_width = 200 + (PAD_X * 2);
 	const int queue_title_area_height = PAD_Y + fonts::garamond(fonts::size::SMALL_HEADER).height() + PAD_Y;
 
 	gfx::Rect queue_config_container_rect = rect;
 	const int queue_usable_height = std::max(rect.h - PAD_Y - bottom_pad, 0);
-	const int preferred_queue_width = std::lround((queue_usable_height / 1.5f) * (16.f / 9.f)) + PAD_X * 2;
+	const int preferred_queue_width =
+		static_cast<int>(std::lround((queue_usable_height / 1.5f) * (16.f / 9.f))) + (PAD_X * 2);
 	const int queue_width = std::min(preferred_queue_width, rect.w - base_config_width);
 	const int queue_page_width = base_config_width + queue_width;
 

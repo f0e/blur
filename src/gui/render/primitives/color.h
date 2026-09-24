@@ -1,6 +1,12 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <tuple>
+
 namespace gfx {
 	class Color {
 	public:

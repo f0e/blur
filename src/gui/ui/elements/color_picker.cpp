@@ -94,9 +94,12 @@ namespace {
 
 		bool editing = ui::helpers::text_input::has_text_edit(element.element->id);
 
-		positions.text = editing             ? data.editing_text
-		                 : data.hex->empty() ? "default"
-		                                     : effective_color(data).to_hex_string();
+		if (editing)
+			positions.text = data.editing_text;
+		else if (data.hex->empty())
+			positions.text = "default";
+		else
+			positions.text = effective_color(data).to_hex_string();
 
 		positions.text_rect = gfx::Rect(
 			gfx::Point(positions.swatch_rect.x2() + SWATCH_GAP, positions.box_rect.y + BOX_PADDING.h),
@@ -351,7 +354,12 @@ bool ui::update_color_picker(const Container& container, AnimatedElement& elemen
 	auto pos = get_positions(container, element, data, expand_anim.current);
 
 	// the popup draws over whatever's below it
-	element.z_index = data.open ? 2 : (expand_anim.current > 0.01f ? 1 : 0);
+	if (data.open)
+		element.z_index = 2;
+	else if (expand_anim.current > 0.01f)
+		element.z_index = 1;
+	else
+		element.z_index = 0;
 
 	bool mouse_down = keys::is_mouse_down();
 	bool mouse_pressed = mouse_down && !data.mouse_was_down;
@@ -612,7 +620,7 @@ bool ui::is_color_picker_open(const Container& container, const std::string& id)
 		return false;
 
 	const auto* data = std::get_if<ColorPickerElementData>(&it->second.element->data);
-	return data && data->open;
+	return data != nullptr && data->open;
 }
 
 ui::AnimatedElement* ui::add_color_picker(

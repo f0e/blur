@@ -156,7 +156,7 @@ void ui::add_videos(
 	float active_aspect = videos::aspect_ratio(active_video);
 	auto active_size =
 		videos::video_size(container, animation_current(container, active_video_id, hasher("aspect"), active_aspect));
-	int base_y = usable_rect.center().y - active_size.h / 2;
+	int base_y = usable_rect.center().y - (active_size.h / 2);
 
 	float fade_step = videos::START_FADE / ui_videos.size();
 

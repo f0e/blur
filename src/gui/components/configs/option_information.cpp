@@ -210,19 +210,16 @@ void configs::option_information(ui::Container& container) {
 		{
 			"deduplicate checkbox",
 			{
-				"Ignores duplicate frames and generates what should have been there instead, from the nearest frames "
-				"that aren't repeats",
+				"Ignores duplicate frames and generates what should have been there instead, from the nearest frames that aren't repeats",
 				"(fixes 'unsmooth' looking output caused by stuttering in recordings)",
-				"With interpolation on this happens in the same pass, so every generated frame comes from frames "
-				"that were really captured",
+				"With interpolation on this happens in the same pass, so every generated frame comes from frames that were really captured",
 			},
 		},
 		{
 			"deduplicate range",
 			{
 				"How far apart two frames can be and still have frames generated between them",
-				"Make it higher if your footage is at a lower FPS than it should be, e.g. choppy 120fps gameplay "
-				"recorded at 240fps",
+				"Make it higher if your footage is at a lower FPS than it should be, e.g. choppy 120fps gameplay recorded at 240fps",
 				"Lower it if your blurred footage starts blurring static elements such as menu screens",
 			},
 		},
@@ -230,68 +227,47 @@ void configs::option_information(ui::Container& container) {
 			"deduplicate threshold input",
 			{
 				"Threshold of movement that triggers deduplication",
-				"Turn on debug in advanced and render a video to label every frame deduplication had a hand in with "
-				"the movement it measured and the frames it worked from",
+				"Turn on debug in advanced and render a video to label every frame deduplication had a hand in with the movement it measured and the frames it worked from",
 				"Turn blur off to read it - blending averages the text away along with everything else",
 			},
 		},
 		{
 			"deduplicate real frame dropdown",
 			{
-				"When frames are dropped the recording repeats one to fill the slots, and nothing in the file says "
-				"which frame of the run is the picture that was really drawn. This is that answer.",
+				"When frames are dropped the recording repeats one to fill the slots, and nothing in the file says which frame of the run is the picture that was really drawn. This is that answer.",
 
-				"'first' is what a live recording does - the picture is drawn, then held until the next one is "
-				"ready. Leave it here unless you have a reason not to.",
+				"'first' is what a live recording does - the picture is drawn, then held until the next one is ready. Leave it here unless you have a reason not to.",
 
-				"'last' suits footage where the run ends on the real frame instead, which is what a variable "
-				"framerate recording resampled to a fixed one can look like.",
+				"'last' suits footage where the run ends on the real frame instead, which is what a variable framerate recording resampled to a fixed one can look like.",
 
-				"'center' splits the difference and puts the picture in the middle of its run. It can't be more "
-				"than half a run out whichever way the footage leans, where picking the wrong end can be a whole "
-				"run out.",
+				"'center' splits the difference and puts the picture in the middle of its run. It can't be more than half a run out whichever way the footage leans, where picking the wrong end can be a whole run out.",
 
-				"'surrounding' doesn't believe the run at all and works from the frames either side of it, which "
-				"comes out right whichever way the footage leans. It needs runs of one frame to work from, so it "
-				"suits stuttery footage rather than a game running at a clean half of the recording framerate, and "
-				"it generates across a longer gap - more for the interpolator to get wrong. Raise 'deduplicate "
-				"range' to give it room.",
+				"'surrounding' doesn't believe the run at all and works from the frames either side of it, which comes out right whichever way the footage leans. It needs runs of one frame to work from, so it suits stuttery footage rather than a game running at a clean half of the recording framerate, and it generates across a longer gap - more for the interpolator to get wrong. Raise 'deduplicate range' to give it room.",
 
-				"This only makes a difference where runs of duplicates vary in length. Getting it wrong there shows "
-				"up as motion that speeds up and slows down rather than running at a steady rate.",
+				"This only makes a difference where runs of duplicates vary in length. Getting it wrong there shows up as motion that speeds up and slows down rather than running at a steady rate.",
 			},
 		},
 		{
 			"max future checks slider",
 			{
-				"How many times 'surrounding' may step over a run of duplicates that is itself in question, "
-				"looking for a frame whose timing isn't.",
+				"How many times 'surrounding' may step over a run of duplicates that is itself in question, looking for a frame whose timing isn't.",
 				"Each step widens the gap it generates across, and the search still stops at 'deduplicate range'.",
 			},
 		},
 		{
 			"frame timing logs checkbox",
 			{
-				"Uses the frame timing log saved alongside a recording, when there is one, to work out when each "
-				"frame was really drawn.",
+				"Uses the frame timing log saved alongside a recording, when there is one, to work out when each frame was really drawn.",
 
-				"A recording's frames aren't evenly spaced in game time. Each one shows whichever game frame the "
-				"recorder last got hold of, so a 500fps game recorded at 360fps moves one game frame between some "
-				"frames and two between others, and steady motion comes out uneven. With a log, blur knows which "
-				"game frame every recorded frame shows and when it was drawn, and interpolates on that timeline "
-				"instead. That also says exactly which frames are repeats, so it takes deduplication's place.",
+				"A recording's frames aren't evenly spaced in game time. Each one shows whichever game frame the recorder last got hold of, so a 500fps game recorded at 360fps moves one game frame between some frames and two between others, and steady motion comes out uneven. With a log, blur knows which game frame every recorded frame shows and when it was drawn, and interpolates on that timeline instead. That also says exactly which frames are repeats, so it takes deduplication's place.",
 
-				"Logs come from the obs-frame-timing-recorder OBS plugin, as a .frametiming file next to the "
-				"recording. Videos without one are deduplicated as usual. A clip trimmed out of a recording "
-				"without re-encoding it, in losslesscut or similar, still works: put it beside the "
-				"recording's log and blur finds which part of the recording it is.",
+				"Logs come from the obs-frame-timing-recorder OBS plugin, as a .frametiming file next to the recording. Videos without one are deduplicated as usual. A clip trimmed out of a recording without re-encoding it, in losslesscut or similar, still works: put it beside the recording's log and blur finds which part of the recording it is.",
 			},
 		},
 		{
 			"deduplicate method dropdown",
 			{
-				"What generates the frames that go in place of duplicates. Only needed with interpolation off - "
-				"with it on, the interpolation method generates them as part of its own pass.",
+				"What generates the frames that go in place of duplicates. Only needed with interpolation off - with it on, the interpolation method generates them as part of its own pass.",
 				// todo: update with mvtools
 				"Quality: rife = rife (tensorrt) > svp",
 				"Speed: old > svp >>> rife",
@@ -301,8 +277,7 @@ void configs::option_information(ui::Container& container) {
 		{
 			"deduplicate method interpolation note",
 			{
-				"Duplicates are filled by the interpolation pass, from the same model, in one go - so there's no "
-				"separate method to choose while interpolation is on.",
+				"Duplicates are filled by the interpolation pass, from the same model, in one go - so there's no separate method to choose while interpolation is on.",
 			},
 		},
 		{
@@ -384,8 +359,7 @@ void configs::option_information(ui::Container& container) {
 		{
 			"debug checkbox",
 			{
-				"Logs ffmpeg & vspipe commands, and adds a text overlay displaying frame similarity onto duplicate "
-				"frames",
+				"Logs ffmpeg & vspipe commands, and adds a text overlay displaying frame similarity onto duplicate frames",
 			},
 		},
 		{
@@ -430,7 +404,7 @@ void configs::option_information(ui::Container& container) {
 		{
 			"taskbar progress checkbox",
 			{
-				"Shows how far along the current render is on the app\x27s taskbar icon",
+				"Shows how far along the current render is on the app's taskbar icon",
 			},
 		},
 		{

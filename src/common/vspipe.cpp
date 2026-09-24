@@ -1,5 +1,8 @@
 #include "vspipe.h"
-#include "config_app.h"
+
+#ifdef __linux__
+#	include "config_app.h"
+#endif
 
 boost::process::environment vspipe::setup_environment() {
 	auto env = boost::this_process::environment();

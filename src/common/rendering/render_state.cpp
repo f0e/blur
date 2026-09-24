@@ -10,9 +10,9 @@ void rendering::RenderState::report_log_line(const std::string& line) {
 
 	if (status->key == "stage") {
 		if (status->value == "mask") // blur/mask.py
-			m_progress.init_stage = InitStage::generating_mask;
+			m_progress.init_stage = InitStage::GENERATING_MASK;
 		else if (status->value == "tensorrt-engine") // external/vsmlrt.py
-			m_progress.init_stage = InitStage::building_engine;
+			m_progress.init_stage = InitStage::BUILDING_ENGINE;
 	}
 	else if (status->key == "frame-timing-log") {
 		m_progress.frame_timing_log = status->value;

@@ -107,10 +107,10 @@ void ui::render_timeline(const Container& container, const AnimatedElement& elem
 
 	auto grab_rects = get_grab_rects(*data.video.start, *data.video.end, rect, visible_start, visible_range);
 
-	constexpr int stroke_alpha = 125;
+	constexpr int STROKE_ALPHA = 125;
 	render::push_clip_rect(container.rect);
-	render::rect_filled(rect, gfx::Color::black(stroke_alpha * anim));
-	render::rect_stroke(rect, gfx::Color(155, 155, 155, stroke_alpha * anim));
+	render::rect_filled(rect, gfx::Color::black(STROKE_ALPHA * anim));
+	render::rect_stroke(rect, gfx::Color(155, 155, 155, STROKE_ALPHA * anim));
 	render::push_clip_rect(rect.expand(1), true);
 
 	float grabs_alpha = anim * (data.video.trim_disabled ? DISABLED_GRABS_ALPHA : 1.f);
@@ -206,11 +206,11 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 
 	struct Grab {
 		gfx::Rect rect;
-		AnimationState& anim;
-		float* value;
-		float* min;
-		float* max;
-		bool is_start;
+		AnimationState& anim; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members) only lives for this call
+		float* value = nullptr;
+		float* min = nullptr;
+		float* max = nullptr;
+		bool is_start = false;
 		bool hovered = false;
 		bool active = false;
 	};

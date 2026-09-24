@@ -261,7 +261,7 @@ void VideoPlayer::initialize_mpv(float volume) {
 
 	mpv_opengl_init_params init_params{
 		.get_proc_address = [](void* ctx, const char* name) -> void* {
-			return (void*)SDL_GL_GetProcAddress(name);
+			return reinterpret_cast<void*>(SDL_GL_GetProcAddress(name));
 		},
 	};
 
@@ -276,8 +276,10 @@ void VideoPlayer::initialize_mpv(float volume) {
 	// DR and is not recommended anyway).
 	int advanced_control = 1;
 
-	std::vector<mpv_render_param> params{ { .type = MPV_RENDER_PARAM_API_TYPE,
-		                                    .data = (char*)(MPV_RENDER_API_TYPE_OPENGL) },
+	// mpv takes a non-const pointer here but only ever reads it
+	auto* api_type = const_cast<char*>(MPV_RENDER_API_TYPE_OPENGL); // NOLINT(cppcoreguidelines-pro-type-const-cast)
+
+	std::vector<mpv_render_param> params{ { .type = MPV_RENDER_PARAM_API_TYPE, .data = api_type },
 		                                  { .type = MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, .data = &init_params },
 		                                  { .type = MPV_RENDER_PARAM_ADVANCED_CONTROL, .data = &advanced_control },
 		                                  { .type = MPV_RENDER_PARAM_INVALID } };
@@ -420,7 +422,7 @@ void VideoPlayer::process_mpv_events() {
 					m_cached_fps = *static_cast<double*>(prop->data);
 				}
 				else if (std::strcmp(name, "pause") == 0 && prop->format == MPV_FORMAT_FLAG) {
-					m_cached_pause = *static_cast<int*>(prop->data);
+					m_cached_pause = *static_cast<int*>(prop->data) != 0;
 				}
 				else if (std::strcmp(name, "dwidth") == 0 && prop->format == MPV_FORMAT_INT64) {
 					m_cached_width = *static_cast<int64_t*>(prop->data);

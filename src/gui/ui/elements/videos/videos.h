@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../ui.h"
+#include "../../helpers/video.h"
 
 namespace ui::videos {
 	inline constexpr int VIDEO_GAP = 30;

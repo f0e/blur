@@ -33,7 +33,7 @@ bool os::drag::begin_file_drag(SDL_Window* window, const std::filesystem::path& 
 
 	@autoreleasepool {
 		// plain casts, not __bridge - the .mm files here are built without arc
-		NSWindow* ns_window = (NSWindow*)SDL_GetPointerProperty(
+		auto* ns_window = (NSWindow*)SDL_GetPointerProperty(
 			SDL_GetWindowProperties(window), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr
 		);
 		if (!ns_window)

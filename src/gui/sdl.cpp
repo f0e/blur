@@ -19,7 +19,7 @@ namespace {
 	bool has_config_write_time = false;
 	Uint64 last_config_check_ms = 0;
 
-	SDL_EGLAttrib* SDLCALL angle_platform_attributes(void*) {
+	SDL_EGLAttrib* SDLCALL angle_platform_attributes(void* /*userdata*/) {
 		auto* attributes = static_cast<SDL_EGLAttrib*>(SDL_malloc(3 * sizeof(SDL_EGLAttrib)));
 		if (!attributes)
 			return nullptr;

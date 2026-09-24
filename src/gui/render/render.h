@@ -4,7 +4,7 @@
 
 #include "font/font.h"
 
-enum EFontFlags : unsigned int {
+enum EFontFlags : unsigned int { // NOLINT(performance-enum-size) bit flags, passed around as unsigned int
 	FONT_NONE = 0,
 	FONT_CENTERED_X = (1 << 0),
 	FONT_CENTERED_Y = (1 << 1),
@@ -14,7 +14,7 @@ enum EFontFlags : unsigned int {
 	FONT_BOTTOM_ALIGN = (1 << 5),
 };
 
-enum ERoundingFlags : unsigned int { // c+p from imgui
+enum ERoundingFlags : unsigned int { // NOLINT(performance-enum-size) c+p from imgui
 	ROUNDING_TOP_LEFT = 1 << 4,      // add_rect(), add_rect_filled(), path_rect(): enable rounding top-left corner only
 	                                 // (when rounding > 0.0f, we default to all corners). was 0x01.
 	ROUNDING_TOP_RIGHT = 1 << 5,    // add_rect(), add_rect_filled(), path_rect(): enable rounding top-right corner only
@@ -62,9 +62,15 @@ namespace render {
 	// Texture wrapper class for OpenGL textures
 	class Texture {
 	public:
-		Texture() : m_id(0), m_width(0), m_height(0) {}
+		Texture() = default;
 
 		~Texture();
+
+		// owns the gl texture, so a copy would free it twice
+		Texture(const Texture&) = delete;
+		Texture& operator=(const Texture&) = delete;
+		Texture(Texture&&) = delete;
+		Texture& operator=(Texture&&) = delete;
 
 		bool load_from_file(const std::string& path);
 		bool load_from_surface(SDL_Surface* surface);
@@ -90,9 +96,9 @@ namespace render {
 		}
 
 	private:
-		unsigned int m_id;
-		int m_width;
-		int m_height;
+		unsigned int m_id = 0;
+		int m_width = 0;
+		int m_height = 0;
 	};
 
 	struct ImGuiWrap {
@@ -270,7 +276,7 @@ namespace render {
 		float zoom_end = 1.0f
 	);
 
-	enum class RectSide {
+	enum class RectSide : uint8_t {
 		LEFT,
 		RIGHT
 	};

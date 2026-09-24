@@ -75,14 +75,14 @@ namespace u {
 			return *logger;
 		}
 
-		enum class LogLevel {
+		enum class LogLevel : uint8_t {
 			LOG_INFO,
 			LOG_ERROR,
 			LOG_DEBUG
 		};
 
 		template<typename S, typename... Args>
-		void fallback_log(LogLevel level, const S& fmt, Args&&... args) {
+		void fallback_log(LogLevel level, const S& fmt, const Args&... args) {
 			if (!blur.in_atexit)
 				return;
 

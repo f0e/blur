@@ -1,4 +1,5 @@
 #include "configs.h"
+#include "../../fonts/icons.h"
 
 #include "../../ui/ui.h"
 #include "../../render/render.h"

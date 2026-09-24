@@ -1,4 +1,5 @@
 ﻿#include "configs.h"
+#include "../../fonts/icons.h"
 
 #include "../../ui/ui.h"
 #include "../../ui/keys.h"
@@ -133,7 +134,7 @@ namespace {
 		if (!drag) {
 			for (size_t i = 0; i < rules.size(); i++) {
 				auto* handle = find_row_element(container, i, "drag handle");
-				if (!handle || !ui::is_active_element(*handle, "drag handle") || !row_states[i].laid_out)
+				if (handle == nullptr || !ui::is_active_element(*handle, "drag handle") || !row_states[i].laid_out)
 					continue;
 
 				drag = Drag{
