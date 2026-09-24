@@ -89,6 +89,9 @@ CheckOptions:
   - key: readability-implicit-bool-conversion.AllowPointerConditions
     value: true
 
+  - key: modernize-use-auto.MinTypeNameLength
+    value: 8
+
   # Performance
   - key: performance-faster-string-find.StringLikeClasses
     value: "std::basic_string"

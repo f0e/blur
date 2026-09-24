@@ -27,7 +27,7 @@ namespace {
 		double ffmpeg_required_extra_time = get_output_seek(settings);
 		double fps = static_cast<double>(video_info.fps_num) / video_info.fps_den;
 
-		auto total_frames = static_cast<size_t>(video_info.duration * fps);
+		size_t total_frames = static_cast<size_t>(video_info.duration * fps);
 
 		size_t total_usable_frames = static_cast<size_t>(std::max(
 			0.0, ((video_info.duration - ffmpeg_required_extra_time) * fps) - FRAMES_NEEDED_FOR_VSPIPE_TO_NOT_POO_ITSELF
