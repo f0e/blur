@@ -16,7 +16,7 @@ const std::string BLUR_VERSION = BLUR_VERSION_STRING;
 class Blur { // todo: switch all the classes which could be namespaces into namespaces
 public:
 	bool initialised = false;
-	bool exiting = false;
+	std::atomic<bool> exiting = false;
 	std::atomic<bool> cleanup_performed;
 	bool in_atexit = false;
 

@@ -95,6 +95,9 @@ namespace rendering {
 		std::vector<VideoRenderDetails> m_queue;
 		mutable std::mutex m_mutex;
 		std::atomic<bool> m_active = true;
+		std::atomic<bool> m_processing = false;
+
+		bool process_front();
 	};
 
 	inline VideoRenderQueue video_render_queue;
