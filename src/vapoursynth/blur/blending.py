@@ -1,7 +1,6 @@
-from vapoursynth import core
-import vapoursynth as vs
-
 import blur.utils as u
+import vapoursynth as vs
+from vapoursynth import core
 
 
 def average(

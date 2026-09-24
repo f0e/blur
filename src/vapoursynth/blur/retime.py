@@ -30,11 +30,11 @@ the timeline out from the pictures can build each decision from a few frames eit
 what lets the GUI preview a single frame without reading through the video.
 """
 
-import vapoursynth as vs
-from vapoursynth import core
-
 from dataclasses import dataclass
 from fractions import Fraction
+
+import vapoursynth as vs
+from vapoursynth import core
 
 # how far apart two real frames are allowed to be and still have frames generated between them, and equally
 # how far a frame looks for a pair. a longer gap means more movement to guess at from the same two pictures,
@@ -196,10 +196,7 @@ def describe(n: int, time: Fraction, props, at: Bracket) -> str:
     if at.timepoint is None:
         where = f"held on {at.left}" if at.left == at.right else f"on {at.left}"
     else:
-        where = (
-            f"{at.left}->{at.right} ({float(at.left_time):g}->{float(at.right_time):g})"
-            f" @ {float(at.timepoint):.3f}"
-        )
+        where = f"{at.left}->{at.right} ({float(at.left_time):g}->{float(at.right_time):g}) @ {float(at.timepoint):.3f}"
 
     diff = f" | diff {float(props[PROP_DIFF]):.6f}" if PROP_DIFF in props else ""
     return f"{n} | src {float(time):.3f}{diff} | {where}"

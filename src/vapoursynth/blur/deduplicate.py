@@ -21,12 +21,10 @@ few frames either side of itself, so previewing one frame reads a handful of fra
 through the video.
 """
 
-import vapoursynth as vs
-from vapoursynth import core
-
-import blur.retime as retime
 import blur.utils as u
-from blur import log
+import vapoursynth as vs
+from blur import log, retime
+from vapoursynth import core
 
 # Which frame of a run of repeats is the real one.
 #
@@ -114,9 +112,7 @@ def _decisions(
     last = length - 1
 
     # the props are the whole point of this clip, so its frames are as small as a frame gets
-    holder = core.std.BlankClip(
-        width=1, height=1, format=vs.GRAY8, length=length * resolution, keep=True
-    )
+    holder = core.std.BlankClip(width=1, height=1, format=vs.GRAY8, length=length * resolution, keep=True)
 
     # window frames come after `holder` in the list handed to the selector
     base = 1 + offsets.index(0)
@@ -164,9 +160,7 @@ def _decisions(
             """Nothing to move towards, so this frame's own picture is the answer for its whole slot."""
             return source, HALF * source, source, HALF * source, 1
 
-        def pair(
-            left: int, left_time: int, right: int, right_time: int
-        ) -> tuple[int, int, int, int, int]:
+        def pair(left: int, left_time: int, right: int, right_time: int) -> tuple[int, int, int, int, int]:
             # never generate across more than the range allows. clamping the time rather than the frame is
             # what keeps this right: `left`'s picture is the one that belongs for every moment up to where
             # the move starts, so holding it for longer and moving over the last `max_gap` frames is exactly
@@ -183,11 +177,7 @@ def _decisions(
 
         if timing == TIMING_FIRST:
             # the picture arrived when the run started, and the next one when the next run started
-            answer = (
-                held()
-                if open_end or end >= last
-                else pair(start, HALF * start, end + 1, HALF * (end + 1))
-            )
+            answer = held() if open_end or end >= last else pair(start, HALF * start, end + 1, HALF * (end + 1))
 
         elif timing == TIMING_LAST:
             # the picture arrives as the run ends, so before that we're still moving towards it
@@ -198,19 +188,13 @@ def _decisions(
                 answer = (
                     held()
                     if open_end or open_start
-                    else pair(
-                        max(start - 1, 0), HALF * max(start - 1, 0), end, HALF * end
-                    )
+                    else pair(max(start - 1, 0), HALF * max(start - 1, 0), end, HALF * end)
                 )
             elif end >= last:
                 answer = held()
             else:
                 _, next_end, _, next_open = run(end + 1, 0, max_gap)
-                answer = (
-                    held()
-                    if next_open
-                    else pair(end, HALF * end, next_end, HALF * next_end)
-                )
+                answer = held() if next_open else pair(end, HALF * end, next_end, HALF * next_end)
 
         elif timing == TIMING_CENTER:
             # halfway along the run, which needs both of its ends known
@@ -221,28 +205,18 @@ def _decisions(
                     answer = held()
                 else:
                     next_start, next_end, _, next_open = run(end + 1, 0, max_gap)
-                    answer = (
-                        held()
-                        if next_open
-                        else pair(start, start + end, next_start, next_start + next_end)
-                    )
+                    answer = held() if next_open else pair(start, start + end, next_start, next_start + next_end)
             elif start <= 0:
                 answer = held()
             else:
                 prev_start, prev_end, prev_open, _ = run(start - 1, max_gap, 0)
-                answer = (
-                    held()
-                    if prev_open
-                    else pair(prev_start, prev_start + prev_end, start, start + end)
-                )
+                answer = held() if prev_open else pair(prev_start, prev_start + prev_end, start, start + end)
 
         else:  # TIMING_SURROUNDING
             # a run of one frame isn't in question - both readings put its picture at its own index - so
             # it anchors itself. A longer one is stepped over, and the frames either side carry the gap.
             lone = start == end
-            unreachable = (
-                open_end or end >= last or (not lone and (open_start or start <= 0))
-            )
+            unreachable = open_end or end >= last or (not lone and (open_start or start <= 0))
 
             if unreachable:
                 answer = held()
@@ -267,21 +241,12 @@ def _decisions(
 
                     # stop on a run of one - its timing isn't in question, so it's what the search was
                     # looking for - and on one there's no room to step over, or nothing to step onto
-                    if (
-                        next_end == right
-                        or next_open
-                        or next_end >= last
-                        or next_end + 1 - left > max_gap
-                    ):
+                    if next_end == right or next_open or next_end >= last or next_end + 1 - left > max_gap:
                         break
 
                     right = next_end + 1
 
-                answer = (
-                    held()
-                    if right - left > max_gap
-                    else pair(left, HALF * left, right, HALF * right)
-                )
+                answer = held() if right - left > max_gap else pair(left, HALF * left, right, HALF * right)
 
         left, left_time, right, right_time, hold = answer
 
@@ -305,9 +270,7 @@ def analyse(
 ) -> retime.Timeline:
     """Set up deduplication for `clip`, without reading any of it yet."""
     if timing not in TIMINGS:
-        raise u.BlurException(
-            f"Deduplicate real frame must be one of: {', '.join(TIMINGS)}"
-        )
+        raise u.BlurException(f"Deduplicate real frame must be one of: {', '.join(TIMINGS)}")
 
     future_checks = max(0, int(future_checks))
 
@@ -322,9 +285,7 @@ def analyse(
         if timing == TIMING_SURROUNDING
         else f"{timing} frame of a run is the real one"
     )
-    log.info(
-        f"deduplicating (threshold {threshold}, up to {max_gap} frames apart, {where})"
-    )
+    log.info(f"deduplicating (threshold {threshold}, up to {max_gap} frames apart, {where})")
 
     return retime.Timeline(
         decisions=_decisions(clip, threshold, max_gap, timing, future_checks),
@@ -349,9 +310,7 @@ def fill_drops_old(clip, threshold=0.1, debug=False):
     super = core.mv.Super(clip)
     forward_vectors = core.mv.Analyse(super, isb=False)
     backwards_vectors = core.mv.Analyse(super, isb=True)
-    filldrops = core.mv.FlowInter(
-        clip, super, mvbw=backwards_vectors, mvfw=forward_vectors, ml=1
-    )
+    filldrops = core.mv.FlowInter(clip, super, mvbw=backwards_vectors, mvfw=forward_vectors, ml=1)
 
     def selectFunc(n, f):
         if f.props["PlaneStatsDiff"] < threshold:

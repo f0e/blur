@@ -17,11 +17,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src" / "vapoursynth"))
 
-import vapoursynth as vs  # noqa: E402
-from vapoursynth import core  # noqa: E402
+import blur.utils as u
+from blur import mask
 
-import blur.mask as mask  # noqa: E402
-import blur.utils as u  # noqa: E402
+import vapoursynth as vs
+from vapoursynth import core
 
 
 def write_png(clip: vs.VideoNode, path: Path, ffmpeg: Path):
@@ -64,9 +64,7 @@ def to_rgbs(clip: vs.VideoNode) -> vs.VideoNode:
 
 
 def to_gray8(clip: vs.VideoNode) -> vs.VideoNode:
-    return core.resize.Point(
-        clip, format=vs.GRAY8, range_in_s="full", range_s="full", dither_type="none"
-    )
+    return core.resize.Point(clip, format=vs.GRAY8, range_in_s="full", range_s="full", dither_type="none")
 
 
 def tint_protected(rgbs: vs.VideoNode, gray: vs.VideoNode, strength: float):
@@ -156,9 +154,7 @@ def preview(path: Path, args, ffmpeg: Path) -> bool:
             written.append(dest)
 
     for dest in written:
-        print(
-            f"   wrote {dest.relative_to(REPO) if dest.is_relative_to(REPO) else dest}"
-        )
+        print(f"   wrote {dest.relative_to(REPO) if dest.is_relative_to(REPO) else dest}")
 
     return gray is not None
 
@@ -188,20 +184,14 @@ def main():
         default=0.55,
         help="how strongly to paint protected areas red",
     )
-    parser.add_argument(
-        "--resources", type=Path, required=True, help="the built app's Resources folder"
-    )
-    parser.add_argument(
-        "--no-open", action="store_true", help="don't open the output folder when done"
-    )
+    parser.add_argument("--resources", type=Path, required=True, help="the built app's Resources folder")
+    parser.add_argument("--no-open", action="store_true", help="don't open the output folder when done")
     args = parser.parse_args()
 
     u.DEBUG_ENABLED = True  # so generate() says what it found
 
     ffmpeg = args.resources / "ffmpeg" / "ffmpeg"
-    core.std.LoadPlugin(
-        path=str(args.resources / "vapoursynth-plugins" / "bestsource.dylib")
-    )
+    core.std.LoadPlugin(path=str(args.resources / "vapoursynth-plugins" / "bestsource.dylib"))
 
     args.out.mkdir(parents=True, exist_ok=True)
 

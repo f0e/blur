@@ -43,9 +43,6 @@ Without the game's frames, each new picture is placed at the moment obs read it 
 recorder that falls behind, but not a game running faster than the recording.
 """
 
-import vapoursynth as vs
-from vapoursynth import core
-
 import bisect
 import math
 from fractions import Fraction
@@ -53,9 +50,10 @@ from pathlib import Path
 
 import numpy as np
 
-import blur.retime as retime
 import blur.frame_timing_log as timing_log
-from blur import log
+import vapoursynth as vs
+from blur import log, retime
+from vapoursynth import core
 
 # a frame's position is kept to this fraction of a frame
 TIME_SCALE = 1 << 16

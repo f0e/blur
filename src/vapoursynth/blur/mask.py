@@ -12,9 +12,6 @@ stacks it over the base, catching whatever that particular video has that the ba
 be used on its own; with both, a pixel is protected if either of them protects it - see `combine`.
 """
 
-from vapoursynth import core
-import vapoursynth as vs
-
 import hashlib
 import os
 import struct
@@ -23,7 +20,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import blur.utils as u
+import vapoursynth as vs
 from blur import log
+from vapoursynth import core
 
 
 def load(path: Path) -> vs.VideoNode:
@@ -295,9 +294,7 @@ def _samples(analysed: vs.VideoNode, count: int) -> list[int]:
     if len(indices) >= count * MIN_CONSISTENCY:
         return indices
 
-    pool = _differing(
-        analysed, _sample_indices(analysed.num_frames, count * SAMPLE_POOL_FACTOR)
-    )
+    pool = _differing(analysed, _sample_indices(analysed.num_frames, count * SAMPLE_POOL_FACTOR))
     if len(pool) <= count:
         return pool
 
@@ -358,16 +355,12 @@ def _held_still(samples: list[vs.VideoNode]) -> vs.VideoNode:
     """
     counted = core.std.BlankClip(samples[0], color=0.0)
     for a, b in zip(samples, samples[1:]):
-        counted = core.std.Expr(
-            [counted, a, b], f"y z - abs {SAME_PIXEL_THRESHOLD} < x 1 + x ?"
-        )
+        counted = core.std.Expr([counted, a, b], f"y z - abs {SAME_PIXEL_THRESHOLD} < x 1 + x ?")
 
     return core.std.Expr(counted, f"x {len(samples) - 1} /")
 
 
-def _local_contrast(
-    samples: list[vs.VideoNode], radius: int
-) -> tuple[vs.VideoNode, vs.VideoNode]:
+def _local_contrast(samples: list[vs.VideoNode], radius: int) -> tuple[vs.VideoNode, vs.VideoNode]:
     """Both measurements of how each pixel compares to its neighbours, as fractions of the samples, 0-1.
 
     Standing out is how much of the time the pixel sat on the *same* side of them. Above and below are counted
@@ -387,12 +380,8 @@ def _local_contrast(
 
         # the difference is worked out inside both counts rather than in a node of its own. every sample's
         # every intermediate is live at once while this runs, so a whole layer of them is worth not having
-        above = core.std.Expr(
-            [above, sample, local], f"y z - {LOCAL_CONTRAST} > x 1 + x ?"
-        )
-        below = core.std.Expr(
-            [below, sample, local], f"y z - -{LOCAL_CONTRAST} < x 1 + x ?"
-        )
+        above = core.std.Expr([above, sample, local], f"y z - {LOCAL_CONTRAST} > x 1 + x ?")
+        below = core.std.Expr([below, sample, local], f"y z - -{LOCAL_CONTRAST} < x 1 + x ?")
 
     count = len(samples)
 
@@ -496,9 +485,7 @@ def shape(scores: vs.VideoNode, params: Params = Params()) -> vs.VideoNode | Non
     # flat as sky, but unlike sky it has the panel's own edges and text around it
     reach = scaled(params.fill)
     if reach > 0:
-        near_drawn = core.std.BoxBlur(
-            core.std.Expr([static, drawn], "x y min"), hradius=reach, vradius=reach
-        )
+        near_drawn = core.std.BoxBlur(core.std.Expr([static, drawn], "x y min"), hradius=reach, vradius=reach)
         static = core.std.Expr([static, near_drawn], "y 0 > x 0 ?")
     else:
         static = core.std.Expr([static, drawn], "x y min")
@@ -518,8 +505,7 @@ def shape(scores: vs.VideoNode, params: Params = Params()) -> vs.VideoNode | Non
 
     if fraction > MAX_STATIC_FRACTION:
         log.info(
-            f"Mask: {fraction:.1%} of the frame is static, far too much of it to be an overlay. "
-            "Rendering unmasked"
+            f"Mask: {fraction:.1%} of the frame is static, far too much of it to be an overlay. Rendering unmasked"
         )
         return None
 
@@ -577,18 +563,14 @@ def _cache_key(video_path: Path, analysed: tuple[int, int], subject: str) -> str
     rather than quietly reusing it.
     """
     stat = video_path.stat()
-    identity = (
-        f"{video_path.resolve()}\n{stat.st_size}\n{stat.st_mtime_ns}\n{analysed}\n{subject}"
-    ).encode()
+    identity = (f"{video_path.resolve()}\n{stat.st_size}\n{stat.st_mtime_ns}\n{analysed}\n{subject}").encode()
 
     return hashlib.sha1(identity + Path(__file__).read_bytes()).hexdigest()[:16]
 
 
 def _cache_name(video_path: Path, key: str) -> str:
     """`key` is what identifies the file; the video's name is in there to make the folder readable."""
-    readable = "".join(c if c.isalnum() or c in "-_" else "_" for c in video_path.stem)[
-        :48
-    ]
+    readable = "".join(c if c.isalnum() or c in "-_" else "_" for c in video_path.stem)[:48]
 
     return f"{readable}-{key}"
 
@@ -602,20 +584,11 @@ def _greyscale_png(plane, width: int, height: int) -> bytes:
     Scanlines go in unfiltered. Filtering exists to help the compressor find patterns, and a mask is mostly
     flat runs of black and white, which zlib already handles about as well as it's going to.
     """
-    packed = (
-        plane.tobytes()
-    )  # tobytes drops the stride padding, leaving exactly width bytes a row
-    scanlines = b"".join(
-        b"\x00" + packed[y * width : (y + 1) * width] for y in range(height)
-    )
+    packed = plane.tobytes()  # tobytes drops the stride padding, leaving exactly width bytes a row
+    scanlines = b"".join(b"\x00" + packed[y * width : (y + 1) * width] for y in range(height))
 
     def chunk(kind: bytes, body: bytes) -> bytes:
-        return (
-            struct.pack(">I", len(body))
-            + kind
-            + body
-            + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
-        )
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
 
     return b"".join(
         [
@@ -636,9 +609,7 @@ def _store(gray: vs.VideoNode | None, path: Path):
 
     # 8 bit is what a mask png is, and all a coverage value needs. scores are already 8 bit, so this is a
     # no-op for those
-    eight_bit = core.resize.Point(
-        gray, format=vs.GRAY8, range_in_s="full", range_s="full", dither_type="none"
-    )
+    eight_bit = core.resize.Point(gray, format=vs.GRAY8, range_in_s="full", range_s="full", dither_type="none")
     png = _greyscale_png(eight_bit.get_frame(0)[0], eight_bit.width, eight_bit.height)
 
     # written alongside and moved into place, so a half written file is never picked up as a cached one. the
@@ -678,9 +649,7 @@ def _prune(folder: Path, limit: int):
             pass  # in use by whoever else is reading it, so it'll go next time round
 
 
-def _cached_path(
-    folder: Path, video_path: Path, analysed: tuple[int, int], subject: str
-) -> Path:
+def _cached_path(folder: Path, video_path: Path, analysed: tuple[int, int], subject: str) -> Path:
     """Where a video's entry in a cache folder goes, folder made if it wasn't there."""
     folder.mkdir(parents=True, exist_ok=True)
 
@@ -794,9 +763,7 @@ def match(gray: vs.VideoNode, clip: vs.VideoNode) -> vs.VideoNode:
     """
     fmt = clip.format
 
-    luma_format = core.query_video_format(
-        vs.GRAY, fmt.sample_type, fmt.bits_per_sample, 0, 0
-    )
+    luma_format = core.query_video_format(vs.GRAY, fmt.sample_type, fmt.bits_per_sample, 0, 0)
 
     def resized(width: int, height: int) -> vs.VideoNode:
         # full range both sides - these are coverage values, not video levels, and must not get scaled
@@ -817,9 +784,7 @@ def match(gray: vs.VideoNode, clip: vs.VideoNode) -> vs.VideoNode:
 
     chroma = resized(clip.width >> fmt.subsampling_w, clip.height >> fmt.subsampling_h)
 
-    return core.std.ShufflePlanes(
-        [luma, chroma, chroma], planes=[0, 0, 0], colorfamily=fmt.color_family
-    )
+    return core.std.ShufflePlanes([luma, chroma, chroma], planes=[0, 0, 0], colorfamily=fmt.color_family)
 
 
 def match_length(src: vs.VideoNode, target: vs.VideoNode) -> vs.VideoNode:
@@ -828,14 +793,8 @@ def match_length(src: vs.VideoNode, target: vs.VideoNode) -> vs.VideoNode:
     Frame indices are mapped directly rather than going through change_fps, which takes an integer fps -
     interpolated framerates can be fractional when they come from a multiplier like '5x'.
     """
-    if (
-        src.format.id != target.format.id
-        or src.width != target.width
-        or src.height != target.height
-    ):
-        src = core.resize.Bicubic(
-            src, width=target.width, height=target.height, format=target.format.id
-        )
+    if src.format.id != target.format.id or src.width != target.width or src.height != target.height:
+        src = core.resize.Bicubic(src, width=target.width, height=target.height, format=target.format.id)
 
     if src.num_frames == target.num_frames:
         return src
@@ -846,9 +805,7 @@ def match_length(src: vs.VideoNode, target: vs.VideoNode) -> vs.VideoNode:
     factor = target.num_frames / src.num_frames
     last = src.num_frames - 1
 
-    return core.std.FrameEval(
-        core.std.BlankClip(target), lambda n: src[min(round(n / factor), last)]
-    )
+    return core.std.FrameEval(core.std.BlankClip(target), lambda n: src[min(round(n / factor), last)])
 
 
 def combine(grays: list[vs.VideoNode]) -> vs.VideoNode:
@@ -884,9 +841,7 @@ def combine(grays: list[vs.VideoNode]) -> vs.VideoNode:
     return combined
 
 
-def protect(
-    interpolated: vs.VideoNode, original: vs.VideoNode, gray: vs.VideoNode
-) -> vs.VideoNode:
+def protect(interpolated: vs.VideoNode, original: vs.VideoNode, gray: vs.VideoNode) -> vs.VideoNode:
     """Put `original`'s pixels back wherever the mask is black."""
     base = match_length(original, interpolated)
 

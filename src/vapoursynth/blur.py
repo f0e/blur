@@ -1,21 +1,21 @@
+import json
+import sys
+from pathlib import Path
+
 import vapoursynth as vs
 from vapoursynth import core
-
-import sys
-import json
-from pathlib import Path
 
 # add blur.py folder to path so it can reference scripts
 sys.path.insert(1, str(Path(__file__).parent))
 
 import blur.blending
 import blur.deduplicate
-import blur.retime
 import blur.frame_timing
 import blur.interpolate
 import blur.mask
-import blur.weighting
+import blur.retime
 import blur.utils as u
+import blur.weighting
 from blur import log
 
 EXPECTED_PLUGINS = [
@@ -75,9 +75,7 @@ def main():
 
     loaded_plugins = [plugin.identifier for plugin in core.plugins()]
 
-    missing_plugins = [
-        plugin for plugin in EXPECTED_PLUGINS if plugin not in loaded_plugins
-    ]
+    missing_plugins = [plugin for plugin in EXPECTED_PLUGINS if plugin not in loaded_plugins]
     if missing_plugins:
         raise u.BlurException(
             f"Missing required VapourSynth extension{'s' if len(missing_plugins) != 1 else ''}: {', '.join(missing_plugins)}"
@@ -134,9 +132,7 @@ def main():
     try:
         deduplicate_threshold = float(settings["deduplicate_threshold"])
     except (ValueError, TypeError, KeyError):
-        raise u.BlurException(
-            f"Deduplicate threshold is not a number: '{settings['deduplicate_threshold']}'"
-        )
+        raise u.BlurException(f"Deduplicate threshold is not a number: '{settings['deduplicate_threshold']}'")
 
     # how far a picture is carried before it's held instead. it's deduplication's setting, but it's a
     # preference about interpolation rather than about deduplication, so a logged timeline honours it too -
@@ -162,9 +158,7 @@ def main():
 
     # a timeline is rendered by retiming, whichever source it came from, and that needs the masks either way.
     # the deduplicate setting turns off deduplication, not a log - logs have their own setting
-    retiming = (
-        settings["deduplicate"] and settings["deduplicate_range"] != 0
-    ) or logged_timing is not None
+    retiming = (settings["deduplicate"] and settings["deduplicate_range"] != 0) or logged_timing is not None
     apply_masks = settings["interpolate"] or retiming
     mask_name = settings["mask"] if apply_masks else ""
     auto_mask = settings["auto_mask"] if apply_masks else False
@@ -348,10 +342,7 @@ def main():
 
         interpolated_fps = parse_fps_setting("interpolated_fps")
 
-        if (
-            settings["interpolation_method"] != settings["pre_interpolation_method"]
-            and settings["pre_interpolate"]
-        ):
+        if settings["interpolation_method"] != settings["pre_interpolation_method"] and settings["pre_interpolate"]:
             pre_interpolated_fps = parse_fps_setting("pre_interpolated_fps")
 
             if (
@@ -385,9 +376,7 @@ def main():
                 )
 
         if video.fps < interpolated_fps:
-            log.info(
-                f"interpolating to {interpolated_fps} with {settings['interpolation_method']}"
-            )
+            log.info(f"interpolating to {interpolated_fps} with {settings['interpolation_method']}")
             old_fps = video.fps
 
             video = interpolate_to(
@@ -399,9 +388,7 @@ def main():
             timeline = None
 
             fps_added = video.fps - old_fps
-            log.info(
-                f"added {fps_added} (interp: {interpolated_fps}. video.fps: {video.fps}/{interpolated_fps})"
-            )
+            log.info(f"added {fps_added} (interp: {interpolated_fps}. video.fps: {video.fps}/{interpolated_fps})")
 
         interpolated = video.num_frames != frames_before_interpolation
 
@@ -413,9 +400,7 @@ def main():
         log.info(f"filling duplicate frames with {method}")
 
         if method == "old" and logged_timing is not None:
-            log.info(
-                "the 'old' method can't use a frame timing log, so rife fills the gaps instead"
-            )
+            log.info("the 'old' method can't use a frame timing log, so rife fills the gaps instead")
             method = "rife"
 
         if method == "old":
@@ -451,9 +436,7 @@ def main():
     # text can't be masked away, and before blending - which averages frames together, and will smear this
     # along with everything else, so turn blur off to read it
     if debug_timeline is not None:
-        video = blur.retime.annotate(
-            video, debug_timeline, video.fps / debug_source_fps
-        )
+        video = blur.retime.annotate(video, debug_timeline, video.fps / debug_source_fps)
 
     # output timescale
     if settings["timescale"]:
@@ -477,9 +460,7 @@ def main():
                     weighting_type=settings["blur_weighting"],
                     gaussian_std_dev=settings["blur_weighting_gaussian_std_dev"],
                     gaussian_mean=settings["blur_weighting_gaussian_mean"],
-                    gaussian_bound=json.loads(
-                        settings["blur_weighting_gaussian_bound"]
-                    ),
+                    gaussian_bound=json.loads(settings["blur_weighting_gaussian_bound"]),
                 )
 
                 video = blur.blending.blend(

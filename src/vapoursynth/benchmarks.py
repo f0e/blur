@@ -1,9 +1,9 @@
-import vapoursynth as vs
-from vapoursynth import core
-
 import sys
 import time
 from pathlib import Path
+
+import vapoursynth as vs
+from vapoursynth import core
 
 # add blur.py folder to path so it can reference scripts
 sys.path.insert(1, str(Path(__file__).parent))
