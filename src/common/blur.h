@@ -44,7 +44,7 @@ public:
 		const std::optional<updates::CancelCallback>& cancel_callback = {}
 	);
 
-	void setup_signal_handlers();
+	static void setup_signal_handlers();
 };
 
 inline Blur blur;
