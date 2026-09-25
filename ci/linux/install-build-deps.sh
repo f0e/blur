@@ -17,7 +17,7 @@ apt-get install -y --no-install-recommends \
   autoconf autoconf-archive automake libtool libltdl-dev gperf bison flex \
   python3 python3-pip python3-venv \
   libx11-dev libxcursor-dev libxinerama-dev libxi-dev libxrandr-dev libxext-dev libxfixes-dev libxss-dev \
-  libxkbcommon-dev libwayland-dev wayland-protocols \
+  libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev \
   libgl1-mesa-dev libegl-dev libgles-dev mesa-common-dev \
   libfontconfig1-dev libfreetype-dev libass-dev libfribidi-dev libharfbuzz-dev \
   libpulse-dev libasound2-dev libdbus-1-dev
