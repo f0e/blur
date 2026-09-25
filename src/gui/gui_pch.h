@@ -14,7 +14,9 @@
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include <EGL/eglext_angle.h>
+#ifdef BLUR_USE_ANGLE
+#	include <EGL/eglext_angle.h>
+#endif
 #include <GLES3/gl3.h>
 
 #include <SDL3/SDL.h>

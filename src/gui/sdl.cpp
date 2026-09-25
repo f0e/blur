@@ -19,19 +19,18 @@ namespace {
 	bool has_config_write_time = false;
 	Uint64 last_config_check_ms = 0;
 
+#ifdef BLUR_USE_ANGLE
 	SDL_EGLAttrib* SDLCALL angle_platform_attributes(void* /*userdata*/) {
 		auto* attributes = static_cast<SDL_EGLAttrib*>(SDL_malloc(3 * sizeof(SDL_EGLAttrib)));
 		if (!attributes)
 			return nullptr;
 
 		attributes[0] = EGL_PLATFORM_ANGLE_TYPE_ANGLE;
-#ifdef _WIN32
+#	ifdef _WIN32
 		attributes[1] = EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE;
-#elif defined(__APPLE__)
+#	else
 		attributes[1] = EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE;
-#else
-		attributes[1] = EGL_PLATFORM_ANGLE_TYPE_OPENGL_ANGLE;
-#endif
+#	endif
 		attributes[2] = EGL_NONE;
 		return attributes;
 	}
@@ -39,16 +38,17 @@ namespace {
 	std::filesystem::path angle_library_dir() {
 		auto exe_dir = std::filesystem::path(u::get_executable_path()).parent_path();
 
-#ifdef __APPLE__
+#	ifdef __APPLE__
 		auto frameworks_dir = exe_dir.parent_path() / "Frameworks";
 
 		std::error_code ec;
 		if (std::filesystem::is_directory(frameworks_dir, ec))
 			return frameworks_dir;
-#endif
+#	endif
 
 		return exe_dir;
 	}
+#endif
 
 	void remember_config_write_time() {
 		std::error_code ec;
@@ -126,11 +126,12 @@ tl::expected<void, std::string> sdl::initialise() {
 		SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1"
 	); // allows the screen to auto sleep. WHY IS THIS DISABLED BY DEFAULT?
 
-	// Use ANGLE's EGL/GLES implementation on every platform. The backing renderer
-	// is selected below (D3D11 on Windows, Metal on macOS, OpenGL on Linux).
+	// Use EGL and GLES on every platform. That's ANGLE on Windows and macOS (backed by D3D11 and Metal, selected
+	// below), and the system's graphics drivers on Linux.
 	SDL_SetHint(SDL_HINT_VIDEO_FORCE_EGL, "1");
 	SDL_SetHint(SDL_HINT_OPENGL_ES_DRIVER, "1");
 
+#ifdef BLUR_USE_ANGLE
 	const auto angle_dir = angle_library_dir();
 	const std::string angle_egl_path = (angle_dir / BLUR_ANGLE_EGL_LIBRARY).string();
 	const std::string angle_gles_path = (angle_dir / BLUR_ANGLE_GLES_LIBRARY).string();
@@ -142,14 +143,17 @@ tl::expected<void, std::string> sdl::initialise() {
 
 	SDL_SetHint(SDL_HINT_EGL_LIBRARY, angle_egl_path.c_str());
 	SDL_SetHint(SDL_HINT_OPENGL_LIBRARY, angle_gles_path.c_str());
+#endif
 
 	if (!SDL_Init(SDL_INIT_VIDEO))
 		return tl::unexpected(std::format("SDL initialization failed: {}", SDL_GetError()));
 
+#ifdef BLUR_USE_ANGLE
 	if (!SDL_GL_SetAttribute(SDL_GL_EGL_PLATFORM, EGL_PLATFORM_ANGLE_ANGLE))
 		return tl::unexpected(std::format("Failed to select ANGLE's EGL platform: {}", SDL_GetError()));
 
 	SDL_EGL_SetAttributeCallbacks(angle_platform_attributes, nullptr, nullptr, nullptr);
+#endif
 
 	auto config = config_app::get_app_config();
 

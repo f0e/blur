@@ -121,7 +121,7 @@
 //---- Use 32-bit vertex indices (default is 16-bit) is one way to allow large meshes with more than 64K vertices.
 // Your renderer backend will need to support it (most example renderer backends support both 16/32-bit indices).
 // Another way to allow large meshes while keeping 16-bit indices is to handle ImDrawCmd::VtxOffset in your renderer.
-// ANGLE's OpenGL ES 3 backend has no glDrawElementsBaseVertex(), so it cannot use that path.
+// OpenGL ES 3.0 has no glDrawElementsBaseVertex(), so the OpenGL ES 3 backend cannot use that path.
 #define ImDrawIdx unsigned int
 
 //---- Override ImDrawCallback signature (will need to modify renderer backends accordingly)
