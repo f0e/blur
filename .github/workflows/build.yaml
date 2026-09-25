@@ -58,14 +58,6 @@ jobs:
       #     ccache -z  # zero stats so we can see hit rate in logs
 
       # ── Linux setup ───────────────────────────────────────────────────────
-      - name: Cache apt packages
-        if: runner.os == 'Linux'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: /var/cache/apt/archives
-          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yaml') }}
-          restore-keys: apt-${{ runner.os }}-
-
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
