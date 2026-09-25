@@ -31,3 +31,5 @@ vcpkg_installed/
 !.gitkeep
 
 .cache/
+
+/dist/

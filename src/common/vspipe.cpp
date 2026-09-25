@@ -4,7 +4,7 @@
 #	include "config_app.h"
 #endif
 
-#ifdef __APPLE__
+#ifndef _WIN32
 namespace {
 	std::filesystem::path get_config_home() {
 		return blur.settings_path / "vapoursynth-config";
@@ -51,11 +51,12 @@ boost::process::environment vspipe::setup_environment() {
 		env["VAPOURSYNTH_EXTRA_PLUGIN_PATH"] = u::path_to_string(blur.resources_path / "lib/vapoursynth/vs-plugins");
 #endif
 
-#ifdef __APPLE__
+#ifndef _WIN32
 	if (blur.used_installer) {
 		env["PYTHONHOME"] = (blur.resources_path / "python").native();
 		env["PYTHONPATH"] = (blur.resources_path / "python/lib/python3.12/site-packages").native();
 		env["XDG_CONFIG_HOME"] = get_config_home().native();
+		return env;
 	}
 #endif
 
@@ -89,8 +90,7 @@ std::vector<std::string> vspipe::get_args(
 #if defined(__APPLE__)
 	add_script_arg(std::format("macos_bundled={}", blur.used_installer ? "true" : "false"));
 #elif defined(__linux__)
-	bool bundled = std::filesystem::exists(blur.resources_path / "vapoursynth-plugins");
-	add_script_arg(std::format("linux_bundled={}", bundled ? "true" : "false"));
+	add_script_arg(std::format("linux_bundled={}", blur.used_installer ? "true" : "false"));
 #endif
 
 	args.push_back(u::path_to_string(blur.resources_path / "lib" / script));

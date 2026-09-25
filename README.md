@@ -16,7 +16,7 @@ Join the [Discord](https://discord.gg/B5BK9GMN87) to share your configs, render 
 
 - [Windows installer](https://github.com/f0e/blur/releases/latest/download/blur-Windows-Installer-x64.exe)
 - [macOS installer](https://github.com/f0e/blur/releases/latest/download/blur-macOS-Release-arm64.dmg)
-- [Linux (requires manual installation of dependencies)](https://github.com/f0e/blur/releases/latest/download/blur-Linux-Release-x64.tar.gz)
+- [Linux AppImage](https://github.com/f0e/blur/releases/latest/download/blur-Linux-x64.AppImage)
 
 ### Beta releases
 
@@ -30,7 +30,11 @@ I often release beta versions with new functionality before I think they're stab
 
 ### Linux notes
 
-Requires manual installation of dependencies. [See here for the list of dependencies.](#linux-dependency-requirements)
+Make the AppImage executable with `chmod +x blur-Linux-x64.AppImage`, then run it. Everything it needs is bundled. It runs on distros from around 2022 onwards (glibc 2.35+, e.g. Ubuntu 22.04, Debian 12, Fedora 36).
+
+To use the command line version, run `./blur-Linux-x64.AppImage cli <args>`, or symlink the AppImage as `blur-cli`.
+
+If it won't start because FUSE isn't available (e.g. in a container), run it with `--appimage-extract-and-run`.
 
 ## Features
 
@@ -91,23 +95,6 @@ If your footage contains duplicate frames then occasionally blurred frames will 
 
 Blur supports rendering from frameservers. This means you can avoid having to run blur on your input videos when video editing. When rendering, simply output (make sure your project is high framerate) to the frameserver and then drag the generated AVI into blur. Note that some video editing software might limit the maximum project framerate.
 
-## Linux dependency requirements
-
-- FFmpeg
-- FFprobe
-- mpv (for libmpv)
-
-On Arch: `sudo pacman -S ffmpeg mpv`
-
-- VapourSynth (R79)
-
-I recommend installing VapourSynth via `pipx`:
-
-```
-pipx install vapoursynth==79
-pipx inject vapoursynth numpy
-pipx ensurepath
-```
 ---
 
 \*in the future I might buy a dev cert, but $99 a year atm doesn't seem worth it 😅

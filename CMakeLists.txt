@@ -65,6 +65,11 @@ project(blur VERSION 3.0.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# link the c++ runtime statically, so builds run on distros whose libstdc++ is older than the compiler's
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_link_options(-static-libstdc++ -static-libgcc)
+endif()
 set(
   CMAKE_RUNTIME_OUTPUT_DIRECTORY
   ${PROJECT_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}
