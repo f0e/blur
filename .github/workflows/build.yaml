@@ -6,6 +6,10 @@ env:
   MPV_VERSION: "20260118-git-468d34c"
   MPV_SHA256: "0a538daa4fb6e6550ead2c345165ebc4696822dcb648ef9b80e9f5185a9e63e6"
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -48,7 +52,6 @@ jobs:
       #       ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-
 
       # - name: Configure ccache
-      #   shell: bash
       #   run: |
       #     ccache --set-config=max_size=500M
       #     ccache --set-config=compression=true
@@ -156,7 +159,6 @@ jobs:
           mv libmpv-2.dll mpv/libmpv-2.dll
           mv libmpv-2.def mpv.def
           mv mpv.def libmpv.dll.a mpv/
-        shell: bash
 
       - name: Collect dependencies (Linux)
         if: runner.os == 'Linux' && steps.deps-cache-linux.outputs.cache-hit != 'true'
@@ -166,7 +168,6 @@ jobs:
 
       # ── vcpkg ─────────────────────────────────────────────────────────────
       - name: Set up vcpkg
-        shell: bash
         run: |
           git clone https://github.com/microsoft/vcpkg.git
           cd vcpkg
@@ -174,7 +175,6 @@ jobs:
 
       - name: Get vcpkg commit hash
         id: vcpkg-commit
-        shell: bash
         run: echo "hash=$(git -C vcpkg rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Cache vcpkg packages
@@ -192,7 +192,6 @@ jobs:
       # ── Build ─────────────────────────────────────────────────────────────
       - name: Determine CMake Preset
         id: select-preset
-        shell: bash
         run: |
           if [ "${{ runner.os }}" == "Windows" ]; then
             prefix="win"
@@ -223,7 +222,6 @@ jobs:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
       # - name: Print ccache stats
-      #   shell: bash
       #   run: ccache -s
 
       # ── Package ───────────────────────────────────────────────────────────
@@ -244,7 +242,6 @@ jobs:
 
       - name: Prepare Binaries
         id: prep
-        shell: bash
         run: |
           # Set up variables
           build_dir="bin/${{ matrix.build-type }}"
