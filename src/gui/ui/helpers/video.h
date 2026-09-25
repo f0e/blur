@@ -91,28 +91,22 @@ public:
 	}
 
 	void seek(float time, bool exact) {
-		{
-			std::lock_guard<std::mutex> lock(m_mutex);
-			m_queued_seek = Seek{
+		queue_seek(
+			Seek{
 				.time = time,
 				.exact = exact,
-			};
-			m_cached_percent_pos = -1.0;
-		}
-		m_seek_cv.notify_one();
+			}
+		);
 	}
 
 	void seek_to_time(float seconds) {
-		{
-			std::lock_guard<std::mutex> lock(m_mutex);
-			m_queued_seek = Seek{
+		queue_seek(
+			Seek{
 				.time = seconds,
 				.exact = true,
 				.absolute_time = true,
-			};
-			m_cached_percent_pos = -1.0;
-		}
-		m_seek_cv.notify_one();
+			}
+		);
 	}
 
 	void set_hardware_decoding(bool hardware_decoding) {
@@ -173,8 +167,7 @@ public:
 		update_playback_range();
 	}
 
-	std::optional<Seek> get_queued_seek() {
-		std::lock_guard<std::mutex> lock(m_mutex);
+	[[nodiscard]] std::optional<Seek> get_queued_seek() const {
 		return m_queued_seek;
 	}
 
@@ -206,13 +199,9 @@ private:
 
 	bool m_hardware_decoding;
 
-	std::mutex m_mutex;
-	std::condition_variable m_seek_cv;
 	std::optional<Seek> m_queued_seek;
+	bool m_is_seeking = false;
 
-	std::thread m_mpv_thread;
-	std::atomic<bool> m_thread_exit{ false };
-	std::atomic<bool> m_is_seeking{ false };
 	std::atomic<bool> m_new_frame_available{ false };
 	std::atomic<bool> m_has_frame{ false };
 	std::atomic<double> m_cached_percent_pos{ -1.0 };
@@ -231,7 +220,9 @@ private:
 
 	void initialize_mpv(float volume);
 
-	void mpv_thread();
+	void queue_seek(const Seek& seek);
+
+	void send_queued_seek();
 
 	void on_mpv_events();
 
@@ -259,7 +250,7 @@ private:
 		return data;
 	}
 
-	void run_command_impl(const std::vector<std::string>& command, bool async) {
+	void run_command_async(const std::vector<std::string>& command, uint64_t reply_userdata = 0) {
 		if (!m_mpv)
 			return;
 
@@ -271,19 +262,6 @@ private:
 		}
 		cmd.push_back(nullptr);
 
-		if (async) {
-			mpv_command_async(m_mpv, 0, cmd.data());
-		}
-		else {
-			mpv_command(m_mpv, cmd.data());
-		}
-	}
-
-	void run_command_async(const std::vector<std::string>& command) {
-		run_command_impl(command, true);
-	}
-
-	void run_command(const std::vector<std::string>& command) {
-		run_command_impl(command, false);
+		mpv_command_async(m_mpv, reply_userdata, cmd.data());
 	}
 };

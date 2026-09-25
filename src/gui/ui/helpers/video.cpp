@@ -2,13 +2,9 @@
 #include "../../render/render.h"
 
 const int SEEK_SECS = 3;
+const uint64_t SEEK_REPLY_ID = 1;
 
 VideoPlayer::~VideoPlayer() {
-	m_thread_exit = true;
-	if (m_mpv_thread.joinable())
-		m_mpv_thread.join();
-	m_seek_cv.notify_one();
-
 	// clean up opengl resources
 	if (m_tex) {
 		glDeleteTextures(1, &m_tex);
@@ -318,38 +314,31 @@ void VideoPlayer::initialize_mpv(float volume) {
 		},
 		this
 	);
-
-	m_thread_exit = false;
-	m_mpv_thread = std::thread(&VideoPlayer::mpv_thread, this);
 }
 
-void VideoPlayer::mpv_thread() {
-	while (!blur.exiting && !m_thread_exit) {
-		std::unique_lock<std::mutex> lock(m_mutex);
+void VideoPlayer::queue_seek(const Seek& seek) {
+	m_queued_seek = seek;
+	m_cached_percent_pos = -1.0;
 
-		m_seek_cv.wait_for(lock, std::chrono::milliseconds(50), [this] {
-			return (m_queued_seek.has_value() && !m_is_seeking) || m_thread_exit || blur.exiting;
-		});
+	send_queued_seek();
+}
 
-		if (!m_mpv || !m_loaded_file) {
-			continue;
-		}
+// only one seek is in flight at a time, newer ones replace the queued one until it finishes
+void VideoPlayer::send_queued_seek() {
+	if (!m_queued_seek || m_is_seeking || !m_loaded_file)
+		return;
 
-		if (m_queued_seek && !m_is_seeking) {
-			auto seek = *m_queued_seek;
-			m_queued_seek.reset();
-			m_is_seeking = true;
-			lock.unlock();
+	auto seek = *m_queued_seek;
+	m_queued_seek = {};
+	m_is_seeking = true;
 
-			std::string flags = seek.absolute_time ? "absolute" : "absolute-percent";
-			if (seek.exact)
-				flags += "+exact";
+	std::string flags = seek.absolute_time ? "absolute" : "absolute-percent";
+	if (seek.exact)
+		flags += "+exact";
 
-			run_command({ "seek", std::to_string(seek.absolute_time ? seek.time : seek.time * 100), flags });
-
-			// mpv_set_property_async(m_mpv, 0, "percent-pos", MPV_FORMAT_DOUBLE, &seek_to);
-		}
-	}
+	run_command_async(
+		{ "seek", std::to_string(seek.absolute_time ? seek.time : seek.time * 100), flags }, SEEK_REPLY_ID
+	);
 }
 
 void VideoPlayer::on_mpv_events() {
@@ -398,12 +387,22 @@ void VideoPlayer::process_mpv_events() {
 				u::log("MPV: Video reconfigured");
 				// video is now ready to render
 				m_loaded_file = m_current_file_path;
+				send_queued_seek();
 				break;
 			}
 			case MPV_EVENT_PLAYBACK_RESTART: {
 				u::log("MPV: Playback restarted");
 				m_is_seeking = false;
-				m_seek_cv.notify_one();
+				send_queued_seek();
+				break;
+			}
+			case MPV_EVENT_COMMAND_REPLY: {
+				// a failed seek never restarts playback, so it has to be cleared here
+				if (mp_event->reply_userdata == SEEK_REPLY_ID && mp_event->error < 0) {
+					u::log_error("MPV: Seek failed: {}", mpv_error_string(mp_event->error));
+					m_is_seeking = false;
+					send_queued_seek();
+				}
 				break;
 			}
 			case MPV_EVENT_END_FILE: {
