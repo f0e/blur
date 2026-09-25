@@ -375,7 +375,16 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
+          # create it as a draft so it isn't public until every asset is uploaded
+          created=false
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --verify-tag --title "$TAG" --notes ""
+            gh release create "$TAG" --verify-tag --draft --title "$TAG" --notes ""
+            created=true
           fi
+
           gh release upload "$TAG" bundle/* --clobber
+
+          # leave releases made by hand as they were
+          if [[ "$created" == true ]]; then
+            gh release edit "$TAG" --draft=false
+          fi
