@@ -6,6 +6,7 @@
 #include "ui/ui.h"
 #include "components/notifications.h"
 #include "components/configs/configs.h"
+#include "components/configs/preview_frames.h"
 #include "os/taskbar.h"
 
 #define DEBUG_RENDER_LOGGING 0
@@ -136,6 +137,7 @@ int gui::run() {
 			}
 
 			ui::handle_videos_event(event, to_render);
+			gui::components::configs::preview_frames::handle_event(event, to_render);
 
 			if (keys::process_event(event)) {
 				ui::on_update_input_start();

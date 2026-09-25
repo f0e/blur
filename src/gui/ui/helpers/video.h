@@ -6,8 +6,9 @@
 #include <optional>
 
 struct Seek {
-	float time;
+	float time; // a percentage of the video, or seconds when absolute_time is set
 	bool exact;
+	bool absolute_time = false;
 
 	bool operator==(const Seek& other) const = default;
 };
@@ -36,14 +37,13 @@ public:
 
 	void handle_key_press(SDL_Keycode key);
 
-	void load_file(const std::filesystem::path& file_path);
+	void load_file(const std::filesystem::path& file_path, std::optional<float> start_time = {});
 	void stop();
 
 	bool render(int w, int h);
 
-	[[nodiscard]] GLuint get_frame_texture_for_render() const {
-		return m_tex;
-	}
+	// renders the current frame at the rect's size and draws it there. false when there's nothing to draw yet
+	bool draw(const gfx::Rect& rect, const gfx::Color& tint);
 
 	void handle_mpv_event(const SDL_Event& event, bool& redraw, bool should_render);
 
@@ -85,12 +85,30 @@ public:
 		return m_loaded_file.has_value();
 	}
 
+	// mpv reports the video ready before it's decoded anything, drawing it before this is a black frame
+	[[nodiscard]] bool has_frame() const {
+		return is_video_ready() && m_has_frame;
+	}
+
 	void seek(float time, bool exact) {
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);
 			m_queued_seek = Seek{
 				.time = time,
 				.exact = exact,
+			};
+			m_cached_percent_pos = -1.0;
+		}
+		m_seek_cv.notify_one();
+	}
+
+	void seek_to_time(float seconds) {
+		{
+			std::lock_guard<std::mutex> lock(m_mutex);
+			m_queued_seek = Seek{
+				.time = seconds,
+				.exact = true,
+				.absolute_time = true,
 			};
 			m_cached_percent_pos = -1.0;
 		}
@@ -196,6 +214,7 @@ private:
 	std::atomic<bool> m_thread_exit{ false };
 	std::atomic<bool> m_is_seeking{ false };
 	std::atomic<bool> m_new_frame_available{ false };
+	std::atomic<bool> m_has_frame{ false };
 	std::atomic<double> m_cached_percent_pos{ -1.0 };
 	std::atomic<double> m_cached_duration{ -1.0 };
 	std::atomic<double> m_cached_fps{ -1.0 };
