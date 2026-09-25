@@ -1,5 +1,5 @@
 #include "videos.h"
-#include "../frame_snap.h"
+#include "../../helpers/frame_snap.h"
 #include "../../keys.h"
 #include "../../../render/render.h"
 
