@@ -160,13 +160,6 @@ public:
 		return m_current_file_path;
 	}
 
-	// std::optional<Seek> get_seek() {
-	// 	std::lock_guard<std::mutex> lock(m_mutex);
-	// 	if (m_queued_seek)
-	// 		return m_queued_seek;
-	// 	return m_last_seek;
-	// }
-
 private:
 	mpv_handle* m_mpv = nullptr;
 	mpv_render_context* m_mpv_gl = nullptr;

@@ -242,8 +242,7 @@ void VideoPlayer::initialize_mpv(float volume) {
 	mpv_set_option_string(m_mpv, "keep-open", "yes"); // dont close when finished
 	mpv_set_option_string(m_mpv, "pause", "yes");
 	mpv_set_option_string(m_mpv, "volume", std::format("{:.2f}", volume).c_str());
-	// mpv_set_option_string(m_mpv, "mute", "yes");
-	//
+
 	mpv_observe_property(m_mpv, 0, "percent-pos", MPV_FORMAT_DOUBLE);
 	mpv_observe_property(m_mpv, 0, "duration/full", MPV_FORMAT_DOUBLE);
 	mpv_observe_property(m_mpv, 0, "container-fps", MPV_FORMAT_DOUBLE);
