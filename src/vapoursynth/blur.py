@@ -94,13 +94,25 @@ def main():
         source_plugin = "BestSource"
 
     if source_plugin == "LWLibavSource":
-        video = core.lsmas.LWLibavSource(
-            source=video_path,
-            cache=0,
-            prefer_hw=3 if settings["gpu_decoding"] else 0,
-            fpsnum=fps_num if fps_num != -1 else None,
-            fpsden=fps_den if fps_den != -1 else None,
-        )
+
+        def lwlibav_source(prefer_hw: int):
+            return core.lsmas.LWLibavSource(
+                source=video_path,
+                cache=0,
+                prefer_hw=prefer_hw,
+                fpsnum=fps_num if fps_num != -1 else None,
+                fpsden=fps_den if fps_den != -1 else None,
+            )
+
+        if settings["gpu_decoding"]:
+            # lsmas errors instead of falling back when the gpu can't decode the codec (e.g. av1 on older macs)
+            try:
+                video = lwlibav_source(3)
+            except vs.Error as e:
+                log.info(f"GPU decoding failed ({e}), falling back to CPU decoding")
+                video = lwlibav_source(0)
+        else:
+            video = lwlibav_source(0)
 
         # LWLibavSource doesn't respect mp4 edit lists, so negative pts preroll frames get decoded as real content instead of being skipped.
         # fix this by trimming those frames manually
