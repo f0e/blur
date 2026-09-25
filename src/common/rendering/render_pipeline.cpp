@@ -264,12 +264,6 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 			DEBUG_LOG("FFmpeg: {} {}", blur.ffmpeg_path, u::join(commands.ffmpeg, " "));
 		}
 
-		std::thread vspipe_stderr_thread(
-			pump_vspipe_stderr, std::ref(vspipe_stderr), state, std::ref(vspipe_errors), progress_callback
-		);
-		std::thread ffmpeg_stderr_thread(pump_ffmpeg_stderr, std::ref(ffmpeg_stderr), std::ref(ffmpeg_errors));
-		std::thread ffmpeg_stdout_thread(extract_jpeg_stream, std::ref(ffmpeg_stdout), state);
-
 		// tensorrt spawns trtexec as a grandchild, so group to terminate it as well
 		bp::group vspipe_group;
 
@@ -283,6 +277,19 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 		                           // subprocess.run(stdout=sys.stderr) in rife-trt (FUN!)
 			vspipe_group
 		);
+
+		auto spawn_error = [](const std::string& details) {
+			return tl::unexpected(
+				RenderError{
+					.user_message = "Failed to start rendering",
+					.technical_details = details,
+					.is_blur_exception = false,
+				}
+			);
+		};
+
+		if (!vspipe_process)
+			return spawn_error(vspipe_process.error());
 
 		auto ffmpeg_process =
 			state->preview_capture_enabled()
@@ -298,18 +305,30 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 					  blur.ffmpeg_path, commands.ffmpeg, env, bp::std_err > ffmpeg_stderr, bp::std_in < vspipe_stdout
 				  );
 
+		if (!ffmpeg_process) {
+			u::safe_terminate(vspipe_group);
+			return spawn_error(ffmpeg_process.error());
+		}
+
+		// only once both have spawned - if either throws, joinable threads going out of scope would terminate the app
+		std::thread vspipe_stderr_thread(
+			pump_vspipe_stderr, std::ref(vspipe_stderr), state, std::ref(vspipe_errors), progress_callback
+		);
+		std::thread ffmpeg_stderr_thread(pump_ffmpeg_stderr, std::ref(ffmpeg_stderr), std::ref(ffmpeg_errors));
+		std::thread ffmpeg_stdout_thread(extract_jpeg_stream, std::ref(ffmpeg_stdout), state);
+
 		bool killed = false;
-		while (ffmpeg_process.running()) {
+		while (ffmpeg_process->running()) {
 			if (state->wants_stop() || blur.exiting) {
 				u::safe_terminate(vspipe_group);
-				u::safe_terminate(ffmpeg_process);
+				u::safe_terminate(*ffmpeg_process);
 				killed = true;
 				break;
 			}
 
 			if (state->wants_pause() != state->is_paused()) {
 				auto fn = state->wants_pause() ? suspend_render : resume_render;
-				fn(vspipe_process.id(), state);
+				fn(vspipe_process->id(), state);
 			}
 
 			std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -332,15 +351,15 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 			return PipelineResult{ .stopped = true };
 
 		std::error_code wait_ec;
-		vspipe_process.wait(wait_ec);
+		vspipe_process->wait(wait_ec);
 
 		// anything the script only hits once it's rendering - a plugin that won't run on this machine, a source
 		// that fails partway - throws when a frame is asked for, by which point vspipe has already written the
 		// y4m header. ffmpeg then muxes a file with zero video frames in it and exits 0 quite happily (the mp4
 		// muxer drops the empty track entirely), so vspipe's exit code is the only sign anything went wrong
-		bool vspipe_failed = !commands.ffmpeg_stops_early && vspipe_process.exit_code() != 0;
+		bool vspipe_failed = !commands.ffmpeg_stops_early && vspipe_process->exit_code() != 0;
 
-		if (vspipe_failed || ffmpeg_process.exit_code() != 0) {
+		if (vspipe_failed || ffmpeg_process->exit_code() != 0) {
 			return tl::unexpected(assemble_render_error(vspipe_errors.str(), ffmpeg_errors.str()));
 		}
 
