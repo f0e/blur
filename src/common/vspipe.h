@@ -1,6 +1,10 @@
 #pragma once
 
 namespace vspipe {
+#ifdef __APPLE__
+	void configure();
+#endif
+
 	boost::process::environment setup_environment();
 
 	std::vector<std::string> get_args(

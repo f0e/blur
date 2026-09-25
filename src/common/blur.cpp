@@ -11,6 +11,7 @@
 #include "config_rules.h"
 #include "masks.h"
 #include "paths.h"
+#include "vspipe.h"
 
 tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_preview) {
 	resources_path = paths::get_resources_path();
@@ -52,9 +53,9 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 	// todo
 	used_installer = false;
 #elif defined(__APPLE__)
-	// @TODO: validate correctness now that we've updated vapoursynth version
-	used_installer = std::filesystem::exists(resources_path / "vapoursynth/vspipe") &&
-	                 std::filesystem::exists(resources_path / "ffmpeg/ffmpeg");
+	used_installer =
+		std::filesystem::exists(resources_path / "python/lib/python3.12/site-packages/vapoursynth/vspipe") &&
+		std::filesystem::exists(resources_path / "ffmpeg/ffmpeg");
 #endif
 
 	if (used_installer) {
@@ -65,8 +66,7 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 #elif defined(__linux__)
 		// todo
 #elif defined(__APPLE__)
-		// @TODO: validate correctness now that we've updated vapoursynth version
-		vspipe_path = (blur.resources_path / "vapoursynth/vspipe");
+		vspipe_path = (blur.resources_path / "python/lib/python3.12/site-packages/vapoursynth/vspipe");
 		ffmpeg_path = (blur.resources_path / "ffmpeg/ffmpeg");
 		ffprobe_path = (blur.resources_path / "ffmpeg/ffprobe");
 #endif
@@ -125,6 +125,10 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 
 	if (atexit_res != 0)
 		DEBUG_LOG("failed to register atexit");
+
+#ifdef __APPLE__
+	vspipe::configure();
+#endif
 
 	initialised = true;
 
