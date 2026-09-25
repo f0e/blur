@@ -417,38 +417,38 @@ void VideoPlayer::process_mpv_events() {
 			case MPV_EVENT_PROPERTY_CHANGE: {
 				auto* prop = static_cast<mpv_event_property*>(mp_event->data);
 
-				if (prop->format == MPV_FORMAT_NONE)
-					break;
+				// unavailable properties (e.g. between files) go back to their unset values
+				bool available = prop->format != MPV_FORMAT_NONE;
 
 				const char* name = prop->name;
 
-				if (std::strcmp(name, "percent-pos") == 0 && prop->format == MPV_FORMAT_DOUBLE) {
-					m_cached_percent_pos = *static_cast<double*>(prop->data);
+				if (std::strcmp(name, "percent-pos") == 0) {
+					m_cached_percent_pos = available ? *static_cast<double*>(prop->data) : -1.0;
 				}
-				else if (std::strcmp(name, "duration/full") == 0 && prop->format == MPV_FORMAT_DOUBLE) {
-					m_cached_duration = *static_cast<double*>(prop->data);
+				else if (std::strcmp(name, "duration/full") == 0) {
+					m_cached_duration = available ? *static_cast<double*>(prop->data) : -1.0;
 
 					// note: this might not be the 'correct' place to do this, but it needs to be called once
 					// as early as possible & requires the duration to be loaded.
 					// since duration is set here and it should only happen once, seems good enough.
 					update_playback_range();
 				}
-				else if (std::strcmp(name, "container-fps") == 0 && prop->format == MPV_FORMAT_DOUBLE) {
-					m_cached_fps = *static_cast<double*>(prop->data);
+				else if (std::strcmp(name, "container-fps") == 0) {
+					m_cached_fps = available ? *static_cast<double*>(prop->data) : 0.0;
 
 					// the range end depends on fps too, which can arrive after the duration
 					update_playback_range();
 				}
-				else if (std::strcmp(name, "pause") == 0 && prop->format == MPV_FORMAT_FLAG) {
-					m_cached_pause = *static_cast<int*>(prop->data) != 0;
+				else if (std::strcmp(name, "pause") == 0) {
+					m_cached_pause = !available || *static_cast<int*>(prop->data) != 0;
 				}
-				else if (std::strcmp(name, "dwidth") == 0 && prop->format == MPV_FORMAT_INT64) {
-					m_cached_width = *static_cast<int64_t*>(prop->data);
+				else if (std::strcmp(name, "dwidth") == 0) {
+					m_cached_width = available ? *static_cast<int64_t*>(prop->data) : 0;
 				}
-				else if (std::strcmp(name, "dheight") == 0 && prop->format == MPV_FORMAT_INT64) {
-					m_cached_height = *static_cast<int64_t*>(prop->data);
+				else if (std::strcmp(name, "dheight") == 0) {
+					m_cached_height = available ? *static_cast<int64_t*>(prop->data) : 0;
 				}
-				else if (std::strcmp(name, "hwdec-current") == 0 && prop->format == MPV_FORMAT_STRING) {
+				else if (std::strcmp(name, "hwdec-current") == 0 && available) {
 					const char* hwdec = *static_cast<char**>(prop->data);
 					u::log("MPV: hardware decoder: {}", hwdec ? hwdec : "unknown");
 				}
