@@ -135,8 +135,16 @@ jobs:
           cd ci
           pwsh build-dependencies-windows.ps1
 
-      - name: Download libmpv (Windows)
+      - name: Cache libmpv (Windows)
+        id: libmpv-cache
         if: runner.os == 'Windows'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: mpv
+          key: libmpv-${{ runner.os }}-${{ env.MPV_VERSION }}-${{ env.MPV_SHA256 }}
+
+      - name: Download libmpv (Windows)
+        if: runner.os == 'Windows' && steps.libmpv-cache.outputs.cache-hit != 'true'
         run: |
           curl -L https://sourceforge.net/projects/mpv-player-windows/files/libmpv/mpv-dev-x86_64-v3-${{ env.MPV_VERSION }}.7z/download > mpv.7z
           echo "${{ env.MPV_SHA256 }}  mpv.7z" | sha256sum -c
