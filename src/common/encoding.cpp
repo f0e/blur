@@ -28,14 +28,19 @@ namespace {
 			bp::std_err > error_stream
 		);
 
-		std::string line;
-		if (std::getline(error_stream, line)) {
-			// any error output means the device is not available
-			c.terminate();
+		if (!c) {
+			u::log_error("failed to test hardware device {}: {}", device_type, c.error());
 			return false;
 		}
 
-		c.wait();
+		std::string line;
+		if (std::getline(error_stream, line)) {
+			// any error output means the device is not available
+			c->terminate();
+			return false;
+		}
+
+		c->wait();
 		return true;
 	}
 
@@ -114,9 +119,14 @@ namespace {
 			bp::std_err > error_stream
 		);
 
-		c.wait();
+		if (!c) {
+			u::log_error("failed to test codec {}: {}", codec, c.error());
+			return false;
+		}
 
-		return c.exit_code() == 0;
+		c->wait();
+
+		return c->exit_code() == 0;
 	}
 
 	std::set<std::string> get_available_codecs(const std::set<std::string>& codecs) {

@@ -18,6 +18,11 @@ namespace {
 			vspipe::setup_environment()
 		);
 
+		if (!c) {
+			u::log_error("failed to list {} devices: {}", type, c.error());
+			return {};
+		}
+
 		std::map<int, std::string> device_list;
 
 		if (type == "rife") {
@@ -45,7 +50,7 @@ namespace {
 			}
 		}
 
-		c.wait();
+		c->wait();
 
 		// devices are picked by name, so identical gpus need telling apart
 		std::map<std::string, int> name_counts;
@@ -76,20 +81,25 @@ namespace {
 			vspipe::setup_environment()
 		);
 
+		if (!c) {
+			u::log_error("failed to test svp gpu: {}", c.error());
+			return false;
+		}
+
 		// configs wait on this, so a driver that hangs can't be allowed to hold them up forever
 		auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
-		while (c.running()) {
+		while (c->running()) {
 			if (std::chrono::steady_clock::now() >= deadline) {
-				u::safe_terminate(c);
+				u::safe_terminate(*c);
 				return false;
 			}
 
 			std::this_thread::sleep_for(std::chrono::milliseconds(50));
 		}
 
-		c.wait();
+		c->wait();
 
-		return c.exit_code() == 0;
+		return c->exit_code() == 0;
 #endif
 	}
 
@@ -123,12 +133,17 @@ namespace {
 				vspipe::setup_environment()
 			);
 
+			if (!c) {
+				u::log_error("failed to benchmark {} device {}: {}", type, index, c.error());
+				continue;
+			}
+
 			auto statuses = script_status::read_all(err_stream);
 
-			c.wait();
+			c->wait();
 
-			if (c.exit_code() != 0) {
-				u::log("{} device {} failed the benchmark (exit code {})", type, index, c.exit_code());
+			if (c->exit_code() != 0) {
+				u::log("{} device {} failed the benchmark (exit code {})", type, index, c->exit_code());
 				continue;
 			}
 

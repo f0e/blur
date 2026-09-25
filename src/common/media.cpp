@@ -34,8 +34,13 @@ namespace {
 			bp::std_err.null()
 		);
 
+		if (!c) {
+			u::log_error("failed to get preroll frames: {}", c.error());
+			return 0;
+		}
+
 		std::string output(std::istreambuf_iterator<char>(pipe_stream), {});
-		c.wait();
+		c->wait();
 
 		const auto j = nlohmann::json::parse(output);
 
@@ -75,9 +80,14 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 		bp::std_err.null()
 	);
 
+	if (!c) {
+		u::log_error("failed to get video info: {}", c.error());
+		return {};
+	}
+
 	std::string output(std::istreambuf_iterator<char>(pipe_stream), {});
 
-	c.wait();
+	c->wait();
 
 	DEBUG_LOG("[ffprobe] {}", output);
 
@@ -181,6 +191,11 @@ std::vector<uint8_t> media::get_video_frame_jpeg(const std::filesystem::path& pa
 		bp::std_err.null()
 	);
 
+	if (!c) {
+		u::log_error("failed to get video frame: {}", c.error());
+		return {};
+	}
+
 	std::vector<uint8_t> jpeg;
 	std::array<char, 4096> buffer{};
 
@@ -188,9 +203,9 @@ std::vector<uint8_t> media::get_video_frame_jpeg(const std::filesystem::path& pa
 		jpeg.insert(jpeg.end(), buffer.data(), buffer.data() + pipe_stream.gcount());
 	}
 
-	c.wait();
+	c->wait();
 
-	if (c.exit_code() != 0)
+	if (c->exit_code() != 0)
 		return {};
 
 	return jpeg;

@@ -403,20 +403,25 @@ namespace u {
 	// will automatically fix exe path & args to be wide on windows. if you dont do that it doesnt work with unicode
 	// paths
 	template<typename... Args>
-	inline boost::process::child run_command(
+	inline tl::expected<boost::process::child, std::string> run_command(
 		const std::filesystem::path& exe_path, const std::vector<std::string>& args, Args&&... bp_args
 	) {
 		boost::filesystem::path boost_path(exe_path);
 
+		try {
 #ifdef _WIN32
-		auto wide_args = make_bp_args(args);
+			auto wide_args = make_bp_args(args);
 
-		return boost::process::child(
-			boost_path, wide_args, boost::process::windows::create_no_window, std::forward<Args>(bp_args)...
-		);
+			return boost::process::child(
+				boost_path, wide_args, boost::process::windows::create_no_window, std::forward<Args>(bp_args)...
+			);
 #else
-		return boost::process::child(boost_path, args, std::forward<Args>(bp_args)...);
+			return boost::process::child(boost_path, args, std::forward<Args>(bp_args)...);
 #endif
+		}
+		catch (const boost::process::process_error& e) {
+			return tl::unexpected(std::format("failed to run {}: {}", path_to_string(exe_path), e.what()));
+		}
 	}
 
 	// kill a boost process child or group without throwing.

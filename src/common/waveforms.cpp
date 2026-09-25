@@ -35,6 +35,11 @@ namespace {
 			bp::std_err.null()
 		);
 
+		if (!c) {
+			u::log_error("failed to get waveform: {}", c.error());
+			return {};
+		}
+
 		std::vector<char> buffer(4096);
 		std::vector<int16_t> raw_samples;
 

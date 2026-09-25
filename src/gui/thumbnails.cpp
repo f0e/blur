@@ -53,9 +53,13 @@ namespace {
 		);
 
 		auto c = u::run_command(blur.ffmpeg_path, ffmpeg_args, bp::std_out > pipe_stream, bp::std_err > stdout);
+		if (!c) {
+			u::log_error("failed to get thumbnail: {}", c.error());
+			return nullptr;
+		}
 
 		std::vector<char> buffer{ std::istreambuf_iterator<char>(pipe_stream), std::istreambuf_iterator<char>() };
-		c.wait();
+		c->wait();
 
 		if (buffer.empty())
 			return nullptr;
