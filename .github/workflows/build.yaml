@@ -23,7 +23,37 @@ defaults:
     shell: bash
 
 jobs:
+  check-version:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check version matches tag
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          # join project()'s lines so VERSION is found wherever it's wrapped
+          version=$(awk '/^project\(/,/\)/' CMakeLists.txt | tr '\n' ' ' | sed -nE 's/.*[[:space:](]VERSION[[:space:]]+([^[:space:])]+).*/\1/p')
+
+          if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "project version '$version' isn't semver (MAJOR.MINOR.PATCH)" >&2
+            exit 1
+          fi
+
+          if [[ "v$version" != "$TAG" ]]; then
+            echo "project version '$version' doesn't match tag '$TAG'" >&2
+            exit 1
+          fi
+
   build:
+    needs: check-version
     runs-on: ${{ matrix.os }}
     # generous enough for a cold vcpkg cache (angle builds from source)
     timeout-minutes: 180
