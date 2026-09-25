@@ -70,10 +70,6 @@ public:
 		return {};
 	}
 
-	[[nodiscard]] std::optional<bool> get_paused() const {
-		return m_cached_pause.load();
-	}
-
 	[[nodiscard]] std::optional<double> get_duration() const {
 		if (m_cached_duration >= 0.0)
 			return m_cached_duration.load();
@@ -196,7 +192,6 @@ private:
 	std::atomic<double> m_cached_percent_pos{ -1.0 };
 	std::atomic<double> m_cached_duration{ -1.0 };
 	std::atomic<double> m_cached_fps{ 0.0 };
-	std::atomic<bool> m_cached_pause{ true };
 	std::atomic<int64_t> m_cached_width{ 0 };
 	std::atomic<int64_t> m_cached_height{ 0 };
 

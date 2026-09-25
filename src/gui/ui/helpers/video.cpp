@@ -71,7 +71,6 @@ void VideoPlayer::reset_loaded_file() {
 	m_cached_percent_pos = -1.0;
 	m_cached_duration = -1.0;
 	m_cached_fps = 0.0;
-	m_cached_pause = true;
 	m_cached_width = 0;
 	m_cached_height = 0;
 }
@@ -248,7 +247,6 @@ void VideoPlayer::initialize_mpv(float volume) {
 	mpv_observe_property(m_mpv, 0, "percent-pos", MPV_FORMAT_DOUBLE);
 	mpv_observe_property(m_mpv, 0, "duration/full", MPV_FORMAT_DOUBLE);
 	mpv_observe_property(m_mpv, 0, "container-fps", MPV_FORMAT_DOUBLE);
-	mpv_observe_property(m_mpv, 0, "pause", MPV_FORMAT_FLAG);
 	mpv_observe_property(m_mpv, 0, "dwidth", MPV_FORMAT_INT64);
 	mpv_observe_property(m_mpv, 0, "dheight", MPV_FORMAT_INT64);
 	mpv_observe_property(m_mpv, 0, "hwdec-current", MPV_FORMAT_STRING);
@@ -438,9 +436,6 @@ void VideoPlayer::process_mpv_events() {
 
 					// the range end depends on fps too, which can arrive after the duration
 					update_playback_range();
-				}
-				else if (std::strcmp(name, "pause") == 0) {
-					m_cached_pause = !available || *static_cast<int*>(prop->data) != 0;
 				}
 				else if (std::strcmp(name, "dwidth") == 0) {
 					m_cached_width = available ? *static_cast<int64_t*>(prop->data) : 0;
