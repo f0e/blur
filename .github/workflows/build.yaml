@@ -278,6 +278,7 @@ jobs:
           build_dir="bin/${{ matrix.build-type }}"
           config="${{ runner.os }}-${{ matrix.build-type }}-$(echo "${{ runner.arch }}" | tr '[:upper:]' '[:lower:]')"
           bundle_dir="$PWD/bundle"
+          tarball_dir="$PWD/tarball"
 
           # Create bundle directory for all outputs
           mkdir -p "$bundle_dir"
@@ -294,7 +295,7 @@ jobs:
               ;;
 
             "Linux")
-              ../../ci/linux/appimage/package.sh . "$bundle_dir/blur-Linux-x64.AppImage"
+              ../../ci/linux/appimage/package.sh . "$bundle_dir/blur-Linux-x64.AppImage" "$tarball_dir/blur-Linux-x64.tar.gz"
               ;;
 
             "macOS")
@@ -325,6 +326,13 @@ jobs:
           name: Blur-${{ steps.prep.outputs.config }}
           path: bundle/
 
+      - name: Upload Tarball Artifact (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: Blur-${{ steps.prep.outputs.config }}-tarball
+          path: tarball/
+
   test-linux:
     needs: build
     runs-on: ubuntu-24.04
@@ -343,10 +351,16 @@ jobs:
           name: Blur-Linux-Release-x64
           path: bundle/
 
+      - name: Download tarball
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: Blur-Linux-Release-x64-tarball
+          path: bundle/
+
       - name: Test on clean distros
         run: |
           chmod +x bundle/blur-Linux-x64.AppImage
-          ci/linux/test/distros.sh bundle/blur-Linux-x64.AppImage
+          ci/linux/test/distros.sh bundle/blur-Linux-x64.AppImage bundle/blur-Linux-x64.tar.gz
 
   release:
     needs: [build, test-linux]

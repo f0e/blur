@@ -1,10 +1,12 @@
 #!/bin/bash
-# packages a linux build into an appimage. run from the repo root after build-dependencies.sh and the cmake build
-# usage: ci/linux/appimage/package.sh <build dir> <output appimage>
+# packages a linux build into an appimage, and optionally a tarball of the same files for people who don't want one.
+# run from the repo root after build-dependencies.sh and the cmake build
+# usage: ci/linux/appimage/package.sh <build dir> <output appimage> [output tarball]
 set -euo pipefail
 
 build_dir="$(realpath "$1")"
 output="$(realpath -m "$2")"
+tarball="${3:+$(realpath -m "$3")}"
 
 script_dir="$(dirname "$(realpath "$0")")"
 ci_dir="$(dirname "$(dirname "$script_dir")")"
@@ -116,6 +118,15 @@ cp "$repo_dir/installer/linux/AppRun" "$appdir/AppRun"
 cp "$repo_dir/installer/linux/blur.desktop" "$appdir/blur.desktop"
 cp "$repo_dir/resources/blur.png" "$appdir/blur.png"
 ln -s blur.png "$appdir/.DirIcon"
+
+# everything's found relative to the binaries, so the appdir works as is once extracted. it's kept in a blur folder so
+# it doesn't spill into wherever it's extracted, without the appimage-only launcher and icon link
+if [ -n "$tarball" ]; then
+  mkdir -p "$(dirname "$tarball")"
+  tar -czf "$tarball" -C "$appdir" --owner=0 --group=0 --exclude ./AppRun --exclude ./.DirIcon \
+    --transform 's,^\.,blur,S' .
+  echo "Created $tarball ($(du -h "$tarball" | cut -f1))"
+fi
 
 mkdir -p "$(dirname "$output")"
 rm -f "$output"

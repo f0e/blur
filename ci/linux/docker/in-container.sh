@@ -19,4 +19,4 @@ export PKG_CONFIG_PATH="$PWD/ci/download/mpv-prefix/lib/pkgconfig"
 cmake --preset linux-release
 cmake --build --preset linux-release
 
-ci/linux/appimage/package.sh bin/Release dist/blur-Linux-x64.AppImage
+ci/linux/appimage/package.sh bin/Release dist/blur-Linux-x64.AppImage dist/blur-Linux-x64.tar.gz
