@@ -262,7 +262,7 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 					drag.start_mouse_x = keys::mouse_pos.x;
 
 					if (videos::player)
-						videos::player->seek(*grab.value, true);
+						videos::player->seek(*grab.value * duration, true);
 				}
 				else if (drag.moving || keys::mouse_pos.x != drag.start_mouse_x) {
 					drag.moving = true;
@@ -282,7 +282,7 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 							else
 								videos::player->set_end(percent);
 
-							videos::player->seek(percent, true);
+							videos::player->seek(percent * duration, true);
 						}
 					}
 
@@ -399,11 +399,12 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 			float local_percent = std::clamp(static_cast<float>(keys::mouse_pos.x - rect.x) / rect.w, 0.f, 1.f);
 
 			float time = video::frame_snap::snap_time(zoom_start + (local_percent * zoom_range), fps);
-			float percent = std::clamp(time / duration, 0.f, 1.f);
+			time = std::clamp(time, 0.f, duration);
+			float percent = time / duration;
 
-			if (videos::player && percent != drag.last_seek) {
-				videos::player->seek(percent, true);
-				drag.last_seek = percent;
+			if (videos::player && time != drag.last_seek) {
+				videos::player->seek(time, true);
+				drag.last_seek = time;
 			}
 
 			progress_anim.set_goal(percent);

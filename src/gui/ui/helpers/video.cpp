@@ -332,13 +332,11 @@ void VideoPlayer::send_queued_seek() {
 	m_queued_seek = {};
 	m_is_seeking = true;
 
-	std::string flags = seek.absolute_time ? "absolute" : "absolute-percent";
+	std::string flags = "absolute";
 	if (seek.exact)
 		flags += "+exact";
 
-	run_command_async(
-		{ "seek", std::to_string(seek.absolute_time ? seek.time : seek.time * 100), flags }, SEEK_REPLY_ID
-	);
+	run_command_async({ "seek", std::to_string(seek.time), flags }, SEEK_REPLY_ID);
 }
 
 void VideoPlayer::on_mpv_events() {

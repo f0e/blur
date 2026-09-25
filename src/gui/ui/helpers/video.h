@@ -6,9 +6,8 @@
 #include <optional>
 
 struct Seek {
-	float time; // a percentage of the video, or seconds when absolute_time is set
+	float time; // seconds
 	bool exact;
-	bool absolute_time = false;
 
 	bool operator==(const Seek& other) const = default;
 };
@@ -90,21 +89,11 @@ public:
 		return is_video_ready() && m_has_frame;
 	}
 
-	void seek(float time, bool exact) {
-		queue_seek(
-			Seek{
-				.time = time,
-				.exact = exact,
-			}
-		);
-	}
-
-	void seek_to_time(float seconds) {
+	void seek(float seconds, bool exact) {
 		queue_seek(
 			Seek{
 				.time = seconds,
-				.exact = true,
-				.absolute_time = true,
+				.exact = exact,
 			}
 		);
 	}

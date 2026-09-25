@@ -214,7 +214,7 @@ namespace {
 
 		if (timestamp != source_timestamp) {
 			source_timestamp = timestamp;
-			source_player->seek_to_time(*timestamp);
+			source_player->seek(*timestamp, true);
 		}
 	}
 }
