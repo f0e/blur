@@ -20,6 +20,7 @@ namespace {
 		bool moving = false;
 		std::optional<int> start_mouse_x;
 		std::optional<int> last_pan_x;
+		std::optional<float> last_seek;
 	} drag;
 
 	struct GrabRects {
@@ -259,6 +260,9 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 
 				if (!drag.start_mouse_x) {
 					drag.start_mouse_x = keys::mouse_pos.x;
+
+					if (videos::player)
+						videos::player->seek(*grab.value, true);
 				}
 				else if (drag.moving || keys::mouse_pos.x != drag.start_mouse_x) {
 					drag.moving = true;
@@ -269,22 +273,23 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 					percent = video::frame_snap::snap_percent(percent, duration, fps);
 					percent = std::clamp(percent, grab.min ? *grab.min : 0.f, grab.max ? *grab.max : 1.f);
 
-					*grab.value = percent;
+					if (percent != *grab.value) {
+						*grab.value = percent;
 
-					if (videos::player) {
-						if (grab.is_start)
-							videos::player->set_start(percent);
-						else
-							videos::player->set_end(percent);
+						if (videos::player) {
+							if (grab.is_start)
+								videos::player->set_start(percent);
+							else
+								videos::player->set_end(percent);
+
+							videos::player->seek(percent, true);
+						}
 					}
 
 					auto& grab_progress_anim = element.animations.at(hasher("progress"));
 					grab_progress_anim.current = percent;
 					grab_progress_anim.set_goal(percent);
 				}
-
-				if (videos::player)
-					videos::player->seek(*grab.value, true);
 			}
 			else {
 				drag.moving = false;
@@ -396,8 +401,10 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 			float time = video::frame_snap::snap_time(zoom_start + (local_percent * zoom_range), fps);
 			float percent = std::clamp(time / duration, 0.f, 1.f);
 
-			if (videos::player)
+			if (videos::player && percent != drag.last_seek) {
 				videos::player->seek(percent, true);
+				drag.last_seek = percent;
+			}
 
 			progress_anim.set_goal(percent);
 			element.animations.at(hasher("seek")).set_goal(percent);
@@ -405,6 +412,8 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 			updated = true;
 		}
 		else {
+			drag.last_seek = {};
+
 			reset_active_element();
 		}
 	}
