@@ -1,0 +1,31 @@
+name: Lint
+
+on: [push]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+
+      # only the tools hk's steps need, cmake/meson/clangd aren't used here
+      - name: Install tools
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install_args: >-
+            hk uv shellcheck shfmt actionlint
+            pipx:clang-format pipx:ruff pipx:zizmor pipx:gersemi
+
+      # clangd-tidy needs a configured build's compile_commands.json
+      - name: Run hk
+        run: hk check --all --skip-step clangd-tidy --no-progress
