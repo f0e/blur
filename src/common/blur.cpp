@@ -17,7 +17,7 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 	resources_path = paths::get_resources_path();
 	settings_path = paths::get_settings_path();
 
-	// before anything below creates a default in its place
+	// has to happen before the defaults below get created
 	config_base::migrate_file(
 		settings_path / config_app::LEGACY_APP_CONFIG_FILENAME, settings_path / config_app::APP_CONFIG_FILENAME
 	);

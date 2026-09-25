@@ -25,26 +25,20 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	inline std::string hovered_mask;
 	inline std::string hovered_config;
 
-	// a dropdown can switch the preview panel to its own tab while it's open. only one owns the
-	// switch at a time, so a second one opening can't strand the first one's tab
+	// dropdowns can switch the preview panel to their own tab while they're open
 	inline std::string old_tab;
 	inline std::string temp_tab_owner;
 
 	void set_temporary_tab(const std::string& owner, bool open, const std::string& tab);
 
-	// puts the tab back if whoever owns the switch stopped being drawn before it could close
 	void release_stale_temporary_tab();
 
-	// the rules tab reads this to know the config dropdown is the one borrowing the panel
 	inline const std::string CONFIG_DROPDOWN_ID = "blur config dropdown";
 
-	// the config the blur tab is editing. every option in options.cpp writes straight into this, and it's
-	// flushed back into edited_configs whenever the selection changes or the screen needs the whole set
+	// the selected config, flushed back into edited_configs with flush_selected_config
 	inline BlurSettings settings;
 	inline std::string selected_config_name;
 
-	// every config, as edited and as last saved. edits are kept for all of them, so switching between
-	// configs doesn't lose work and one Save writes whatever changed
 	inline std::map<std::string, BlurSettings> edited_configs;
 	inline std::map<std::string, BlurSettings> saved_configs;
 
@@ -54,11 +48,9 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	inline EncodingPresetSettings encoding_preset_settings;
 	inline EncodingPresetSettings current_encoding_preset_settings;
 
-	// rules are global rather than per config, but they're edited from the blur tab's preview panel
-	// so they ride the same save/reset workflow as everything else here
 	inline ConfigRuleSettings rule_settings;
 	inline ConfigRuleSettings current_rule_settings;
-	inline std::string selected_encoding_preset_gpu_type; // which device's presets the encoding presets tab is showing
+	inline std::string selected_encoding_preset_gpu_type;
 
 	inline bool show_mask_preview = false;
 
@@ -94,10 +86,8 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	void config_management(ui::Container& container);
 
-	// writes `settings` back into the config it belongs to. call before reading edited_configs as a whole
 	void flush_selected_config();
 
-	// switches which config the blur tab is editing, keeping unsaved edits on the one being left
 	void select_config(const std::string& name);
 
 	void about(ui::Container& container);
@@ -113,7 +103,7 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	void rules(ui::Container& container, float delta_time);
 	void option_information(ui::Container& container);
 
-	// keeps a value and the buffer an element edits in sync, returns the buffer for the element to use
+	// keeps a value in sync with the buffer an element edits
 	std::string& bind_input(const std::string& id, std::string& value);
 	std::string& bind_read_only_input(const std::string& id, const std::string& value);
 	bool& bind_checkbox(const std::string& id, bool& value);

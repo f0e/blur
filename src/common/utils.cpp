@@ -134,7 +134,7 @@ bool u::matches_pattern(std::string_view pattern, std::string_view text) {
 			star_s = s;
 		}
 		else if (star != std::string::npos) {
-			// backtrack: let the last '*' swallow one more character and try again
+			// let the last '*' match one more character and try again
 			p = star + 1;
 			s = ++star_s;
 		}
@@ -154,8 +154,7 @@ tl::expected<std::string, std::string> u::validate_filename(const std::string& e
 	if (name.empty())
 		return tl::unexpected("Enter a name.");
 
-	// windows is the strict one here, so everything gets its rules - a name typed on one machine has to
-	// still work on another, configs and masks both being things people copy around
+	// windows rules on every platform so files can be copied between machines
 	if (name == "." || name == ".." || name.ends_with(' ') || name.ends_with('.') ||
 	    name.find_first_of("<>:\"/\\|?*") != std::string::npos ||
 	    std::ranges::any_of(name, [](unsigned char character) {

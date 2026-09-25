@@ -286,7 +286,6 @@ jobs:
 
           case "${{ runner.os }}" in
             "Windows")
-              # the installer picks everything up from the build and ci/out itself
               iscc ../../installer/setup.iss
 
               cp blur-cli.exe "$bundle_dir/blur-cli-$config.exe"

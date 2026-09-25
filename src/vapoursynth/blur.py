@@ -243,9 +243,7 @@ def main():
         orig_height=video.height,
     )
 
-    # what masked regions get put back to. taken after trimming so it lines up with the render frame for
-    # frame, and before deduplication because its fill frames are interpolated and warp an overlay exactly
-    # the way interpolation proper does
+    # what masked regions get put back to. before deduplication since that interpolates too
     original = video
 
     # input timescale

@@ -144,7 +144,7 @@ namespace config_base {
 	inline void migrate_file(const std::filesystem::path& from, const std::filesystem::path& to) {
 		std::lock_guard lock(config_file_mutex);
 
-		std::error_code ec; // a failed migration just leaves the old file where it is, which is recoverable
+		std::error_code ec;
 		if (!std::filesystem::exists(from, ec))
 			return;
 

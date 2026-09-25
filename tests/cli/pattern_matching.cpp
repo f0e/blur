@@ -16,8 +16,6 @@ TEST(PatternMatching, Wildcards) {
 	EXPECT_FALSE(u::matches_pattern("*.mkv", "D:/clips/round.mp4"));
 }
 
-// a pattern with a wildcard has to match the whole path, so anything anchored mid-path needs a
-// leading '*'. a pattern without one is a substring, which is what most rules end up being
 TEST(PatternMatching, WildcardPatternsMatchTheWholePath) {
 	EXPECT_FALSE(u::matches_pattern("round?.mp4", "D:/clips/round1.mp4"));
 	EXPECT_TRUE(u::matches_pattern("*round?.mp4", "D:/clips/round1.mp4"));

@@ -1,7 +1,6 @@
 [Code]
-// clears out lib when installing over an existing install, so nothing an older version shipped is left behind -
-// vapoursynth loads every plugin in vs-plugins, so a leftover one would still get loaded. tensorrt is downloaded
-// rather than installed, so it stays
+// clears out lib before installing, since vapoursynth loads every plugin in vs-plugins including leftover ones.
+// tensorrt is downloaded rather than installed so it's kept
 
 // vs-mlrt names everything it puts in the plugins dir vs*, apart from models
 function IsTensorRTFile(Name: String): Boolean;

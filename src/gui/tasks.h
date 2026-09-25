@@ -14,8 +14,6 @@ namespace tasks {
 		float end = 1.f;
 		bool start_immediately = false;
 
-		// which blur config this video renders with. seeded from whatever it resolves to when it was added,
-		// then overridable per video from the queue screen
 		std::string config_name;
 
 		// set when a render was attempted while this video had no config, so the queue screen can warn
@@ -24,13 +22,9 @@ namespace tasks {
 
 		bool trim_range_warning = false;
 
-		// how config_name was arrived at, so the queue can say whether it came from a rule or the default
 		config_blur::ConfigSource config_source = config_blur::ConfigSource::NONE;
 		std::string config_rule_pattern;
 
-		// the masks this video renders with: a filename in the masks folder (empty for none), and whether one
-		// is also worked out from the video itself and applied over it. both are seeded from the config above,
-		// then overridable per video from the queue screen
 		std::string mask;
 		bool auto_mask = false;
 	};

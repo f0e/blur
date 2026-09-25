@@ -50,8 +50,7 @@ ConfigRuleSettings config_rules::parse(const std::string& config_content) {
 		if (delimiter_pos == std::string::npos)
 			continue;
 
-		// split on the first ':' so a pattern is free to contain one, as 'D:/clips/*' does. config
-		// names can't, they go through u::validate_filename
+		// first ':' so patterns like 'D:/clips/*' keep theirs
 		std::string key = u::trim(line.substr(0, delimiter_pos));
 		std::string value = u::trim(line.substr(delimiter_pos + 1));
 
@@ -97,8 +96,7 @@ bool config_rules::usable(const ConfigRule& rule, const std::vector<std::string>
 	if (rule.pattern.empty() || rule.config_name.empty())
 		return false;
 
-	// a rule outliving the config it points at is kept rather than deleted, so skip it here instead
-	// of rendering with something the user didn't ask for
+	// rules pointing at a deleted config are kept but skipped
 	return u::contains(available_configs, rule.config_name);
 }
 

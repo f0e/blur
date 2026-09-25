@@ -49,18 +49,16 @@ namespace {
 }
 
 namespace {
-	// text inputs and dropdowns keep a pointer to the string they're showing, and elements stick around for a
-	// bit after they stop being added (they fade out), so the strings can't live in the vector they came from -
-	// removing an entry would leave the fading out elements pointing at freed memory. they live here instead,
-	// keyed by element id, and never get erased
+	// elements keep a pointer to these and outlive the entries they came from while they fade out, so they're
+	// kept here and never erased
 	struct InputBuffer {
-		std::string text;   // what the element edits
-		std::string synced; // the value both sides last agreed on, used to work out which way to sync
+		std::string text;
+		std::string synced;
 	};
 
 	std::map<std::string, InputBuffer> input_buffers;
 
-	// same idea for checkboxes, which keep a bool* and would dangle when the vector behind them grows
+	// same for checkboxes
 	struct CheckboxBuffer {
 		bool value = false;
 		bool synced = false;
@@ -77,7 +75,7 @@ std::string& configs::bind_input(const std::string& id, std::string& value) {
 		value = buffer.text;
 	}
 	else if (value != buffer.synced) {
-		// changed elsewhere (config loaded, changes reset, an entry above this one was removed, ...)
+		// changed elsewhere
 		buffer.text = value;
 	}
 
@@ -109,8 +107,7 @@ bool& configs::bind_checkbox(const std::string& id, bool& value) {
 }
 
 namespace {
-	// whether the owner asked for the switch this frame. an owner that stops being drawn while it
-	// holds the switch never gets to close it, which would leave the panel stuck on its tab
+	// so the tab can be put back if its owner stops being drawn
 	bool temp_tab_owner_drawn = false;
 }
 
@@ -156,14 +153,14 @@ void configs::select_config(const std::string& name) {
 	if (name == selected_config_name)
 		return;
 
-	flush_selected_config(); // keep the edits on the config being left
+	flush_selected_config();
 
 	selected_config_name = name;
 
 	auto it = edited_configs.find(name);
 	settings = it != edited_configs.end() ? it->second : config_blur::DEFAULT_CONFIG;
 
-	// the sliders cache the values they were bound to, so they'd keep showing the old config's numbers
+	// sliders cache their values
 	ui::reset_tied_sliders();
 	parse_interp();
 }
@@ -506,8 +503,6 @@ void configs::screen(
 				return;
 			}
 
-			// every config gets validated, not just the one on screen - saving writes them all, so a
-			// broken one that isn't selected would otherwise be written or dropped without a word
 			flush_selected_config();
 
 			for (auto& [name, config] : edited_configs) {
@@ -517,7 +512,7 @@ void configs::screen(
 
 				selected_config_tab = "blur";
 				selected_right_tab = RIGHT_TABS[0];
-				select_config(name); // show the config the error is actually in
+				select_config(name);
 
 				gui::components::notifications::add(
 					"settings error",
@@ -538,7 +533,7 @@ void configs::screen(
 
 			edited_configs = saved_configs;
 
-			// the selected config may have been one added this session, which reverting just removed
+			// the selected config might've been added this session
 			if (!edited_configs.contains(selected_config_name))
 				selected_config_name = edited_configs.empty() ? "" : edited_configs.begin()->first;
 

@@ -4,9 +4,8 @@ Source: "{#DepsDir}\7zip\7z.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; C
 Source: "{#DepsDir}\7zip\7z.dll"; DestDir: "{tmp}"; Flags: deleteafterinstall; Components: vstrt
 
 [Code]
-// downloads and extracts vs-mlrt's tensorrt plugins and the rife model when the vstrt component is selected. they're
-// too big to bundle. each gets a version marker once it's extracted, so it's skipped if it's already there and
-// downloaded again when the version here changes or an earlier extraction didn't finish
+// tensorrt is too big to bundle so it's downloaded instead. each download gets a version marker once it's extracted
+// so it's only downloaded again when the version changes
 
 #define VsMlrtVersion "v15.16"
 #define VsMlrtUrl "https://github.com/AmusementClub/vs-mlrt/releases/download/" + VsMlrtVersion + "/vsmlrt-windows-x64-tensorrt." + VsMlrtVersion + ".7z"
@@ -26,8 +25,8 @@ begin
   Result := ExpandConstant('{app}\lib\vapoursynth\vs-plugins');
 end;
 
-// the downloads go to {tmp}, which setup's own disk space check doesn't cover. they're still there while they're
-// extracted into {app}, so both count when it's the same drive
+// setup's own disk space check doesn't cover {tmp}. the download and the extracted files both count if they're on
+// the same drive
 function HasSpaceToDownload(DownloadSize, ExtractedSize: Int64): Boolean;
 var
   TmpDrive: String;
@@ -51,7 +50,6 @@ begin
   Result := LoadStringFromFile(Marker, Installed) and (Trim(String(Installed)) = Version);
 end;
 
-// clears out an older version's plugins (and its marker) so none of its files are left mixed in with the new ones
 procedure RemoveTensorRTPlugins;
 var
   FindRec: TFindRec;

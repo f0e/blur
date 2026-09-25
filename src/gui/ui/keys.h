@@ -27,8 +27,7 @@ namespace keys {
 
 	void set_mouse_capture(bool capture);
 
-	// forget any buttons we think are down, for when something else (a native file drag, say) swallowed the
-	// release
+	// for when something else (like a native file drag) swallowed the release
 	void forget_mouse_buttons();
 
 	void on_frame_start();

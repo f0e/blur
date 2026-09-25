@@ -65,8 +65,7 @@ bool cli::run(
 		return false;
 	}
 
-	// up front rather than per input, so a typo doesn't render half the batch with the default config
-	// before saying anything
+	// check up front so a typo doesn't fail halfway through the batch
 	if (manual_config_names) {
 		auto available = config_blur::list();
 

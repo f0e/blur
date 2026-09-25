@@ -5,9 +5,7 @@ struct RenderCommands {
 	std::vector<std::string> vspipe_video;
 	std::vector<std::string> ffmpeg;
 
-	// set when ffmpeg is asked for a fixed number of frames rather than the whole clip, so it exits while
-	// vspipe is still feeding it and vspipe gets terminated mid-stream. that makes vspipe's exit code
-	// meaningless, so execute_pipeline stops holding it against the render
+	// ffmpeg exits before vspipe is done, so vspipe's exit code can be ignored
 	bool ffmpeg_stops_early = false;
 };
 

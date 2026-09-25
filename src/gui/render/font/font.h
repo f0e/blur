@@ -35,8 +35,7 @@ namespace render {
 		// bounding box of the pixels a string actually draws, relative to where it would be drawn from
 		[[nodiscard]] gfx::Rect calc_ink_bounds(const std::string& text) const;
 
-		// float-precision width of a substring. calc_size truncates to int, which is fine for laying a single
-		// string out but drifts once widths are summed
+		// calc_size truncates to int, which drifts when widths are summed
 		[[nodiscard]] float calc_width(const char* begin, const char* end) const;
 
 		[[nodiscard]] int height() const {

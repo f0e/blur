@@ -110,8 +110,7 @@ rendering::QueueAddRes rendering::VideoRenderQueue::add(
 	// settings
 	bool named_config = config_name && !config_name->empty();
 
-	// a config file pointed at outright is used as it is, unless a config was also named - naming one is
-	// the more specific ask of the two
+	// a named config takes priority over a config path
 	BlurSettings settings;
 
 	if (config_path && !named_config) {

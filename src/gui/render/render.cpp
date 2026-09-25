@@ -950,8 +950,6 @@ void render::transform_draw_vertices(size_t first_vertex, const gfx::Rect& from,
 
 	opacity = std::clamp(opacity, 0.f, 1.f);
 
-	// settled and fully opaque, so there's nothing to apply. worth checking: this runs over every vertex the
-	// caller submitted, and callers hand it the same range every frame whether or not anything is moving
 	if (from == to && opacity == 1.f)
 		return;
 
@@ -994,8 +992,6 @@ bool render::clip_string(std::string& text, const Font& font, int max_width, int
 }
 
 namespace {
-	// bytes in the utf-8 sequence starting at c. measuring a lone continuation byte would give the width of the
-	// fallback glyph rather than the character it belongs to
 	int utf8_seq_len(unsigned char c) {
 		if (c < 0x80)
 			return 1;
@@ -1022,7 +1018,7 @@ std::vector<std::string> render::wrap_text_verbatim(const std::string& text, int
 		size_t line_end = newline == std::string::npos ? text.length() : newline;
 
 		size_t start = line_start;
-		size_t break_at = std::string::npos; // where we'd rather break than split a word, just past a space
+		size_t break_at = std::string::npos;
 		float width = 0.f;
 
 		size_t i = line_start;
@@ -1030,7 +1026,7 @@ std::vector<std::string> render::wrap_text_verbatim(const std::string& text, int
 			size_t next = std::min(i + utf8_seq_len(static_cast<unsigned char>(text[i])), line_end);
 			float advance = font.calc_width(text.data() + i, text.data() + next);
 
-			// i > start keeps a field narrower than a single glyph from looping forever
+			// i > start so a field narrower than one glyph doesn't loop forever
 			if (width + advance > limit && i > start) {
 				size_t split = break_at > start && break_at != std::string::npos ? break_at : i;
 
@@ -1038,13 +1034,12 @@ std::vector<std::string> render::wrap_text_verbatim(const std::string& text, int
 				start = split;
 				break_at = std::string::npos;
 
-				// whatever carried onto the new line, which is at most one word
 				width = font.calc_width(text.data() + start, text.data() + i);
 			}
 
 			width += advance;
 
-			// break after the space, so trailing spaces stay on the line they ended
+			// break after the space so it stays on the previous line
 			if (text[i] == ' ' || text[i] == '\t')
 				break_at = next;
 

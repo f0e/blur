@@ -224,8 +224,7 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 			video_info,
 			start_frame,
 			end_frame,
-			// only when there's actually a trim. left off, the script works the mask out from the whole video,
-		    // which is what a preview does too - so an untrimmed render and its preview share one cached mask
+			// untrimmed renders use the whole video like previews do, so they share a cached mask
 			trimmed ? std::optional{ std::pair{ start_frame, end_frame } } : std::nullopt
 		),
 		.ffmpeg = *ffmpeg_args,

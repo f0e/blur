@@ -466,15 +466,13 @@ void configs::preview_tabs(ui::Container& container) {
 	auto on_tab_select = [&container] {
 		container.scroll_to_top = true;
 
-		// clicking a tab keeps it, so whoever was borrowing the panel gives up its claim
+		// clicking a tab makes it stick
 		old_tab.clear();
 		temp_tab_owner.clear();
 	};
 
 	auto* tabs = ui::add_tabs("preview tab", container, RIGHT_TABS, selected_right_tab, fonts::dejavu, on_tab_select);
 
-	// the tabs scroll with the content rather than sitting over it, so they're centred on their own
-	// instead of by whatever centres the panel
 	ui::center_element(container, tabs);
 	tabs->element->fixed = true;
 

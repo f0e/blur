@@ -1,8 +1,6 @@
 #include "masks.h"
 
 namespace {
-	// what a mask can be saved as. masks are read through the same source plugin as video, so this is really
-	// just a list of what makes sense to offer - people export from whatever editor they touched a mask up in
 	constexpr std::array IMAGE_EXTENSIONS = {
 		".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp", ".pgm",
 	};

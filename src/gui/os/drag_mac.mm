@@ -4,7 +4,6 @@
 
 #import <AppKit/AppKit.h>
 
-// the session only holds onto its source weakly, so this lives for the rest of the process (see the static below)
 @interface BlurFileDragSource : NSObject <NSDraggingSource>
 @end
 
@@ -12,12 +11,10 @@
 
 - (NSDragOperation)draggingSession:(NSDraggingSession*)session
 	sourceOperationMaskForDraggingContext:(NSDraggingContext)context {
-	// dropping a finished render back into blur would only queue it up as an input video, so the file is offered
-	// to other apps and nothing else
+	// don't allow dropping renders back into blur
 	if (context == NSDraggingContextWithinApplication)
 		return NSDragOperationNone;
 
-	// it already exists on disk, so the only sensible thing another app can do with it is copy or link it
 	return NSDragOperationCopy | NSDragOperationLink;
 }
 
@@ -32,7 +29,7 @@ bool os::drag::begin_file_drag(SDL_Window* window, const std::filesystem::path& 
 		return false;
 
 	@autoreleasepool {
-		// plain casts, not __bridge - the .mm files here are built without arc
+		// no arc, so no __bridge
 		auto* ns_window = (NSWindow*)SDL_GetPointerProperty(
 			SDL_GetWindowProperties(window), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr
 		);
@@ -53,9 +50,7 @@ bool os::drag::begin_file_drag(SDL_Window* window, const std::filesystem::path& 
 
 		NSPoint location = [ns_window mouseLocationOutsideOfEventStream];
 
-		// appkit wants the event that started the drag. we're called from our own loop rather than out of an event
-		// handler, so the event it has to hand is usually the mouse drag that got us here - if it's something else,
-		// stand one in at the cursor
+		// appkit wants the event that started the drag, so fake one if the current event isn't a mouse drag
 		NSEvent* event = [NSApp currentEvent];
 		if (!event || (event.type != NSEventTypeLeftMouseDragged && event.type != NSEventTypeLeftMouseDown)) {
 			event = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDragged
@@ -74,7 +69,6 @@ bool os::drag::begin_file_drag(SDL_Window* window, const std::filesystem::path& 
 
 		NSDraggingItem* item = [[NSDraggingItem alloc] initWithPasteboardWriter:url];
 
-		// the file's icon, centred on the cursor
 		NSImage* icon = [[NSWorkspace sharedWorkspace] iconForFile:ns_path];
 		NSSize size = icon ? [icon size] : NSMakeSize(64.f, 64.f);
 		NSPoint view_location = [view convertPoint:location fromView:nil];
@@ -87,6 +81,7 @@ bool os::drag::begin_file_drag(SDL_Window* window, const std::filesystem::path& 
 							   )
 					  contents:icon];
 
+		// the session only holds a weak reference to its source
 		static BlurFileDragSource* source = [[BlurFileDragSource alloc] init];
 
 		NSDraggingSession* session = [view beginDraggingSessionWithItems:@[item] event:event source:source];

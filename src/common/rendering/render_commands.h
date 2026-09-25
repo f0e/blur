@@ -28,9 +28,7 @@ namespace rendering::detail {
 		std::optional<size_t> start_frame = {},
 		std::optional<size_t> end_frame = {},
 
-		// the frame range an automatic mask should be worked out from, when that isn't just the whole video.
-	    // this is deliberately separate from start_frame: a render's start_frame is the user's trim, but a
-	    // preview's is wherever the seek bar happens to be, and the mask shouldn't follow the seek bar
+		// separate from start_frame so a preview's auto mask doesn't follow the seek bar
 		std::optional<std::pair<size_t, size_t>> mask_range = {},
 		bool preview_mask = false
 	);

@@ -47,8 +47,6 @@ int main(int argc, char* argv[]) {
 	app.add_option(
 		"--mask", mask, "Mask image filename in the masks folder, or 'none' to disable one set in the config (optional)"
 	);
-	// left off entirely, whatever the config says stands - which is why this needs an off switch as well as an
-	// on one, the same way --mask none turns off a mask the config sets
 	auto* auto_mask_flag = app.add_flag(
 		"--auto-mask,!--no-auto-mask",
 		auto_mask,

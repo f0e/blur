@@ -275,8 +275,8 @@ namespace ui {
 		std::shared_ptr<render::Texture> thumbnail; // null until one has been generated
 		std::vector<RenderHistoryAction> actions;
 		std::optional<std::function<void()>> on_click;
-		std::optional<std::filesystem::path> drag_path; // the file the row hands to other apps when it is dragged out
-		std::optional<gfx::Rect> collapse_rect;         // where the row grows out of and shrinks back into
+		std::optional<std::filesystem::path> drag_path;
+		std::optional<gfx::Rect> collapse_rect; // where the row grows out of and shrinks back into
 		render::Font font;
 		int line_height;
 
@@ -746,7 +746,6 @@ namespace ui {
 	bool update_button(const Container& container, AnimatedElement& element);
 	int button_height(const render::Font& font);
 
-	// what add_button will size a button to, for working out how many fit on a line before adding them
 	int button_width(const std::string& text, const render::Font& font, const std::optional<std::string>& icon = {});
 
 	void render_icon_button(const Container& container, const AnimatedElement& element);

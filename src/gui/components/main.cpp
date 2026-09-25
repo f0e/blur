@@ -22,8 +22,7 @@ namespace {
 
 	const std::string NO_CONFIG_OPTION = "select a config";
 
-	// keyed on the video and the config it's set to, not the video alone - switching a video to a config
-	// whose preset copies the audio has to re-answer this, and it's the config that decides the answer
+	// keyed on the config too since its encode preset decides whether trimming works
 	std::map<std::pair<size_t, std::string>, bool> trim_disabled_cache;
 
 	bool is_trim_disabled(const tasks::PendingVideo& pending_video) {
@@ -377,7 +376,6 @@ void main::render_pending(
 	);
 
 	{
-		// the dropdown holds onto a pointer to this, so it has to outlive the frame
 		static std::string selected_config;
 		selected_config = pending_video->config_name.empty() ? NO_CONFIG_OPTION : pending_video->config_name;
 
@@ -422,7 +420,6 @@ void main::render_pending(
 			}
 		);
 
-		// say where the config came from, so a rule quietly picking one isn't a surprise
 		std::optional<std::string> config_reason;
 
 		switch (pending_video->config_source) {
@@ -446,12 +443,10 @@ void main::render_pending(
 			);
 		}
 
-		// the dropdown holds onto a pointer to this, so it has to outlive the frame
 		static std::string selected_mask;
 		selected_mask = pending_video->mask.empty() ? masks::NONE_OPTION : pending_video->mask;
 
-		// The retained elements own the callbacks below, so each video needs its own ids. Reusing one id would
-		// leave the callback pointing at whichever video first created the element.
+		// ids are per video since elements keep the callback they were created with
 		ui::add_dropdown(
 			std::format("mask dropdown {}", pending_video->video_id),
 			config_container,
@@ -465,12 +460,9 @@ void main::render_pending(
 			{ masks::NONE_OPTION }
 		);
 
-		// the checkbox writes through this rather than straight into the clip, since the element outlives the
-		// frame and the clip it belongs to is picked out again each one
 		static bool auto_mask;
 		auto_mask = pending_video->auto_mask;
 
-		// stacks on top of the mask above rather than replacing it
 		ui::add_checkbox(
 			std::format("auto mask checkbox {}", pending_video->video_id),
 			config_container,

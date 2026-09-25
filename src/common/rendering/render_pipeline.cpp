@@ -353,10 +353,7 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 		std::error_code wait_ec;
 		vspipe_process->wait(wait_ec);
 
-		// anything the script only hits once it's rendering - a plugin that won't run on this machine, a source
-		// that fails partway - throws when a frame is asked for, by which point vspipe has already written the
-		// y4m header. ffmpeg then muxes a file with zero video frames in it and exits 0 quite happily (the mp4
-		// muxer drops the empty track entirely), so vspipe's exit code is the only sign anything went wrong
+		// if vspipe fails mid-render ffmpeg can still exit 0 with an empty video, so check vspipe too
 		bool vspipe_failed = !commands.ffmpeg_stops_early && vspipe_process->exit_code() != 0;
 
 		if (vspipe_failed || ffmpeg_process->exit_code() != 0) {

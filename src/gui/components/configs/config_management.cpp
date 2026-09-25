@@ -8,16 +8,12 @@ namespace configs = gui::components::configs;
 namespace {
 	const gfx::Color ERROR_TEXT_COLOR(255, 80, 80, 255);
 
-	// a config the user is naming, either a new one or one being renamed. lives past the frame that opened
-	// the dialog, since the dialog's content runs every frame and the text input edits this in place
 	struct NameDialogState {
 		std::string name;
 		std::string error;
 	};
 
-	// the names taken right now: what's on disk plus anything added this session, minus anything removed.
-	// config_blur::list() alone would miss both, and a name clash between two unsaved configs would only
-	// come out at save time as one silently overwriting the other
+	// includes unsaved changes, not just what's on disk
 	std::vector<std::string> taken_names() {
 		std::vector<std::string> names;
 		names.reserve(configs::edited_configs.size());
@@ -46,13 +42,12 @@ namespace {
 		}
 	}
 
-	// shared by the new/duplicate/rename dialogs - they only differ in what they do with the name
 	void open_name_dialog(
 		const std::string& title,
 		const std::string& confirm_text,
 		const std::string& initial_name,
 		const std::string& id_prefix,
-		// the name being edited, if this is a rename - it's allowed to keep its own name
+		// set when renaming
 		const std::optional<std::string>& existing_name,
 		const std::function<void(const std::string& name)>& on_accept
 	) {
@@ -90,7 +85,6 @@ namespace {
 				.confirm_text = confirm_text,
 				.on_confirm =
 					[state, existing_name, on_accept] {
-						// a config is one file per name, so whatever's typed has to work as a filename
 						auto valid = u::validate_filename(state->name);
 						if (!valid) {
 							state->error = valid.error();
@@ -193,7 +187,6 @@ void configs::config_management(ui::Container& container) {
 	if (!u::contains(names, selected_config_name))
 		select_config(names.front());
 
-	// the dropdown holds onto a pointer to this, so it has to outlive the frame
 	static std::string selected;
 	selected = selected_config_name;
 

@@ -9,12 +9,11 @@ namespace cli {
 		bool verbose,
 		bool disable_update_check = false,
 
-		// masks to render every input with. left unset, each config's own masks apply
+		// unset to use each config's own masks
 		const std::string& mask = "",
 		const std::optional<bool>& auto_mask = {},
 
-		// named config per input, matched to `inputs` positionally the way `config_paths` is. empty to
-	    // let each input resolve its own config, which today means the default one
+		// one per input, like config_paths
 		const std::vector<std::string>& config_names = {}
 	);
 }

@@ -52,7 +52,7 @@ namespace rendering {
 			// ignored when config_path names a file, otherwise empty requires a default
 			const std::optional<std::string>& config_name = {},
 
-			// replace whatever masks the resolved config asks for. the queue lets each video pick its own
+			// override the resolved config's masks
 			const std::optional<std::string>& mask_override = {},
 			const std::optional<bool>& auto_mask_override = {}
 		);

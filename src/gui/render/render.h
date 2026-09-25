@@ -295,9 +295,7 @@ namespace render {
 
 	bool clip_string(std::string& text, const Font& font, int max_width, int min_chars = 0);
 
-	// Wraps without touching the text: every space, tab and blank line survives, and lines break at the last space
-	// that fits (splitting a word only when it's wider than the field on its own). wrap_text is for prose - it
-	// re-flows on whitespace, which mangles anything where the spacing carries meaning, like a log or a traceback.
+	// keeps all whitespace intact, unlike wrap_text
 	std::vector<std::string> wrap_text_verbatim(const std::string& text, int max_width, const Font& font);
 
 	std::vector<std::string> wrap_text(

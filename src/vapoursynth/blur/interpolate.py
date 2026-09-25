@@ -42,10 +42,7 @@ DEFAULT_SPEED = "medium"
 DEFAULT_MASKING = 50
 DEFAULT_GPU = True
 
-# svpflow has no cpu renderer on apple silicon - SmoothFps refuses outright with "CPU rendering is not supported
-# on ARM" - and the arm build is the only svp blur ships for macos. so there's no such thing as a cpu svp render
-# here, and anything that asks for one is a failure waiting to happen - the gpu interpolation setting turns it
-# off for the whole render
+# svpflow has no cpu renderer on apple silicon
 SVP_REQUIRES_GPU = sys.platform == "darwin"
 
 
@@ -537,7 +534,7 @@ def prepare_rife_vsmlrt(
 
     match backend_str:
         case "tensorrt":
-            # vsmlrt imports fine with any of its plugins, so this one might still be missing
+            # vsmlrt imports fine without the trt plugin
             if not hasattr(core, "trt"):
                 raise u.BlurException(TENSORRT_NOT_INSTALLED)
 

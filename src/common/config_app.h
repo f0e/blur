@@ -51,7 +51,6 @@ namespace config_app {
 
 	const std::string APP_CONFIG_FILENAME = "app.cfg";
 
-	// what it used to be called, migrated on startup (see Blur::initialise)
 	const std::string LEGACY_APP_CONFIG_FILENAME = "blur.cfg";
 
 	// inline const std::vector<std::string> CHECK_UPDATES_OPTIONS = { "off", "on", "beta" };

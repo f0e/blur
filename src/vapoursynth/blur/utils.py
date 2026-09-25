@@ -42,13 +42,7 @@ class BlurException(Exception):
 
 
 def handle_blur_exception(e: BlurException):
-    """Report `e` to blur and end the render on the spot.
-
-    os._exit rather than sys.exit, because vapoursynth catches sys.exit inside a frame callback and turns it
-    into a failed frame rather than the end of anything - leaving every other frame in flight to hit the same
-    error, take seconds longer to die, and print it again on the way out. Flushed first, since os._exit won't;
-    stdout is deliberately left unflushed, as whatever is buffered belongs to a render that isn't finishing.
-    """
+    """os._exit since vapoursynth turns sys.exit inside a frame callback into a failed frame"""
     print(e.to_json(), file=sys.stderr, flush=True)
     os._exit(1)
 

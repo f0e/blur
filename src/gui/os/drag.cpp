@@ -5,19 +5,16 @@
 #	ifdef _WIN32
 
 #		include <SDL3/SDL.h>
-#		include <shlobj_core.h> // SHDoDragDrop and the drag image helper
-#		include <shlguid.h>     // CLSID_DragDropHelper
+#		include <shlobj_core.h>
+#		include <shlguid.h>
 
 #		include "common/utils.h"
 
 namespace {
-	// DoDragDrop needs ole on the calling thread. it's refcounted and we only ever want the one, so it's left
-	// initialised for the rest of the process
 	bool initialise_ole() {
 		static bool initialised = [] {
 			HRESULT hr = OleInitialize(nullptr);
 			if (FAILED(hr)) {
-				// the thread is already in the multithreaded apartment, which ole drag and drop can't use
 				u::log_error("file drag: failed to initialise ole ({:#x})", (uint32_t)hr);
 				return false;
 			}
@@ -27,9 +24,7 @@ namespace {
 		return initialised;
 	}
 
-	// the window we came from still accepts dropped files (that's how videos get added), and dropping a finished
-	// render back into blur is never what anyone means by it. the default drop source has no say in where the
-	// file can land, so we bring our own
+	// custom drop source so renders can't be dropped back into blur
 	class DropSource : public IDropSource {
 	public:
 		explicit DropSource(HWND window) : window(window) {}
@@ -65,7 +60,6 @@ namespace {
 				return DRAGDROP_S_CANCEL;
 
 			if (!(key_state & MK_LBUTTON))
-				// let go: over our own window this is a drag that went nowhere, anywhere else takes the file
 				return over_source_window() ? DRAGDROP_S_CANCEL : DRAGDROP_S_DROP;
 
 			return S_OK;
@@ -73,7 +67,6 @@ namespace {
 
 		HRESULT STDMETHODCALLTYPE GiveFeedback(DWORD /*effect*/) override {
 			if (over_source_window()) {
-				// blur's own drop target says yes to anything, so the no is ours to draw
 				SetCursor(LoadCursor(nullptr, IDC_NO));
 				return S_OK;
 			}
@@ -82,13 +75,11 @@ namespace {
 		}
 
 	private:
-		// whether the cursor is over the window the drag started from, rather than something in front of it
 		bool over_source_window() const {
 			POINT cursor;
 			if (!GetCursorPos(&cursor))
 				return false;
 
-			// the drag image is click-through, so this is the window the drop would actually go to
 			HWND under_cursor = WindowFromPoint(cursor);
 
 			return under_cursor && GetAncestor(under_cursor, GA_ROOT) == window;
@@ -118,8 +109,7 @@ bool os::drag::begin_file_drag(SDL_Window* window, const std::filesystem::path& 
 		return false;
 	}
 
-	// let the shell build the data object for us - dropping it somewhere then behaves exactly like dropping a file
-	// out of explorer, whatever format the target asked for
+	// let the shell build the data object so it behaves the same as dragging from explorer
 	IShellItem* item = nullptr;
 	HRESULT hr = SHCreateItemFromParsingName(path.wstring().c_str(), nullptr, IID_PPV_ARGS(&item));
 	if (FAILED(hr)) {
@@ -136,11 +126,10 @@ bool os::drag::begin_file_drag(SDL_Window* window, const std::filesystem::path& 
 		return false;
 	}
 
-	// the file's icon/thumbnail under the cursor while it's being dragged. nothing breaks without it, the cursor
-	// just carries the drop effect on its own
+	// drag image, optional
 	IDragSourceHelper* drag_helper = nullptr;
 	if (SUCCEEDED(CoCreateInstance(CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&drag_helper)))) {
-		drag_helper->InitializeFromWindow(nullptr, nullptr, data_object); // null window: image comes from the file
+		drag_helper->InitializeFromWindow(nullptr, nullptr, data_object);
 		drag_helper->Release();
 	}
 
@@ -148,17 +137,15 @@ bool os::drag::begin_file_drag(SDL_Window* window, const std::filesystem::path& 
 
 	auto* drop_source = new DropSource(hwnd);
 
-	// runs its own event loop until the file is dropped or the drag is cancelled - we're frozen until then
+	// blocks until the drag ends
 	hr = SHDoDragDrop(hwnd, data_object, drop_source, DROPEFFECT_COPY | DROPEFFECT_LINK, &effect);
 
 	drop_source->Release();
 	data_object->Release();
 
-	// blur's own drop target saw the drag pass over the window and queued up events for it. the drop itself never
-	// happens (see DropSource), but the rest of it is still ours to throw away
+	// sdl's drop target still queued events while the drag was over the window
 	SDL_FlushEvents(SDL_EVENT_DROP_FILE, SDL_EVENT_DROP_POSITION);
 
-	// cancelling is a normal way to end a drag, not a failure
 	return hr == DRAGDROP_S_DROP || hr == DRAGDROP_S_CANCEL;
 }
 
@@ -169,7 +156,7 @@ bool os::drag::supported() {
 }
 
 bool os::drag::begin_file_drag(SDL_Window* /*window*/, const std::filesystem::path& /*path*/) {
-	// xdnd needs the protocol implementing by hand against the native window, and sdl only does the receiving end
+	// todo: xdnd
 	return false;
 }
 

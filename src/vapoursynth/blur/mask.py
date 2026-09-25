@@ -152,13 +152,9 @@ CLUSTER_COVERAGE = 0.06
 GROW_PX = 1
 FEATHER_PX = 1
 
-# generated masks are kept here, under the settings folder alongside blur's other state, so a video is only
-# ever analysed once however many previews and renders it goes through. nothing but finished masks goes in
-# here - it's a folder to go looking in, and every file in it is one that can be copied into the masks folder
+# only finished masks go in here, so any of them can be copied into the masks folder
 CACHE_FOLDER = "auto-masks"
 
-# the scores behind them, which are an intermediate rather than anything to look at, so they get a folder of
-# their own. see the note above `_cache_key`
 SCORE_CACHE_FOLDER = "auto-mask-cache"
 
 # how many of each to keep, oldest dropped first. a mask is mostly flat black and white so it compresses to a
@@ -167,8 +163,7 @@ SCORE_CACHE_FOLDER = "auto-mask-cache"
 CACHE_LIMIT = 256
 SCORE_CACHE_LIMIT = 24
 
-# a cached mask, and a cached "there was nothing to mask here". the mask is a png so that it's the same kind
-# of file as a hand made one - copy it into the masks folder and it's a mask like any other
+# .nothing marks a video that had nothing worth masking
 MASK_SUFFIX = ".png"
 NOTHING_SUFFIX = ".nothing"
 
@@ -544,28 +539,13 @@ def generate(clip: vs.VideoNode, params: Params = DEFAULT_PARAMS) -> vs.VideoNod
 
 # Caching
 #
-# A config preview re-runs this whole script for every setting the user nudges and every seek, so without
-# somewhere to put the answer the video would be analysed again each time. Masks are static, so the answer only
-# depends on the video and on how the analysis works, and both of those go into the key.
-#
-# Two things are kept, because the analysis has two halves that cost wildly different amounts:
-#
-#  - the finished mask, under CACHE_FOLDER. keyed on every setting, so it only answers for the exact settings
-#    it was made with. it's a png like a hand made mask, which is the point of it being this folder's only
-#    contents: copy one into the masks folder and it's a mask like any other.
-#  - the scores `measure` worked out, under SCORE_CACHE_FOLDER. keyed on the settings that change what gets
-#    measured, which is the sample count and nothing else, so it answers for every combination of the settings
-#    that only shape those scores afterwards. that's what makes retuning them instant - `shape` runs off this
-#    without the video ever being opened.
+# the finished mask is cached per settings, and the scores `measure` works out are cached per sample count so
+# changing any of the other settings doesn't need the video to be read again
 
 
 def _cache_key(video_path: Path, analysed: tuple[int, int], subject: str) -> str:
-    """Identify a video, the part of it being analysed, and the analysis that would be run on it.
-
-    `subject` is whatever settings the thing being cached depends on. This module's own source is in the key
-    too, so any change to how a mask is worked out - a retuned default included - leaves what's cached behind
-    rather than quietly reusing it.
-    """
+    """`subject` is the settings the cached file depends on. this file's source is in the key too so changes to the
+    analysis don't reuse old results"""
     stat = video_path.stat()
     identity = (f"{video_path.resolve()}\n{stat.st_size}\n{stat.st_mtime_ns}\n{analysed}\n{subject}").encode()
 
@@ -573,21 +553,13 @@ def _cache_key(video_path: Path, analysed: tuple[int, int], subject: str) -> str
 
 
 def _cache_name(video_path: Path, key: str) -> str:
-    """`key` is what identifies the file; the video's name is in there to make the folder readable."""
     readable = "".join(c if c.isalnum() or c in "-_" else "_" for c in video_path.stem)[:48]
 
     return f"{readable}-{key}"
 
 
 def _greyscale_png(plane, width: int, height: int) -> bytes:
-    """Encode a single 8 bit plane as a png.
-
-    Hand rolled because none of the plugins blur ships can write an image, and a png is worth the twenty lines
-    - it's what a mask is normally, so a generated one can be opened, touched up and kept like any other.
-
-    Scanlines go in unfiltered. Filtering exists to help the compressor find patterns, and a mask is mostly
-    flat runs of black and white, which zlib already handles about as well as it's going to.
-    """
+    """hand rolled since none of the plugins blur ships can write images"""
     packed = plane.tobytes()  # tobytes drops the stride padding, leaving exactly width bytes a row
     scanlines = b"".join(b"\x00" + packed[y * width : (y + 1) * width] for y in range(height))
 
@@ -714,16 +686,8 @@ def cached(
     analysed: tuple[int, int],
     params: Params = DEFAULT_PARAMS,
 ) -> vs.VideoNode | None:
-    """`generate`, but remembering both halves of it on disk between runs.
-
-    `analysed` is which frames of `video_path` the clip covers. It's only used to tell cached masks apart:
-    trimming to a different part of a video can turn up a different overlay, so it can't share one.
-
-    Comes back 8 bit rather than float when it's read from the cache, which `match` handles either way.
-
-    Falls back to working in place if the cache can't be read or written - a cache that isn't working is not a
-    reason to fail a render.
-    """
+    """`generate`, cached on disk. `analysed` is the frame range the clip covers, since a different trim can find
+    a different mask"""
     try:
         path = _cached_path(folder, video_path, analysed, str(params))
     except OSError as e:
@@ -742,7 +706,6 @@ def cached(
             # read here for the same reasons as the measurements above
             return _detached(load(mask_file))
         except Exception as e:  # noqa: BLE001
-            # unreadable, so it's no better than not having it
             log.info(f"Mask: couldn't read {mask_file.name} ({e}), analysing again")
 
     # no mask for these exact settings, but the measurements behind it are worth having whatever the rest of
@@ -813,13 +776,7 @@ def match_length(src: vs.VideoNode, target: vs.VideoNode) -> vs.VideoNode:
 
 
 def combine(grays: list[vs.VideoNode]) -> vs.VideoNode:
-    """Stack GRAY masks: a pixel is protected if any of them protects it.
-
-    They won't be the same size - a base mask is whatever resolution it was drawn at, and a generated one comes
-    back at the analysis height - so everything is brought up to the largest of them first. Up rather than down
-    because a mask is applied at the video's own resolution anyway, and shrinking one here would throw away
-    detail that `match` is about to ask for again.
-    """
+    """a pixel is protected if any of the masks protects it. they're scaled up to the largest one first"""
     if len(grays) == 1:
         return grays[0]
 
@@ -839,7 +796,7 @@ def combine(grays: list[vs.VideoNode]) -> vs.VideoNode:
 
     combined = sized(grays[0])
     for gray in grays[1:]:
-        # black is what protects, so the darker of the two wins the pixel
+        # black protects, so take the darker one
         combined = core.std.Expr([combined, sized(gray)], "x y min")
 
     return combined

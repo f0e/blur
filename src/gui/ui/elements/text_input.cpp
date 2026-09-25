@@ -256,8 +256,6 @@ ui::AnimatedElement* ui::add_selectable_text(
 	state.read_only = true;
 	state.multiline = true;
 
-	// verbatim rather than wrap_text: this is for logs and diagnostics, where indentation and blank lines are
-	// part of what's being read
 	auto lines = render::wrap_text_verbatim(text, field_width - (TEXT_INPUT_PADDING.w * 2), font);
 
 	// the state outlives the element, so the wrapped copy stays readable while the element fades out. the caller's

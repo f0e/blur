@@ -2,8 +2,7 @@
 
 #include "config_blur.h" // for DEFAULT_CONFIG_NAME
 
-// a rule points every video whose path matches `pattern` at `config_name`. rules are globally
-// ordered and the first match wins, so overlapping patterns resolve predictably
+// rules are checked in order and the first match wins
 struct ConfigRule {
 	std::string pattern;
 	std::string config_name;
@@ -38,8 +37,6 @@ namespace config_rules {
 
 	void save(const ConfigRuleSettings& settings);
 
-	// available_configs is passed in rather than read from config_blur, which keeps the matching
-	// pure and keeps this out of a cycle with config_blur
 	bool usable(const ConfigRule& rule, const std::vector<std::string>& available_configs);
 	bool any_usable(const ConfigRuleSettings& settings, const std::vector<std::string>& available_configs);
 

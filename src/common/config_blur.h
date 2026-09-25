@@ -65,12 +65,10 @@ struct BlurSettings {
 	std::string interpolation_method = "svp";
 #endif
 
-	// the base mask: filename of an image in <settings path>/masks, or empty for none. this is the mask that's
-	// the same for every video - a game's HUD, say
+	// filename of an image in the masks folder, empty for none
 	std::string mask;
 
-	// work a second mask out from each video by finding the parts of its frame that never move, and apply it
-	// over the base mask. catches whatever a particular video has that the base mask doesn't cover
+	// generate a mask from the parts of each video that never move, applied on top of `mask`
 	bool auto_mask = false;
 
 	bool pre_interpolate = false;
@@ -139,21 +137,11 @@ namespace config_blur {
 
 	inline const std::vector<std::string> SOURCE_PLUGINS = { "LWLibavSource", "BestSource" };
 
-	// blur configs live one to a file in <settings path>/configs, the way masks live one to a file in
-	// <settings path>/masks. a config's name is its filename without the extension, so the folder stays
-	// readable and hand-editable, and a single config can be copied between machines on its own.
-	//
-	// which one new videos start on is the default, named in the rules config alongside the rules that
-	// override it, rather than fixed to a filename, so the default can be renamed like any other
-	//
-	// constexpr, not const std::string: ConfigRuleSettings defaults its config name from DEFAULT_CONFIG_NAME,
-	// and config_rules::DEFAULT_CONFIG is itself a global. a dynamically initialised std::string here would be
-	// read by that one before it was constructed, depending on which translation unit went first
+	// constexpr so they're initialised before config_rules::DEFAULT_CONFIG, which reads DEFAULT_CONFIG_NAME
 	inline constexpr std::string_view CONFIGS_FOLDER_NAME = "configs";
 	inline constexpr std::string_view CONFIG_EXTENSION = ".cfg";
 	inline constexpr std::string_view DEFAULT_CONFIG_NAME = "default";
 
-	// the one global config there used to be, migrated into the folder above on startup
 	const std::string LEGACY_CONFIG_FILENAME = ".blur-config.cfg";
 
 	std::string generate_config_string(const BlurSettings& settings, bool concise);
@@ -202,15 +190,12 @@ namespace config_blur {
 	std::filesystem::path get_configs_path();
 	std::filesystem::path get_config_path(const std::string& name);
 
-	// names of every config in the folder, sorted. empty if the folder doesn't exist
 	std::vector<std::string> list();
 
-	// what a config dropdown shows. `current` is kept in the list even if it's been deleted since it was
-	// picked, so that's visible instead of the dropdown silently snapping to a different config
+	// includes `current` even if it's since been deleted
 	std::vector<std::string> options(const std::string& current);
 
-	// the named config. falls back to the default config, then to built-in defaults, if it's not there -
-	// a config can be deleted out from under a video that was queued with it
+	// falls back to the default config, then the built-in defaults
 	BlurSettings get_config(const std::string& name);
 
 	void save(const std::string& name, const BlurSettings& settings);
@@ -219,7 +204,6 @@ namespace config_blur {
 	// returns empty when no default is set or the configured default no longer exists
 	std::string get_default_name();
 
-	// where a video's config came from, so the queue can say why it picked the one it did
 	enum class ConfigSource : std::uint8_t {
 		NONE,
 		OVERRIDE,
@@ -242,7 +226,5 @@ namespace config_blur {
 		const std::filesystem::path& input_path, const std::optional<std::string>& name_override
 	);
 
-	// makes the configs folder, moves the old single global config into it, and makes sure at least one
-	// config exists to select. called once on startup
 	void initialise_configs();
 }

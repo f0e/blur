@@ -139,8 +139,6 @@ void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
 
 		static size_t next_video_id = 0;
 
-		// start from the config this video resolves to, and the masks that config asks for. the queue
-		// screen can change all three after
 		auto resolved = config_blur::resolve_config(path, {});
 
 		auto pending_video = std::make_shared<PendingVideo>(PendingVideo{

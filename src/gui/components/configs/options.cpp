@@ -365,12 +365,9 @@ void configs::options(ui::Container& container) {
 	/*
 	    Masking
 	*/
-	// interpolation and deduplication are both things a mask protects against, so this sits after the pair of
-	// them rather than under either one. no point offering it when neither is going to run
 	if (settings.interpolate || settings.deduplicate) {
 		section_component("masking");
 
-		// the dropdown holds onto a pointer to this, so it has to outlive the frame
 		static std::string selected_mask;
 		selected_mask = settings.mask.empty() ? masks::NONE_OPTION : settings.mask;
 
@@ -390,8 +387,6 @@ void configs::options(ui::Container& container) {
 		const auto& dropdown_data = std::get<ui::DropdownElementData>(mask_dropdown->element->data);
 		hovered_mask = dropdown_data.hovered_option;
 
-		// stacks on top of the mask above rather than replacing it, so a game's HUD can be covered by a mask
-		// picked once while this catches whatever else a particular video turns out to have
 		ui::add_checkbox(
 			"default auto mask checkbox", container, "default auto mask", settings.auto_mask, fonts::dejavu
 		);
@@ -967,8 +962,7 @@ void configs::parse_interp() {
 void configs::save_config() {
 	flush_selected_config();
 
-	// configs removed this session are still on disk until now, so they go before the writes - a config
-	// deleted and a new one added under the same name in one session has to end up as the new one
+	// remove first so a config that was deleted and re-added under the same name is kept
 	for (const auto& [name, config] : saved_configs) {
 		if (!edited_configs.contains(name))
 			config_blur::remove(name);
@@ -977,7 +971,7 @@ void configs::save_config() {
 	for (const auto& [name, config] : edited_configs) {
 		auto existing = saved_configs.find(name);
 		if (existing != saved_configs.end() && existing->second == config)
-			continue; // unchanged, and writing would only reformat the file
+			continue;
 
 		config_blur::save(name, config);
 	}
@@ -1001,7 +995,7 @@ void configs::save_config() {
 	config_encoding_presets::save(encoding_preset_settings);
 	current_encoding_preset_settings = encoding_preset_settings;
 
-	// patterns come back trimmed from the file, so trim now to keep what's shown the same as what's saved
+	// same for rule patterns
 	for (auto& rule : rule_settings.rules) {
 		rule.pattern = u::trim(rule.pattern);
 	}

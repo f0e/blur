@@ -275,7 +275,7 @@ namespace {
 					[entry](ui::Container& container) {
 						const auto log_font = fonts::dejavu(fonts::size::SMALL);
 
-						// element state is keyed by id and outlives the dialog, so key the ids by entry
+						// key ids by entry so element state doesn't carry over between errors
 						auto element_id = [id = entry->id](std::string_view name) {
 							return std::format("error {} {}", id, name);
 						};
@@ -614,7 +614,6 @@ void history::draw_panel(ui::Container& container, ui::Container& button_contain
 		return;
 	}
 
-	// the fade-out end is handled by the early return above, so settling at the top is the only case left
 	if (panel_transforming && panel_showing && anim >= 1.f)
 		panel_transforming = false;
 
@@ -650,10 +649,8 @@ void history::draw_panel(ui::Container& container, ui::Container& button_contain
 
 	size_t rows_first_vertex = render::draw_vertex_count();
 
-	// The rows are submitted at the panel's settled coordinates and only moved into animated_panel_rect afterwards,
-	// so this has to clip against the settled rect. Clipping against the animated one would cull the glyphs before
-	// the transform ever ran (imgui drops text outside the clip rect at submission time, see ImFont::RenderText).
-	// animated_panel_rect is always inside panel_rect, so scroll overflow is still clipped either way.
+	// rows are transformed after they're submitted and imgui culls text at submission, so clip against the settled
+	// rect rather than the animated one
 	render::push_clip_rect(panel_rect, true);
 
 	std::vector<std::pair<ui::AnimationState*, float>> row_animations;

@@ -139,7 +139,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		}
 	}
 
-	// Masking section - after the two things it protects against, since it applies to both
+	// Masking section
 	if (!concise || !settings.mask.empty() || settings.auto_mask) {
 		output << "\n";
 		output << "- masking" << "\n";
@@ -438,7 +438,7 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "rife (tensorrt) model", settings.rife_trt_model);
 #endif
 	config_base::extract_config_value(config_map, "mask", settings.mask);
-	if (settings.mask == masks::NONE_OPTION) // what the dropdown shows for no mask; it isn't a filename
+	if (settings.mask == masks::NONE_OPTION)
 		settings.mask.clear();
 	config_base::extract_config_value(config_map, "auto mask", settings.auto_mask);
 
@@ -540,7 +540,7 @@ std::filesystem::path config_blur::get_config_path(const std::string& name) {
 std::vector<std::string> config_blur::list() {
 	std::vector<std::string> names;
 
-	std::error_code ec; // don't throw if the folder's missing or unreadable, just show nothing
+	std::error_code ec;
 	for (const auto& entry : std::filesystem::directory_iterator(get_configs_path(), ec)) {
 		if (!entry.is_regular_file(ec))
 			continue;
@@ -572,8 +572,7 @@ BlurSettings config_blur::get_config(const std::string& name) {
 	if (!name.empty() && std::filesystem::exists(path, ec))
 		return parse(path);
 
-	// the config's gone - deleted while a video sat in the queue holding its name, say. fall back rather
-	// than render with something the user didn't ask for and can't see
+	// the config could have been deleted after it was picked
 	if (!name.empty())
 		u::log("config '{}' not found, falling back to the default config", name);
 
@@ -622,7 +621,7 @@ config_blur::ResolvedConfig config_blur::resolve_config(
 
 	auto available = list();
 
-	// the settings have to outlive the body - find_match points into them
+	// find_match returns a pointer into this
 	auto rules = config_rules::get_config();
 
 	if (const auto* rule = config_rules::find_match(rules, input_path, available)) {
@@ -652,8 +651,7 @@ void config_blur::initialise_configs() {
 	std::error_code ec;
 	std::filesystem::create_directories(configs_path, ec);
 
-	// before the empty check below, so an existing install's settings become its default config rather
-	// than being left behind next to the folder while a fresh default is written inside it
+	// before the empty check so an existing install's config becomes the default one
 	config_base::migrate_file(
 		blur.settings_path / LEGACY_CONFIG_FILENAME, get_config_path(std::string(DEFAULT_CONFIG_NAME))
 	);

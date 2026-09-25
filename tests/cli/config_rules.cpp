@@ -129,7 +129,6 @@ TEST(ConfigRules, RoundTripsTheDefaultConfig) {
 	EXPECT_EQ(config_rules::parse(config_rules::generate_config_string(settings)), settings);
 }
 
-// the wiring both the gui and the cli go through, rather than the matching on its own
 class ConfigRuleResolution : public ::testing::Test {
 protected:
 	std::filesystem::path m_settings_dir;
