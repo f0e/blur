@@ -367,12 +367,12 @@ chmod -R u+rwX,go+rX "$out_dir/libs"
 
 echo "fixing all library dependencies with dylibbundler..."
 
-dylibbundler -cd -b -of \
+dylibbundler -cd -b -of -p "@loader_path/../libs/" \
   -x "$MOLTENVK_DEST/libMoltenVK.dylib" \
   -d "$out_dir/libs"
 
 for plugin in "$out_dir"/vapoursynth-plugins/*.dylib; do
-  dylibbundler -cd -b -of -x "$plugin" -d "$out_dir/libs"
+  dylibbundler -cd -b -of -p "@loader_path/../libs/" -x "$plugin" -d "$out_dir/libs"
 done
 
 echo "done"
