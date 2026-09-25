@@ -12,11 +12,13 @@ namespace media {
 		int fps_num = -1;
 		int fps_den = -1;
 		float duration = 0.f;
+		double video_duration = 0.0;
 		int width = -1;
 		int height = -1;
 
 		std::vector<int> audio_sample_rates;
 
+		double start_time = 0.0;
 		double video_start_time = 0.0;
 		std::vector<double> audio_start_times;
 

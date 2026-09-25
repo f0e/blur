@@ -72,10 +72,10 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 			"error",
 			"-show_entries",
 			// clang-format off
-			"stream=index,codec_type,sample_rate,color_range,r_frame_rate,pix_fmt,color_space,color_transfer,color_primaries,width,height,start_time",
+			"stream=index,codec_type,sample_rate,color_range,r_frame_rate,pix_fmt,color_space,color_transfer,color_primaries,width,height,start_time,duration",
 			// clang-format on
 			"-show_entries",
-			"format=duration",
+			"format=duration,start_time",
 			"-of",
 			"json",
 			u::path_to_string(path),
@@ -121,6 +121,9 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 
 		if (fmt.contains("duration"))
 			info.duration = std::stod(fmt["duration"].get<std::string>());
+
+		if (fmt.contains("start_time"))
+			info.start_time = std::stod(fmt["start_time"].get<std::string>());
 	}
 
 	// streams
@@ -153,6 +156,9 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 
 			if (stream.contains("start_time"))
 				info.video_start_time = std::stod(stream["start_time"].get<std::string>());
+
+			if (stream.contains("duration"))
+				info.video_duration = std::stod(stream["duration"].get<std::string>());
 		}
 		else if (codec_type == "audio") {
 			if (stream.contains("sample_rate"))
@@ -162,6 +168,10 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 				info.audio_start_times.push_back(std::stod(stream["start_time"].get<std::string>()));
 		}
 	}
+
+	// mkv doesn't store stream durations
+	if (info.has_video_stream && info.video_duration <= 0.0)
+		info.video_duration = info.duration - (info.video_start_time - info.start_time);
 
 	info.preroll_frames = get_video_preroll_frames(path, (double)info.fps_num / info.fps_den);
 

@@ -8,35 +8,49 @@
 #include "common/media.h"
 
 namespace {
-	constexpr int FRAMES_NEEDED_FOR_VSPIPE_TO_NOT_POO_ITSELF =
-		3; // need some buffer of frames so something actually renders out. idk how to get a proper value for this.
-	       // @todo: make sure this doesnt ever fail (set config preview seek = 1 and try lots of diff vids and configs,
-	       // make sure preview never fails to render)
-
-	// render_frame skips this far into the blurred output - the first frame doesn't have anything to blend with yet.
+	// a preview renders from a start frame and keeps one output frame: the first, or the second with blur on since the
+	// first has nothing to blend with. that frame should come from the source frame under the seek bar
 	// @todo: revisit if i ever change that behaviour (first frame of video not being blurred properly thing)
-	double get_output_seek(const BlurSettings& settings) {
-		return 1.0 / settings.blur_output_fps;
+	double get_warmup_time(const BlurSettings& settings) {
+		// blurred output is exactly blur_output_fps (change_fps in blur/interpolate.py), so this is output frame 1
+		return settings.blur ? 1.0 / settings.blur_output_fps : 0.0;
 	}
 
-	size_t get_seek_start_frame(const BlurSettings& settings, const media::VideoInfo& video_info, float seek) {
-		if (!video_info.has_video_stream || video_info.fps_num <= 0 || video_info.fps_den <= 0 ||
-		    video_info.duration <= 0.f)
-			return 0;
+	std::optional<double> get_fps(const media::VideoInfo& video_info) {
+		if (video_info.fps_num <= 0 || video_info.fps_den <= 0)
+			return {};
 
-		double ffmpeg_required_extra_time = get_output_seek(settings);
-		double fps = static_cast<double>(video_info.fps_num) / video_info.fps_den;
+		return static_cast<double>(video_info.fps_num) / video_info.fps_den;
+	}
 
-		size_t total_frames = static_cast<size_t>(video_info.duration * fps);
+	double get_frames_per_output(const BlurSettings& settings, double fps) {
+		if (settings.timescale)
+			fps = fps / settings.input_timescale * settings.output_timescale;
 
-		size_t total_usable_frames = static_cast<size_t>(std::max(
-			0.0, ((video_info.duration - ffmpeg_required_extra_time) * fps) - FRAMES_NEEDED_FOR_VSPIPE_TO_NOT_POO_ITSELF
-		));
+		return fps / settings.blur_output_fps;
+	}
 
-		size_t start_frame = static_cast<size_t>(std::clamp(seek, 0.f, 1.f) * total_frames);
-		size_t offset = total_frames > total_usable_frames ? total_frames - total_usable_frames : 0;
+	// source frames between the start and the kept frame. change_fps takes output frame n from round(n / factor),
+	// and llrint rounds halves to even like python
+	int64_t get_lead_frames(const BlurSettings& settings, double fps) {
+		return settings.blur ? std::llrint(get_frames_per_output(settings, fps)) : 0;
+	}
 
-		return offset < start_frame ? start_frame - offset : 0;
+	// source frames needed for the kept frame to exist. change_fps floors its length so output frame 1 takes 2 output
+	// frames' worth, plus one for each interpolation pass that floors too. rife needs at least 2
+	int64_t get_render_length(const BlurSettings& settings, double fps) {
+		if (!settings.blur)
+			return 2;
+
+		return static_cast<int64_t>(std::ceil(2 * get_frames_per_output(settings, fps))) + 2;
+	}
+
+	int64_t get_render_start(const BlurSettings& settings, const media::VideoInfo& video_info, double fps, float seek) {
+		auto frame_count = std::llround(video_info.video_duration * fps);
+		auto seek_frame = static_cast<int64_t>(std::clamp(seek, 0.f, 1.f) * frame_count);
+		auto last = std::max<int64_t>(0, frame_count - get_render_length(settings, fps));
+
+		return std::clamp<int64_t>(seek_frame - get_lead_frames(settings, fps), 0, last);
 	}
 
 	std::optional<std::string> check_tensorrt_installed(const BlurSettings& settings) {
@@ -86,9 +100,12 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 	if (!video_info.has_video_stream)
 		return tl::unexpected("Input is not a valid video or is unreadable");
 
-	auto vspipe_args = detail::build_vspipe_video_args(
-		input_path, merged_settings, video_info, get_seek_start_frame(settings, video_info, seek), {}, {}, preview_mask
-	);
+	size_t start_frame = 0;
+	if (auto fps = get_fps(video_info))
+		start_frame = get_render_start(settings, video_info, *fps, seek);
+
+	auto vspipe_args =
+		detail::build_vspipe_video_args(input_path, merged_settings, video_info, start_frame, {}, {}, preview_mask);
 
 	RenderCommands commands = {
         .vspipe_video = std::move(vspipe_args),
@@ -97,7 +114,7 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
             "-hide_banner",
             "-stats",
             "-i", "-",
-            "-ss", std::to_string(get_output_seek(settings)),
+            "-ss", std::to_string(get_warmup_time(settings)),
             "-map", "0:v",
             "-frames:v", "1",
             "-c:v", "mjpeg",
@@ -121,16 +138,23 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 	};
 }
 
-// get_seek_start_frame handles the rest of the unusable-video cases itself
 float rendering::get_preview_frame_timestamp(
 	const BlurSettings& settings, const media::VideoInfo& video_info, float seek
 ) {
-	if (video_info.fps_num <= 0 || video_info.fps_den <= 0)
+	auto fps = get_fps(video_info);
+	if (!fps)
 		return 0.f;
 
-	double fps = static_cast<double>(video_info.fps_num) / video_info.fps_den;
+	auto frame = get_render_start(settings, video_info, *fps, seek) + get_lead_frames(settings, *fps);
 
-	return static_cast<float>((get_seek_start_frame(settings, video_info, seek) / fps) + get_output_seek(settings));
+	// mpv's clock starts with the container, which can be before the video's first frame
+	double frame_time = video_info.video_start_time - video_info.start_time + (static_cast<double>(frame) / *fps);
+
+	// an exact mpv seek shows the first frame at or after target - 5ms, so aim half a frame before this one
+	// https://github.com/mpv-player/mpv/blob/v0.41.0/player/video.c#L471
+	constexpr double MPV_HR_SEEK_TOLERANCE = 0.005;
+
+	return static_cast<float>(frame_time + MPV_HR_SEEK_TOLERANCE - (0.5 / *fps));
 }
 
 std::pair<size_t, size_t> rendering::get_trim_frame_range(const media::VideoInfo& video_info, float start, float end) {
