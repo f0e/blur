@@ -16,7 +16,7 @@ Join the [Discord](https://discord.gg/B5BK9GMN87) to share your configs, render 
 
 - [Windows installer](https://github.com/f0e/blur/releases/latest/download/blur-Windows-Installer-x64.exe)
 - [macOS installer](https://github.com/f0e/blur/releases/latest/download/blur-macOS-Release-arm64.dmg)
-- [Linux AppImage](https://github.com/f0e/blur/releases/latest/download/blur-Linux-x64.AppImage)
+- [Linux AppImage](https://github.com/f0e/blur/releases/latest/download/blur-Linux-x64.AppImage) (or [tarball](https://github.com/f0e/blur/releases/latest/download/blur-Linux-x64.tar.gz))
 
 ### Beta releases
 
@@ -35,6 +35,8 @@ Make the AppImage executable with `chmod +x blur-Linux-x64.AppImage`, then run i
 To use the command line version, run `./blur-Linux-x64.AppImage cli <args>`, or symlink the AppImage as `blur-cli`.
 
 If it won't start because FUSE isn't available (e.g. in a container), run it with `--appimage-extract-and-run`.
+
+If you'd rather not use an AppImage, the tarball has the same files unpacked. Extract it with `tar -xzf blur-Linux-x64.tar.gz`, then run `blur/blur` for the gui or `blur/blur-cli` for the command line version. Keep the `blur` folder together, since the binaries find everything relative to themselves.
 
 ## Features
 
