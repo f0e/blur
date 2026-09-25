@@ -64,6 +64,13 @@ jobs:
       matrix:
         os: [ubuntu-24.04, macos-14, windows-2022]
         build-type: [Release]
+        include:
+          - os: ubuntu-24.04
+            deps-script: build-dependencies-linux.sh
+          - os: macos-14
+            deps-script: build-dependencies-macos.sh
+          - os: windows-2022
+            deps-script: build-dependencies-windows.ps1
 
     steps:
       - name: Checkout repository
@@ -124,51 +131,41 @@ jobs:
             patchelf
 
       # ── Project dependencies ──────────────────────────────────────────────
-      - name: Cache build dependencies (macOS)
-        id: deps-cache-macos
-        if: runner.os == 'macOS'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      - name: Restore build dependencies
+        id: deps-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ci/out
-          key: deps-macos-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-macos.sh') }}
-
-      - name: Cache build dependencies (Linux)
-        id: deps-cache-linux
-        if: runner.os == 'Linux'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ci/out
-          key: deps-linux-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-linux.sh') }}
-
-      - name: Cache build dependencies (Windows)
-        id: deps-cache-windows
-        if: runner.os == 'Windows'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ci/out
-          key: deps-windows-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-windows.ps1') }}
+          key: deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('ci/{0}', matrix.deps-script)) }}
 
       - name: Install Homebrew packages (macOS)
         if: runner.os == 'macOS'
         run: |
           brew install ffmpeg libass zimg imagemagick autoconf automake libtool gcc ffmpeg meson xxhash vapoursynth fftw dylibbundler vulkan-loader molten-vk mpv
 
-      - name: Collect dependencies (macOS)
-        if: runner.os == 'macOS' && steps.deps-cache-macos.outputs.cache-hit != 'true'
+      - name: Collect dependencies
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        working-directory: ci
+        env:
+          SCRIPT: ${{ matrix.deps-script }}
         run: |
-          cd ci
-          bash build-dependencies-macos.sh
+          if [[ "$SCRIPT" == *.ps1 ]]; then
+            pwsh "$SCRIPT"
+          else
+            bash "$SCRIPT"
+          fi
 
-      - name: Collect dependencies (Windows)
-        if: runner.os == 'Windows' && steps.deps-cache-windows.outputs.cache-hit != 'true'
-        run: |
-          cd ci
-          pwsh build-dependencies-windows.ps1
+      - name: Save build dependencies
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ci/out
+          key: ${{ steps.deps-cache.outputs.cache-primary-key }}
 
-      - name: Cache libmpv (Windows)
+      - name: Restore libmpv (Windows)
         id: libmpv-cache
         if: runner.os == 'Windows'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: mpv
           key: libmpv-${{ runner.os }}-${{ env.MPV_VERSION }}-${{ env.MPV_SHA256 }}
@@ -186,11 +183,12 @@ jobs:
           mv libmpv-2.def mpv.def
           mv mpv.def libmpv.dll.a mpv/
 
-      - name: Collect dependencies (Linux)
-        if: runner.os == 'Linux' && steps.deps-cache-linux.outputs.cache-hit != 'true'
-        run: |
-          cd ci
-          bash build-dependencies-linux.sh
+      - name: Save libmpv (Windows)
+        if: runner.os == 'Windows' && steps.libmpv-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: mpv
+          key: ${{ steps.libmpv-cache.outputs.cache-primary-key }}
 
       # ── vcpkg ─────────────────────────────────────────────────────────────
       - name: Set up vcpkg
@@ -202,8 +200,9 @@ jobs:
           git -C vcpkg checkout FETCH_HEAD
           ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
-      - name: Cache vcpkg packages
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      - name: Restore vcpkg packages
+        id: vcpkg-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             out/build/*/vcpkg_installed/
@@ -237,6 +236,15 @@ jobs:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
           # CMAKE_C_COMPILER_LAUNCHER: ccache
           # CMAKE_CXX_COMPILER_LAUNCHER: ccache
+
+      - name: Save vcpkg packages
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            out/build/*/vcpkg_installed/
+            vcpkg/downloads/
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Build
         run: cmake --build --preset "$PRESET"
