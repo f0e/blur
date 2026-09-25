@@ -258,7 +258,7 @@ preview_frames::Result preview_frames::update(const Request& request) {
 
 	{
 		std::lock_guard lock(video.mutex);
-		result.video_duration = video.info.duration;
+		result.video_duration = static_cast<float>(video.info.video_duration);
 	}
 
 	if (!request.show_mask) {
