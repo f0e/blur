@@ -361,6 +361,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      id-token: write # for attestations
+      attestations: write
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -368,6 +370,16 @@ jobs:
           pattern: Blur-*
           path: bundle/
           merge-multiple: true
+
+      - name: Generate checksums
+        working-directory: bundle
+        run: sha256sum -- * > SHA256SUMS
+
+      # verify a download with `gh attestation verify <file> --repo <owner>/<repo>`
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: bundle/SHA256SUMS
 
       - name: Release
         env:
