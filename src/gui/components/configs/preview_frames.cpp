@@ -261,6 +261,10 @@ preview_frames::Result preview_frames::update(const Request& request) {
 		result.video_duration = static_cast<float>(video.info.video_duration);
 	}
 
+	if (preview.shown) {
+		result.frame_timing_log = preview.shown->frame_timing_log;
+	}
+
 	if (!request.show_mask) {
 		update_source_player(request, seek);
 
@@ -279,8 +283,6 @@ preview_frames::Result preview_frames::update(const Request& request) {
 			.image_id = preview.image_id,
 			.up_to_date = preview.same_frame(preview.shown->key, key) && !status.rendering,
 		};
-
-		result.frame_timing_log = preview.shown->frame_timing_log;
 	}
 
 	return result;
