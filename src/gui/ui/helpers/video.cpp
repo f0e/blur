@@ -1,4 +1,5 @@
 #include "video.h"
+#include "../../render/render.h"
 
 const int SEEK_SECS = 3;
 
@@ -73,6 +74,7 @@ void VideoPlayer::handle_key_press(SDL_Keycode key) {
 void VideoPlayer::reset_loaded_file() {
 	m_loaded_file = {};
 	m_is_seeking = false;
+	m_has_frame = false;
 
 	m_cached_percent_pos = -1.0;
 	m_cached_duration = -1.0;
@@ -82,7 +84,11 @@ void VideoPlayer::reset_loaded_file() {
 	m_cached_height = 0;
 }
 
-void VideoPlayer::load_file(const std::filesystem::path& file_path) {
+void VideoPlayer::load_file(const std::filesystem::path& file_path, std::optional<float> start_time) {
+	// opening at the start time rather than seeking after means frame 0 is never shown
+	if (start_time)
+		run_command_async({ "set", "start", std::to_string(*start_time) });
+
 	run_command_async({ "loadfile", u::path_to_string(file_path) });
 
 	m_current_file_path = file_path;
@@ -197,12 +203,27 @@ bool VideoPlayer::render(int w, int h) {
 	return true;
 }
 
+bool VideoPlayer::draw(const gfx::Rect& rect, const gfx::Color& tint) {
+	int w = (int)std::lround(rect.w * render::framebuffer_scale);
+	int h = (int)std::lround(rect.h * render::framebuffer_scale);
+
+	if (!render(w, h))
+		return false;
+
+	render::imgui.drawlist->AddImage(
+		(ImTextureID)(intptr_t)m_tex, rect.origin(), rect.max(), ImVec2(0, 0), ImVec2(1, 1), tint.to_imgui()
+	);
+
+	return true;
+}
+
 void VideoPlayer::handle_mpv_event(const SDL_Event& event, bool& redraw, bool should_render) {
 	if (should_render && event.type == m_wakeup_on_mpv_render_update) {
 		uint64_t flags = mpv_render_context_update(m_mpv_gl);
 		if (flags & MPV_RENDER_UPDATE_FRAME) {
 			redraw = true;
 			m_new_frame_available = true;
+			m_has_frame = true;
 		}
 	}
 
@@ -324,11 +345,11 @@ void VideoPlayer::mpv_thread() {
 			m_is_seeking = true;
 			lock.unlock();
 
-			std::string flags = "absolute-percent";
+			std::string flags = seek.absolute_time ? "absolute" : "absolute-percent";
 			if (seek.exact)
 				flags += "+exact";
 
-			run_command({ "seek", std::to_string(seek.time * 100), flags });
+			run_command({ "seek", std::to_string(seek.absolute_time ? seek.time : seek.time * 100), flags });
 
 			// mpv_set_property_async(m_mpv, 0, "percent-pos", MPV_FORMAT_DOUBLE, &seek_to);
 		}
@@ -370,6 +391,7 @@ void VideoPlayer::process_mpv_events() {
 				u::log("MPV: Starting file");
 				m_loaded_file = {};
 				m_is_seeking = false;
+				m_has_frame = false;
 				break;
 			}
 			case MPV_EVENT_FILE_LOADED: {

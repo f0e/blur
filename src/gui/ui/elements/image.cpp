@@ -1,4 +1,5 @@
 #include "../ui.h"
+#include "../helpers/video.h"
 #include "../../render/render.h"
 
 struct ImageElementData {
@@ -22,6 +23,34 @@ void ui::render_image(const Container& container, const AnimatedElement& element
 	render::borders(
 		element.element->rect, gfx::Color(155, 155, 155, stroke_alpha), gfx::Color(80, 80, 80, stroke_alpha)
 	);
+}
+
+namespace {
+	// fits the area the image is drawn in, then puts the border back around it
+	gfx::Rect fit_rect(const gfx::Point& position, const gfx::Size& max_size, float aspect_ratio) {
+		gfx::Size inner_max_size(
+			std::max(max_size.w - (ui::IMAGE_INSET * 2), 1), std::max(max_size.h - (ui::IMAGE_INSET * 2), 1)
+		);
+		gfx::Rect rect(position, inner_max_size);
+
+		float target_width = rect.h * aspect_ratio;
+		float target_height = rect.w / aspect_ratio;
+
+		if (target_width <= rect.w) {
+			rect.w = static_cast<int>(std::lround(target_width));
+		}
+		else {
+			rect.h = static_cast<int>(std::lround(target_height));
+		}
+
+		rect.w = std::clamp(rect.w, 1, inner_max_size.w);
+		rect.h = std::clamp(rect.h, 1, inner_max_size.h);
+
+		rect.w += ui::IMAGE_INSET * 2;
+		rect.h += ui::IMAGE_INSET * 2;
+
+		return rect;
+	}
 }
 
 std::optional<ui::AnimatedElement*> ui::add_image(
@@ -84,27 +113,8 @@ std::optional<ui::AnimatedElement*> ui::add_image(
 			texture = image_data.texture;
 	}
 
-	// fit the area the image is drawn in, then put the border back around it
-	gfx::Size inner_max_size(std::max(max_size.w - (IMAGE_INSET * 2), 1), std::max(max_size.h - (IMAGE_INSET * 2), 1));
-	gfx::Rect image_rect(container.current_position, inner_max_size);
-
 	float aspect_ratio = texture->width() / static_cast<float>(texture->height());
-
-	float target_width = image_rect.h * aspect_ratio;
-	float target_height = image_rect.w / aspect_ratio;
-
-	if (target_width <= image_rect.w) {
-		image_rect.w = static_cast<int>(std::lround(target_width));
-	}
-	else {
-		image_rect.h = static_cast<int>(std::lround(target_height));
-	}
-
-	image_rect.w = std::clamp(image_rect.w, 1, inner_max_size.w);
-	image_rect.h = std::clamp(image_rect.h, 1, inner_max_size.h);
-
-	image_rect.w += IMAGE_INSET * 2;
-	image_rect.h += IMAGE_INSET * 2;
+	gfx::Rect image_rect = fit_rect(container.current_position, max_size, aspect_ratio);
 
 	Element element(
 		id,
@@ -116,6 +126,49 @@ std::optional<ui::AnimatedElement*> ui::add_image(
 			.image_color = image_color,
 		},
 		render_image
+	);
+
+	return add_element(container, std::move(element), container.element_gap);
+}
+
+void ui::render_video_frame(const Container& container, const AnimatedElement& element) {
+	const auto& data = std::get<VideoFrameElementData>(element.element->data);
+	float anim = element.animations.at(hasher("main")).current;
+
+	int stroke_alpha = anim * 125;
+
+	data.player->draw(element.element->rect.shrink(IMAGE_INSET), data.color.adjust_alpha(anim));
+
+	render::borders(
+		element.element->rect, gfx::Color(155, 155, 155, stroke_alpha), gfx::Color(80, 80, 80, stroke_alpha)
+	);
+}
+
+std::optional<ui::AnimatedElement*> ui::add_video_frame(
+	const std::string& id,
+	Container& container,
+	std::shared_ptr<VideoPlayer> player,
+	const gfx::Size& max_size,
+	gfx::Color color
+) {
+	if (!player || !player->is_video_ready())
+		return {};
+
+	auto dimensions = player->get_video_dimensions();
+	if (!dimensions)
+		return {};
+
+	float aspect_ratio = dimensions->first / static_cast<float>(dimensions->second);
+
+	Element element(
+		id,
+		ElementType::VIDEO_FRAME,
+		fit_rect(container.current_position, max_size, aspect_ratio),
+		VideoFrameElementData{
+			.player = std::move(player),
+			.color = color,
+		},
+		render_video_frame
 	);
 
 	return add_element(container, std::move(element), container.element_gap);

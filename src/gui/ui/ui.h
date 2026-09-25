@@ -5,6 +5,8 @@
 #include "helpers/text_input.h"
 #include "common/media.h"
 
+class VideoPlayer;
+
 namespace ui {
 	inline constexpr gfx::Color DEFAULT_HIGHLIGHT_COLOR = { 133, 24, 16, 255 };
 	inline gfx::Color highlight_color = DEFAULT_HIGHLIGHT_COLOR;
@@ -28,6 +30,7 @@ namespace ui {
 		BAR,
 		TEXT,
 		IMAGE,
+		VIDEO_FRAME,
 		VIDEO,
 		TIMELINE,
 		BUTTON,
@@ -152,6 +155,13 @@ namespace ui {
 		bool operator==(const ImageElementData& other) const {
 			return texture == other.texture && image_id == other.image_id && image_color == other.image_color;
 		}
+	};
+
+	struct VideoFrameElementData {
+		std::shared_ptr<VideoPlayer> player;
+		gfx::Color color;
+
+		bool operator==(const VideoFrameElementData& other) const = default;
 	};
 
 	struct UIVideo {
@@ -507,6 +517,7 @@ namespace ui {
 		BarElementData,
 		TextElementData,
 		ImageElementData,
+		VideoFrameElementData,
 		VideoElementData,
 		TimelineElementData,
 		ButtonElementData,
@@ -719,6 +730,8 @@ namespace ui {
 
 	void render_image(const Container& container, const AnimatedElement& element);
 
+	void render_video_frame(const Container& container, const AnimatedElement& element);
+
 	void render_video(const Container& container, const AnimatedElement& element);
 	bool update_video(const Container& container, AnimatedElement& element);
 	void remove_video(AnimatedElement& element);
@@ -882,6 +895,16 @@ namespace ui {
 		const gfx::Size& max_size,
 		const std::string& image_id = "",
 		gfx::Color image_color = gfx::Color::white()
+	);
+
+	// whatever frame the player is currently on, sized like add_image. nothing's added until the player has a video
+	// loaded
+	std::optional<AnimatedElement*> add_video_frame(
+		const std::string& id,
+		Container& container,
+		std::shared_ptr<VideoPlayer> player,
+		const gfx::Size& max_size,
+		gfx::Color color = gfx::Color::white()
 	);
 
 	void add_videos(

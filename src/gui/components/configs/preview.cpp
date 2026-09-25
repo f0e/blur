@@ -352,6 +352,7 @@ void configs::config_preview(ui::Container& container) {
 		container.pop_element_gap();
 	};
 
+	std::string preview_image_id = "config preview image";
 	bool preview_image_added = false;
 	if (showing_hovered_mask || preview.frame) {
 		container.push_element_gap(PREVIEW_IMAGE_GAP);
@@ -365,6 +366,17 @@ void configs::config_preview(ui::Container& container) {
 									  container.get_usable_rect().size(),
 									  "hovered mask " + hovered_mask,
 									  gfx::Color::white()
+			)
+			                          .has_value();
+		}
+		else if (preview.frame->player) {
+			preview_image_id = "config preview video";
+			preview_image_added = ui::add_video_frame(
+									  preview_image_id,
+									  container,
+									  preview.frame->player,
+									  container.get_usable_rect().size(),
+									  gfx::Color::white(100)
 			)
 			                          .has_value();
 		}
@@ -386,7 +398,7 @@ void configs::config_preview(ui::Container& container) {
 	else if (preview.rendering) {
 		std::string loading_text =
 			init_stage_text(preview.init_stage)
-				.value_or(show_mask_preview ? "Loading mask preview..." : "Loading config preview...");
+				.value_or(show_mask_preview ? "Loading mask preview..." : "Initialising config preview...");
 
 		container.push_element_gap(PREVIEW_IMAGE_GAP);
 
@@ -445,7 +457,7 @@ void configs::config_preview(ui::Container& container) {
 	add_mask_controls();
 
 	if (preview_image_added)
-		ui::shrink_element_to_fit_container_height(container, "config preview image");
+		ui::shrink_element_to_fit_container_height(container, preview_image_id);
 }
 
 void configs::preview_tabs(ui::Container& container) {

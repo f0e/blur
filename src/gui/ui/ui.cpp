@@ -444,7 +444,8 @@ void ui::shrink_element_to_fit_container_height(Container& container, const std:
 	auto& target = target_it->second.element;
 
 	// images are drawn inset from their border, so it's the inner area that has to keep its shape
-	int inset = target->type == ElementType::IMAGE ? IMAGE_INSET * 2 : 0;
+	bool inset_image = target->type == ElementType::IMAGE || target->type == ElementType::VIDEO_FRAME;
+	int inset = inset_image ? IMAGE_INSET * 2 : 0;
 
 	int overflow = get_content_height(container) - container.get_usable_rect().h;
 	if (overflow <= 0 || target->rect.h <= inset + 1)

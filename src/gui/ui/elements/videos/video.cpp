@@ -47,27 +47,13 @@ void ui::render_video(const Container& container, const AnimatedElement& element
 	float video_alpha = alpha * (1.f - data.fade);
 
 	if (data.video.video_info) {
-		auto inner_rect = rect.shrink(1);
+		bool player_drawn = videos::player && videos::player->is_video_ready() && videos::is_loaded(data.video.path) &&
+		                    videos::player->draw(rect.shrink(1), gfx::Color::white(video_alpha));
 
-		int player_w = (int)std::lround(inner_rect.w * render::framebuffer_scale);
-		int player_h = (int)std::lround(inner_rect.h * render::framebuffer_scale);
-
-		if (videos::player && videos::player->is_video_ready() && videos::is_loaded(data.video.path) &&
-		    videos::player->render(player_w, player_h))
-		{
-			render::imgui.drawlist->AddImage(
-				videos::player->get_frame_texture_for_render(),
-				inner_rect.origin(),
-				inner_rect.max(),
-				ImVec2(0, 0),
-				ImVec2(1, 1),
-				IM_COL32(255, 255, 255, video_alpha)
-			);
-		}
-		else if (data.thumbnail && data.thumbnail->texture) {
+		if (!player_drawn && data.thumbnail && data.thumbnail->texture) {
 			render::image(rect, *data.thumbnail->texture, gfx::Color::white(video_alpha * 0.7f));
 		}
-		else if (data.thumbnail) {
+		else if (!player_drawn && data.thumbnail) {
 			render::text(
 				rect.center(),
 				gfx::Color::white(155 * anim),
