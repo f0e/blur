@@ -11,6 +11,7 @@ namespace sdl {
 	inline constexpr gfx::Size MINIMUM_WINDOW_SIZE(567, 360);
 
 	inline const float VSYNC_EXTRA_FPS = 50;
+	inline const float FALLBACK_REFRESH_RATE = 60.f; // when SDL can't tell (it reports 0)
 	inline const float MIN_FPS = 10.f;
 	inline const float DEFAULT_DELTA_TIME = 1.f / 60;
 	inline double vsync_frame_time_ms = DEFAULT_DELTA_TIME * 1000.f;
