@@ -23,7 +23,9 @@ download_zip() {
     echo "$dir_name already exists. Skipping download."
     cd "$dir_name"
   else
-    mkdir -p "$dir_name" && cd "$dir_name"
+    # extracted somewhere temporary first so an interrupted run doesn't leave an empty dir that gets skipped next time
+    rm -rf "$dir_name.tmp"
+    mkdir -p "$dir_name.tmp" && cd "$dir_name.tmp"
 
     echo "Downloading $dir_name"
 
@@ -37,6 +39,10 @@ download_zip() {
 
     unzip "$dir_name.zip"
     rm "$dir_name.zip"
+
+    cd ..
+    mv "$dir_name.tmp" "$dir_name"
+    cd "$dir_name"
   fi
 
   # copy built stuff
