@@ -83,10 +83,6 @@ Using blur on 60fps footage results in clean motion blur, but occasionally leave
 
 If your footage contains duplicate frames then occasionally blurred frames will look out of place, making the video seem unsmooth at points. The 'deduplicate' option will automatically fill in duplicated frames with interpolated frames to prevent this from happening.
 
-### Frameserver output
-
-Blur supports rendering from frameservers. This means you can avoid having to run blur on your input videos when video editing. When rendering, simply output (make sure your project is high framerate) to the frameserver and then drag the generated AVI into blur. Note that some video editing software might limit the maximum project framerate.
-
 ---
 
 \*in the future I might buy a dev cert, but $99 a year atm doesn't seem worth it 😅
