@@ -438,6 +438,9 @@ void VideoPlayer::process_mpv_events() {
 				}
 				else if (std::strcmp(name, "container-fps") == 0 && prop->format == MPV_FORMAT_DOUBLE) {
 					m_cached_fps = *static_cast<double*>(prop->data);
+
+					// the range end depends on fps too, which can arrive after the duration
+					update_playback_range();
 				}
 				else if (std::strcmp(name, "pause") == 0 && prop->format == MPV_FORMAT_FLAG) {
 					m_cached_pause = *static_cast<int*>(prop->data) != 0;
