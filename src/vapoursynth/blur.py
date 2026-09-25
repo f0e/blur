@@ -34,6 +34,12 @@ EXPECTED_PLUGINS = [
 
 LSMASH_PLUGIN = "systems.innocent.lsmas"
 
+BESTSOURCE_HW_DEVICES = {
+    "darwin": ["videotoolbox"],
+    "win32": ["cuda", "d3d11va"],
+    "linux": ["cuda", "vaapi"],
+}
+
 
 def build_mask_clips(
     mask_name: str,
@@ -120,13 +126,33 @@ def main():
         if preroll_frames > 0:
             video = video[preroll_frames:]
     else:
-        video = core.bs.VideoSource(
-            source=video_path,
-            cachemode=0,
-            apply_rotation=False,  # lsmas doesn't
-            fpsnum=fps_num if fps_num != -1 else None,
-            fpsden=fps_den if fps_den != -1 else None,
-        )
+
+        def bestsource(hwdevice: str | None):
+            return core.bs.VideoSource(
+                source=video_path,
+                cachemode=0,
+                apply_rotation=False,  # lsmas doesn't
+                fpsnum=fps_num if fps_num != -1 else None,
+                fpsden=fps_den if fps_den != -1 else None,
+                hwdevice=hwdevice,
+            )
+
+        video = None
+
+        if settings["gpu_decoding"]:
+            # bestsource also errors instead of falling back when the gpu can't decode the codec (e.g. av1 on older macs)
+            for hwdevice in BESTSOURCE_HW_DEVICES.get(sys.platform, []):
+                try:
+                    video = bestsource(hwdevice)
+                    break
+                except vs.Error as e:
+                    log.info(f"GPU decoding with {hwdevice} failed ({e})")
+
+            if video is None:
+                log.info("falling back to CPU decoding")
+
+        if video is None:
+            video = bestsource(hwdevice=None)
 
     # trimming
     start = int(globals().get("start", 0))
