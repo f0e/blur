@@ -83,6 +83,8 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 		detail::merge_settings(settings, app_settings, devices::get_device_indices(settings, app_settings));
 
 	auto video_info = media::get_video_info(input_path);
+	if (!video_info.has_video_stream)
+		return tl::unexpected("Input is not a valid video or is unreadable");
 
 	auto vspipe_args = detail::build_vspipe_video_args(
 		input_path, merged_settings, video_info, get_seek_start_frame(settings, video_info, seek), {}, {}, preview_mask

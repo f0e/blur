@@ -42,7 +42,11 @@ namespace {
 		std::string output(std::istreambuf_iterator<char>(pipe_stream), {});
 		c->wait();
 
-		const auto j = nlohmann::json::parse(output);
+		const auto j = nlohmann::json::parse(output, nullptr, false);
+		if (j.is_discarded()) {
+			u::log_error("failed to parse preroll frames output: {}", output);
+			return 0;
+		}
 
 		int skip = 0;
 		for (const auto& pkt : j.value("packets", nlohmann::json::array())) {
@@ -91,7 +95,11 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 
 	DEBUG_LOG("[ffprobe] {}", output);
 
-	const auto j = nlohmann::json::parse(output);
+	const auto j = nlohmann::json::parse(output, nullptr, false);
+	if (j.is_discarded()) {
+		u::log_error("failed to parse video info output: {}", output);
+		return {};
+	}
 
 	VideoInfo info;
 
