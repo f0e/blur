@@ -32,7 +32,7 @@ I often release beta versions with new functionality before I think they're stab
 
 The amount of motion blur is easily configurable, and there are additional options to enable other features such as interpolating the video's fps. This can be used to generate 'fake' motion blur through frame blending the interpolated footage. This motion blur does not blur non-moving parts of the video, like the HUD in gameplay footage.
 
-The program can also be used in the command line via `blur-cli`, use `-h` or `--help` for more information.
+The program can also be used in the command line via `blur-cli`, use `-h` or `--help` for more information. On Linux, `blur-cli` is included in the tarball, or you can run the AppImage with `cli` as the first argument.
 
 ## Sample output
 
