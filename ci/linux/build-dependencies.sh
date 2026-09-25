@@ -204,6 +204,9 @@ if [ ! -f "$mpv_prefix/lib/libmpv.so" ]; then
     -Dd3d11=disabled -Ddovi=disabled -Dlibdovi=disabled -Dxxhash=disabled -Dunwind=disabled \
     -Ddemos=false -Dtests=false
   meson install -C download/libplacebo/build
+  # libplacebo has some c++, but mpv links as c so libstdc++ wouldn't be linked in, leaving libmpv relying on the
+  # executable to provide it. link it in statically like the rest of the c++ runtime, without exporting it
+  sed -i '/^Libs:/ s|$| -l:libstdc++.a -Wl,--exclude-libs,libstdc++.a|' "$mpv_prefix/lib/pkgconfig/libplacebo.pc"
 
   git clone -q --depth 1 --branch v0.41.0 https://github.com/mpv-player/mpv.git download/mpv
   meson setup download/mpv/build download/mpv \
