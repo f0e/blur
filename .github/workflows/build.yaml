@@ -141,7 +141,7 @@ jobs:
       - name: Install Homebrew packages (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install ffmpeg libass zimg imagemagick autoconf automake libtool gcc ffmpeg meson xxhash vapoursynth fftw dylibbundler vulkan-loader molten-vk mpv
+          brew install ffmpeg libass zimg imagemagick autoconf automake libtool gcc meson vapoursynth dylibbundler vulkan-loader molten-vk mpv
 
       - name: Collect dependencies
         if: steps.deps-cache.outputs.cache-hit != 'true'
