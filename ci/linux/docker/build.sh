@@ -1,5 +1,5 @@
 #!/bin/bash
-# builds the linux appimage in the same environment as ci, from any os with docker. the result ends up in dist/.
+# builds the linux appimage and tarball in the same environment as ci, from any os with docker. the result ends up in dist/.
 # build outputs live in docker volumes so they don't clash with a native build in the same checkout
 set -euo pipefail
 
