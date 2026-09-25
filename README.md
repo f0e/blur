@@ -28,21 +28,11 @@ I often release beta versions with new functionality before I think they're stab
 
 > The default interpolation program on macOS is RIFE, unlike Windows and Linux. RIFE is more accurate than SVP, but quite a bit slower. The reason for this difference is because because using SVP for interpolation on macOS requires that [SVP Manager](https://www.svp-team.com/get/) be running, or you'll get a red border around videos. (This software is paid, and not affiliated with Blur)
 
-### Linux notes
-
-Make the AppImage executable with `chmod +x blur-Linux-x64.AppImage`, then run it. Everything it needs is bundled. It runs on distros from around 2022 onwards (glibc 2.35+, e.g. Ubuntu 22.04, Debian 12, Fedora 36).
-
-To use the command line version, run `./blur-Linux-x64.AppImage cli <args>`, or symlink the AppImage as `blur-cli`.
-
-If it won't start because FUSE isn't available (e.g. in a container), run it with `--appimage-extract-and-run`.
-
-If you'd rather not use an AppImage, the tarball has the same files unpacked. Extract it with `tar -xzf blur-Linux-x64.tar.gz`, then run `blur/blur` for the gui or `blur/blur-cli` for the command line version. Keep the `blur` folder together, since the binaries find everything relative to themselves.
-
 ## Features
 
 The amount of motion blur is easily configurable, and there are additional options to enable other features such as interpolating the video's fps. This can be used to generate 'fake' motion blur through frame blending the interpolated footage. This motion blur does not blur non-moving parts of the video, like the HUD in gameplay footage.
 
-The program can also be used in the command line via `blur-cli` - see [Command line](#command-line).
+The program can also be used in the command line via `blur-cli`, use `-h` or `--help` for more information.
 
 ## Sample output
 
