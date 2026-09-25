@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Blur
+Comment=Add motion blur to videos
+Exec=blur %F
+Icon=blur
+Terminal=false
+Categories=AudioVideo;Video;
+MimeType=video/mp4;video/x-matroska;video/quicktime;video/webm;video/x-msvideo;

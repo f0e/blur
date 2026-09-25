@@ -1,7 +1,7 @@
 #pragma once
 
 namespace vspipe {
-#ifdef __APPLE__
+#ifndef _WIN32
 	void configure();
 #endif
 

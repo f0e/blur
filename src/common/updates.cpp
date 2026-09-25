@@ -6,6 +6,7 @@ namespace bp = boost::process;
 const std::string WINDOWS_INSTALLER_NAME = "blur-Windows-Installer-x64.exe";
 const std::vector<std::string> WINDOWS_INSTALLER_ARGS = { "/UPDATE" };
 const std::string MACOS_INSTALLER_NAME = "blur-macOS-Release-arm64.dmg";
+const std::string LINUX_APPIMAGE_NAME = "blur-Linux-x64.AppImage";
 
 namespace {
 	// semver
@@ -69,8 +70,7 @@ tl::expected<updates::UpdateCheckRes, std::string> updates::is_latest_version(bo
 #if defined(_WIN32)
 				if (asset["name"] == WINDOWS_INSTALLER_NAME) {
 #elif defined(__linux__)
-				// todo when there's an installer
-				{
+				if (asset["name"] == LINUX_APPIMAGE_NAME) {
 #elif defined(__APPLE__)
 				if (asset["name"] == MACOS_INSTALLER_NAME) {
 #endif
