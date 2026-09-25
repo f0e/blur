@@ -4,6 +4,45 @@
 #	include "config_app.h"
 #endif
 
+#ifdef __APPLE__
+namespace {
+	std::filesystem::path get_config_home() {
+		return blur.settings_path / "vapoursynth-config";
+	}
+}
+
+// vsscript can't find python by itself anymore, it needs `vapoursynth config` to have been run for the python it's in.
+// that writes to a config file keyed by absolute path, so it's pointed at our own one rather than the user's, and rerun
+// each launch in case the app's moved
+void vspipe::configure() {
+	if (!blur.used_installer)
+		return;
+
+	namespace bp = boost::process;
+
+	bp::ipstream out_stream;
+
+	auto c = u::run_command(
+		blur.resources_path / "python/bin/python3.12",
+		{ "-m", "vapoursynth", "config" },
+		(bp::std_out & bp::std_err) > out_stream,
+		setup_environment()
+	);
+
+	if (!c) {
+		u::log_error("failed to run vapoursynth config: {}", c.error());
+		return;
+	}
+
+	std::string output(std::istreambuf_iterator<char>(out_stream), {});
+
+	c->wait();
+
+	if (c->exit_code() != 0)
+		u::log_error("vapoursynth config failed (exit code {}): {}", c->exit_code(), output);
+}
+#endif
+
 boost::process::environment vspipe::setup_environment() {
 	auto env = boost::this_process::environment();
 
@@ -16,6 +55,7 @@ boost::process::environment vspipe::setup_environment() {
 	if (blur.used_installer) {
 		env["PYTHONHOME"] = (blur.resources_path / "python").native();
 		env["PYTHONPATH"] = (blur.resources_path / "python/lib/python3.12/site-packages").native();
+		env["XDG_CONFIG_HOME"] = get_config_home().native();
 	}
 #endif
 
