@@ -66,17 +66,6 @@ jobs:
           key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yaml') }}
           restore-keys: apt-${{ runner.os }}-
 
-      - name: Add GCC repository
-        if: runner.os == 'Linux'
-        run: |
-          for _ in {1..5}; do
-            if sudo apt-get update && sudo apt-get install -y software-properties-common; then
-              break
-            fi
-            sleep 10
-          done
-          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -90,7 +79,6 @@ jobs:
             libgl1-mesa-dev \
             mesa-common-dev \
             libncurses6 \
-            gcc-13 g++-13 \
             libfontconfig1-dev \
             autoconf autoconf-archive automake libtool pkg-config libltdl-dev \
             libnotify-dev \
@@ -98,12 +86,6 @@ jobs:
             ninja-build \
             gperf \
             patchelf
-
-      - name: Install GCC
-        if: runner.os == 'Linux'
-        run: |
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 --slave /usr/bin/g++ g++ /usr/bin/g++-13 --slave /usr/bin/gcov gcov /usr/bin/gcov-13
-          sudo update-alternatives --set gcc /usr/bin/gcc-13
 
       # ── Project dependencies ──────────────────────────────────────────────
       - name: Cache build dependencies (macOS)
