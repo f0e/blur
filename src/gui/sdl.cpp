@@ -8,6 +8,10 @@
 #include "renderer.h"
 #include "gui.h"
 
+#ifdef __linux__
+#	include "images/blur_logo.h"
+#endif
+
 namespace {
 	std::unordered_map<SDL_SystemCursor, SDL_Cursor*> cursor_cache;
 	SDL_SystemCursor current_cursor = SDL_SYSTEM_CURSOR_DEFAULT;
@@ -183,6 +187,16 @@ tl::expected<void, std::string> sdl::initialise() {
 
 	if (!window)
 		return tl::unexpected(std::format("Failed to create SDL window: {}", SDL_GetError()));
+
+#ifdef __linux__
+	// windows and mac take the icon from the executable and the app bundle. x11, and wayland compositors that
+	// support per-window icons, take it from the window
+	SDL_IOStream* icon_io = SDL_IOFromConstMem(BLUR_LOGO_PNG_DATA.data(), BLUR_LOGO_PNG_DATA.size());
+	if (SDL_Surface* icon = IMG_Load_IO(icon_io, true)) {
+		SDL_SetWindowIcon(window, icon);
+		SDL_DestroySurface(icon);
+	}
+#endif
 
 	apply_app_config(config);
 	remember_config_write_time();
