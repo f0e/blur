@@ -1,6 +1,18 @@
 name: Build
 
-on: [push]
+on:
+  push:
+    paths-ignore:
+      - "**.md"
+      - LICENSE
+      - .github/ISSUE_TEMPLATE/**
+      - .github/FUNDING.yml
+      - .github/dependabot.yml
+
+# cancel superseded runs, but never a tag build mid-release
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 env:
   MPV_VERSION: "20260118-git-468d34c"
