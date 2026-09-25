@@ -143,13 +143,12 @@ jobs:
       # ── vcpkg ─────────────────────────────────────────────────────────────
       - name: Set up vcpkg
         run: |
-          git clone https://github.com/microsoft/vcpkg.git
-          cd vcpkg
-          ./bootstrap-vcpkg.sh
-
-      - name: Get vcpkg commit hash
-        id: vcpkg-commit
-        run: echo "hash=$(git -C vcpkg rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          # check out the same commit as the manifest's baseline so the cache key stays stable
+          baseline="$(jq -r '."vcpkg-configuration"."default-registry".baseline' vcpkg.json)"
+          git init vcpkg
+          git -C vcpkg fetch --depth 1 https://github.com/microsoft/vcpkg.git "$baseline"
+          git -C vcpkg checkout FETCH_HEAD
+          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
       - name: Cache vcpkg packages
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
@@ -157,10 +156,8 @@ jobs:
           path: |
             out/build/*/vcpkg_installed/
             vcpkg/downloads/
-            vcpkg/packages/
-          key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ steps.vcpkg-commit.outputs.hash }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/*.cmake') }}
+          key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/*.cmake') }}
           restore-keys: |
-            vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ steps.vcpkg-commit.outputs.hash }}-
             vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-
 
       # ── Build ─────────────────────────────────────────────────────────────
