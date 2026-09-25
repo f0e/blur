@@ -36,7 +36,7 @@ namespace {
 		std::string line;
 		if (std::getline(error_stream, line)) {
 			// any error output means the device is not available
-			c->terminate();
+			u::safe_terminate(*c);
 			return false;
 		}
 
