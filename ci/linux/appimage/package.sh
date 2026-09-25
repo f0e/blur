@@ -1,12 +1,13 @@
 #!/bin/bash
-# packages a linux build into an appimage. run from the repo root after build-dependencies-linux.sh and the cmake build
-# usage: ci/package-linux.sh <build dir> <output appimage>
+# packages a linux build into an appimage. run from the repo root after build-dependencies.sh and the cmake build
+# usage: ci/linux/appimage/package.sh <build dir> <output appimage>
 set -euo pipefail
 
 build_dir="$(realpath "$1")"
 output="$(realpath -m "$2")"
 
-ci_dir="$(dirname "$(realpath "$0")")"
+script_dir="$(dirname "$(realpath "$0")")"
+ci_dir="$(dirname "$(dirname "$script_dir")")"
 repo_dir="$(dirname "$ci_dir")"
 download_dir="$ci_dir/download"
 appdir="$ci_dir/appdir"
@@ -32,7 +33,7 @@ mkdir -p "$download_dir"
 
 # libraries every desktop has, which break when a copy from another distro is loaded instead. from
 # https://github.com/AppImageCommunity/pkg2appimage/blob/19e30b276ffedf4d3b4b56bc6320f463625a74f8/excludelist
-excludelist="$ci_dir/appimage-excludelist"
+excludelist="$script_dir/excludelist"
 
 appimagetool="$download_dir/appimagetool-x86_64.AppImage"
 download \

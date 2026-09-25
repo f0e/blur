@@ -4,7 +4,7 @@
 #define MyAppExeName "blur-gui.exe"
 #define MyAppId "D283CF94-CD1F-432D-B4BE-0516562C258B"
 
-; installs straight from the win-release build and ci/build-dependencies-windows.ps1's output. pass /DDepsDir= to use
+; installs straight from the win-release build and ci/windows/build-dependencies.ps1's output. pass /DDepsDir= to use
 ; other dependencies
 #define BinDir "..\bin\Release"
 #ifndef DepsDir

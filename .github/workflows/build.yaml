@@ -69,11 +69,11 @@ jobs:
         include:
           - os: ubuntu-24.04
             container: ubuntu:22.04
-            deps-script: build-dependencies-linux.sh
+            deps-script: linux/build-dependencies.sh
           - os: macos-15
-            deps-script: build-dependencies-macos.sh
+            deps-script: macos/build-dependencies.sh
           - os: windows-2022
-            deps-script: build-dependencies-windows.ps1
+            deps-script: windows/build-dependencies.ps1
 
     steps:
       # checkout needs git to fetch submodules
@@ -121,7 +121,7 @@ jobs:
       # ── Linux setup ───────────────────────────────────────────────────────
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: bash ci/install-build-deps-linux.sh
+        run: bash ci/linux/install-build-deps.sh
 
       # ── Project dependencies ──────────────────────────────────────────────
       - name: Restore build dependencies
@@ -295,7 +295,7 @@ jobs:
               ;;
 
             "Linux")
-              ../../ci/package-linux.sh . "$bundle_dir/blur-Linux-x64.AppImage"
+              ../../ci/linux/appimage/package.sh . "$bundle_dir/blur-Linux-x64.AppImage"
               ;;
 
             "macOS")
@@ -348,7 +348,7 @@ jobs:
       - name: Test on clean distros
         run: |
           chmod +x bundle/blur-Linux-x64.AppImage
-          ci/test-linux-appimage.sh bundle/blur-Linux-x64.AppImage
+          ci/linux/test/distros.sh bundle/blur-Linux-x64.AppImage
 
   release:
     needs: [build, test-linux]
