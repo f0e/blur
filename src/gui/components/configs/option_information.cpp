@@ -55,18 +55,6 @@ void configs::option_information(ui::Container& container) {
 				"Standard deviation for Gaussian blur weighting",
 			},
 		},
-		{
-			"blur weighting triangle reverse checkbox",
-			{
-				"Reverses the direction of triangle weighting",
-			},
-		},
-		{
-			"blur weighting bound input",
-			{
-				"Weighting bounds to spread weights more",
-			},
-		},
 
 		// Interpolation settings
 		// { "section interpolation checkbox",
@@ -93,23 +81,10 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
-			"default mask dropdown",
-			{
-				"Mask applied to videos you add, protecting parts of the frame from interpolation",
-				"Useful for static overlays like a HUD, which interpolation tends to warp",
-				"Also covers deduplication, which fills dropped frames by interpolating them",
-				"Masks are image files in the masks folder of your config folder",
-				"White where the video should be interpolated as normal, black where it should be left alone",
-				"Masked areas still get motion blur - only interpolation skips them",
-			},
-		},
-		{
 			"default auto mask checkbox",
 			{
-				"Builds an extra mask per video by finding the parts of its frame that never move",
-				"Applied on top of the mask above, so a HUD you've already masked stays masked either way",
-				"Use the mask above for what's the same in every video, and this for whatever each one adds",
-				"Analysing a video takes a moment, but the result is cached and reused",
+				"Uses an extra automatic mask",
+				"Configured in the advanced section",
 			},
 		},
 
@@ -141,7 +116,7 @@ void configs::option_information(ui::Container& container) {
 		{
 			"auto mask samples slider",
 			{
-				"How many frames from across the video get compared to find the parts that never move",
+				"How many frames are sampled to find the parts that never move",
 			},
 		},
 
@@ -210,9 +185,8 @@ void configs::option_information(ui::Container& container) {
 		{
 			"deduplicate checkbox",
 			{
-				"Ignores duplicate frames and generates what should have been there instead, from the nearest frames that aren't repeats",
+				"Removes duplicate frames and replaces them with interpolated frames",
 				"(fixes 'unsmooth' looking output caused by stuttering in recordings)",
-				"With interpolation on this happens in the same pass, so every generated frame comes from frames that were really captured",
 			},
 		},
 		{
@@ -227,57 +201,47 @@ void configs::option_information(ui::Container& container) {
 			"deduplicate threshold input",
 			{
 				"Threshold of movement that triggers deduplication",
-				"Turn on debug in advanced and render a video to label every frame deduplication had a hand in with the movement it measured and the frames it worked from",
-				"Turn blur off to read it - blending averages the text away along with everything else",
 			},
 		},
 		{
 			"deduplicate real frame dropdown",
 			{
-				"When frames are dropped the recording repeats one to fill the slots, and nothing in the file says which frame of the run is the picture that was really drawn. This is that answer.",
-
-				"'first' is what a live recording does - the picture is drawn, then held until the next one is ready. Leave it here unless you have a reason not to.",
-
-				"'last' suits footage where the run ends on the real frame instead, which is what a variable framerate recording resampled to a fixed one can look like.",
-
-				"'center' splits the difference and puts the picture in the middle of its run. It can't be more than half a run out whichever way the footage leans, where picking the wrong end can be a whole run out.",
-
-				"'surrounding' doesn't believe the run at all and works from the frames either side of it, which comes out right whichever way the footage leans. It needs runs of one frame to work from, so it suits stuttery footage rather than a game running at a clean half of the recording framerate, and it generates across a longer gap - more for the interpolator to get wrong. Raise 'deduplicate range' to give it room.",
-
-				"This only makes a difference where runs of duplicates vary in length. Getting it wrong there shows up as motion that speeds up and slows down rather than running at a steady rate.",
+				"Which frame in a run of duplicates is the real one",
+				"first: the first frame (default)",
+				"last: the last frame",
+				"center: the middle frame",
+				"surrounding: ignores all the frames and uses the frames either side of the duplicates. Will give the smoothest result but can lead to a lot of artifacting",
 			},
 		},
 		{
 			"max future checks slider",
 			{
-				"How many times 'surrounding' may step over a run of duplicates that is itself in question, looking for a frame whose timing isn't.",
-				"Each step widens the gap it generates across, and the search still stops at 'deduplicate range'.",
+				"How many following runs of duplicates 'surrounding' can skip over",
+				"(limited by deduplicate range)",
 			},
 		},
 		{
 			"frame timing logs checkbox",
 			{
-				"Uses the frame timing log saved alongside a recording, when there is one, to work out when each frame was really drawn.",
-
-				"A recording's frames aren't evenly spaced in game time. Each one shows whichever game frame the recorder last got hold of, so a 500fps game recorded at 360fps moves one game frame between some frames and two between others, and steady motion comes out uneven. With a log, blur knows which game frame every recorded frame shows and when it was drawn, and interpolates on that timeline instead. That also says exactly which frames are repeats, so it takes deduplication's place.",
-
-				"Logs come from the obs-frame-timing-recorder OBS plugin, as a .frametiming file next to the recording. Videos without one are deduplicated as usual. A clip trimmed out of a recording without re-encoding it, in losslesscut or similar, still works: put it beside the recording's log and blur finds which part of the recording it is.",
+				"For use with the obs-frame-timing-recorder OBS plugin.",
+				"Uses the .frametiming files it generates to work out when each frame was really drawn, resulting in much smoother blur",
+				"This also replaces deduplication, as it's more accurate",
 			},
 		},
 		{
 			"deduplicate method dropdown",
 			{
-				"What generates the frames that go in place of duplicates. Only needed with interpolation off - with it on, the interpolation method generates them as part of its own pass.",
+				"Method used to replace duplicate frames (only used when interpolation is off)",
 				// todo: update with mvtools
 				"Quality: rife = rife (tensorrt) > svp",
 				"Speed: old > svp >>> rife",
-				"rife (tensorrt) is probably slower than rife here, but it'll depend on your gpu.",
+				"(rife (tensorrt) is probably slower than rife here, depends on your gpu)",
 			},
 		},
 		{
 			"deduplicate method interpolation note",
 			{
-				"Duplicates are filled by the interpolation pass, from the same model, in one go - so there's no separate method to choose while interpolation is on.",
+				"Duplicates are replaced by the interpolation method while interpolation is on",
 			},
 		},
 		{
@@ -405,12 +369,6 @@ void configs::option_information(ui::Container& container) {
 			"taskbar progress checkbox",
 			{
 				"Shows how far along the current render is on the app's taskbar icon",
-			},
-		},
-		{
-			"config override notification checkbox",
-			{
-				"Notifies you when a video is rendered using a config file next to it rather than the global config",
 			},
 		},
 		{
