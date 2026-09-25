@@ -261,7 +261,7 @@ mkdir -p "$vapoursynth_pkgconfig"
 export PKG_CONFIG_PATH="$vapoursynth_pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 
 ## bestsource
-build "https://github.com/vapoursynth/bestsource.git" "--single-branch" "14c91f9fa74705facb251519096dc1b74a8632fe" "bestsource" "
+build "https://github.com/vapoursynth/bestsource.git" "--branch R21 --single-branch" "14c91f9fa74705facb251519096dc1b74a8632fe" "bestsource" "
 meson setup build --native-file \"$meson_native\" -Denable_avisynth=false
 ninja -C build
 " "build" "vapoursynth-plugins"
