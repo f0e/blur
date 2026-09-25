@@ -66,9 +66,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# link the c++ runtime statically, so builds run on distros whose libstdc++ is older than the compiler's
+# link the c++ runtime statically, so builds run on distros whose libstdc++ is older than the compiler's.
+# and don't export anything from static libraries, or shared ones that use the same library (e.g. libpng and
+# freetype, which libass and gtk load) bind to our copy instead of their own
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  add_link_options(-static-libstdc++ -static-libgcc)
+  add_link_options(-static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL)
 endif()
 set(
   CMAKE_RUNTIME_OUTPUT_DIRECTORY
