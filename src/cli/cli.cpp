@@ -81,7 +81,7 @@ bool cli::run(
 	    !config_rules::any_usable(config_rules::get_config(), config_blur::list()))
 	{
 		u::log(
-			"No default config is set and no rule can pick one, so there's nothing to render with. Pass --config-name (one per input) to pick a config, or set a default or a rule in the app. Available configs: {}",
+			"No config to render with. Pass --config-name, or set a default config or rule in the app. Available configs: {}",
 			u::join(config_blur::list(), ", ")
 		);
 		return false;

@@ -50,7 +50,7 @@ int main(int argc, char* argv[]) {
 	auto* auto_mask_flag = app.add_flag(
 		"--auto-mask,!--no-auto-mask",
 		auto_mask,
-		"Generate a mask from each video and apply it over the mask above, overriding the config (optional)"
+		"Generate an automatic mask for each video, overriding the config (optional)"
 	);
 	app.add_flag("-p,--preview", preview, "Enable preview");
 	app.add_flag("-v,--verbose", verbose, "Verbose mode");

@@ -307,8 +307,8 @@ def analyse(
     known = int(np.count_nonzero(changes[clip] >= 0))
     if known < length:
         log.info(
-            f"frame timing: {length - known} of {length} frames have no picture fingerprint, so whether they "
-            f"repeat isn't known - is the probe filter's fingerprinting off?"
+            f"frame timing: {length - known} of {length} frames have no fingerprint (is the probe filter's "
+            f"fingerprinting off?)"
         )
 
     game = np.zeros(len(read), dtype=np.int64)
@@ -333,14 +333,10 @@ def analyse(
                     f"unexplained"
                 )
             else:
-                fitted = (
-                    "the fingerprints can't say when the read happened - the game outruns the recording, so "
-                    "nearly every read sees a new picture whenever it happened - and the probe's measurement "
-                    "stands"
-                )
+                fitted = "couldn't fit the read latency (game faster than the recording), using the probe's timing"
         else:
             phase, latency = 1.0, 0.0
-            fitted = "nothing to fit it to, so the read is taken as the probe measured it"
+            fitted = "nothing to fit, using the probe's timing"
 
         game = game_frames(read, presents, changes, phase, latency)
         covered = game[clip] >= 0
@@ -351,8 +347,8 @@ def analyse(
         log.info(f"frame timing: obs's reads timed by {timed_by}")
     else:
         log.info(
-            f"frame timing: obs's reads from {sidecar_path.name}, without the game's frames ({missing_reason}) - "
-            f"timing is less accurate when the game runs faster than the recording"
+            f"frame timing: obs's reads from {sidecar_path.name}, without the game's frames ({missing_reason}). "
+            f"less accurate when the game runs faster than the recording"
         )
 
     # fingerprints first, then the game's frames, then every frame is new
@@ -363,9 +359,8 @@ def analyse(
     decisions, widest, crowded = _decisions(new, placed, start, length, hold)
     if crowded:
         log.info(
-            f"frame timing: {crowded} of {int(np.count_nonzero(new[clip]))} pictures were timed no later than "
-            f"the one before them, so the timing disagrees with the fingerprints there and they're only just "
-            f"kept apart"
+            f"frame timing: {crowded} of {int(np.count_nonzero(new[clip]))} frames were timed no later than the "
+            f"one before them"
         )
 
     return retime.Timeline(

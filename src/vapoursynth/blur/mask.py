@@ -293,8 +293,7 @@ def measure(clip: vs.VideoNode, samples: int = SAMPLE_COUNT) -> vs.VideoNode | N
     # asking for fewer samples than the minimum still makes a mask
     if len(indices) < min(MIN_SAMPLES, samples):
         log.info(
-            f"Mask: only {len(indices)} frames of this video differ from each other, "
-            "so there's nothing to tell an overlay apart from the scene. Rendering unmasked"
+            f"Mask: only {len(indices)} frames differ from each other, not enough to find a mask. Rendering unmasked"
         )
         return None
 
@@ -364,9 +363,7 @@ def shape(scores: vs.VideoNode, params: Params = DEFAULT_PARAMS) -> vs.VideoNode
         return None
 
     if fraction > MAX_STATIC_FRACTION:
-        log.info(
-            f"Mask: {fraction:.1%} of the frame is static, far too much of it to be an overlay. Rendering unmasked"
-        )
+        log.info(f"Mask: {fraction:.1%} of the frame is static, too much to be an overlay. Rendering unmasked")
         return None
 
     log.info(f"Mask: protecting the {fraction:.2%} of the frame that never moves")
