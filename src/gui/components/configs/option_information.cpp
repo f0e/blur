@@ -179,14 +179,14 @@ void configs::option_information(ui::Container& container) {
 			"interpolation block size dropdown",
 			{
 				"Block size for interpolation",
-				"(higher = less accurate, faster; lower = more accurate, slower)",
+				"(Higher = less accurate, faster; lower = more accurate, slower)",
 			},
 		},
 		{
 			"interpolation mask area slider",
 			{
 				"Mask amount for interpolation",
-				"(higher reduces blur on static objects but can affect smoothness)",
+				"(Higher reduces blur on static objects but can affect smoothness)",
 			},
 		},
 
@@ -195,7 +195,7 @@ void configs::option_information(ui::Container& container) {
 			"deduplicate checkbox",
 			{
 				"Removes duplicate frames and replaces them with interpolated frames",
-				"(fixes 'unsmooth' looking output caused by stuttering in recordings)",
+				"(Fixes 'unsmooth' looking output caused by stuttering in recordings)",
 			},
 		},
 		{
@@ -216,23 +216,23 @@ void configs::option_information(ui::Container& container) {
 			"deduplicate real frame dropdown",
 			{
 				"Which frame in a run of duplicates is the real one",
-				"first: the first frame (default)",
-				"last: the last frame",
-				"center: the middle frame",
-				"surrounding: ignores all the frames and uses the frames either side of the duplicates. Will give the smoothest result but can lead to a lot of artifacting",
+				"first: The first frame (default)",
+				"last: The last frame",
+				"center: The middle frame",
+				"surrounding: Ignores all the frames and uses the frames either side of the duplicates. Will give the smoothest result but can lead to a lot of artifacting",
 			},
 		},
 		{
 			"max future checks slider",
 			{
 				"How many following runs of duplicates 'surrounding' can skip over",
-				"(limited by deduplicate range)",
+				"(Limited by deduplicate range)",
 			},
 		},
 		{
 			"frame timing logs checkbox",
 			{
-				"For use with the obs-frame-timing-recorder OBS plugin.",
+				"For use with the obs-frame-timing-recorder OBS plugin",
 				"Uses the .frametiming files it generates to work out when each frame was really drawn, resulting in much smoother blur",
 				"This also replaces deduplication, as it's more accurate",
 			},
@@ -244,7 +244,7 @@ void configs::option_information(ui::Container& container) {
 				// todo: update with mvtools
 				"Quality: rife = rife (tensorrt) > svp",
 				"Speed: old > svp >>> rife",
-				"(rife (tensorrt) is probably slower than rife here, depends on your gpu)",
+				"(rife (tensorrt) is probably slower than rife here, depends on your GPU)",
 			},
 		},
 		{
@@ -326,13 +326,13 @@ void configs::option_information(ui::Container& container) {
 			"custom ffmpeg filters text input",
 			{
 				"Custom FFmpeg filters for rendering",
-				"(overrides GPU & quality options)",
+				"(Overrides GPU & quality options)",
 			},
 		},
 		{
 			"debug checkbox",
 			{
-				"Logs ffmpeg & vspipe commands, and adds a text overlay displaying frame similarity onto duplicate frames",
+				"Logs FFmpeg & vspipe commands, and adds a text overlay displaying frame similarity onto duplicate frames",
 			},
 		},
 		{
@@ -352,7 +352,7 @@ void configs::option_information(ui::Container& container) {
 		{
 			"preview hardware decoding checkbox",
 			{
-				"Decodes previewed videos (in the queue and config preview) on the gpu. Will usually be faster, but not always.",
+				"Decodes previewed videos (in the queue and config preview) on the GPU. Will usually be faster, but not always",
 				"Try toggling it if the preview is choppy",
 			},
 		},
