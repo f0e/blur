@@ -33,7 +33,7 @@ fi
 if command -v apt-get >/dev/null; then
   apt-get update -qq
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
-    xvfb xauth libegl-mesa0 libgles2 libgl1-mesa-dri libasound2 libfontconfig1 libharfbuzz0b libfribidi0 >/dev/null
+    xvfb xauth libegl1 libegl-mesa0 libgles2 libgl1-mesa-dri libasound2 libfontconfig1 libharfbuzz0b libfribidi0 >/dev/null
 elif command -v dnf >/dev/null; then
   dnf install -y -q \
     xorg-x11-server-Xvfb mesa-libEGL mesa-dri-drivers libglvnd-gles alsa-lib fontconfig harfbuzz fribidi >/dev/null
