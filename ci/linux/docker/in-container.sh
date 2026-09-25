@@ -1,11 +1,11 @@
 #!/bin/bash
-# the part of build-linux-docker.sh that runs inside the container, from the repo root
+# the part of build.sh that runs inside the container, from the repo root
 set -euo pipefail
 
 # the source is owned by the host user
 git config --global --add safe.directory "*"
 
-(cd ci && bash build-dependencies-linux.sh)
+(cd ci && bash linux/build-dependencies.sh)
 
 baseline="$(jq -r '."vcpkg-configuration"."default-registry".baseline' vcpkg.json)"
 if [ "$(git -C "$VCPKG_ROOT" rev-parse HEAD 2>/dev/null || true)" != "$baseline" ]; then
@@ -19,4 +19,4 @@ export PKG_CONFIG_PATH="$PWD/ci/download/mpv-prefix/lib/pkgconfig"
 cmake --preset linux-release
 cmake --build --preset linux-release
 
-ci/package-linux.sh bin/Release dist/blur-Linux-x64.AppImage
+ci/linux/appimage/package.sh bin/Release dist/blur-Linux-x64.AppImage

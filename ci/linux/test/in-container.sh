@@ -1,10 +1,10 @@
 #!/bin/bash
-# the part of test-linux-appimage.sh that runs inside each distro's container
-# usage: ci/test-linux-appimage-in-container.sh <appimage>
+# the part of distros.sh that runs inside each distro's container
+# usage: ci/linux/test/in-container.sh <appimage>
 set -euo pipefail
 
 appimage="$(realpath "$1")"
-ci_dir="$(dirname "$(realpath "$0")")"
+linux_dir="$(dirname "$(dirname "$(realpath "$0")")")"
 
 cd /tmp
 # extracting doesn't need fuse, which containers don't have
@@ -21,7 +21,7 @@ echo "rendered $frames frames"
 [ "$frames" -gt 0 ]
 
 missing="$(ldd "$app/blur" "$app/libmpv.so.2" | awk '/not found/ { print $1 }' | sort -u)"
-unexpected="$(grep -vxF -f <(grep -v '^#' "$ci_dir/appimage-excludelist" | awk 'NF { print $1 }') <<<"$missing" || true)"
+unexpected="$(grep -vxF -f <(grep -v '^#' "$linux_dir/appimage/excludelist" | awk 'NF { print $1 }') <<<"$missing" || true)"
 if [ -n "$unexpected" ]; then
   echo "gui needs libraries that aren't bundled:" >&2
   echo "$unexpected" >&2

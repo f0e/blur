@@ -1,5 +1,5 @@
 // installs the msvc runtime vapoursynth and some plugins need, if what's installed is missing or older than the redist
-// bundled from ci/build-dependencies-windows.ps1
+// bundled from ci/windows/build-dependencies.ps1
 
 #define VCRedistMajor 14
 #define VCRedistMinor 51

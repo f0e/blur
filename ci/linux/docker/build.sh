@@ -3,10 +3,13 @@
 # build outputs live in docker volumes so they don't clash with a native build in the same checkout
 set -euo pipefail
 
-repo_dir="$(dirname "$(dirname "$(realpath "$0")")")"
+script_dir="$(dirname "$(realpath "$0")")"
+linux_dir="$(dirname "$script_dir")"
+repo_dir="$(dirname "$(dirname "$linux_dir")")"
 image=blur-linux-build
 
-docker build --platform linux/amd64 -t "$image" -f "$repo_dir/ci/linux.Dockerfile" "$repo_dir/ci"
+# the context is ci/linux so the image can install from install-build-deps.sh
+docker build --platform linux/amd64 -t "$image" -f "$script_dir/Dockerfile" "$linux_dir"
 
 mkdir -p "$repo_dir/dist"
 
@@ -20,4 +23,4 @@ docker run --rm --platform linux/amd64 \
   -v blur-linux-vcpkg:/vcpkg \
   -e VCPKG_ROOT=/vcpkg \
   -w /src \
-  "$image" bash ci/build-linux-in-container.sh
+  "$image" bash ci/linux/docker/in-container.sh
