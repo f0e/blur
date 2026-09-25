@@ -662,5 +662,4 @@ def preview(clip: vs.VideoNode, grays: list[vs.VideoNode]) -> vs.VideoNode:
         range_s="full",
     )
 
-    # stretched over the render's length
     return match_length(shown, clip)

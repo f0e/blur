@@ -66,17 +66,15 @@ namespace rendering {
 			return m_to_pause;
 		}
 
-		// reflect the OS-level suspend state; resets fps tracking when pausing
 		void mark_paused(bool paused) {
 			std::lock_guard lock(m_mutex);
 			m_paused = paused;
-			if (paused) {
+			if (paused) { // so time spent paused doesn't drag the fps down after resuming
 				m_progress.fps_initialised = false;
 				m_progress.fps = 0.f;
 			}
 		}
 
-		// fold a vspipe "Frame: n/m" update into progress + the status string
 		void report_frame_progress(int current_frame, int total_frames);
 
 		// look for the markers blur's scripts print before slow steps, for more specific loading messages

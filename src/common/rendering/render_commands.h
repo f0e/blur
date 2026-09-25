@@ -14,12 +14,10 @@ namespace rendering::detail {
 		const devices::DeviceIndices& device_indices
 	);
 
-	// the vspipe args common to frame and video renders
 	std::vector<std::string> build_vspipe_base_args(
 		const std::filesystem::path& input_path, const nlohmann::json& merged_settings
 	);
 
-	// base args plus the fps / colour range / cut-point args a video render needs
 	std::vector<std::string> build_vspipe_video_args(
 		const std::filesystem::path& input_path,
 		const nlohmann::json& merged_settings,

@@ -54,7 +54,6 @@ namespace {
 		return gfx::Color::from_hex_string(*data.hex, false).value_or(data.default_color);
 	}
 
-	// pulls the picker's hsb back out of the bound hex string
 	void sync_hsb(ui::ColorPickerElementData& data) {
 		auto [hue, saturation, brightness] = effective_color(data).to_hsb();
 

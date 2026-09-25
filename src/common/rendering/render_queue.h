@@ -57,7 +57,6 @@ namespace rendering {
 			const std::optional<bool>& auto_mask_override = {}
 		);
 
-		// pulls the front render off the queue, runs it and fires its finish callback
 		bool process_next();
 
 		bool cancel(const std::shared_ptr<RenderState>& state);
@@ -67,7 +66,6 @@ namespace rendering {
 			// now no more renders will start. see process_next.
 		}
 
-		// stop the queue and block until the in-flight render (if any) has finished
 		void stop_and_wait();
 
 		bool is_empty() const {

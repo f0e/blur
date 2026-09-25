@@ -12,7 +12,7 @@ namespace gui::components::update_notice {
 	// true while the notice is showing an update (false once it's been dismissed)
 	bool is_available();
 
-	// checks right now, whatever the check for updates setting says, and reports the result
+	// ignores the check for updates setting
 	void check_now();
 	bool is_checking();
 

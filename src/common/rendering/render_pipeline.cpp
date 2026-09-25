@@ -4,7 +4,6 @@
 namespace bp = boost::process;
 
 namespace {
-	// suspend the render process at the OS level and record it in the state
 	void suspend_render(int pid, const std::shared_ptr<rendering::RenderState>& state) {
 		if (state->is_paused())
 			return;

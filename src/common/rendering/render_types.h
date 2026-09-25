@@ -1,6 +1,5 @@
 #pragma once
 
-// the two subprocess argument vectors a render is made of
 struct RenderCommands {
 	std::vector<std::string> vspipe_video;
 	std::vector<std::string> ffmpeg;
