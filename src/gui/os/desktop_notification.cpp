@@ -88,6 +88,7 @@ void desktop_notification::cleanup() {
 #elif __linux__
 #	include "desktop_notification.h"
 #	include <sdbus-c++/sdbus-c++.h>
+#	include "common/blur.h"
 #	include "common/utils.h"
 
 namespace {
@@ -140,12 +141,19 @@ bool desktop_notification::show(
 
 		uint32_t notification_id;
 
+		// the appimage ships its icon next to the binary. nothing's installed, so there's no icon name to give
+		std::string app_icon;
+		auto icon_path = blur.resources_path / "blur.png";
+		std::error_code ec;
+		if (std::filesystem::exists(icon_path, ec))
+			app_icon = "file://" + u::path_to_string(icon_path);
+
 		g_proxy->callMethod("Notify")
 			.onInterface(INTERFACE)
 			.withArguments(
 				g_app_name,                              // app_name
 				uint32_t(0),                             // replaces_id
-				std::string(""),                         // app_icon
+				app_icon,                                // app_icon
 				title,                                   // summary
 				message,                                 // body
 				actions,                                 // actions
