@@ -12,36 +12,14 @@ if [ ${#images[@]} -eq 0 ]; then
 fi
 
 ci_dir="$(dirname "$(realpath "$0")")"
-excludelist="$ci_dir/appimage-excludelist"
 
 failed=()
 for image in "${images[@]}"; do
   echo "::group::$image"
 
   if docker run --rm --platform linux/amd64 \
-    -v "$appimage:/blur.AppImage:ro" -v "$excludelist:/excludelist:ro" \
-    "$image" bash -euo pipefail -c '
-      cd /tmp
-      # extracting doesnt need fuse, which containers dont have
-      /blur.AppImage --appimage-extract >/dev/null
-      app=/tmp/squashfs-root
-
-      "$app/ffmpeg/ffmpeg" -v error -f lavfi -i testsrc2=size=320x240:rate=60 -t 1 -pix_fmt yuv420p -c:v libx264 in.mp4
-
-      "$app/AppRun" cli -i in.mp4 -o out.mp4 -v
-
-      frames="$("$app/ffmpeg/ffprobe" -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 out.mp4)"
-      echo "rendered $frames frames"
-      [ "$frames" -gt 0 ]
-
-      missing="$(ldd "$app/blur" "$app/libmpv.so.2" | awk "/not found/ { print \$1 }" | sort -u)"
-      unexpected="$(grep -vxF -f <(grep -v "^#" /excludelist | awk "NF { print \$1 }") <<<"$missing" || true)"
-      if [ -n "$unexpected" ]; then
-        echo "gui needs libraries that aren'\''t bundled:" >&2
-        echo "$unexpected" >&2
-        exit 1
-      fi
-    '; then
+    -v "$appimage:/blur.AppImage:ro" -v "$ci_dir:/ci:ro" \
+    "$image" bash /ci/test-linux-appimage-in-container.sh /blur.AppImage; then
     echo "$image: ok"
   else
     echo "$image: FAILED"
