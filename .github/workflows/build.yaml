@@ -89,7 +89,7 @@ jobs:
             libncurses6 \
             gcc-13 g++-13 \
             libfontconfig1-dev \
-            autoconf automake libtool pkg-config libltdl-dev \
+            autoconf autoconf-archive automake libtool pkg-config libltdl-dev \
             libnotify-dev \
             libmpv-dev \
             ninja-build \
