@@ -23,5 +23,5 @@ namespace devices {
 		int tensorrt = -1;
 	};
 
-	DeviceIndices get_device_indices(const BlurSettings& settings, const GlobalAppSettings& app_settings);
+	DeviceIndices get_device_indices(const GlobalAppSettings& app_settings);
 }

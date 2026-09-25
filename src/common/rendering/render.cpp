@@ -80,7 +80,7 @@ tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::
 		return tl::unexpected(*error);
 
 	auto merged_settings =
-		detail::merge_settings(settings, app_settings, devices::get_device_indices(settings, app_settings));
+		detail::merge_settings(settings, app_settings, devices::get_device_indices(app_settings));
 
 	auto video_info = media::get_video_info(input_path);
 	if (!video_info.has_video_stream)
@@ -177,7 +177,7 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 		return tl::unexpected(*error);
 
 	auto merged_settings =
-		detail::merge_settings(settings, app_settings, devices::get_device_indices(settings, app_settings));
+		detail::merge_settings(settings, app_settings, devices::get_device_indices(app_settings));
 
 	std::filesystem::path output_path;
 	if (output_path_override) {

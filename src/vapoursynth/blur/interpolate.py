@@ -499,6 +499,9 @@ def prepare_rife_vsmlrt(
 
     engine_folder = settings_path / "vsmlrt-engines"
 
+    if device_index < 0 and backend_str != "openvino cpu":
+        raise u.BlurException(f"No GPU was found for RIFE ({backend_str}). Make sure your GPU drivers are up to date.")
+
     match backend_str:
         case "tensorrt":
             # vsmlrt imports fine without the trt plugin

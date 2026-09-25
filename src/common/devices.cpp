@@ -366,17 +366,13 @@ bool devices::wait_svp_gpu_supported() {
 	return svp_gpu_works;
 }
 
-devices::DeviceIndices devices::get_device_indices(
-	const BlurSettings& settings, const GlobalAppSettings& app_settings
-) {
+devices::DeviceIndices devices::get_device_indices(const GlobalAppSettings& app_settings) {
 	DeviceIndices indices;
 
-	if (settings.uses_interpolation_method("rife"))
-		indices.rife = get_device_index(rife_auto, app_settings.rife_device);
-
+	indices.rife = get_device_index(rife_auto, app_settings.rife_device);
 #ifdef TENSORRT
-	if (settings.uses_interpolation_method("rife (tensorrt)"))
-		indices.tensorrt = get_device_index(tensorrt_auto, app_settings.tensorrt_device);
+	indices.tensorrt = get_device_index(tensorrt_auto, app_settings.tensorrt_device);
 #endif
+
 	return indices;
 }
