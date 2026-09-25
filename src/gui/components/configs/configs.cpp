@@ -470,9 +470,21 @@ void configs::screen(
 	if (needs_load) {
 		// parsing checks the gpu and codecs, which blocks until the startup probe is done
 		if (blur.initialised && !encoding::support_probed()) {
-			ui::add_text(
-				"config loading text", config_container, "Loading config...", gfx::Color::white(100), fonts::dejavu
+			auto* loading_text = ui::add_text(
+				"config loading text",
+				config_container,
+				"Loading config...",
+				gfx::Color::white(100),
+				fonts::dejavu,
+				FONT_CENTERED_X
 			);
+
+			auto& loading_rect = loading_text->element->rect;
+			const int free_space_top = loading_rect.y;
+			const int free_space_bottom = config_container.get_usable_rect().y2();
+			loading_rect.y = free_space_top + (free_space_bottom - free_space_top - loading_rect.h) / 2;
+			loading_text->element->orig_rect.y = loading_rect.y;
+
 			return;
 		}
 
