@@ -120,8 +120,8 @@ def main():
         else:
             video = lwlibav_source(0)
 
-        # LWLibavSource doesn't respect mp4 edit lists, so negative pts preroll frames get decoded as real content instead of being skipped.
-        # fix this by trimming those frames manually
+        # LWLibavSource ignores mp4 edit lists and outputs a duplicate of the first frame for each negative pts preroll packet,
+        # making the clip too long and desyncing it from audio. trim those frames manually
         preroll_frames = int(globals().get("preroll_frames", 0))
         if preroll_frames > 0:
             video = video[preroll_frames:]
