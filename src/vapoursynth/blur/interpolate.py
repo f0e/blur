@@ -309,7 +309,11 @@ def svp(
 
     def process(video):
         if timeline is None:
-            return SVP(video, super_string, vectors_string, smooth_str)
+            # SmoothFps only makes frames between the ones it's given, so it stops one source frame short and
+            # the video ends up shorter than its audio. give it a repeat of the last frame to fill up to, then
+            # cut it to the length it should have been
+            smooth = SVP(video + video[-1], super_string, vectors_string, smooth_str)
+            return smooth[: int(video.num_frames * smooth.fps / video.fps)]
 
         return _retimed(
             video,
