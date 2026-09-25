@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
 	app.add_option(
 		"--config-name",
 		config_names,
-		"Name(s) of a config in the configs folder, one per input. takes precedence over --config-path (optional)"
+		"Name(s) of a config in the configs folder, one per input. Takes precedence over --config-path (optional)"
 	);
 	app.add_option(
 		"--mask", mask, "Mask image filename in the masks folder, or 'none' to disable one set in the config (optional)"
