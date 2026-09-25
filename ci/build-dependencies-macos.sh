@@ -88,25 +88,6 @@ download_library() {
   cd ../..
 }
 
-download_wheel() {
-  local url="$1"
-  local dir_name="$2"
-
-  mkdir -p download/"$dir_name"
-  cd download/"$dir_name"
-
-  if [ ! -d "wheel" ]; then
-    echo "Downloading $dir_name wheel..."
-    wget -q "$url" -O wheel.zip # a wheel is just a zip
-    unzip -q wheel.zip -d wheel
-    rm wheel.zip
-  else
-    echo "$dir_name wheel already extracted. Skipping download."
-  fi
-
-  cd ../..
-}
-
 download_model_files() {
   local base_url="$1"
   local model_name="$2"
@@ -242,21 +223,18 @@ cd ../..
 
 $out_dir/python/bin/pip install --upgrade pip
 
-# the blur scripts need numpy. plugins on pypi install into vapoursynth's own plugins folder, which it autoloads - the
-# ones whose wheels need macos 15 are built or extracted below instead
+# the blur scripts need numpy. plugins on pypi install into vapoursynth's own plugins folder, which it autoloads.
+# fmtconv and rife have no mac wheels, so they're built below
 $out_dir/python/bin/pip install \
   numpy==2.5.3 \
   vapoursynth==79 \
-  vapoursynth-akarin==1.5.0
+  vapoursynth-akarin==1.5.0 \
+  vapoursynth-bestsource==21.0 \
+  vapoursynth-lsmas==1310.0.0.0 \
+  vapoursynth-mvtools==29
 
-# build the plugins against the vapoursynth we just bundled, not brew's. bestsource and mvtools find it through
-# python, so meson's python is pointed at ours
-meson_native="$PWD/download/meson-native.ini"
-mkdir -p download
-printf "[binaries]\npython = '%s'\n" "$PWD/$out_dir/python/bin/python3.12" >"$meson_native"
-
-# rife reads libdir from the .pc, which ours lacks, and ours finds its headers relative to itself. so a copy with both
-# filled in is used
+# build the plugins against the vapoursynth we just bundled, not brew's. rife reads libdir from the .pc, which ours
+# lacks, and ours finds its headers relative to itself. so a copy with both filled in is used
 vapoursynth_package="$PWD/$out_dir/python/lib/python3.12/site-packages/vapoursynth"
 vapoursynth_pkgconfig="$PWD/download/vapoursynth-pkgconfig"
 mkdir -p "$vapoursynth_pkgconfig"
@@ -265,18 +243,6 @@ mkdir -p "$vapoursynth_pkgconfig"
   sed "s|^prefix=.*|prefix=$vapoursynth_package|" "$vapoursynth_package/pkgconfig/vapoursynth.pc"
 } >"$vapoursynth_pkgconfig/vapoursynth.pc"
 export PKG_CONFIG_PATH="$vapoursynth_pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-
-## bestsource
-build "https://github.com/vapoursynth/bestsource.git" "--branch R21 --single-branch" "14c91f9fa74705facb251519096dc1b74a8632fe" "bestsource" "
-meson setup build --native-file \"$meson_native\" -Denable_avisynth=false
-ninja -C build
-" "build" "vapoursynth-plugins"
-
-## mvtools
-build "https://github.com/dubhatervapoursynth/vapoursynth-mvtools.git" "--single-branch" "17250aa979616ac48dfb0e18abfdcf2bd4e3afc0" "mvtools" "
-meson setup build --native-file \"$meson_native\"
-ninja -C build
-" "build" "vapoursynth-plugins"
 
 ## rife ncnn vulkan
 build "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan.git" "--single-branch" "c3ec6aabc07c8fa37a4f58d7fed9e2ad1fc1b13f" "rife-ncnn-vulkan" "
@@ -292,14 +258,6 @@ cd build/unix
 make
 cd ../..
 " "build/unix/.libs" "vapoursynth-plugins"
-
-## lsmash
-download_wheel \
-  "https://files.pythonhosted.org/packages/0a/3e/9ffe270c6c48d4c108a613931519edfc8ffecf39f50db9c0d57357654e64/vapoursynth_lsmas-1310.0.0.0-py3-none-macosx_15_0_arm64.whl" \
-  "lsmas"
-
-mkdir -p "$out_dir/vapoursynth-plugins"
-cp download/lsmas/wheel/vapoursynth/plugins/liblsmashsource.dylib "$out_dir/vapoursynth-plugins"
 
 ## frameblender
 download_library \
