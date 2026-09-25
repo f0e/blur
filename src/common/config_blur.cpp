@@ -331,7 +331,7 @@ config_blur::ValidationResult config_blur::validate(
 	ValidationResult result;
 
 	auto add_error = [&](ValidationField field, std::string message, bool fixable = false) {
-		result.errors.emplace_back(field, std::move(message), fixable);
+		result.errors.push_back({ .field = field, .message = std::move(message), .fixable = fixable });
 	};
 
 	bool timescaling = config.timescale && config.output_timescale != config.input_timescale;
