@@ -20,7 +20,7 @@ Join the [Discord](https://discord.gg/B5BK9GMN87) to share your configs, render 
 
 ### Beta releases
 
-I often release beta versions with new functionality before I think they're stable enough for a proper release. To test these releases, [visit the Releases tab of the repo.](https://github.com/f0e/blur/releases) To receive beta update notifications you can enable `include beta updates` in your `app.cfg` found in your config folder. Any feedback or issue reporting on these releases is greatly appreciated :)
+I often release beta versions with new functionality before I think they're stable enough for a proper release. To test these releases, [visit the Releases tab of the repo.](https://github.com/f0e/blur/releases) To receive beta update notifications you can enable `include beta updates` in your [`app.cfg`](docs/config.md#appcfg) found in your [config folder](docs/config.md#config-files-explained). Any feedback or issue reporting on these releases is greatly appreciated :)
 
 ### macOS notes
 
@@ -82,6 +82,10 @@ Using blur on 60fps footage results in clean motion blur, but occasionally leave
 ### Preventing unsmooth output
 
 If your footage contains duplicate frames then occasionally blurred frames will look out of place, making the video seem unsmooth at points. The 'deduplicate' option will automatically fill in duplicated frames with interpolated frames to prevent this from happening.
+
+## Config files explained
+
+See [docs/config.md](docs/config.md) for where config files are stored and what every setting does.
 
 ---
 

@@ -154,6 +154,15 @@ void configs::option_information(ui::Container& container) {
 				"FPS to pre-interpolate input video to (before blurring)",
 			},
 		},
+#ifdef TENSORRT
+		{
+			"pre-interpolation method dropdown",
+			{
+				"Quality: rife = rife (tensorrt)",
+				"Speed: rife (tensorrt) > rife",
+			},
+		},
+#endif
 		{
 			"SVP interpolation preset dropdown",
 			{
@@ -267,7 +276,7 @@ void configs::option_information(ui::Container& container) {
 		{
 			"gpu decoding",
 			{
-				"Note: GPU decoding can cause issues with colour handling",
+				"Note: GPU decoding can cause issues",
 			},
 		},
 
@@ -343,7 +352,7 @@ void configs::option_information(ui::Container& container) {
 		{
 			"preview hardware decoding checkbox",
 			{
-				"Decodes previewed videos (in the queue) on the gpu. Will usually be faster, but not always.",
+				"Decodes previewed videos (in the queue and config preview) on the gpu. Will usually be faster, but not always.",
 				"Try toggling it if the preview is choppy",
 			},
 		},
