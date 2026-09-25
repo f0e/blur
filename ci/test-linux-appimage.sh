@@ -1,6 +1,6 @@
 #!/bin/bash
-# checks an appimage works on clean installs of a few distros: renders a video with the cli, and makes sure the only
-# libraries the gui can't find are ones every desktop has
+# checks an appimage works on clean installs of a few distros: renders a video with the cli, makes sure the only
+# libraries the gui can't find are ones every desktop has, then installs those and checks the gui opens a window
 # usage: ci/test-linux-appimage.sh <appimage> [image...]
 set -euo pipefail
 

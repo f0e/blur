@@ -27,3 +27,26 @@ if [ -n "$unexpected" ]; then
   echo "$unexpected" >&2
   exit 1
 fi
+
+# install what a desktop has (an x server, a graphics driver and the libraries above) and check the gui opens. it
+# exits straight away if it can't, so still running when timeout stops it means it worked
+if command -v apt-get >/dev/null; then
+  apt-get update -qq
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+    xvfb xauth libegl-mesa0 libgles2 libgl1-mesa-dri libasound2 libfontconfig1 libharfbuzz0b libfribidi0 >/dev/null
+elif command -v dnf >/dev/null; then
+  dnf install -y -q \
+    xorg-x11-server-Xvfb mesa-libEGL mesa-dri-drivers libglvnd-gles alsa-lib fontconfig harfbuzz fribidi >/dev/null
+elif command -v pacman >/dev/null; then
+  pacman -Syu --noconfirm --needed \
+    xorg-server-xvfb xorg-xauth mesa libglvnd alsa-lib fontconfig harfbuzz fribidi >/dev/null
+fi
+
+status=0
+xvfb-run -a timeout 15 "$app/AppRun" >gui.log 2>&1 || status=$?
+if [ "$status" -ne 124 ]; then
+  echo "gui exited with $status instead of staying open:" >&2
+  cat gui.log >&2
+  exit 1
+fi
+echo "gui stayed open"
