@@ -409,25 +409,22 @@ if(APPLE)
 
   target_sources(blur PRIVATE ${CMAKE_SOURCE_DIR}/resources/blur.icns)
 
-  add_custom_command(
-    TARGET blur
-    POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E echo "Copying resources to bundle..."
+  # bundle resources
+  add_custom_target(
+    blur-bundle-resources
     COMMAND
       ${CMAKE_COMMAND} -E make_directory
-      "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/"
-    COMMAND ${CMAKE_COMMAND} -E echo "Copying ci/out files..."
-    COMMAND
-      ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/ci/out"
-      "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/"
-    COMMAND ${CMAKE_COMMAND} -E echo "Copying vapoursynth files..."
-    COMMAND
-      ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/src/vapoursynth"
       "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/lib"
-    COMMAND ${CMAKE_COMMAND} -E echo "Resource copying complete"
-    # VERBATIM ensures command arguments are correctly escaped
+    COMMAND
+      rsync -a --delete --exclude /lib --exclude /blur.icns
+      "${CMAKE_SOURCE_DIR}/ci/out/"
+      "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/"
+    COMMAND
+      rsync -a --delete "${CMAKE_SOURCE_DIR}/src/vapoursynth/"
+      "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/lib/"
     VERBATIM
   )
+  add_dependencies(blur blur-bundle-resources)
 elseif(UNIX)
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(Systemd IMPORTED_TARGET GLOBAL libsystemd>=239)
