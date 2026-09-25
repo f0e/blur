@@ -17,7 +17,7 @@ void ui::render_image(const Container& container, const AnimatedElement& element
 
 	gfx::Color tint_color = image_data.image_color.adjust_alpha(anim);
 
-	render::image(element.element->rect.shrink(3), *image_data.texture, tint_color);
+	render::image(element.element->rect.shrink(IMAGE_INSET), *image_data.texture, tint_color);
 
 	render::borders(
 		element.element->rect, gfx::Color(155, 155, 155, stroke_alpha), gfx::Color(80, 80, 80, stroke_alpha)
@@ -84,7 +84,9 @@ std::optional<ui::AnimatedElement*> ui::add_image(
 			texture = image_data.texture;
 	}
 
-	gfx::Rect image_rect(container.current_position, max_size);
+	// fit the area the image is drawn in, then put the border back around it
+	gfx::Size inner_max_size(std::max(max_size.w - (IMAGE_INSET * 2), 1), std::max(max_size.h - (IMAGE_INSET * 2), 1));
+	gfx::Rect image_rect(container.current_position, inner_max_size);
 
 	float aspect_ratio = texture->width() / static_cast<float>(texture->height());
 
@@ -92,21 +94,17 @@ std::optional<ui::AnimatedElement*> ui::add_image(
 	float target_height = image_rect.w / aspect_ratio;
 
 	if (target_width <= image_rect.w) {
-		image_rect.w = static_cast<int>(target_width);
+		image_rect.w = static_cast<int>(std::lround(target_width));
 	}
 	else {
-		image_rect.h = static_cast<int>(target_height);
+		image_rect.h = static_cast<int>(std::lround(target_height));
 	}
 
-	if (image_rect.h > max_size.h) {
-		image_rect.h = max_size.h;
-		image_rect.w = static_cast<int>(max_size.h * aspect_ratio);
-	}
+	image_rect.w = std::clamp(image_rect.w, 1, inner_max_size.w);
+	image_rect.h = std::clamp(image_rect.h, 1, inner_max_size.h);
 
-	if (image_rect.w > max_size.w) {
-		image_rect.w = max_size.w;
-		image_rect.h = static_cast<int>(max_size.w / aspect_ratio);
-	}
+	image_rect.w += IMAGE_INSET * 2;
+	image_rect.h += IMAGE_INSET * 2;
 
 	Element element(
 		id,

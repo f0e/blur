@@ -710,6 +710,9 @@ namespace ui {
 
 	inline const int TYPE_SWITCH_PADDING = 5;
 
+	// how far inside its border an image is drawn. it's that inner area that has the image's aspect ratio
+	inline const int IMAGE_INSET = 3;
+
 	void render_bar(const Container& container, const AnimatedElement& element);
 
 	void render_text(const Container& container, const AnimatedElement& element);

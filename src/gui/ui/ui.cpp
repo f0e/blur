@@ -442,16 +442,20 @@ void ui::shrink_element_to_fit_container_height(Container& container, const std:
 		return;
 
 	auto& target = target_it->second.element;
+
+	// images are drawn inset from their border, so it's the inner area that has to keep its shape
+	int inset = target->type == ElementType::IMAGE ? IMAGE_INSET * 2 : 0;
+
 	int overflow = get_content_height(container) - container.get_usable_rect().h;
-	if (overflow <= 0 || target->rect.h <= 1)
+	if (overflow <= 0 || target->rect.h <= inset + 1)
 		return;
 
 	int old_height = target->rect.h;
-	int new_height = std::max(old_height - overflow, 1);
+	int new_height = std::max(old_height - overflow, inset + 1);
 	int height_reduction = old_height - new_height;
-	float aspect_ratio = target->rect.w / static_cast<float>(old_height);
+	float aspect_ratio = (target->rect.w - inset) / static_cast<float>(old_height - inset);
 
-	target->rect.w = std::max(static_cast<int>(std::lround(new_height * aspect_ratio)), 1);
+	target->rect.w = std::max(static_cast<int>(std::lround((new_height - inset) * aspect_ratio)), 1) + inset;
 	target->rect.h = new_height;
 	target->orig_rect = target->rect;
 
