@@ -54,7 +54,7 @@ bool render::ImGuiWrap::init(SDL_Window* window, const SDL_GLContext& context) {
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
 
-	// Setup platform/renderer backends for ANGLE's OpenGL ES 3 context.
+	// Setup platform/renderer backends for the OpenGL ES 3 context.
 	ImGui_ImplSDL3_InitForOpenGL(window, context);
 	ImGui_ImplOpenGL3_Init("#version 300 es");
 

@@ -93,17 +93,29 @@ find_package(CLI11 CONFIG REQUIRED)
 find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3)
 find_package(SDL3_image CONFIG REQUIRED)
 find_package(Freetype REQUIRED)
-find_package(unofficial-angle REQUIRED CONFIG)
 
-# always use release ANGLE builds cause debug versions are slow asf
-foreach(angle_target unofficial::angle::libEGL unofficial::angle::libGLESv2)
-  if(TARGET ${angle_target})
-    set_target_properties(
-      ${angle_target}
-      PROPERTIES MAP_IMPORTED_CONFIG_DEBUG "Release;Debug"
-    )
-  endif()
-endforeach()
+# linux uses the system's EGL/GLES from its graphics drivers. vcpkg's ANGLE can't open X11 or Wayland windows there
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set(BLUR_USE_ANGLE OFF)
+else()
+  set(BLUR_USE_ANGLE ON)
+endif()
+
+if(BLUR_USE_ANGLE)
+  find_package(unofficial-angle REQUIRED CONFIG)
+
+  # always use release ANGLE builds cause debug versions are slow asf
+  foreach(angle_target unofficial::angle::libEGL unofficial::angle::libGLESv2)
+    if(TARGET ${angle_target})
+      set_target_properties(
+        ${angle_target}
+        PROPERTIES MAP_IMPORTED_CONFIG_DEBUG "Release;Debug"
+      )
+    endif()
+  endforeach()
+else()
+  find_package(OpenGL REQUIRED COMPONENTS EGL GLES3)
+endif()
 
 find_package(GTest CONFIG REQUIRED)
 find_package(tl-expected CONFIG REQUIRED)
@@ -275,48 +287,54 @@ target_link_libraries(
   PRIVATE blur-common SDL3::SDL3 SDL3_image::SDL3_image Freetype::Freetype
 )
 
-target_link_libraries(
-  blur
-  PRIVATE unofficial::angle::libEGL unofficial::angle::libGLESv2
-)
-
-# SDL dlopens EGL/GLES at runtime, so a static ANGLE can never work - catch it
-# here (wrong triplet, see VCPKG_TARGET_TRIPLET handling above) rather than at startup.
-get_target_property(BLUR_ANGLE_EGL_TYPE unofficial::angle::libEGL TYPE)
-if(NOT BLUR_ANGLE_EGL_TYPE STREQUAL "SHARED_LIBRARY")
-  message(
-    FATAL_ERROR
-    "ANGLE was built as a ${BLUR_ANGLE_EGL_TYPE} by triplet ${VCPKG_TARGET_TRIPLET}, but SDL loads it dynamically. "
-    "Reconfigure with a -blur triplet (delete the build directory if it was configured with an older cmake)."
+if(BLUR_USE_ANGLE)
+  target_link_libraries(
+    blur
+    PRIVATE unofficial::angle::libEGL unofficial::angle::libGLESv2
   )
-endif()
 
-target_compile_definitions(
-  blur
-  PRIVATE
-    BLUR_ANGLE_EGL_LIBRARY="$<TARGET_FILE_NAME:unofficial::angle::libEGL>"
-    BLUR_ANGLE_GLES_LIBRARY="$<TARGET_FILE_NAME:unofficial::angle::libGLESv2>"
-)
+  # SDL dlopens EGL/GLES at runtime, so a static ANGLE can never work - catch it
+  # here (wrong triplet, see VCPKG_TARGET_TRIPLET handling above) rather than at startup.
+  get_target_property(BLUR_ANGLE_EGL_TYPE unofficial::angle::libEGL TYPE)
+  if(NOT BLUR_ANGLE_EGL_TYPE STREQUAL "SHARED_LIBRARY")
+    message(
+      FATAL_ERROR
+      "ANGLE was built as a ${BLUR_ANGLE_EGL_TYPE} by triplet ${VCPKG_TARGET_TRIPLET}, but SDL loads it dynamically. "
+      "Reconfigure with a -blur triplet (delete the build directory if it was configured with an older cmake)."
+    )
+  endif()
 
-if(APPLE)
-  # put dylibs in Contents/Frameworks like they should be instead of alongside the executable
-  set(BLUR_ANGLE_RUNTIME_DIR "$<TARGET_BUNDLE_CONTENT_DIR:blur>/Frameworks")
+  target_compile_definitions(
+    blur
+    PRIVATE
+      BLUR_USE_ANGLE
+      BLUR_ANGLE_EGL_LIBRARY="$<TARGET_FILE_NAME:unofficial::angle::libEGL>"
+      BLUR_ANGLE_GLES_LIBRARY="$<TARGET_FILE_NAME:unofficial::angle::libGLESv2>"
+  )
+
+  if(APPLE)
+    # put dylibs in Contents/Frameworks like they should be instead of alongside the executable
+    set(BLUR_ANGLE_RUNTIME_DIR "$<TARGET_BUNDLE_CONTENT_DIR:blur>/Frameworks")
+  else()
+    set(BLUR_ANGLE_RUNTIME_DIR "$<TARGET_FILE_DIR:blur>")
+  endif()
+
+  add_custom_command(
+    TARGET blur
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${BLUR_ANGLE_RUNTIME_DIR}"
+    COMMAND
+      ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE:unofficial::angle::libEGL>" "${BLUR_ANGLE_RUNTIME_DIR}/"
+    COMMAND
+      ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE:unofficial::angle::libGLESv2>" "${BLUR_ANGLE_RUNTIME_DIR}/"
+    COMMENT "Copying ANGLE runtime to output directory"
+  )
 else()
-  set(BLUR_ANGLE_RUNTIME_DIR "$<TARGET_FILE_DIR:blur>")
+  # SDL loads libEGL itself, but blur calls GLES directly
+  target_link_libraries(blur PRIVATE OpenGL::EGL OpenGL::GLES3)
 endif()
-
-add_custom_command(
-  TARGET blur
-  POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E make_directory "${BLUR_ANGLE_RUNTIME_DIR}"
-  COMMAND
-    ${CMAKE_COMMAND} -E copy_if_different
-    "$<TARGET_FILE:unofficial::angle::libEGL>" "${BLUR_ANGLE_RUNTIME_DIR}/"
-  COMMAND
-    ${CMAKE_COMMAND} -E copy_if_different
-    "$<TARGET_FILE:unofficial::angle::libGLESv2>" "${BLUR_ANGLE_RUNTIME_DIR}/"
-  COMMENT "Copying ANGLE runtime to output directory"
-)
 
 if(APPLE)
   set_target_properties(

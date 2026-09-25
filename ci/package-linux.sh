@@ -52,7 +52,6 @@ find "$appdir" -mindepth 1 -delete
 
 # the app looks for its resources next to its binaries
 cp "$build_dir/blur" "$build_dir/blur-cli" "$appdir/"
-cp -a "$build_dir"/*EGL*.so* "$build_dir"/*GLESv2*.so* "$appdir/"
 cp -r "$build_dir/lib" "$appdir/"
 cp -a "$ci_dir/out/." "$appdir/"
 
@@ -64,7 +63,7 @@ patchelf --set-rpath '$ORIGIN:$ORIGIN/ffmpeg/lib' "$appdir/libmpv.so.2"
 # libraries aren't followed, their dependencies come from the system along with them
 excluded="$(grep -v '^#' "$excludelist" | awk 'NF { print $1 }')"
 plugins_dir="$appdir/vapoursynth-plugins"
-app_elf_files=("$appdir/blur" "$appdir/blur-cli" "$appdir/libmpv.so.2" "$appdir"/*EGL*.so "$appdir"/*GLESv2*.so)
+app_elf_files=("$appdir/blur" "$appdir/blur-cli" "$appdir/libmpv.so.2")
 plugin_elf_files=("$plugins_dir"/*.so)
 
 # where the build system's loader finds each library

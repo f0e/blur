@@ -52,6 +52,10 @@ libOpenGL.so.0
 # part of OpenGL like libGL/libEGL, so excluding it should not cause any problems
 # https://github.com/linuxdeploy/linuxdeploy/issues/152
 
+libGLESv2.so.2
+# not in the upstream list. part of OpenGL like libGL/libEGL (libglvnd's dispatcher for the driver's GLES), so a
+# bundled copy would load against the host's libGLdispatch and driver
+
 libdrm.so.2
 # Workaround for:
 # Antergos Linux release 2015.11 (ISO-Rolling)

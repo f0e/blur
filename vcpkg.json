@@ -15,7 +15,10 @@
   },
   "name": "blur",
   "dependencies": [
-    "angle",
+    {
+      "name": "angle",
+      "platform": "!linux"
+    },
     {
       "name": "boost-asio",
       "version>=": "1.83.0"
