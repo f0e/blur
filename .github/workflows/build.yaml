@@ -69,8 +69,10 @@ jobs:
         include:
           - os: ubuntu-24.04
             container: ubuntu:22.04
+            install-deps-script: linux/install-build-deps.sh
             deps-script: linux/build-dependencies.sh
           - os: macos-15
+            install-deps-script: macos/install-build-deps.sh
             deps-script: macos/build-dependencies.sh
           - os: windows-2022
             deps-script: windows/build-dependencies.ps1
@@ -118,10 +120,12 @@ jobs:
       #     ccache --set-config=compression=true
       #     ccache -z  # zero stats so we can see hit rate in logs
 
-      # ── Linux setup ───────────────────────────────────────────────────────
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: bash ci/linux/install-build-deps.sh
+      # ── System dependencies ───────────────────────────────────────────────
+      - name: Install system dependencies
+        if: matrix.install-deps-script
+        env:
+          SCRIPT: ${{ matrix.install-deps-script }}
+        run: bash "ci/$SCRIPT"
 
       # ── Project dependencies ──────────────────────────────────────────────
       - name: Restore build dependencies
@@ -132,11 +136,6 @@ jobs:
             ci/out
             ci/download/mpv-prefix
           key: deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('ci/{0}', matrix.deps-script)) }}
-
-      - name: Install Homebrew packages (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install ffmpeg libass zimg imagemagick autoconf automake libtool gcc meson vapoursynth dylibbundler vulkan-loader molten-vk mpv
 
       - name: Collect dependencies
         if: steps.deps-cache.outputs.cache-hit != 'true'
@@ -304,7 +303,6 @@ jobs:
               tar -czf "$bundle_dir/blur-cli-$config.tar.gz" "blur-cli-$config"
 
               # Create DMG
-              brew install create-dmg
               mkdir source_folder && mv blur.app source_folder/
               create-dmg \
                 --volname "Blur Installer" \
