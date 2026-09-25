@@ -23,7 +23,7 @@ namespace {
 	ui::Container button_container;
 	ui::AnimationState anim(20.f);
 
-	// the panel's last built bounds, kept alive past the close so the dialog has something to fade out as
+	// the panel's last bounds, kept after closing so it can fade out
 	std::optional<gfx::Rect> panel_rect;
 
 	float shake_time_left = 0.f;
@@ -39,8 +39,7 @@ namespace {
 		return std::lround(std::sin(elapsed * DIALOG_SHAKE_SPEED) * DIALOG_SHAKE_DISTANCE * remaining);
 	}
 
-	// both of these copy the callback out before closing: closing destroys the options it lives in, and the
-	// callback is free to open another dialog on top
+	// copy the callback before closing, since closing destroys it and the callback might open another dialog
 
 	void confirm() {
 		if (!current)
@@ -75,7 +74,6 @@ namespace {
 		return std::max(screen_rect.h - (DIALOG_SCREEN_MARGIN * 2), 1);
 	}
 
-	// the single rule for where the dialog sits: centred in whatever the screen margin leaves it
 	gfx::Rect centered_panel(const gfx::Rect& screen_rect, const gfx::Size& size) {
 		return {
 			screen_rect.x + ((screen_rect.w - size.w) / 2),
@@ -90,8 +88,7 @@ namespace {
 		return std::max(height - target.last_margin_bottom, 0);
 	}
 
-	// moves a container and everything in it, stale elements included, so a whole dialog can be repositioned
-	// after the fact without relaying it out
+	// moves a container and everything in it, stale elements included
 	void shift_container(ui::Container& target, const gfx::Point& amount) {
 		target.rect += amount;
 		target.current_position += amount;
@@ -166,7 +163,6 @@ void ui::dialog::add_field(
 	const render::Font& font
 ) {
 	if (!label.empty()) {
-		// a label and its value read as one group. the element-type padding still leaves a small gap between them
 		add_text(std::format("{} label", id), container, label, gfx::Color::white(190), fonts::dejavu);
 		add_spacing(container, -DIALOG_ELEMENT_GAP);
 	}
@@ -175,13 +171,13 @@ void ui::dialog::add_field(
 }
 
 void ui::dialog::build(SDL_Window* window, const gfx::Rect& screen_rect) {
-	// handled here rather than in update_input so the dialog closes and starts fading within the same frame
+	// handled here so the dialog starts fading the same frame
 	if (current && keys::is_key_pressed(SDL_SCANCODE_ESCAPE)) {
 		keys::on_key_press_handled(SDL_SCANCODE_ESCAPE);
 		cancel();
 	}
 
-	// the containers are reset even when closed, otherwise the old elements never go stale and never fade out
+	// reset even when closed so the old elements go stale and fade out
 	if (!current) {
 		reset_container(container, window, container.rect, DIALOG_ELEMENT_GAP);
 		reset_container(button_container, window, button_container.rect, DIALOG_ELEMENT_GAP);
@@ -191,8 +187,7 @@ void ui::dialog::build(SDL_Window* window, const gfx::Rect& screen_rect) {
 			return;
 		}
 
-		// nothing relays out once the dialog is gone, so a window resize would strand the fading panel wherever it
-		// happened to close. re-centre it and carry its contents along, at the size it was last built at.
+		// re-centre the fading panel if the window resizes
 		if (panel_rect) {
 			gfx::Point shift = centered_panel(screen_rect, panel_rect->size()).origin() - panel_rect->origin();
 
@@ -210,7 +205,7 @@ void ui::dialog::build(SDL_Window* window, const gfx::Rect& screen_rect) {
 	int dialog_width = std::min(current->width, available_width(screen_rect));
 	int footer_reserve = DIALOG_FOOTER_GAP + button_height + DIALOG_PADDING.h;
 
-	// the content is laid out against the full height available, then the panel shrinks onto what it actually used
+	// lay out against the full height, then shrink the panel to fit
 	gfx::Rect content_rect = centered_panel(screen_rect, gfx::Size(dialog_width, available_height(screen_rect)));
 
 	reset_container(
@@ -230,7 +225,7 @@ void ui::dialog::build(SDL_Window* window, const gfx::Rect& screen_rect) {
 	panel_rect = centered_panel(screen_rect, gfx::Size(dialog_width, std::min(natural_height, content_rect.h)));
 
 	shift_container(container, gfx::Point(0, panel_rect->y - content_rect.y));
-	container.rect = *panel_rect; // anything taller than the panel scrolls inside it
+	container.rect = *panel_rect; // taller content scrolls
 
 	reset_container(
 		button_container,
@@ -269,7 +264,7 @@ void ui::dialog::build(SDL_Window* window, const gfx::Rect& screen_rect) {
 }
 
 bool ui::dialog::update_input() {
-	// Release a selected text field before dispatching a click elsewhere, so the same click can activate a button.
+	// release a selected text field first so the same click can press a button
 	if (keys::is_mouse_pressed()) {
 		if (auto* active = get_active_element(); active && active->element->type == ElementType::TEXT_INPUT &&
 		                                         !active->element->rect.contains(keys::mouse_pos))
@@ -282,7 +277,7 @@ bool ui::dialog::update_input() {
 		keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
 
 		if (current->action_required) {
-			// Required decisions stay open and point back at their actions.
+			// required decisions stay open
 			shake_time_left = DIALOG_SHAKE_DURATION;
 		}
 		else {
@@ -323,7 +318,6 @@ void ui::dialog::render() {
 	render::rounded_rect_filled(*panel_rect, gfx::Color(DIALOG_BACKGROUND_COLOR, anim.current * 255), DIALOG_ROUNDING);
 	render::rounded_rect_stroke(*panel_rect, gfx::Color(DIALOG_BORDER_COLOR, anim.current * 255), DIALOG_ROUNDING);
 
-	// nothing in the dialog draws outside its panel
 	render::push_clip_rect(panel_rect->shrink(1), true);
 	render_container(container);
 	render_container(button_container);

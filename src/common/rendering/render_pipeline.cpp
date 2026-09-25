@@ -39,8 +39,7 @@ namespace {
 		u::log("Render resumed");
 	}
 
-	// vspipe reports progress on stderr as "\r"-terminated "Frame: n/m" lines,
-	// interleaved with "\n"-terminated actual error output
+	// vspipe's progress lines end in \r, errors end in \n
 	void pump_vspipe_stderr(
 		bp::ipstream& vspipe_stderr,
 		const std::shared_ptr<rendering::RenderState>& state,
@@ -65,8 +64,7 @@ namespace {
 					if (vspipe_stderr.peek() == '\n')
 						continue;
 
-					// not a frame update - e.g. a \r-terminated status line from a
-					// TensorRT engine build.
+					// not a frame update, e.g. a status line from a tensorrt engine build
 					state->report_log_line(line);
 				}
 
@@ -104,10 +102,8 @@ namespace {
 		}
 	}
 
-	// scan ffmpeg's stdout for complete jpeg frames (FFD8..FFD9) and hand each
-	// one to the state as the latest preview.
-	// note: reads in big chunks - pulling a byte at a time out of the stream can't
-	// keep up with ffmpeg's output, which backpressures the pipe and stalls the render
+	// find complete jpeg frames (FFD8..FFD9) in ffmpeg's stdout for the preview. reads in big chunks, byte by byte
+	// can't keep up and stalls the render
 	void extract_jpeg_stream(bp::ipstream& ffmpeg_stdout, const std::shared_ptr<rendering::RenderState>& state) {
 		if (!state->preview_capture_enabled())
 			return;
@@ -115,10 +111,8 @@ namespace {
 		static constexpr size_t CHUNK_SIZE = size_t{ 64 } * 1024;
 		static constexpr size_t INITIAL_JPEG_CAPACITY = size_t{ 1024 } * 512;
 
-		// a render going much faster than realtime produces preview frames far quicker than
-		// anything can display them, and every one the gui picks up costs a jpeg decode and a
-		// texture upload on the main thread. throttled here rather than in ffmpeg because
-		// ffmpeg can only cap this in video time, which would starve slow renders of previews
+		// fast renders make preview frames far quicker than they can be shown, and each one costs a decode and upload.
+		// throttled here since ffmpeg can only cap it in video time, which would starve slow renders
 		static constexpr auto MIN_PREVIEW_INTERVAL = std::chrono::milliseconds(50);
 
 		std::array<char, CHUNK_SIZE> chunk{};
@@ -129,7 +123,7 @@ namespace {
 		std::vector<uint8_t> pending; // most recent frame the throttle skipped
 
 		bool in_jpeg = false;
-		bool trailing_ff = false; // last byte of the previous chunk was 0xFF (start marker may straddle chunks)
+		bool trailing_ff = false; // the previous chunk ended in 0xFF (a start marker can straddle chunks)
 
 		auto last_handoff = std::chrono::steady_clock::now() - MIN_PREVIEW_INTERVAL; // let the first frame through
 
@@ -172,8 +166,8 @@ namespace {
 					}
 				}
 				else {
-					// consume up to and including the next FFD9 end marker (0xFF bytes inside
-					// entropy-coded data are always stuffed, so FFD9 only appears as EOI)
+					// consume up to and including the next FFD9 end marker (FFD9 only appears as EOI since 0xFF is
+					// stuffed)
 					const auto* d9 = static_cast<const uint8_t*>(std::memchr(data + pos, 0xD9, size - pos));
 					if (!d9) {
 						buf.insert(buf.end(), data + pos, data + size);
@@ -192,12 +186,11 @@ namespace {
 							last_handoff = now;
 							pending.clear();
 
-							buf = {}; // moved from, reset it properly
+							buf = {};
 							buf.reserve(INITIAL_JPEG_CAPACITY);
 						}
 						else {
-							// came too soon after the last one, but hold onto it in case it
-							// turns out to be the final frame (swapped so the buffers get reused)
+							// too soon after the last one, but keep it in case it's the final frame
 							std::swap(pending, buf);
 							buf.clear();
 						}
@@ -208,13 +201,12 @@ namespace {
 			}
 		}
 
-		// the stream's ended, so make sure the last frame rendered is the one left on screen
+		// make sure the last frame is the one left on screen
 		if (!pending.empty())
 			state->set_preview_jpeg(std::move(pending));
 	}
 
-	// turn a non-zero exit into a user-facing error, preferring a parsed blur exception. keep each process's
-	// stderr separate so the UI can present it clearly; RenderError::to_string combines them for support copies.
+	// turn a non-zero exit into an error, preferring a parsed blur exception. each process's stderr is kept separate
 	rendering::RenderError assemble_render_error(const std::string& vspipe_errors, const std::string& ffmpeg_errors) {
 		rendering::RenderError err;
 
@@ -227,8 +219,7 @@ namespace {
 			err.is_blur_exception = false;
 		}
 
-		// the blobs a blur exception was parsed out of are already the error message, so they come out - but
-		// what the script logged on its way there stays, since that's the part that says what it was doing
+		// the parsed blur exception blobs are removed, but keep what the script logged before it
 		err.vspipe_errors =
 			err.is_blur_exception ? rendering::detail::without_error_objects(vspipe_errors) : vspipe_errors;
 		err.ffmpeg_errors = ffmpeg_errors;

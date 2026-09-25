@@ -1,6 +1,6 @@
 #!/bin/bash
-# checks an appimage and tarball work on clean installs of a few distros: renders a video with the cli, makes sure the
-# only libraries the gui can't find are ones every desktop has, then installs those and checks the gui opens a window
+# checks the appimage and tarball on clean installs of a few distros: renders with the cli, checks the gui's missing
+# libraries are all ones desktops have, then checks it opens a window
 # usage: ci/linux/test/distros.sh <appimage> <tarball> [image...]
 set -euo pipefail
 

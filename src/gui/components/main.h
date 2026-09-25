@@ -30,15 +30,13 @@ namespace gui::components::main {
 
 	void invalidate_trim_support();
 
-	// which subscreen screen() last drew, nothing if the main screen isn't the one up
+	// which subscreen was last drawn, if the main screen is up
 	[[nodiscard]] std::optional<MainScreen> current_screen();
 
-	// videos can be queued while something's rendering, so both screens can be up at once - this is the one
-	// switching away from the current screen would land on, when there is one
+	// both screens can be up at once, this is the one to switch to
 	[[nodiscard]] std::optional<MainScreen> get_screen_switch_target();
 
-	// asks for a screen for the next frame. only PROGRESS and PENDING can be asked for, HOME is what's left when
-	// there's nothing to render or queue
+	// only PROGRESS and PENDING can be asked for
 	void show_screen(MainScreen main_screen);
 
 	void render_home(ui::Container& container);

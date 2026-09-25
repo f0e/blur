@@ -1,5 +1,5 @@
 #!/bin/bash
-# packages a linux build into an appimage, and optionally a tarball of the same files for people who don't want one.
+# packages a linux build into an appimage, and optionally a tarball
 # run from the repo root after build-dependencies.sh and the cmake build
 # usage: ci/linux/appimage/package.sh <build dir> <output appimage> [output tarball]
 set -euo pipefail
@@ -119,8 +119,7 @@ cp "$repo_dir/installer/linux/blur.desktop" "$appdir/blur.desktop"
 cp "$repo_dir/resources/blur.png" "$appdir/blur.png"
 ln -s blur.png "$appdir/.DirIcon"
 
-# everything's found relative to the binaries, so the appdir works as is once extracted. it's kept in a blur folder so
-# it doesn't spill into wherever it's extracted, without the appimage-only launcher and icon link
+# the tarball is the appdir in a blur folder, without the appimage-only launcher and icon link
 if [ -n "$tarball" ]; then
   mkdir -p "$(dirname "$tarball")"
   tar -czf "$tarball" -C "$appdir" --owner=0 --group=0 --exclude ./AppRun --exclude ./.DirIcon \

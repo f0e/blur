@@ -1,11 +1,8 @@
 [Code]
-// moves installs from before the installer went 64-bit out of Program Files (x86). can be deleted once nobody's
-// updating from those versions any more
+// moves pre 64-bit installs out of Program Files (x86). can be deleted once nobody's updating from those versions
 //
-// they're in the 32-bit registry view, where a 64-bit install no longer looks for previous installs. copying their
-// choices into the 64-bit view lets setup pick them up as if they were a previous 64-bit install. the old install is
-// only removed once the new one is in, unless it's in the same dir, where its uninstaller would take the new files
-// with it
+// copies their choices from the 32-bit registry view into the 64-bit one so setup treats them as a previous install.
+// the old install is removed after the new one is in, unless they share a dir
 
 const
   UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#MyAppId}}_is1';
@@ -24,7 +21,7 @@ end;
 
 procedure FindLegacyInstall;
 begin
-  // the value rather than the key, so a key left behind by a killed setup doesn't stop the migration
+  // check the value rather than the key, in case a killed setup left the key behind
   if not IsAdminInstallMode or RegValueExists(HKLM64, UninstallKey, 'UninstallString') or
      not RegQueryStringValue(HKLM32, UninstallKey, 'Inno Setup: App Path', LegacyDir) then
     Exit;
@@ -32,7 +29,7 @@ begin
   LegacyDir := RemoveBackslashUnlessRoot(LegacyDir);
   LegacyDirIsDefault := CompareText(LegacyDir, ExpandConstant('{commonpf32}\{#MyAppName}')) = 0;
 
-  // installs in the old default dir move to the new one, custom dirs stay put
+  // installs in the old default dir move to the new one, custom dirs stay
   if not LegacyDirIsDefault then
     CopyLegacyValue('Inno Setup: App Path');
 
@@ -56,13 +53,12 @@ begin
   if RegQueryStringValue(HKLM32, UninstallKey, 'UninstallString', Uninstaller) then
     Exec(RemoveQuotes(Uninstaller), '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-  // in case the old uninstaller is missing or failed, so it doesn't show up twice in installed apps
+  // in case the old uninstaller is missing or failed
   RegDeleteKeyIncludingSubkeys(HKLM32, UninstallKey);
   LegacyRemoved := True;
 end;
 
-// the old uninstaller can't be used once the new install is in - its shortcuts have the same names as the new
-// ones, so it'd delete those. everything else it would do is done here instead
+// not using the old uninstaller since it would delete the new shortcuts (same names)
 procedure RemoveMovedLegacyInstall;
 begin
   RemoveFromPath(LegacyDir);
@@ -104,8 +100,7 @@ end;
 <event('DeinitializeSetup')>
 procedure MigrateDeinitializeSetup;
 begin
-  // don't leave copied choices behind if setup didn't finish, unless the old install is already gone and they're all
-  // that's left of it
+  // remove copied choices if setup didn't finish, unless the old install is already gone
   if (LegacyDir <> '') and not LegacyRemoved and not RegValueExists(HKLM64, UninstallKey, 'UninstallString') then
     RegDeleteKeyIncludingSubkeys(HKLM64, UninstallKey);
 end;

@@ -7,8 +7,7 @@
 #include "common/config_blur.h"
 #include "common/media.h"
 
-// Top-level render orchestration: turn settings into commands, run the
-// pipeline, and deal with the output file.
+// turn settings into commands, run the pipeline, and handle the output file
 namespace rendering {
 	struct FrameRenderResult {
 		std::vector<uint8_t> frame_jpeg;

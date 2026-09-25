@@ -6,8 +6,7 @@
 #include "common/devices.h"
 #include "common/media.h"
 
-// Pure functions that turn settings + video info into the vspipe / ffmpeg
-// argument vectors. No process spawning, no shared state - just string building.
+// turn settings and video info into vspipe/ffmpeg arguments
 namespace rendering::detail {
 	nlohmann::json merge_settings(
 		const BlurSettings& blur_settings,
@@ -44,9 +43,7 @@ namespace rendering::detail {
 
 	std::optional<std::string> get_audio_copy_conflict(const BlurSettings& settings, bool trimming);
 
-	// the full ffmpeg command for a video render (audio filters, colour fixes and
-	// encoding args included) up to and including the output path. The preview
-	// pipe, which also toggles render state, is appended by the caller.
+	// the full ffmpeg command for a video render, up to the output path. the preview pipe is added by the caller
 	tl::expected<std::vector<std::string>, std::string> build_ffmpeg_video_args(
 		const std::filesystem::path& input_path,
 		const media::VideoInfo& video_info,

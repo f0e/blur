@@ -13,11 +13,10 @@ namespace os::taskbar {
 		ERRORED, // not ERROR - that's a windows macro
 	};
 
-	// binds to the window whose icon gets drawn on. no-op on platforms with nothing to draw on
+	// no-op on platforms without a taskbar
 	void initialise(SDL_Window* window);
 	void cleanup();
 
-	// progress is 0-1 and only means anything for NORMAL/PAUSED/ERRORED. calls that wouldn't change
-	// what's on screen are dropped, so this is cheap to call every tick
+	// progress is 0-1 and only used for NORMAL/PAUSED/ERRORED. calls that wouldn't change anything are dropped
 	void set_progress(ProgressState state, float progress = 0.f);
 }

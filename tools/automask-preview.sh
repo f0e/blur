@@ -5,8 +5,7 @@
 #   ./tools/automask-preview.sh --stages *.mp4
 #   ./tools/automask-preview.sh --frame 500 --out /tmp/masks clip.mp4
 #
-# Runs against the built app, since its bundled python is the only one with vapoursynth in it. Build first
-# if you haven't: cmake --build out/build/mac-debug
+# needs the built app's bundled python: cmake --build out/build/mac-debug
 
 set -euo pipefail
 
@@ -39,7 +38,7 @@ if [ -z "$python" ]; then
   exit 1
 fi
 
-# the bundled python loads vapoursynth.so, which links against the dylibs sat next to the app
+# vapoursynth.so links against the app's dylibs
 export DYLD_LIBRARY_PATH="$resources/libs${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 
 exec "$python" "$repo/tools/automask_preview.py" --resources "$resources" "$@"

@@ -4,8 +4,7 @@
 #include "common/encoding.h"
 
 namespace {
-	// audio: trim each stream to the render's cut points and apply the timescale
-	// (either by resampling to change pitch, or chained atempo to preserve it)
+	// audio: trim to the cut points and apply the timescale (resampling to change pitch, or atempo to keep it)
 	void append_audio_filter_args(
 		std::vector<std::string>& args,
 		const media::VideoInfo& video_info,

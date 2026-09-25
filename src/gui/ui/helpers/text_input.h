@@ -6,9 +6,8 @@ namespace ui::helpers::text_input {
 	struct TextInputData;
 }
 
-// we use dear imgui's fork of stb_textedit rather than upstream, because it adds UTF-8 support (cursor movement
-// and deletion step over whole codepoints instead of bytes) plus fixes for redo discarding and last-line charpos.
-// the fork reads two members straight off the string object, so those have to keep imgui's names.
+// imgui's fork of stb_textedit, for utf-8 support. it reads two members straight off the string object so
+// those keep imgui's names
 struct STB_TexteditState; // NOLINT(readability-identifier-naming) stb's name
 
 // NOLINTBEGIN(cppcoreguidelines-macro-usage,cppcoreguidelines-macro-to-enum) stb is configured through macros
@@ -19,8 +18,7 @@ struct STB_TexteditState; // NOLINT(readability-identifier-naming) stb's name
 #define IMSTB_TEXTEDIT_UNDOCHARCOUNT  999
 // NOLINTEND(cppcoreguidelines-macro-usage,cppcoreguidelines-macro-to-enum)
 
-// only the type configuration lives here, since it's needed to declare STB_TexteditState below. the callback
-// and key macros stay in text_input.cpp so they don't leak into every TU that pulls in ui.h.
+// the callback and key macros are in text_input.cpp so they don't leak into everything that includes ui.h
 #include <imstb_textedit.h>
 
 namespace ui::helpers::text_input {
@@ -31,8 +29,7 @@ namespace ui::helpers::text_input {
 		bool read_only = false; // still focusable & selectable, just can't be edited
 		bool multiline = false;
 
-		// these two are named for imgui's stb_textedit fork, which reads them directly out of the string object
-		// (see stb_textedit_click/_drag/_find_charpos). Stb points back at the owning state's edit_state.
+		// named for imgui's stb_textedit fork, which reads them directly
 		// NOLINTBEGIN(readability-identifier-naming)
 		STB_TexteditState* Stb{};
 		ImS8 LastMoveDirectionLR = ImGuiDir_None;
@@ -52,18 +49,16 @@ namespace ui::helpers::text_input {
 		int ime_cursor = 0;        // Cursor within IME composition
 		int ime_selection_len = 0; // Selection length within IME composition
 
-		// storage for fields whose text is generated rather than owned by the caller (see add_selectable_text). it
-		// lives with the edit state so it stays valid for as long as the element does, including while it fades out
+		// for text that isn't owned by the caller, see add_selectable_text
 		std::string owned_text;
 
 		float scroll_x = 0.f;                 // horizontal scroll in pixels, kept sticky across frames
 		bool cursor_follow = false;           // scroll to reveal the cursor on the next render
 		float cursor_anim = 0.f;              // blink timer, negative means "solid on" right after an action
 		bool selected_all_mouse_lock = false; // after select-all, ignore drags until the button comes back up
-		gfx::Point last_cursor_screen_pos;    // where the caret last drew, used to place the IME candidate window
+		gfx::Point last_cursor_screen_pos;    // where the caret last drew, for the ime window
 
-		// SDL's click count is window-wide. Keep a text-input-local sequence so clicks elsewhere (or at a
-		// different character in this input) cannot trigger word/line selection here.
+		// sdl's click count is window wide, so keep our own for clicks on the same character
 		std::uint64_t last_mouse_press_id = 0;
 		int last_mouse_click_cursor = -1;
 		int local_mouse_click_count = 0;
@@ -77,10 +72,7 @@ namespace ui::helpers::text_input {
 
 	void handle_text_input_event(TextInputData& input_data, TextInputStateInternal& state, const SDL_Event& event);
 
-	// click / double-click (select word) / triple-click (select line) / shift-click (extend) / drag.
-	// text_relative_pos is the mouse position relative to the text origin, scroll already applied.
-	// `pressed` is passed in rather than read from keys:: because the caller claims the press (which clears it)
-	// before we get here.
+	// `pressed` is passed in since the caller has already claimed the press
 	void handle_mouse(
 		TextInputData& input_data,
 		TextInputStateInternal& state,

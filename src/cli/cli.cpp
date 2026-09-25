@@ -128,7 +128,7 @@ bool cli::run(
 		}
 
 		std::optional<std::string> mask_override;
-		if (!mask.empty()) // "none" turns off a mask the config sets, for this run only
+		if (!mask.empty()) // "none" turns off the config's mask
 			mask_override = mask == masks::NONE_OPTION ? "" : mask;
 
 		auto add_res = rendering::video_render_queue.add(

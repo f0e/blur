@@ -347,8 +347,7 @@ config_blur::ValidationResult config_blur::validate(
 	}
 
 	if (config.override_advanced) {
-		// only check advanced settings when advanced settings are being used - they're ignored otherwise, and
-		// refusing to save over a field that's hidden would be confusing
+		// advanced settings are only checked when they're in use
 		if (!deduplicate_threshold_valid(config.advanced.deduplicate_threshold)) {
 			add_error(ValidationField::DEDUPLICATE_THRESHOLD, "deduplicate threshold must be a decimal number", true);
 

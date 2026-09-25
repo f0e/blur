@@ -460,7 +460,7 @@ void ui::shrink_element_to_fit_container_height(Container& container, const std:
 	target->rect.h = new_height;
 	target->orig_rect = target->rect;
 
-	// every later element was positioned from the target's old bottom edge.
+	// move the following elements up
 	for (++current_id; current_id != container.current_element_ids.end(); ++current_id) {
 		auto& element = container.elements[*current_id].element;
 		element->rect.y -= height_reduction;
@@ -718,8 +718,7 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 
 	need_to_render_animation_update |= container.scrollbar_anim.update(delta_time);
 
-	// keep rendering while dragging the scrollbar, otherwise the frame loop idles at the low tickrate between mouse
-	// events and the drag stutters
+	// keep rendering while dragging, otherwise the loop idles at the low tickrate and the drag stutters
 	if (scrollbar_drag.container == &container)
 		need_to_render_animation_update = true;
 

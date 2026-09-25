@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
-// the dock has no progress bar of its own, so the icon's badge carries the percentage instead
+// the dock has no progress bar, so use the badge
 void os::taskbar::initialise(SDL_Window* /*window*/) {}
 
 void os::taskbar::set_progress(ProgressState state, float progress) {

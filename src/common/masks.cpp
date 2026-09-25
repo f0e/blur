@@ -15,7 +15,7 @@ std::vector<std::string> masks::list() {
 
 	auto path = get_path();
 
-	std::error_code ec; // don't throw if the folder's missing or unreadable, just show nothing
+	std::error_code ec;
 	for (const auto& entry : std::filesystem::directory_iterator(path, ec)) {
 		if (!entry.is_regular_file(ec))
 			continue;

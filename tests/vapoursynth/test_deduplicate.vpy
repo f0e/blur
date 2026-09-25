@@ -1,15 +1,12 @@
 """Tests for deduplication and the retiming it drives.
 
-The maths here is all frame indices and time points, which is exactly the sort of thing that looks right and
-isn't, so it's worth being able to check. Nothing here needs a video file: sources are built out of BlankClip,
-and the interpolator is stubbed out, so a run takes about a second.
-
-Run it with the vapoursynth that ships in the built app - from this folder, on macos:
+No video files needed, sources are BlankClips and the interpolator is stubbed out. Run it with the built app's
+vapoursynth, from this folder on macos:
 
     RES=../../bin/Release/Blur.app/Contents/Resources
     PYTHONHOME=$RES/python $RES/vapoursynth/vspipe -p test_deduplicate.vpy /dev/null
 
-It prints a pass/fail summary to stderr and exits after writing a single blank frame.
+Prints a pass/fail summary to stderr.
 """
 
 import sys
@@ -81,10 +78,8 @@ def duplicated(unique, holds):
     return values
 
 
-# the long still stretch is reached over a run of two, so a search that steps over that run lands
-# on a stretch far longer than it - which is the shape that used to read past the window
-# ...and it ends inside a run rather than on a lone frame, which is what a recording trimmed at an
-# arbitrary point looks like, and what a search stepping forward can run off the end of
+# a run of two leading into a long still stretch, which used to read past the window. it ends inside a run,
+# like a recording trimmed at an arbitrary point
 VALUES = (
     [0, 40]
     + duplicated(10, [2, 2, 3, 1, 2, 4])
@@ -116,11 +111,8 @@ def ref_runs(values, threshold):
 
 
 def ref_anchors(values, threshold, timing):
-    """Where each run's picture belongs on the timeline, in half frames, and the frame that shows it.
-
-    Worked out from the whole clip at once, which is what makes this worth checking against: the decisions
-    only ever look a few frames either side of themselves and have to reach the same answer.
-    """
+    """Where each run's picture belongs on the timeline in half frames, and the frame that shows it. Worked out
+    from the whole clip at once to check the windowed decisions against."""
     anchors = []
     for start, end in ref_runs(values, threshold):
         if timing == dd.TIMING_FIRST:
@@ -211,8 +203,7 @@ for timing in dd.TIMINGS:
             if want is None or at.timepoint is None:
                 continue
 
-            # the frames only have to be the same picture: inside a run longer than the decision can
-            # see, it names one further along than the run really starts, which shows the same thing
+            # only the picture has to match, inside a long run the decision names a later frame of it
             check(
                 f"bracket[{timing}][gap={max_gap}][{j}]",
                 (
@@ -348,8 +339,7 @@ for timing in dd.TIMINGS:
         if not 0 < at.timepoint < 1:
             fail(f"[{timing}] time point {at.timepoint} at {time} is outside the pair")
 
-        # a pair has to span a real change - two frames out of the same run are the same picture,
-        # and generating between them would be generating nothing
+        # a pair has to span a real change
         if containing_run(at.left) == containing_run(at.right):
             fail(
                 f"[{timing}] the pair at {time} takes both frames from the run "
@@ -404,8 +394,7 @@ for timing in dd.TIMINGS:
                     min(round(at.timepoint * steps), steps),
                 )
 
-# output frames are spread evenly over real time however the duplicates fell, so no stretch of the
-# video ends up with fewer frames - and so no stretch gets fewer blur samples than another
+# output frames are spread evenly over real time, so every stretch gets the same number of blur samples
 ratio = Fraction(300) / SRC_FPS
 retimed = it._retimed(VIDEO, DEDUPE, Fraction(300), counting_interpolator)
 density = [0] * LENGTH
@@ -416,9 +405,8 @@ check("output frames per source frame", set(density), {int(ratio)})
 
 # ------------------------------------------------- 3. timing, against ground truth
 #
-# brightness *is* the timestamp here - a frame captured at source index p has value p/1000 - so with a
-# perfect interpolator (a blend, which is exact for content that changes linearly) any error in the
-# retiming shows up as an error in brightness.
+# brightness is the timestamp (frame p has value p/1000), so with a blend as the interpolator any retiming
+# error shows up as a brightness error
 
 TRUTH_HOLDS = [2, 3, 1, 4]
 TRUTH_MAX_GAP = 6
@@ -469,18 +457,16 @@ def brightness(frame):
     return struct.unpack("f", frame[0].tobytes()[:4])[0]
 
 
-# `first` is the timing this source was built to match: every run holds the picture that started it,
-# so it's the one that should land every frame exactly where its timestamp says
+# `first` matches how this source was built, so it should be exact
 for target in (Fraction(300), Fraction(240), Fraction(60), Fraction(1200)):
     dedupe = dd.analyse(TRUTH, threshold=0.0005, max_gap=TRUTH_MAX_GAP)
     ratio = target / SRC_FPS
     out = it._retimed(TRUTH, dedupe, target, blending_interpolator)
 
-    # past the last frame that isn't a repeat there's nothing to move towards, so the tail holds
+    # the tail holds since there's nothing after the last real frame
     last_real = TRUTH_POSITIONS[-1]
 
-    # all that should be left is the rounding to the nearest step, which _steps keeps well under an
-    # output frame
+    # only the step rounding error should be left
     budget = float(1 / ratio) / it.STEPS_PER_OUTPUT_FRAME * 1.01
 
     worst = 0.0
@@ -493,7 +479,7 @@ for target in (Fraction(300), Fraction(240), Fraction(60), Fraction(1200)):
         error = abs(brightness(frame) - float(time) / 1000) * 1000  # in source frames
         worst = max(worst, error)
 
-        # and it should never go backwards or stall - that's the stutter this is all here to remove
+        # and it should never go backwards or stall
         if previous is not None and brightness(frame) <= previous:
             fail(f"output @{target} stalled or went backwards at frame {n}")
         previous = brightness(frame)
@@ -504,9 +490,8 @@ for target in (Fraction(300), Fraction(240), Fraction(60), Fraction(1200)):
             f"timing @{target}: worst error {worst:.5f} source frames, budget {budget:.5f}"
         )
 
-# The point of `surrounding` and `center` is what they do when the footage doesn't match the reading
-# you picked, so both get built twice: the same motion recorded once with each picture held forward
-# from the frame that started its run, and once held back to the frame that ends it.
+# `surrounding` and `center` matter when the footage doesn't match the reading, so build the source both ways:
+# each picture held forward from the start of its run, and held back to its end
 
 SHAPE = [2, 1, 3, 1, 4, 1, 2, 1, 3, 1, 2, 1]
 SHAPE_GAP = 8
@@ -533,11 +518,8 @@ def hypothesis_clip(holds, held_late):
 
 
 def worst_error(clip, dedupe, target, window):
-    """How far the retimed output lands from where each frame's timestamp says it should, in frames.
-
-    `window` cuts off the first and last run: there's nothing before the one and nothing after the
-    other, so no reading can place them and every timing has to hold.
-    """
+    """How far the retimed output lands from where each frame's timestamp says it should, in frames. `window`
+    cuts off the first and last run since no timing can place them."""
     ratio = target / SRC_FPS
     out = it._retimed(clip, dedupe, target, blending_interpolator)
     low, high = window
@@ -550,7 +532,7 @@ def worst_error(clip, dedupe, target, window):
 
         at = read(dedupe, rt.decision_index(dedupe, n, ratio), time)
 
-        # only where it committed to a pair; a held stretch isn't claiming to be anywhere
+        # held stretches aren't placed anywhere, so skip them
         if at.timepoint is None:
             continue
 
@@ -578,8 +560,7 @@ for held_late in (False, True):
         )
         errors[timing] = worst_error(clip, dedupe, TARGET, window)
 
-    # the reading that matches the footage is exact, and `surrounding` is exact either way - it only
-    # ever works from frames both readings agree about
+    # the matching reading is exact, and so is `surrounding` either way
     matching = dd.TIMING_LAST if held_late else dd.TIMING_FIRST
     for timing in (matching, dd.TIMING_SURROUNDING):
         CHECKS += 1
@@ -588,7 +569,7 @@ for held_late in (False, True):
                 f"[{reading}] {timing} was out by {errors[timing]:.4f} frames, budget {BUDGET:.4f}"
             )
 
-    # and `center` splits the difference: never worse than half of what picking the wrong end costs
+    # `center` is never worse than half of picking the wrong end
     wrong = dd.TIMING_FIRST if held_late else dd.TIMING_LAST
     CHECKS += 1
     if not errors[dd.TIMING_CENTER] <= errors[wrong] / 2 + BUDGET:
@@ -607,8 +588,7 @@ for held_late in (False, True):
 
 # ------------------------------- 4. the debug overlay marks the right frames
 
-# only frames deduplication had a hand in should get written on: not the ones between two frames that
-# were both really captured, which are just ordinary interpolation
+# only frames deduplication touched get written on, not plain interpolation between real frames
 DIFFS = ref_diffs(VALUES)
 for target in (Fraction(300), Fraction(60)):
     ratio = target / SRC_FPS
@@ -627,7 +607,7 @@ for target in (Fraction(300), Fraction(60)):
 MOVING_ALL = grey_clip([(n * 20) % 256 for n in range(30)])
 MOVING_ALL_DEDUPE = dd.analyse(MOVING_ALL, THRESHOLD, 5)
 marked = sum(rt.involved(read(MOVING_ALL_DEDUPE, n)) for n in range(30))
-# only the last frame, which has nothing after it to move towards
+# only the last frame, which has nothing after it
 check("frames marked in a clip with no duplicates", marked, 1)
 
 
@@ -668,10 +648,8 @@ for timing in dd.TIMINGS:
 
 # ------------------------------------------ 6. the scans stay inside their window
 
-# every scan above ran against sources with runs of one, two, three, four and twelve frames, across
-# every timing and a spread of ranges. if any of them reached for a difference the window doesn't
-# hold, the reach analysis in `_reach` is wrong for that path - which reads as frames quietly being
-# held rather than as anything failing, so nothing else here would notice
+# every scan above should have stayed inside its window. reading past it just holds frames quietly, so
+# nothing else would catch it
 CHECKS += 1
 if dd.WINDOW_CLAMPED:
     FAILURES.append(
@@ -691,8 +669,7 @@ if dd.WINDOW_CLAMPED:
         "a scan read past its window once the range and future checks were opened up"
     )
 
-# and a pair has to name frames that exist, whatever the settings and wherever in the clip it falls -
-# a search that walks off either end shows up here rather than as a failed render
+# pairs have to name frames that exist wherever they fall in the clip
 for timing in dd.TIMINGS:
     for max_gap in (1, 2, 4, 7, 12, 30):
         for checks in (0, 1, 4, 10):
@@ -708,9 +685,7 @@ for timing in dd.TIMINGS:
 
 # ------------------------------------------------- 7. clips shorter than the window
 
-# trimming a render to a short region leaves a clip shorter than the range wants to look at, so the
-# shifted clips the window is built from collapse onto each other at the edges. every scan has to stay
-# inside the clip for that to stay harmless.
+# trimmed renders can be shorter than the window, so the shifted clips collapse at the edges
 SHORT_SHAPES = [
     [10],
     [10, 10],

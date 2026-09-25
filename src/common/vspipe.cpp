@@ -11,9 +11,8 @@ namespace {
 	}
 }
 
-// vsscript can't find python by itself anymore, it needs `vapoursynth config` to have been run for the python it's in.
-// that writes to a config file keyed by absolute path, so it's pointed at our own one rather than the user's, and rerun
-// each launch in case the app's moved
+// vsscript needs `vapoursynth config` run for its python. use our own config file, and rerun it every launch in
+// case the app's moved
 void vspipe::configure() {
 	if (!blur.used_installer)
 		return;

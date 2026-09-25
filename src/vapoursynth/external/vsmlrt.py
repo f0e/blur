@@ -2119,12 +2119,10 @@ def trtexec(
                 # do not consider alternative path when the engine_folder is given
                 raise PermissionError(f"{engine_path} is not writable")
 
-        # trtexec writes here instead of engine_path directly, and we only rename it into
-        # place once the build succeeds. that way a killed/interrupted build (e.g. a
-        # cancelled render) can never leave a corrupt file at the trusted engine_path.
+        # build to a temp path and rename once it succeeds, so an interrupted build can't leave a corrupt engine
         tmp_engine_path = f"{engine_path}.building"
 
-        # clean up a stray partial file left behind by a previous interrupted build
+        # clean up a partial file from a previous interrupted build
         if os.path.exists(tmp_engine_path):
             try:
                 os.remove(tmp_engine_path)
@@ -2293,11 +2291,10 @@ def trtexec(
                 env.update(**custom_env)
                 subprocess.run(args, env=env, check=True, stdout=sys.stderr)
 
-            # build succeeded - publish it atomically so it can be trusted as a complete engine
+            # build succeeded, move it into place
             os.replace(tmp_engine_path, engine_path)
         finally:
-            # if we got here without renaming (build failed or was killed), don't leave a
-            # partial/corrupt file around for a future run to mistake for a real engine
+            # remove the partial file if the build failed
             if os.path.exists(tmp_engine_path):
                 try:
                     os.remove(tmp_engine_path)
@@ -2556,8 +2553,7 @@ def tensorrt_rtx(
             # do not consider alternative path when the engine_folder is given
             raise PermissionError(f"{engine_path} is not writable")
 
-    # see trtexec() above: build to a temp path and only rename it into place once the
-    # build succeeds, so a killed/interrupted build never leaves a corrupt engine_path
+    # see trtexec(): build to a temp path and rename once it succeeds
     tmp_engine_path = f"{engine_path}.building"
 
     if os.path.exists(tmp_engine_path):

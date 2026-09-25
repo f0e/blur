@@ -177,7 +177,6 @@ void ui::render_render_history_entry(const Container& container, const AnimatedE
 	gfx::Rect inner = get_inner_rect(rect);
 	gfx::Point text_pos(thumbnail_rect.x2() + THUMBNAIL_GAP, inner.y + ((inner.h - text_height) / 2));
 
-	// the title and the detail lines were clipped to fit when the row was added
 	render::text(text_pos, gfx::Color::white(), entry_data.title, entry_data.font);
 
 	text_pos.y += entry_data.font.height() + TITLE_DETAIL_GAP;
@@ -192,7 +191,6 @@ void ui::render_render_history_entry(const Container& container, const AnimatedE
 	if (entry_data.progress) {
 		int bar_width = get_text_width(rect.w, entry_data.actions, entry_data.font);
 
-		// the title already left a gap behind it, the detail lines only their leading
 		int bar_y = text_pos.y + (entry_data.detail_lines.empty() ? 0 : TITLE_DETAIL_GAP);
 
 		gfx::Rect bar_rect(text_pos.x, bar_y, bar_width, PROGRESS_BAR_H);
@@ -232,7 +230,6 @@ void ui::render_render_history_entry(const Container& container, const AnimatedE
 		}
 	}
 
-	// Scale everything submitted for the row together, including its text and thumbnail.
 	render::transform_draw_vertices(first_vertex, rect, animated_rect, anim);
 }
 

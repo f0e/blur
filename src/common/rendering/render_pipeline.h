@@ -4,9 +4,7 @@
 #include "render_errors.h"
 #include "render_state.h"
 
-// Runs a built vspipe | ffmpeg pipeline: spawns the two processes, streams
-// their stderr/stdout (progress, preview frames, errors) and handles
-// pause/stop until they finish.
+// runs a vspipe | ffmpeg pipeline, handling progress, preview frames, errors and pause/stop
 namespace rendering::detail {
 	struct PipelineResult {
 		bool stopped;

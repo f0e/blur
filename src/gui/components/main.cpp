@@ -49,7 +49,7 @@ namespace {
 		return disabled;
 	}
 
-	// with skip_queue on, pending videos only need a screen while a config or trim still needs sorting out
+	// with skip_queue on, the queue screen is only needed when a config or trim needs sorting out
 	bool wants_queue_screen(const std::vector<std::shared_ptr<tasks::PendingVideo>>& pending) {
 		if (pending.empty())
 			return false;
@@ -65,7 +65,7 @@ namespace {
 
 std::optional<main::MainScreen> main::current_screen() {
 	if (renderer::screen != renderer::Screens::MAIN)
-		return std::nullopt; // it goes stale as soon as the main screen isn't the one being drawn
+		return std::nullopt;
 
 	return last_main_screen;
 }
@@ -561,9 +561,9 @@ main::MainScreen main::screen(
 	bool queue_screen = wants_queue_screen(pending);
 
 	if (queue.empty())
-		prefer_render_screen = false; // nothing to go back to
+		prefer_render_screen = false;
 
-	// the queue screen is where the user still has something to do, so it wins unless they asked for the render
+	// prefer the queue screen unless the user asked for the render screen
 	if (!queue.empty() && (prefer_render_screen || !queue_screen)) {
 		bool is_progress_shown = false;
 

@@ -32,7 +32,7 @@ namespace {
 
 void configs::app_options(ui::Container& container) {
 #ifdef BLUR_COLOR_THEMES
-	// preview the picked theme straight away rather than waiting for the config to be saved
+	// preview the theme straight away
 	ui::highlight_color =
 		gfx::Color::from_hex_string(app_settings.gui_color_hex, false).value_or(ui::DEFAULT_HIGHLIGHT_COLOR);
 #endif

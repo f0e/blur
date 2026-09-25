@@ -57,8 +57,7 @@ namespace rendering {
 			const std::optional<bool>& auto_mask_override = {}
 		);
 
-		// pulls the front render off the queue, runs it to completion and fires its
-		// finish callback. defined in the .cpp as it drives detail::render_video.
+		// pulls the front render off the queue, runs it and fires its finish callback
 		bool process_next();
 
 		bool cancel(const std::shared_ptr<RenderState>& state);

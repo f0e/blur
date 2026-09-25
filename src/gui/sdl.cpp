@@ -92,14 +92,13 @@ namespace {
 		bool scale_changed = previous_scale != render::dpi_scale_override;
 
 		if (sdl::window) {
-			// live-reloadable: turning it off mid-session should clear whatever's on the icon
+			// clear the icon if it's turned off
 			if (config.taskbar_progress)
 				os::taskbar::initialise(sdl::window);
 			else
 				os::taskbar::cleanup();
 
-			// MINIMUM_WINDOW_SIZE is in scaled (logical) design units, but sdl wants window coordinates,
-			// so scale it up by the os content scale to keep the same usable minimum on high-dpi displays
+			// MINIMUM_WINDOW_SIZE is in logical units, sdl wants window coordinates
 			float content_scale = render::get_content_scale(sdl::window);
 			SDL_SetWindowMinimumSize(
 				sdl::window,
@@ -130,8 +129,7 @@ tl::expected<void, std::string> sdl::initialise() {
 		SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "1"
 	); // allows the screen to auto sleep. WHY IS THIS DISABLED BY DEFAULT?
 
-	// Use EGL and GLES on every platform. That's ANGLE on Windows and macOS (backed by D3D11 and Metal, selected
-	// below), and the system's graphics drivers on Linux.
+	// EGL and GLES everywhere: ANGLE on windows and macos, the system drivers on linux
 	SDL_SetHint(SDL_HINT_VIDEO_FORCE_EGL, "1");
 	SDL_SetHint(SDL_HINT_OPENGL_ES_DRIVER, "1");
 
@@ -251,7 +249,7 @@ void sdl::cleanup() {
 		sdl::gl_context = nullptr;
 	}
 
-	// takes the progress off the icon, so it has to happen while the window's still around
+	// has to happen before the window is destroyed
 	os::taskbar::cleanup();
 
 	if (sdl::window) {
@@ -272,9 +270,7 @@ bool sdl::event_watcher(void* data, SDL_Event* event) {
 		case SDL_EVENT_WINDOW_EXPOSED: {
 			SDL_Window* win = SDL_GetWindowFromID(event->window.windowID);
 			if (win == static_cast<SDL_Window*>(data)) {
-				// while the window's being resized (or moved) the os runs its own modal loop, so our main loop is
-				// stuck inside SDL_PollEvent and this watcher is the only chance we get to draw. draw a whole frame
-				// rather than an empty one, otherwise the window is black until the user lets go
+				// the os runs its own loop while resizing, so draw from here or the window stays black
 				static bool redrawing = false; // just in case rendering ends up pumping events
 
 				if (render::initialised && !redrawing) {
@@ -283,7 +279,7 @@ bool sdl::event_watcher(void* data, SDL_Event* event) {
 					redrawing = false;
 				}
 
-				// and draw again once the main loop's unblocked, in case anything changed while we were stuck
+				// and draw again once the main loop's unblocked
 				gui::to_render = true;
 			}
 			break;
@@ -337,7 +333,7 @@ void sdl::update_vsync() {
 }
 
 bool sdl::poll_config_reload() {
-	// throttle: statting the file every frame would be wasteful
+	// throttled so the file isn't statted every frame
 	Uint64 now = SDL_GetTicks();
 	if (now - last_config_check_ms < CONFIG_POLL_INTERVAL_MS)
 		return false;
@@ -346,10 +342,10 @@ bool sdl::poll_config_reload() {
 	std::error_code ec;
 	auto write_time = std::filesystem::last_write_time(config_app::get_app_config_path(), ec);
 	if (ec)
-		return false; // file missing/unreadable, nothing to do
+		return false;
 
 	if (has_config_write_time && write_time == last_config_write)
-		return false; // unchanged since we last looked
+		return false;
 
 	auto config = config_app::get_app_config();
 	bool needs_redraw = apply_app_config(config);

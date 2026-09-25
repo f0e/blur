@@ -15,9 +15,7 @@ namespace {
 	const int PAD_X = 24;
 	const int PAD_Y = PAD_X;
 
-	// mirrors the render queue onto the taskbar/dock icon. runs every tick rather than every drawn frame
-	// so the icon keeps moving while the window's minimised; set_progress drops calls that wouldn't
-	// change anything, so this is cheap
+	// runs every tick rather than every drawn frame so the icon updates while minimised
 	void update_taskbar_progress() {
 		using os::taskbar::ProgressState;
 
@@ -28,7 +26,7 @@ namespace {
 
 			auto progress = current->state->get_progress();
 
-			// still spinning up, or building a tensorrt engine - there's no frame count to show yet
+			// no frame count yet (starting up, or building a tensorrt engine)
 			if (!progress.rendered_a_frame || progress.total_frames <= 0) {
 				os::taskbar::set_progress(ProgressState::INDETERMINATE);
 				return;
@@ -42,7 +40,7 @@ namespace {
 		}
 
 		if (gui::render_failed) {
-			// keep the red bar up until the window's been looked at - that's the whole point of it
+			// keep the red bar until the window's focused
 			if (sdl::window && !(SDL_GetWindowFlags(sdl::window) & SDL_WINDOW_INPUT_FOCUS)) {
 				os::taskbar::set_progress(ProgressState::ERRORED, 1.f);
 				return;
@@ -192,9 +190,7 @@ int gui::run() {
 		else {
 			rendered_last = false;
 
-			// // nothing to draw, so idle until something happens rather than blindly sleeping a whole tick -
-			// // video frame updates arrive as pushed sdl events, and sleeping through them capped playback at
-			// // the tickrate (choppy preview). passing null leaves the event queued for the poll above
+			// wait on events rather than sleeping so pushed video frame events wake us up
 			SDL_WaitEventTimeout(nullptr, (int)sdl::TICKRATE_MS);
 		}
 	}

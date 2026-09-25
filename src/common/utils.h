@@ -424,9 +424,7 @@ namespace u {
 		}
 	}
 
-	// kill a boost process child or group without throwing.
-	// boost's no-argument terminate() throws if the kill fails.
-	// passing it an error_code picks the noexcept overload, which reports the failure through that instead.
+	// kill a boost process child or group without throwing, using the error_code overload
 	template<typename T>
 	inline void safe_terminate(T& process) {
 		std::error_code ec;

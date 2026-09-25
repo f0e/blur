@@ -183,9 +183,7 @@ def with_format(
         # rgb made from yuv is full range, float or not, so everything working in rgb can assume it
         yuv_to_rgb = core.get_video_format(target_format).color_family == vs.RGB and orig_format.color_family == vs.YUV
 
-        # unless the caller asks to keep the source's own range. expanding limited range to fill
-        # the container clips superwhite off on the way in, and the gamma blend cannot afford that
-        # - the brightest samples are the ones the curve exists to protect
+        # unless the caller wants the source's range, since expanding clips superwhite which the gamma blend needs
         rgb_range = True if expand_range else video_info.is_full_color_range
 
         source_matrix = None

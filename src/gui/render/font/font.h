@@ -3,8 +3,7 @@
 #include <imgui.h>
 
 namespace render {
-	// a typeface at a specific size. imgui rasterises glyphs on demand, so grabbing the same typeface at a
-	// different size is free - just call it, e.g. fonts::dejavu(fonts::size::SMALL)
+	// a typeface at a specific size. call it with another size to get the same typeface resized
 	class Font {
 	private:
 		ImFont* m_font{};

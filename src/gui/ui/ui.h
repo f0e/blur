@@ -390,7 +390,7 @@ namespace ui {
 		float hue = 0.f;
 		float saturation = 0.f;
 		float brightness = 0.f;
-		std::string synced_hex; // the hex the hsb above was taken from, to notice outside changes
+		std::string synced_hex; // the hex the hsb was taken from, to detect outside changes
 		int drag_target = 0;    // ColorPickerDrag
 		bool mouse_was_down = false;
 		bool open = false;
@@ -651,8 +651,7 @@ namespace ui {
 		int last_margin_bottom = 0;
 
 		bool next_same_line = false; // set by set_next_same_line, consumed by the next added element
-		int same_line_bottom = 0;    // where the line the next element joins ends, so shorter elements don't pull the
-		                             // following ones up into it
+		int same_line_bottom = 0;    // where the current line ends, so shorter elements don't pull the next ones up
 
 		float scroll_y = 0.f;
 		float scroll_speed_y = 0.f;
@@ -896,8 +895,7 @@ namespace ui {
 		gfx::Color image_color = gfx::Color::white()
 	);
 
-	// whatever frame the player is currently on, sized like add_image. nothing's added until the player has a video
-	// loaded
+	// the player's current frame, sized like add_image. nothing's added until a video is loaded
 	std::optional<AnimatedElement*> add_video_frame(
 		const std::string& id,
 		Container& container,
@@ -1022,8 +1020,7 @@ namespace ui {
 		std::optional<int> width = {} // defaults to filling the container
 	);
 
-	// A read-only text field, soft-wrapped to its width and laid out over as many lines as that takes. Text stays
-	// focusable/selectable so users can copy any subsection of it.
+	// a read only, wrapped text field that can still be selected and copied
 	AnimatedElement* add_selectable_text(
 		const std::string& id,
 		Container& container,
@@ -1218,8 +1215,7 @@ namespace ui {
 		struct Options {
 			std::string title;
 
-			// Adds everything between the title and the footer buttons. Runs every frame the dialog is building, so
-			// it can reflect live state. The dialog owns the chrome, the creator owns the contents.
+			// adds everything between the title and the buttons. runs every frame
 			std::function<void(Container& container)> content;
 
 			bool action_required = false;
@@ -1240,8 +1236,7 @@ namespace ui {
 		void close();
 		bool is_open();
 
-		// Building blocks for Options::content. They're just styled wrappers over the normal element functions, so
-		// dialogs share a type scale without dialog.cpp having to know what any particular dialog contains.
+		// styled elements for Options::content
 
 		// the main line under the title, explaining what's happening
 		void add_body(Container& container, const std::string& id, const std::string& text);
@@ -1252,7 +1247,7 @@ namespace ui {
 		// labels a group of content below it
 		void add_heading(Container& container, const std::string& id, const std::string& text);
 
-		// a labelled, selectable block of text - for anything the user might want to read closely or copy out of
+		// a labelled, selectable block of text
 		void add_field(
 			Container& container,
 			const std::string& id,

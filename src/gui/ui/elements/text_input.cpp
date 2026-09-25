@@ -125,15 +125,13 @@ bool ui::update_text_input(const Container& container, AnimatedElement& element)
 				state.active = true;
 				focus_anim.set_goal(1.f);
 
-				// read only inputs are only there to be selected & copied, no need for ime
+				// read only inputs don't need ime
 				if (!input_data.text_input.read_only) {
 					SDL_StartTextInput(container.window);
 				}
 			}
 
-			// claim the click every time, not just on the frame we take focus. leaving it unclaimed kept the
-			// button in the "pressed" set, so is_mouse_pressed() stayed true and we re-clicked (resetting the
-			// selection anchor) every frame instead of dragging
+			// always claim the click, otherwise is_mouse_pressed stays true and it re-clicks every frame
 			keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
 		}
 		else if (get_active_element() == &element) {
@@ -163,8 +161,7 @@ bool ui::update_text_input(const Container& container, AnimatedElement& element)
 			text_event_queue.erase(text_event_queue.begin());
 		}
 
-		// mouse position in text space: undo the field origin, then re-apply the scroll offset that render_text
-		// subtracts, so hit testing lines up with what's actually on screen
+		// mouse position relative to the text, scroll included
 		gfx::Point text_relative_pos(
 			keys::mouse_pos.x - pos.text_pos.x + static_cast<int>(state.scroll_x), keys::mouse_pos.y - pos.text_pos.y
 		);
@@ -258,8 +255,7 @@ ui::AnimatedElement* ui::add_selectable_text(
 
 	auto lines = render::wrap_text_verbatim(text, field_width - (TEXT_INPUT_PADDING.w * 2), font);
 
-	// the state outlives the element, so the wrapped copy stays readable while the element fades out. the caller's
-	// string doesn't have to survive the call
+	// the state outlives the element, so keep our own copy of the text for while it fades out
 	auto& internal_state = helpers::text_input::add_text_edit(id, state);
 	internal_state.owned_text = u::join(lines, "\n");
 	state.text = &internal_state.owned_text;

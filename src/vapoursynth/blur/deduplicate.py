@@ -1,24 +1,8 @@
 """Deduplication - working out a timeline from the pictures alone.
 
-A game rendering at 30fps captured at 60 gives you every frame twice. Blending across those pairs is what makes
-blurred output look like it stutters: half of the blur window is the same picture held still. The fix is to
-work out which frames are repeats and generate what should have been there instead.
-
-Two questions have to be answered, and with nothing but the video to go on only the first has a certain
-answer:
-
-- **which frames are repeats.** A frame that differs from the one before it by less than `threshold` is one,
-  which divides the video into runs of identical frames.
-- **when each run's real picture belongs.** Nothing in the file says, and `timing` below is the choice of
-  which guess to make.
-
-The answers become a timeline, which interpolation renders - see blur/retime.py for what that is and how.
-Where the recording came with a frame timing log, blur/frame_timing.py builds the same timeline from measured
-times instead of guessing, and this doesn't run at all.
-
-Nothing is scanned up front. `analyse` builds a clip of per frame decisions, and each decision only looks a
-few frames either side of itself, so previewing one frame reads a handful of frames rather than reading
-through the video.
+A frame that differs from the one before by less than `threshold` is a repeat, which splits the video into runs
+of identical frames. Where each run's real picture belongs can't be known from the video, so `timing` picks a
+guess. The result is a timeline for blur/retime.py. A frame timing log (blur/frame_timing.py) replaces this.
 """
 
 import blur.utils as u
@@ -26,60 +10,32 @@ import vapoursynth as vs
 from blur import log, retime
 from vapoursynth import core
 
-# Which frame of a run of repeats is the real one.
+# which frame of a run of repeats is the real one. only matters when run lengths vary
 #
-# When a recording drops a frame it repeats one to fill the slot, and nothing in the file says which of the
-# repeats is the picture that was really drawn. The picture can't tell you either, and it isn't decidable in
-# principle: anchoring every run at its first frame and anchoring every run at its last frame produce the same
-# sequence of intervals, one shifted along by a run, so no measurement of the frames can separate them.
-#
-# What it changes is which interval each picture is given. FIRST hands a picture the length of the run it
-# starts; LAST hands it the length of the run before it. So it only matters where run lengths vary, and there
-# it's the difference between motion at a steady rate and motion that speeds up and slows down.
-#
-#   FIRST        the picture arrived at the start of the run and was repeated after it. this is what a live
-#                recording does, and all it can do - nothing shows a frame before it was drawn.
-#   LAST         the run ends on the real frame. a variable rate recording resampled to a fixed one can land
-#                its frames a slot later, and that reads this way.
-#   CENTER       split the difference and put the picture in the middle of its run. can't be more than half a
-#                run out whichever way the footage leans, where guessing an end can be a whole run out.
-#   SURROUNDING  don't believe the run at all - work from the frames either side of it. that's exact under
-#                both of the above rather than a compromise between them, because the frames outside a run
-#                aren't the ones in question. it pays for that by generating across a longer gap, which is
-#                more for the interpolator to get wrong, and by needing `deduplicate range` wide enough to
-#                fit the run plus a frame each side.
+#   FIRST        the start of the run, what a live recording does
+#   LAST         the end of the run, e.g. a variable rate recording resampled to a fixed one
+#   CENTER       the middle of the run, at most half a run out either way
+#   SURROUNDING  ignore the run and interpolate between the frames either side of it. needs a bigger range
 TIMING_FIRST = "first"
 TIMING_LAST = "last"
 TIMING_CENTER = "center"
 TIMING_SURROUNDING = "surrounding"
 TIMINGS = [TIMING_FIRST, TIMING_LAST, TIMING_CENTER, TIMING_SURROUNDING]
 
-# set if a scan ever asked for a difference further out than its timing's window holds. `_reach` is
-# meant to make that impossible, and reading the edge instead costs a held frame rather than a failed
-# render - but it means a scan went somewhere the reach analysis didn't account for, so the tests watch it
+# set if a scan reads past its window, which `_reach` should prevent. checked by the tests
 WINDOW_CLAMPED = False
 
-# anchor times are counted in half frames. CENTER puts a run's anchor halfway along it, which for an even
-# length run is halfway through a frame - counting in halves keeps every time an exact whole number
+# times are in half frames so CENTER's anchors are whole numbers
 HALF = 2
 
 
 def _resolution(timing: str) -> int:
-    """How many decisions a source frame needs.
-
-    An anchor that lands halfway through a frame splits it in two - the frames before it belong to one pair
-    and the frames after it to the next - so CENTER decides twice a frame and no anchor ever falls inside a
-    decision. Every other timing anchors on whole frames and needs one.
-    """
+    """How many decisions a source frame needs. CENTER can anchor halfway through a frame so it needs two."""
     return HALF if timing == TIMING_CENTER else 1
 
 
 def _reach(timing: str, max_gap: int) -> int:
-    """How far either side of itself a decision has to read.
-
-    CENTER is the only timing that needs a neighbouring run measured end to end rather than just found, so
-    it's the only one that reaches past its own run.
-    """
+    """How far either side of itself a decision has to read. CENTER measures neighbouring runs so reaches further."""
     return (2 * max_gap if timing == TIMING_CENTER else max_gap) + 2
 
 
@@ -90,14 +46,8 @@ def _decisions(
     timing: str,
     future_checks: int,
 ) -> vs.VideoNode:
-    """Work out, for every frame of `clip`, which two real frames it sits between and when they belong.
-
-    A frame is a *repeat* when it differs from its predecessor by less than `threshold`, which divides the
-    video into runs of identical frames. `timing` decides where on the timeline each run's picture goes, and
-    everything below follows from that: the pair for a frame is the anchor at or before it and the next one
-    after, and a pair is never allowed to span more than `max_gap` frames - past that the picture holds and
-    then moves over the last `max_gap` frames before the change.
-    """
+    """For every frame of `clip`, which two real frames it sits between and when they belong. Pairs never span
+    more than `max_gap` frames, past that the picture holds then moves over the last `max_gap` frames."""
     diffs = core.std.PlaneStats(clip, clip[0] + clip)
 
     reach = _reach(timing, max_gap)
@@ -111,14 +61,12 @@ def _decisions(
     length = clip.num_frames
     last = length - 1
 
-    # the props are the whole point of this clip, so its frames are as small as a frame gets
+    # only the props matter
     holder = core.std.BlankClip(width=1, height=1, format=vs.GRAY8, length=length * resolution, keep=True)
 
-    # window frames come after `holder` in the list handed to the selector
     base = 1 + offsets.index(0)
 
     def decide(n: int, f: list[vs.VideoFrame]) -> vs.VideoFrame:
-        # `n` indexes the decisions, which for CENTER run two to a source frame
         source = n // resolution
         time = n * (HALF // resolution)
 
@@ -133,11 +81,8 @@ def _decisions(
             return f[edge].props["PlaneStatsDiff"]  # type: ignore[return-value]
 
         def run(index: int, back: int, on: int) -> tuple[int, int, bool, bool]:
-            """The stretch of identical frames `index` is in, looking no further than it's allowed to.
-
-            The two flags say the stretch carried on past where the scan could look, so the frame that really
-            begins or ends it isn't known and nothing should be anchored to it.
-            """
+            """The run of identical frames `index` is in. The flags say the run continued past where the scan
+            could look."""
             low = max(0, index - back)
             high = min(last, index + on)
 
@@ -157,14 +102,10 @@ def _decisions(
             )
 
         def held() -> tuple[int, int, int, int, int]:
-            """Nothing to move towards, so this frame's own picture is the answer for its whole slot."""
             return source, HALF * source, source, HALF * source, 1
 
         def pair(left: int, left_time: int, right: int, right_time: int) -> tuple[int, int, int, int, int]:
-            # never generate across more than the range allows. clamping the time rather than the frame is
-            # what keeps this right: `left`'s picture is the one that belongs for every moment up to where
-            # the move starts, so holding it for longer and moving over the last `max_gap` frames is exactly
-            # what the setting asks for
+            # hold `left` then move over the last `max_gap` frames
             return (
                 left,
                 max(left_time, right_time - HALF * max_gap),
@@ -176,15 +117,11 @@ def _decisions(
         start, end, open_start, open_end = run(source, max_gap, max_gap)
 
         if timing == TIMING_FIRST:
-            # the picture arrived when the run started, and the next one when the next run started
             answer = held() if open_end or end >= last else pair(start, HALF * start, end + 1, HALF * (end + 1))
 
         elif timing == TIMING_LAST:
-            # the picture arrives as the run ends, so before that we're still moving towards it
             if source < end:
-                # the picture before this run is the one that belongs here, so its run has to be in
-                # reach - `open_start` means it isn't, and the frame before `start` would then be this
-                # run's own picture rather than the one it's still moving away from
+                # moving from the previous run's picture towards this one, which needs the previous run in reach
                 answer = (
                     held()
                     if open_end or open_start
@@ -197,7 +134,7 @@ def _decisions(
                 answer = held() if next_open else pair(end, HALF * end, next_end, HALF * next_end)
 
         elif timing == TIMING_CENTER:
-            # halfway along the run, which needs both of its ends known
+            # needs both ends of the run known
             if open_start or open_end:
                 answer = held()
             elif time >= start + end:
@@ -213,8 +150,7 @@ def _decisions(
                 answer = held() if prev_open else pair(prev_start, prev_start + prev_end, start, start + end)
 
         else:  # TIMING_SURROUNDING
-            # a run of one frame isn't in question - both readings put its picture at its own index - so
-            # it anchors itself. A longer one is stepped over, and the frames either side carry the gap.
+            # a run of one anchors itself, longer runs are stepped over
             lone = start == end
             unreachable = open_end or end >= last or (not lone and (open_start or start <= 0))
 
@@ -224,23 +160,16 @@ def _decisions(
                 left = source if lone else start - 1
                 right = end + 1
 
-                # ...and a run the search lands on is in question the same way, so step over that too,
-                # as many times as allowed and as far as the range has room for. this is what makes the
-                # timing come out right whichever end of a run the picture really belongs to: every
-                # frame it ends up working from is one that both readings agree about
+                # keep stepping over following runs while the range allows
                 for _ in range(future_checks):
                     if right >= last:
                         break
 
-                    # a run can only be stepped over if what's on the far side of it still fits the
-                    # range, so there's no reason to measure it any further than that - and, since the
-                    # window is sized for the range, no room to
                     room = max(0, left + max_gap - 1 - right)
 
                     _, next_end, _, next_open = run(right, 0, room)
 
-                    # stop on a run of one - its timing isn't in question, so it's what the search was
-                    # looking for - and on one there's no room to step over, or nothing to step onto
+                    # stop on a run of one, or when there's no room to step over
                     if next_end == right or next_open or next_end >= last or next_end + 1 - left > max_gap:
                         break
 
@@ -296,12 +225,7 @@ def analyse(
 
 
 def fill_drops_old(clip, threshold=0.1, debug=False):
-    """The original deduplication, kept for the 'old' method.
-
-    Every duplicate is replaced by a blend of its neighbours at the halfway point, whether or not halfway is
-    where it belongs, and the result is then interpolated again by the pass after this one. It's cheap, and
-    that's the whole of its case.
-    """
+    """The original deduplication, kept for the 'old' method. Replaces each duplicate with the halfway point."""
     if not isinstance(clip, vs.VideoNode):
         raise TypeError("This is not a clip")
 

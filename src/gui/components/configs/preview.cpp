@@ -162,8 +162,7 @@ void configs::clear_sample_video() {
 }
 
 void configs::save_preview_app_settings() {
-	// read the config back off disk and only put the preview settings into it, so anything else the user has
-	// changed is still theirs to save or discard with the buttons
+	// only save the preview settings, leaving the user's other changes unsaved
 	auto saved_settings = config_app::get_app_config();
 	saved_settings.sample_video_path = app_settings.sample_video_path;
 	saved_settings.config_preview_seek = app_settings.config_preview_seek;
@@ -175,8 +174,8 @@ void configs::save_preview_app_settings() {
 }
 
 void configs::config_preview(ui::Container& container) {
-	// from the last ui frame - the seek bar is added further down. cleared here so it can't get stuck on if the seek
-	// bar stops being drawn mid-drag
+	// from the last ui frame since the seek bar is added further down. cleared here in case the seek bar stops being
+	// drawn mid-drag
 	bool dragging_seek_bar = seek_bar_dragging;
 	seek_bar_dragging = false;
 

@@ -13,11 +13,9 @@ namespace keys {
 
 	inline bool mouse_captured = false; // something's being dragged, keep tracking the mouse outside the window
 
-	// consecutive click count for the last mouse press (2 = double click, 3 = triple, ...), straight from SDL so
-	// it uses the OS double-click interval. only meaningful while the button is down.
+	// consecutive click count (2 = double click, 3 = triple, ...). only meaningful while the button is down
 	inline std::unordered_map<std::uint8_t, int> mouse_click_counts;
-	// Monotonically increasing per-button press ids. Unlike SDL's click count, these let a control tell whether
-	// it handled the immediately preceding press or whether that press landed somewhere else.
+	// increasing press ids, so a control can tell whether it handled the previous press
 	inline std::unordered_map<std::uint8_t, std::uint64_t> mouse_press_ids;
 
 	bool process_event(const SDL_Event& event);

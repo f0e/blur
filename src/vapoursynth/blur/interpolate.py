@@ -48,28 +48,18 @@ SVP_REQUIRES_GPU = sys.platform == "darwin"
 
 # Retiming
 #
-# Retiming doesn't hand interpolation a clip with the gaps already filled - see blur/retime.py for
-# why. It hands over a decision per frame instead, and interpolation renders straight onto the timeline those
-# decisions describe: every output frame is generated from the two frames either side of it that were really
-# captured, at the time point it falls between them.
-#
-# RIFE takes that time point directly, so `_retimed_rife_merge` asks it for exactly the frames wanted and
-# nothing else. Everything else can only be asked for a framerate, so `_retimed` divides each gap into `steps`
-# and picks the nearest one - which needs a clip laid out so that "the nearest step" is a frame that exists.
+# rife takes a time point directly (`_retimed_rife_merge`). everything else only takes a framerate, so `_retimed`
+# divides each gap into steps and picks the nearest one
 
-# how finely the gap between a pair of real frames is divided for an interpolator that only takes a framerate.
-# an output frame is rounded to the nearest step, so this bounds how far from its true time it can land: eight
-# steps to an output frame puts that under a tenth of a frame, which is well below anything visible
+# steps per output frame for interpolators that only take a framerate. 8 keeps rounding under a tenth of a frame
 STEPS_PER_OUTPUT_FRAME = 8
 
-# ...but not without limit. asking for more steps costs nothing to render - vapoursynth only ever works out
-# the ones that get picked - but it does mean asking an interpolator for an absurd framerate, and they have
-# their own opinions about that
+# unused steps aren't rendered, but interpolators don't like absurd framerates
 MAX_STEPS = 256
 
 
 def _fps(value) -> Fraction:
-    """A framerate as an exact fraction, however it arrived - an int, or a float from an 'x' multiplier."""
+    """A framerate as an exact fraction."""
     return Fraction(value).limit_denominator(1000000)
 
 
@@ -83,23 +73,12 @@ def _retimed(
     dst_fps: Fraction,
     build: Callable[[vs.VideoNode, int], vs.VideoNode],
 ) -> vs.VideoNode:
-    """Interpolate `video` to `dst_fps`, filling the timeline's gaps in the same pass.
+    """Interpolate `video` to `dst_fps`, filling the timeline's gaps in the same pass. `build(clip, fps)` is the
+    interpolation call, run on a 1fps clip so `fps` is a multiplier.
 
-    `build(clip, fps)` is the plain interpolation call for whichever method is in use, against a clip running
-    at 1fps - so `fps` is a straight multiplier, and choosing it is this function's business rather than the
-    caller's.
-
-    What gets interpolated is a clip of *pairs*: for each of the timeline's decisions, frame 2j is the real
-    frame before it and frame 2j + 1 is the real frame after. Interpolating that by `steps` puts `steps`
-    frames between each pair, evenly spread across however long the gap between them really lasted - so the
-    frame an output frame wants is the step nearest its own time, and picking it is all that's left to do.
-    The odd numbered gaps in the pairs clip join frames that have nothing to do with each other, but nothing
-    ever asks for a frame inside one, and vapoursynth doesn't render what nothing asks for.
-
-    Pairs are indexed by decision - one or two a source frame - rather than by output frame, so a pair every
-    output frame in a gap shares is only interpolated once. Indexing them by the frame the pair starts from
-    would share more of them still, but only some of the timings hand every frame of a gap the same starting
-    frame, and one indexing that always holds is worth more than a shorter clip for the ones that would.
+    Interpolates a clip of pairs (frame 2j is the real frame before decision j, 2j + 1 the one after) by `steps`,
+    then each output frame picks its nearest step. Frames between unrelated pairs are never requested so never
+    rendered.
     """
     ratio = dst_fps / video.fps
     dst_frames = retime.output_frames(timeline.length, ratio)
@@ -115,7 +94,7 @@ def _retimed(
             prop_src=decisions,
         )
 
-    # a decision's pairs sit one after another, `slots` of them whether or not it uses them all
+    # `slots` pairs per decision, whether or not they're all used
     pairs = core.std.AssumeFPS(
         core.std.Interleave([side(slot + end) for slot in range(timeline.slots) for end in (0, 1)]),
         fpsnum=1,
@@ -153,12 +132,7 @@ def _retimed_rife_merge(
     dst_fps: Fraction,
     merge: Callable[[vs.VideoNode, vs.VideoNode, vs.VideoNode], vs.VideoNode],
 ) -> vs.VideoNode:
-    """`_retimed`, for an interpolator that can be asked for an exact time point.
-
-    RIFE generates a frame from two frames and a number saying how far between them to land, so there's no
-    rounding to a step and nothing generated that doesn't end up on screen: three clips - the frame before,
-    the frame after, and the time point - describe the whole output, and one call renders it.
-    """
+    """`_retimed`, for an interpolator that can be asked for an exact time point (rife)."""
     ratio = dst_fps / video.fps
     dst_frames = retime.output_frames(timeline.length, ratio)
     decisions = retime.over_output(timeline, dst_frames, ratio)
@@ -180,7 +154,7 @@ def _retimed_rife_merge(
 
     merged = merge(before, after, timepoint)
 
-    # frames that land squarely on a real frame, or between two identical ones, don't go near the model
+    # frames landing on a real frame skip the model
     held = _vsmlrt().bits_as(before, merged)
 
     def pick(n: int, f: vs.VideoFrame) -> vs.VideoNode:
@@ -296,19 +270,12 @@ def svp(
     timeline: retime.Timeline | None = None,
     new_fps=None,
 ):
-    """`new_fps` is only needed alongside `timeline`.
-
-    Retiming picks its own framerate to interpolate at, so the one in `smooth_str` gets replaced and the
-    target has to be passed separately - which also means a hand written smooth string keeps everything about
-    it that isn't the rate.
-    """
+    """`new_fps` is only needed alongside `timeline`, since retiming replaces the rate in `smooth_str`."""
     _video = core.fmtc.bitdepth(_video, bits=8)
 
     def process(video):
         if timeline is None:
-            # SmoothFps only makes frames between the ones it's given, so it stops one source frame short and
-            # the video ends up shorter than its audio. give it a repeat of the last frame to fill up to, then
-            # cut it to the length it should have been
+            # SmoothFps stops one source frame short, so pad with a repeat of the last frame and trim back
             smooth = SVP(video + video[-1], super_string, vectors_string, smooth_str)
             return smooth[: int(video.num_frames * smooth.fps / video.fps)]
 

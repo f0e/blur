@@ -39,12 +39,12 @@ namespace {
 		gfx::Point label_pos;
 		gfx::Rect box_rect;
 		gfx::Rect swatch_rect;
-		std::string text;        // what the box shows: the hex, "default", or what's being typed
+		std::string text;        // the hex, "default", or what's being typed
 		gfx::Rect text_rect;     // the space the text gets, where it's drawn & clipped
-		gfx::Rect text_hit_rect; // just the text itself, the rest of the box belongs to the popup toggle
+		gfx::Rect text_hit_rect; // just the text, the rest of the box toggles the popup
 
 		gfx::Rect popup_rect;      // clipped to the expand animation
-		gfx::Rect full_popup_rect; // where it sits when fully open, everything inside is laid out off this
+		gfx::Rect full_popup_rect; // where it sits when fully open
 		gfx::Rect sv_rect;
 		gfx::Rect hue_rect;
 		std::vector<gfx::Rect> preset_rects;
@@ -58,8 +58,7 @@ namespace {
 	void sync_hsb(ui::ColorPickerElementData& data) {
 		auto [hue, saturation, brightness] = effective_color(data).to_hsb();
 
-		// a greyscale/black color has no hue or saturation to read, keep what's already picked so the
-		// handles don't jump back to red when you drag the value down to nothing
+		// greyscale has no hue or saturation, so keep the current ones rather than snapping to red
 		if (saturation > 0.f)
 			data.hue = hue;
 		if (brightness > 0.f)
@@ -110,8 +109,7 @@ namespace {
 		positions.text_hit_rect.y = positions.box_rect.y;
 		positions.text_hit_rect.h = positions.box_rect.h;
 
-		// idle, only the text itself starts an edit, so there's still plenty of box left to open the popup
-		// with. once it's a field, the whole of it is fair game for placing the caret
+		// when idle only the text starts an edit, once editing the whole field places the caret
 		if (!editing)
 			positions.text_hit_rect.w = std::min(data.font.calc_size(positions.text).w, positions.text_rect.w);
 
@@ -251,7 +249,7 @@ void ui::render_color_picker(const Container& container, const AnimatedElement& 
 	if (expand_anim <= 0.01f)
 		return;
 
-	// the popup overlaps whatever's underneath it, so it has to be drawn after everything else
+	// the popup is drawn last since it overlaps things
 	gfx::Color popup_color(7, 7, 7, anim * 255);
 	gfx::Color popup_border_color(BORDER_SHADE, BORDER_SHADE, BORDER_SHADE, anim * 255);
 	gfx::Color handle_color = gfx::Color::white(anim * 255);
@@ -333,21 +331,20 @@ bool ui::update_color_picker(const Container& container, AnimatedElement& elemen
 	bool editing = helpers::text_input::has_text_edit(id);
 
 	if (editing) {
-		// the element data gets rebuilt between frames, so point the edit at this frame's buffer rather than
-		// trusting what was set when it started
+		// element data can be rebuilt between frames, so point the edit at this frame's buffer
 		data.text_input.text = &data.editing_text;
 		data.text_input.font = data.font;
 		helpers::text_input::add_text_edit(id, data.text_input);
 	}
 
-	// something else took over, don't leave the popup hanging open behind it
+	// close the popup if something else took over
 	if (data.open && get_active_element() != &element) {
 		data.open = false;
 		data.drag_target = DRAG_NONE;
 		expand_anim.set_goal(0.f);
 	}
 
-	// the hex can change from under us (config imported, defaults restored, changes reset)
+	// the hex can change elsewhere (config imported, changes reset, ...)
 	if (data.synced_hex != *data.hex)
 		sync_hsb(data);
 
@@ -363,7 +360,7 @@ bool ui::update_color_picker(const Container& container, AnimatedElement& elemen
 
 	bool mouse_down = keys::is_mouse_down();
 	bool mouse_pressed = mouse_down && !data.mouse_was_down;
-	bool pressed_this_frame = mouse_pressed; // kept unclaimed for the text edit, which does its own hit testing
+	bool pressed_this_frame = mouse_pressed; // left unclaimed for the text edit
 	data.mouse_was_down = mouse_down;
 
 	bool text_hovered = pos.text_hit_rect.contains(keys::mouse_pos) && set_hovered_element(element);
@@ -391,7 +388,7 @@ bool ui::update_color_picker(const Container& container, AnimatedElement& elemen
 
 		set_active_element(element, "text input");
 
-		// a cleared hex shows as "default", but put the color it resolves to in the field so it can be copied
+		// a cleared hex shows as "default", but edit the actual color
 		data.editing_text = data.hex->empty() ? effective_color(data).to_hex_string() : *data.hex;
 
 		data.text_input = helpers::text_input::TextInputData{
@@ -406,7 +403,7 @@ bool ui::update_color_picker(const Container& container, AnimatedElement& elemen
 
 		helpers::text_input::select_all(&data.text_input, &state.edit_state);
 
-		// don't let the drag that follows this same press wipe the select-all
+		// so the drag from this press doesn't clear the select-all
 		state.selected_all_mouse_lock = true;
 	};
 
@@ -423,7 +420,7 @@ bool ui::update_color_picker(const Container& container, AnimatedElement& elemen
 			SDL_StopTextInput(container.window);
 
 		if (get_active_element() == &element) {
-			// the popup outlives the text edit, hand it back its claim on the input
+			// hand the input claim back to the popup
 			if (data.open)
 				set_active_element(element, "color picker");
 			else
@@ -431,7 +428,7 @@ bool ui::update_color_picker(const Container& container, AnimatedElement& elemen
 		}
 	};
 
-	// straight off the handles, the hsb is what the user picked so it stays as-is
+	// from the handles, so keep the hsb as is
 	auto write_picked_color = [&] {
 		*data.hex = gfx::Color::from_hsb(data.hue, data.saturation, data.brightness).to_hex_string();
 		data.synced_hex = *data.hex;
@@ -440,10 +437,9 @@ bool ui::update_color_picker(const Container& container, AnimatedElement& elemen
 			(*data.on_change)();
 	};
 
-	// from a preset or a typed hex, so the handles have to follow it
+	// from a preset or a typed hex, so update the handles
 	auto set_color = [&](const gfx::Color& color) {
-		// the default color lives in the config as an empty value, keep it that way so it follows the default
-		// if it ever changes
+		// the default color is stored as empty so it follows the default if it changes
 		std::string new_hex = color == data.default_color ? "" : color.to_hex_string();
 		if (new_hex == *data.hex)
 			return false;
@@ -593,8 +589,7 @@ bool ui::update_color_picker(const Container& container, AnimatedElement& elemen
 
 		helpers::text_input::update_ime_area(container.window, state, data.font);
 
-		// apply whatever's been typed as soon as it's a whole color, so pasting one shows up right away.
-		// half-typed values just leave the last good one alone
+		// apply as soon as it's a valid color
 		auto typed = gfx::Color::from_hex_string(u::trim(data.editing_text), false);
 		if (typed)
 			updated |= set_color(*typed);

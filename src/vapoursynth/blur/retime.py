@@ -1,33 +1,14 @@
 """Retiming - rendering a video onto the timeline its frames really belong on.
 
-A recording's frames often aren't where the file says they are. Some are repeats of the frame before, held
-because the game didn't draw anything new; the ones that are real can belong at moments that aren't evenly
-spaced. Either way, interpolating as though every frame were new and evenly spaced bakes the unevenness in.
-
-A *timeline* says what really happened: which frames of the source are real pictures, and when each one
-belongs. Two things build one - see blur/deduplicate.py, which works it out from the pictures alone, and
-blur/frame_timing.py, which reads it from a log the recorder wrote. This module is what they build, and how
-interpolation renders it.
-
-Rendering works by retiming rather than by patching frames in. A repeat isn't replaced by an interpolated
-frame at the rate the video already runs at - instead every frame the render asks for is worked out from the
-two nearest real frames, at the time point it falls between them. Filling the gaps and interpolating up to the
-output framerate become the same operation, done once:
+A timeline says which source frames are real pictures and when each one belongs. It's built by
+blur/deduplicate.py (from the pictures) or blur/frame_timing.py (from a log). Every output frame is interpolated
+directly from the two nearest real frames, so filling gaps and interpolating to the output framerate happen in
+one pass instead of interpolating already interpolated frames:
 
     source   A . . B . . C            (`.` is a repeat of the frame before it)
-    before   A a a B b b C            fill the gaps, then interpolate that again for the output framerate
-    now      A - - - - - B - - - - - C    one pass, every frame drawn from a pair that was really captured
+    output   A - - - - - B - - - - - C
 
-Doing it in one pass is the point. The old way interpolated interpolated frames: a gap was filled from the
-frames around it, and then the interpolation pass proper generated its output from *those*, compounding
-whatever the first pass got wrong and estimating motion from pictures no camera ever took. Here everything
-that comes out is generated directly from two real frames, and the interpolator is asked for each frame once
-instead of being spun up again for every run of repeats.
-
-A timeline is carried as a clip of per frame *decisions* - which real frames bracket this frame, and when
-they belong - rather than as one big list, so that nothing has to be scanned up front. A source that works
-the timeline out from the pictures can build each decision from a few frames either side of itself, which is
-what lets the GUI preview a single frame without reading through the video.
+The timeline is a clip of per frame decisions rather than a list, so nothing has to be scanned up front.
 """
 
 from dataclasses import dataclass
@@ -36,14 +17,10 @@ from fractions import Fraction
 import vapoursynth as vs
 from vapoursynth import core
 
-# how far apart two real frames are allowed to be and still have frames generated between them, and equally
-# how far a frame looks for a pair. a longer gap means more movement to guess at from the same two pictures,
-# and past a point the guess is worse than the stutter it replaces
+# the widest gap between real frames that still gets interpolated
 MAX_GAP_LIMIT = 30
 
-# what a decision frame carries: the real frames whose stretches of the timeline overlap it, in order, and when
-# each of them belongs, counted in 1/PROP_TIME_SCALE frames. a single frame means the picture is held. the
-# difference is only there when the timeline was measured from the pictures
+# a decision's real frames and their times (in 1/PROP_TIME_SCALE frames). a single frame means it's held
 PROP_FRAMES = "BlurRetimeFrames"
 PROP_TIMES = "BlurRetimeTimes"
 PROP_TIME_SCALE = "BlurRetimeTimeScale"
@@ -52,19 +29,8 @@ PROP_DIFF = "BlurDedupeDiff"
 
 @dataclass(frozen=True)
 class Timeline:
-    """Everything the interpolator needs to render a video as if it had never dropped or delayed a frame.
-
-    `decisions` holds `resolution` frames per frame of the source, carrying the props above. It's a 1x1 clip -
-    only the props matter - and it's built so that reading one of its frames only reads the source around it.
-
-    `slots` is how many pairs a decision can hold. Deduplication's decisions are always one pair, but a
-    timeline whose frames don't land on whole frame numbers can have a real frame land partway through a
-    decision.
-
-    `max_gap` is how far apart the furthest pair in this timeline is, which is all interpolation needs it for
-    - how far a picture is *allowed* to be carried before it's held instead is the source's business, and it
-    has already been applied by the time a timeline exists.
-    """
+    """`decisions` is a 1x1 clip with `resolution` frames per source frame, carrying the props above. `slots` is
+    how many pairs a decision can hold. `max_gap` is the widest pair in the timeline."""
 
     decisions: vs.VideoNode
     length: int
@@ -75,12 +41,7 @@ class Timeline:
 
 @dataclass(frozen=True)
 class Bracket:
-    """The two real frames an output frame sits between, when they belong, and where between them it sits.
-
-    `timepoint` is None when there's nothing to generate - the output frame lands on `left` or before it, or
-    the picture isn't changing - and `left` should be used as it is. `slot` is which of the decision's pairs
-    this is.
-    """
+    """The two real frames an output frame sits between. `timepoint` is None when `left` should be used as is."""
 
     left: int
     right: int
@@ -91,11 +52,7 @@ class Bracket:
 
 
 def shifted(clip: vs.VideoNode, offset: int) -> vs.VideoNode:
-    """`clip` moved along by `offset`, so its frame n holds whatever frame n + offset held.
-
-    The ends repeat rather than running out, which is what makes a scan that reaches past the start or end of
-    the video read as "nothing changes past here" instead of failing.
-    """
+    """`clip` moved along by `offset`, repeating the ends rather than running out."""
     length = clip.num_frames
     offset = max(-(length - 1), min(offset, length - 1))
 
@@ -109,12 +66,7 @@ def shifted(clip: vs.VideoNode, offset: int) -> vs.VideoNode:
 
 
 def source_time(n: int, ratio: Fraction) -> Fraction:
-    """Where output frame `n` falls on the source's timeline, measured in source frames.
-
-    `ratio` is how many output frames there are to a source frame, so this is just the inverse - but it's the
-    one conversion everything here turns on, and it's exact rather than floating point so that an output frame
-    that lands squarely on a source frame is recognised as landing on it.
-    """
+    """Where output frame `n` falls on the source's timeline. Exact so landing on a source frame is detected."""
     return Fraction(n) / ratio
 
 
@@ -181,13 +133,7 @@ def bracket(props, time: Fraction) -> Bracket:
 
 
 def involved(at: Bracket) -> bool:
-    """Whether retiming had a hand in this frame, rather than it being plain interpolation.
-
-    A pair one frame wide is two frames the recording really captured back to back, so anything generated
-    between them is ordinary interpolation. Anything else is retiming's doing: a wider pair spans frames that
-    were dropped, and a pair of no width at all is the picture being held because nothing new turned up
-    within range.
-    """
+    """Whether retiming had a hand in this frame, i.e. the pair isn't exactly one frame apart."""
     return at.right_time - at.left_time != 1
 
 
@@ -203,16 +149,8 @@ def describe(n: int, time: Fraction, props, at: Bracket) -> str:
 
 
 def annotate(video: vs.VideoNode, timeline: Timeline, ratio: Fraction) -> vs.VideoNode:
-    """Label the frames retiming had a hand in, for the debug setting.
-
-    Only those frames get written on, so what stands out against a plain render is exactly where the
-    recording dropped or delayed something - an interpolated frame between two frames that were both really
-    captured back to back is left alone.
-
-    This runs on the finished frames rather than inside the interpolation, both because that's the only
-    place the text is sure to survive and because it's the only place the format is sure to take it - the
-    tensorrt path interpolates in half float, which text can't be drawn on.
-    """
+    """Label the frames retiming had a hand in, for the debug setting. Runs on finished frames since tensorrt
+    interpolates in half float, which text can't be drawn on."""
     decisions = over_output(timeline, video.num_frames, ratio)
 
     def label(n: int, f: vs.VideoFrame) -> vs.VideoNode:

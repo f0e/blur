@@ -331,8 +331,7 @@ void configs::options(ui::Container& container) {
 	ui::add_checkbox("deduplicate checkbox", container, "deduplicate", settings.deduplicate, fonts::dejavu);
 
 	if (settings.deduplicate) {
-		// deduplication generates its frames as part of the interpolation pass, so when that's running there's
-		// no second method to pick - see blur/deduplicate.py
+		// deduplication happens as part of interpolation when it's on, so there's no method to pick
 		if (settings.interpolate) {
 			ui::add_text(
 				"deduplicate method interpolation note",

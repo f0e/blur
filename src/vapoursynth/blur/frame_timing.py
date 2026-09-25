@@ -1,46 +1,12 @@
 """Frame timing - putting frames back where the game really drew them.
 
-A recording's frames aren't evenly spaced in game time. Each recorded frame shows whichever game frame the
-recorder last got hold of: recording a 500fps game at 360fps, sometimes one game frame has gone by since the
-previous recorded frame and sometimes two, and a game that stutters or a recorder that falls behind makes it
-worse. Steady motion comes out uneven, and interpolating as though the frames were evenly spaced keeps it
-that way.
+A recording's frames aren't evenly spaced in game time, so steady motion comes out uneven. The frame timing log
+(see blur/frame_timing_log.py) says which recorded frames are new pictures (the probe hashes what obs read on
+each tick) and, when the plugin could trace the game, when each game frame was simulated and became readable.
 
-None of that can be read reliably from the picture, so it's read from a log instead - see
-blur/frame_timing_log.py for the file itself. Two things in it answer two separate questions.
-
-**Which recorded frames are new pictures** the log simply says: the plugin hashes the picture obs read on
-each tick, so a frame whose hash matches the one before it is a repeat. That is measured, not inferred, and
-it beats comparing the video's own frames - it looks at the game's picture rather than the composited scene,
-so an overlay animating in the corner can't make every frame look new, and it can't be fooled by a lossy
-encode either.
-
-**When each picture happened** comes from the game's own frames, when the plugin had permission to trace
-them:
-
-- with a game capture, obs's hook copies the game's frames as they're presented, skipping any that come
-  sooner than `interval` after its last copy, and a copy becomes readable once the GPU has finished the game
-  frame it was queued behind
-- with a window capture, the compositor hands obs the window instead: nothing is skipped, a frame becomes
-  readable when it reaches the screen, and one that never got there was never captured
-- either way the recorded frame shows the last frame readable when obs read it
-
-and each game frame is placed when the game simulated it. Games that report that - through NVIDIA Reflex or
-Intel's PresentMon markers - say exactly; for the rest it's taken as the moment the game started the frame,
-the same fallback PresentMon uses.
-
-Two numbers in the middle of that aren't in the log: the phase of the hook's skip grid, and how much later
-than the probe's flush the picture really counts as read. Both are fitted to the fingerprints - the timing
-that contradicts fewest of the picture changes wins - so neither is tuned per machine and no video is read.
-The fingerprints can't always tell: a game far enough ahead of the recording shows a new picture on nearly
-every read whatever the latency was, and then the read is left exactly as the probe measured it.
-
-The result is when every recorded frame's picture belongs, on the game's timeline, which becomes the timeline
-interpolation renders - see blur/retime.py. A frame that shows the same picture as the one before it drops
-out, so this takes deduplication's place rather than running alongside it.
-
-Without the game's frames, each new picture is placed at the moment obs read it instead. That handles a
-recorder that falls behind, but not a game running faster than the recording.
+The hook's skip grid phase and the read latency aren't in the log, so they're fitted to the fingerprints. The
+result is a timeline for blur/retime.py, which replaces deduplication. Without the game's frames each new
+picture is placed at the moment obs read it.
 """
 
 import bisect
@@ -61,36 +27,26 @@ TIME_SCALE = 1 << 16
 # a decision spans one frame of the timeline, which can hold a couple of real frames landing partway through it
 SLOTS = 3
 
-# how far either side of zero the read latency is looked for, in recorded frames
+# read latency search range either side of zero, in recorded frames
 LATENCY_REACH = 1.0
 
-# how many phases of the hook's skip grid are tried, over the one interval they repeat in
+# hook skip grid phases tried
 PHASE_STEPS = 16
 
-# how much of the latency search range is allowed to fit the fingerprints just as well before the fit counts
-# as saying nothing - see `fit`. measured: a clip the fingerprints really pin down leaves under a percent of
-# the range, and one they can't leaves a third or more of it, in several separate pieces
+# if more of the latency range than this fits equally well, the fit isn't used. clips the fingerprints pin down
+# leave under a percent, ones they can't leave a third or more
 IDENTIFIABLE_SHARE = 0.1
 
-# how many frames the two fitted numbers are fitted over. they're constants, so a stretch of the clip says as
-# much about them as all of it, and this keeps the fit's cost off the length of the recording
+# frames the phase and latency are fitted over
 FIT_FRAMES = 20000
 
-# how far back the game's frames are wanted before the clip starts, in seconds, so that its first frames have
-# something to look back at
+# seconds of game frames wanted either side of the clip
 LEAD = 2.0
 
 
 def hook_copies(present: np.ndarray, interval: float, phase: float) -> np.ndarray:
-    """Which presents the capture hook copied.
-
-    It skips one that comes sooner than `interval` after its last copy, counting the interval on a fixed grid,
-    the way OBS's `frame_ready` does. The grid was anchored whenever the hook started, which the log doesn't
-    say, so where it sits is `phase`: how far before the first present of `present` the grid last fell, as a
-    share of an interval. 1 puts the first present on the grid, which is what assuming the grid started there
-    would do - so anything fitted this way has to be fitted against a run of presents starting in the same
-    place, since a grid reset part way along re-anchors it.
-    """
+    """Which presents the capture hook copied, skipping ones sooner than `interval` on a fixed grid like obs's
+    `frame_ready`. `phase` is how far before the first present the grid last fell, as a share of an interval"""
     if interval <= 0 or len(present) == 0:
         return np.arange(len(present), dtype=np.int64)
 
@@ -119,26 +75,13 @@ def picture_changes(fingerprint: np.ndarray) -> np.ndarray:
 def _latency(
     read: np.ndarray, changes: np.ndarray, visible: np.ndarray, reach: float
 ) -> tuple[int, float, float, float]:
-    """The read latency that contradicts the fingerprints least: how many changes it can't account for, the
-    latency itself, how wide the run of latencies it was taken from is, and how much of the whole search
-    range scores just as well.
-
-    A recorded frame shows the newest copy that had become visible by the time obs read it, give or take a
-    fixed offset. There is one: the probe's flush finishing isn't quite when the draw sampled the shared
-    texture, and a game frame's last GPU work isn't quite when the hook's copy of it finished. The
-    fingerprints say exactly which recorded frames are new pictures, so the offset is chosen to disagree with
-    them as rarely as possible.
-
-    Every offset that would change which copy a frame saw is tried - those are the differences between a
-    copy's time and a read - and of the offsets that disagree least, the middle of the widest run of them
-    wins, which is the one furthest from being a close call. That run is only worth taking a middle of when
-    the fingerprints rule enough of the range out, which is what the last number is for - see `fit`.
-    """
+    """The read latency that disagrees with the fingerprints least. Returns the number of disagreements, the
+    latency (middle of the widest best-scoring run), that run's width, and the total width scoring the same"""
     frames = len(read)
     low = np.searchsorted(visible, read - reach, "right")
     high = np.searchsorted(visible, read + reach, "right")
 
-    # every (frame, copy) pair whose ordering the latency could flip, in the order the latency reaches them
+    # every (frame, copy) pair the latency could flip, sorted by latency
     of = np.repeat(np.arange(frames), high - low)
     copy = np.concatenate([np.arange(a, b) for a, b in zip(low, high)]) if frames else np.empty(0, np.int64)
     offset = visible[copy] - read[of]
@@ -147,16 +90,10 @@ def _latency(
 
     shown = low.astype(np.int64) - 1
 
-    # past the newest copy there is nothing newer for a frame to show, so a change there isn't a contradiction,
-    # it's the end of what the game's frames cover, and scoring it would count the log running out as bad
-    # timing. which frames those are can't depend on the latency being tried, or the running count couldn't be
-    # carried from one latency to the next, so the whole range is allowed for
+    # frames past the newest copy aren't scored, using the whole reach so it doesn't depend on the latency
     scorable = (read + reach <= visible[-1]) if len(visible) else np.zeros(frames, dtype=bool)
 
-    # only one of the two ways the model and the fingerprints can differ is impossible: a frame whose picture
-    # changed cannot be showing the same copy as the frame before it. the other way round happens for real -
-    # the game can draw two frames that look identical, and often does when nothing is moving - so counting
-    # that as an error would fit the timing to how still the game was
+    # only a changed picture showing the same copy is wrong. games can draw identical frames, so the reverse isn't
     def disagrees(i: int) -> int:
         if i <= 0 or i >= frames or changes[i] <= 0 or not scorable[i] or shown[i] < 0 or shown[i - 1] < 0:
             return 0
@@ -164,8 +101,7 @@ def _latency(
 
     wrong = sum(disagrees(i) for i in range(frames))
 
-    # the score only changes where the latency reaches one of those pairs, so the sweep is a row of intervals,
-    # each holding one score over the whole of it
+    # the score only changes at those pairs, so sweep them as intervals
     bounds = [-reach]
     scores = []
     step = 0
@@ -182,8 +118,7 @@ def _latency(
     scores.append(wrong)
     bounds.append(reach)
 
-    # neighbouring intervals scoring the same are one run, so the middle is taken from the whole of it rather
-    # than from whichever single interval inside it happens to be widest
+    # merge neighbouring intervals with the same score
     runs: list[list[float]] = []
     for score, begin, end in zip(scores, bounds, bounds[1:]):
         if runs and runs[-1][0] == score:
@@ -201,11 +136,7 @@ def fit(
     present: np.ndarray, visible: np.ndarray, read: np.ndarray, changes: np.ndarray, interval: float, fps: Fraction
 ) -> tuple[float, float, int, bool]:
     """The hook's grid phase and the read latency that fit the fingerprints best, and whether the latency was
-    identifiable at all.
-
-    The phase only matters when the hook skips presents at all - a game presenting slower than the interval
-    has every frame copied whatever the grid is doing - so it's only looked for when it can make a difference.
-    """
+    identifiable. The phase is only searched when the hook actually skips presents"""
     reach = LATENCY_REACH / float(fps)
     skips = len(present) > 1 and float(np.min(np.diff(present))) < interval
     phases = np.linspace(1, 0, PHASE_STEPS, endpoint=False) if skips else np.array([1.0])
@@ -220,14 +151,11 @@ def fit(
         if best is None or (wrong, -width) < (best[0], -best[3]):
             best = (wrong, latency, float(phase), width, span)
 
-    # nothing was copied under any phase, so there's nothing to fit and nothing to fit it to
     if best is None:
         return 1.0, 0.0, 0, False
 
-    # a game outrunning the recording shows a new picture on nearly every read whatever the latency is, so
-    # nearly every latency explains the fingerprints equally well and they aren't saying anything about it.
-    # the middle of that would be a number picked out of noise, and picking one is worse than not: the read
-    # stays as the probe measured it, and the caller says so
+    # a game outrunning the recording shows a new picture on nearly every read, so any latency fits and the
+    # probe's measurement is kept instead
     identified = best[4] < IDENTIFIABLE_SHARE * 2 * reach
     return best[2], (best[1] if identified else 0.0), best[0], identified
 
@@ -249,8 +177,7 @@ def game_frames(
     covered = index >= 0
     game = np.maximum.accumulate(np.where(covered, copied[np.maximum(index, 0)], -1))
 
-    # past the game's last logged frame there's nothing to say a read saw anything newer, which is right if
-    # the game stopped drawing and wrong if the log ran out - the fingerprints tell the two apart
+    # past the last logged game frame, a picture change means the log ran out rather than the game stopping
     lost = (read + latency > visible[-1]) & (changes > 0)
     if np.any(lost):
         covered[int(np.argmax(lost)) :] = False
@@ -273,8 +200,7 @@ def _placed(game: np.ndarray, presents: timing_log.Presents | None, read: np.nda
     moment = np.where(game >= 0, presents.simulated[np.maximum(game, 0)], math.nan)
     covered = np.isfinite(moment)
 
-    # a stretch the game's frames don't cover has to go somewhere, and obs's read is the only thing known
-    # about it. the two clocks are a fixed distance apart, which is measured where both are known
+    # uncovered frames fall back to obs's read, offset by the median distance between the two where both are known
     apart = np.median(moment[covered] - read[covered]) if np.any(covered) else 0.0
     return _on_frames(np.where(covered, moment, read + apart), fps)
 
@@ -302,10 +228,7 @@ def _timeline(
             frames_out.append(frames_out[-1])
             times_out.append(time - hold * TIME_SCALE)
 
-        # these are pictures something said were different from the one before, so the model putting this one
-        # no later than that one is the model being wrong, not the picture not existing. dropping it would
-        # throw away the one thing that is measured here, so it goes in at the smallest step the timeline can
-        # tell apart and the caller is told how often that happened
+        # the fingerprints say this is a new picture, so keep it at the smallest possible step rather than drop it
         if times_out and time <= times_out[-1]:
             time = times_out[-1] + 1
             crowded += 1
@@ -323,7 +246,7 @@ def _decisions(
     and how many of those frames the timing put no later than the one before."""
     real = [int(k) for k in np.nonzero(new)[0]]
 
-    # the real frames in the trimmed part, and one either side so its ends have something to move towards
+    # the real frames in the trimmed part plus one either side
     low = bisect.bisect_left(real, start)
     high = bisect.bisect_right(real, start + length - 1)
     kept = real[max(low - 1, 0) : min(high + 1, len(real))]
@@ -353,12 +276,8 @@ def analyse(
     video_path: Path,
     hold: int,
 ) -> retime.Timeline | None:
-    """Set up retiming from a video's frame timing log, or None if it has none that fits.
-
-    `frames` is the whole video's length and `fps` its framerate before any timescale; what's retimed is the
-    `length` frames from `start`. A picture is held rather than interpolated across a gap wider than `hold`
-    frames. No frame of the video is read: everything here comes out of the log.
-    """
+    """Set up retiming from a video's frame timing log, or None if it has none that fits. `frames` and `fps` are
+    the whole video's, before timescale. Gaps wider than `hold` frames are held rather than interpolated"""
     logs = timing_log.sidecars_for(video_path)
     if not logs:
         return None
@@ -377,8 +296,7 @@ def analyse(
 
     log.status("frame-timing-log", sidecar_path.name)
 
-    # a recording at a divided framerate is fine - the timeline is built in the video's own frames either way,
-    # and a packet is tied to its tick by obs's own timestamp - but anything else isn't this video's log
+    # a divided framerate is fine, anything else means this isn't the video's log
     if fps <= 0 or sidecar.fps % fps != 0:
         log.info(
             f"frame timing: {sidecar_path.name} was written at {float(sidecar.fps):g}fps, and this video runs "
@@ -395,8 +313,7 @@ def analyse(
 
     game = np.zeros(len(read), dtype=np.int64)
     if presents is not None:
-        # fitting the two free numbers needs a stretch of the clip, not all of it - but it has to start where
-        # the run of presents the fit is used on starts, or the phase means something different
+        # fit over the start of the clip, the phase depends on where the run of presents starts
         sample = slice(start, start + min(length, FIT_FRAMES))
         near = presents.present <= read[sample][-1] + LEAD
 
@@ -438,8 +355,7 @@ def analyse(
             f"timing is less accurate when the game runs faster than the recording"
         )
 
-    # the fingerprints say which frames are new pictures; where a frame hasn't got one, the game's frames are
-    # the next best thing, and failing that every frame is taken as its own picture
+    # fingerprints first, then the game's frames, then every frame is new
     shows = np.concatenate([[True], game[1:] != game[:-1]]) if presents is not None else np.ones(len(read), bool)
     new = np.where(changes >= 0, changes > 0, shows)
 

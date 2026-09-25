@@ -65,7 +65,7 @@ bool rendering::VideoRenderQueue::cancel(const std::shared_ptr<RenderState>& sta
 
 		it->state->stop();
 
-		// process_next is holding onto the front render, so leave taking it off the queue to it
+		// process_next is holding the front render, so it takes it off the queue
 		if (it == m_queue.begin())
 			return true;
 

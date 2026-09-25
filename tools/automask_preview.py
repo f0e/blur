@@ -1,12 +1,7 @@
 """Preview what `mask: auto` makes of a video.
 
-Temporary dev tool. Runs blur.mask.generate over one or more videos and writes out what it decided:
-the mask itself, and the mask painted over a frame so you can see whether it caught the HUD and missed
-everything else. `--stages` also dumps the scores the analysis measures, which is what the
-stillness and detail settings cut through.
-
-Call it through tools/automask-preview.sh - it needs the bundled python, which is the only one with
-vapoursynth in it.
+Temporary dev tool. Writes out the mask and the mask painted over a frame. `--stages` also writes the scores.
+Run it through tools/automask-preview.sh.
 """
 
 import argparse
@@ -34,7 +29,7 @@ def write_png(clip: vs.VideoNode, path: Path, ffmpeg: Path):
     else:
         pix_fmt, planes = "gray", (0,)
 
-    # tobytes rather than bytes() - planes are padded out to a stride, and only tobytes drops the padding
+    # tobytes drops the stride padding
     data = b"".join(frame[p].tobytes() for p in planes)
 
     subprocess.run(
@@ -71,7 +66,6 @@ def tint_protected(rgbs: vs.VideoNode, gray: vs.VideoNode, strength: float):
     """Paint the protected (black) parts of the mask red over the frame."""
     matched = mask.match(gray, rgbs)
 
-    # y is the mask, so 1 - y is how protected the pixel is
     red = f"x 1 y - {strength} * + 0 max 1 min"
     other = f"x 1 1 y - {strength} * - * 0 max 1 min"
 
@@ -83,11 +77,7 @@ def fraction_static(clip: vs.VideoNode) -> float:
 
 
 def detection_stages(clip: vs.VideoNode):
-    """The scores mask.measure() works out, and what the thresholds make of them.
-
-    The scores are the analysis's own intermediate rather than a copy of it, so this can't drift from what
-    blur actually does. The greys in them are what the stillness and detail settings cut through.
-    """
+    """The scores mask.measure() works out, and the mask shaped from them."""
     params = mask.Params()
 
     scores = mask.measure(clip, params.samples)

@@ -1,7 +1,6 @@
 #pragma once
 
-// Umbrella header for the rendering subsystem. Include this to get the whole
-// public surface; the pieces live under common/rendering/.
+// umbrella header for common/rendering/
 #include "rendering/render_errors.h"   // IWYU pragma: export
 #include "rendering/render_types.h"    // IWYU pragma: export
 #include "rendering/render_state.h"    // IWYU pragma: export

@@ -138,8 +138,7 @@ begin
   begin
     WizardForm.StatusLabel.Caption := 'Extracting TensorRT RIFE...';
 
-    // the plugins archive bundles every vs-mlrt model, and the model archive has an older copy in rife\ - blur
-    // only uses rife_v2
+    // both archives have more models than we need, blur only uses rife_v2
     if NeedPlugins then
     begin
       RemoveTensorRTPlugins;
@@ -159,8 +158,8 @@ begin
     SuppressibleMsgBox('TensorRT RIFE couldn''t be installed. Rerun the installer to try again.', mbError, MB_OK, IDOK);
 end;
 
-// vapoursynth loads plugins from subfolders too, and vs-mlrt's are full of cuda and onnxruntime libraries that would
-// all get loaded every time vspipe starts. a manifest that lists nothing stops it looking in a folder
+// vapoursynth loads plugins from subfolders too, and vs-mlrt's are full of cuda and onnxruntime libraries. an empty
+// manifest stops it looking in a folder
 procedure WriteTensorRTManifests;
 var
   FindRec: TFindRec;
@@ -191,6 +190,6 @@ begin
   if WizardIsComponentSelected('vstrt') then
     InstallTensorRT;
 
-  // also covers tensorrt that's already there from before, whether or not it was selected this time
+  // also covers tensorrt from a previous install
   WriteTensorRTManifests;
 end;

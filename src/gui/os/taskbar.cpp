@@ -5,7 +5,7 @@
 #	include "common/utils.h"
 
 namespace {
-	// the shell wants whole numbers, so pick a denominator fine enough that the bar moves smoothly
+	// the shell wants whole numbers
 	constexpr ULONGLONG PROGRESS_RESOLUTION = 1000;
 
 	ITaskbarList3* g_taskbar = nullptr;
@@ -47,9 +47,7 @@ void os::taskbar::initialise(SDL_Window* window) {
 		return;
 	}
 
-	// sdl's video backend already does this, but don't rely on that. RPC_E_CHANGED_MODE means the
-	// thread is initialised in the other apartment model, which the taskbar interface is fine with -
-	// we just mustn't uninitialise someone else's apartment on the way out
+	// sdl probably did this already. RPC_E_CHANGED_MODE is fine, but then it's not ours to uninitialise
 	HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 	g_com_initialised = SUCCEEDED(hr);
 
@@ -78,8 +76,7 @@ void os::taskbar::set_progress(ProgressState state, float progress) {
 	bool determinate =
 		state == ProgressState::NORMAL || state == ProgressState::PAUSED || state == ProgressState::ERRORED;
 
-	// value first: SetProgressValue promotes NOPROGRESS/INDETERMINATE to NORMAL, so setting it after
-	// the state would throw away a paused/errored colour. it leaves an already-set state alone
+	// value first, since SetProgressValue changes NOPROGRESS/INDETERMINATE to NORMAL
 	if (determinate && (state_changed || value != g_last_value)) {
 		g_taskbar->SetProgressValue(g_hwnd, value, PROGRESS_RESOLUTION);
 		g_last_value = value;
@@ -113,9 +110,8 @@ void os::taskbar::cleanup() {
 #	include <sdbus-c++/sdbus-c++.h>
 #	include "common/utils.h"
 
-// the unity launcher entry protocol - a plain session-bus signal that kde's task manager, dash-to-dock,
-// docky and friends all listen for. it's keyed on a desktop file id, so it only lights up for installs
-// that shipped one; everywhere else the signal just goes nowhere
+// the unity launcher entry protocol, supported by kde, dash-to-dock etc. only works for installs with a desktop
+// file
 namespace {
 	constexpr const char* PATH = "/com/canonical/unity/launcherentry/blur";
 	constexpr const char* INTERFACE = "com.canonical.Unity.LauncherEntry";
@@ -153,8 +149,7 @@ void os::taskbar::set_progress(ProgressState state, float progress) {
 
 	bool visible = state != ProgressState::NONE;
 
-	// nothing to show a fraction for while we're indeterminate, so peg it to full - the launcher has no
-	// indeterminate mode, and an empty bar reads as "stuck"
+	// no indeterminate mode on linux, so show a full bar
 	if (state == ProgressState::INDETERMINATE)
 		progress = 1.f;
 

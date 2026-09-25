@@ -16,15 +16,15 @@ namespace history = gui::components::render_history;
 using gui::components::main::MainScreen;
 
 namespace {
-	// how far outside the button/panel the mouse can stray before the panel closes. covers the gap between them
+	// how far outside the button/panel the mouse can go before the panel closes
 	const int HOVER_SLACK = 8;
 
 	const float PANEL_ROUNDING = 8.f;
 	const int PANEL_HEADER_GAP = 9;
-	const gfx::Color PANEL_COLOR = { 14, 14, 14, 255 }; // opaque, so scrolling rows don't flash what's behind it
+	const gfx::Color PANEL_COLOR = { 14, 14, 14, 255 }; // opaque so scrolling rows don't show what's behind
 	const gfx::Color PANEL_BORDER_COLOR = gfx::Color::white(38);
 
-	// how long a render sticks around on screen by itself before folding away into the button
+	// how long a finished render shows on its own before folding away
 	const auto ENTRY_SHOW_TIME = std::chrono::seconds(5);
 
 	const size_t MAX_ENTRIES = 50;
@@ -37,13 +37,13 @@ namespace {
 		bool success = false;
 		rendering::RenderError error;
 
-		// set while the render is still in the queue, so its row can show live progress and turn into the result
+		// set while the render's in the queue, so the row can show live progress
 		std::shared_ptr<rendering::RenderState> state;
 		bool active = false;
 		size_t queue_index = 0;
 
-		std::chrono::steady_clock::time_point shown_until; // fallback dismissal time if it is never hovered
-		bool auto_display_hovered = false;                 // once hovered, leaving dismisses it immediately
+		std::chrono::steady_clock::time_point shown_until; // fallback if it's never hovered
+		bool auto_display_hovered = false;                 // once hovered, leaving dismisses it
 
 		std::vector<uint8_t> thumbnail_jpeg;        // filled in by a worker thread
 		std::shared_ptr<render::Texture> thumbnail; // uploaded from the jpeg on the render thread
@@ -59,7 +59,7 @@ namespace {
 	size_t next_entry_id = 0;
 
 	bool panel_open = false;
-	bool panel_showing = false; // whether it's got anything in it right now, ignoring what's animating away
+	bool panel_showing = false;
 	bool panel_transforming = false;
 	gfx::Rect button_rect;
 	gfx::Rect panel_rect;
@@ -72,8 +72,6 @@ namespace {
 		return std::max(fonts::dejavu.height(), history::BUTTON_SIZE) + PANEL_HEADER_GAP;
 	}
 
-	// the panel says what it is while the mouse is why it's showing, and what just happened when it shows itself
-	// on its own
 	std::string get_panel_title(bool hovered, size_t shown_count, size_t shown_failures, size_t shown_active) {
 		if (hovered)
 			return "Render history";
@@ -118,7 +116,7 @@ namespace {
 		       0.2f;
 	}
 
-	// the row that was showing the render's progress becomes the row for its result, so it stays put
+	// the progress row becomes the result row
 	size_t finish_entry(const std::shared_ptr<rendering::RenderState>& state, Entry entry) {
 		std::lock_guard lock(entries_mutex);
 
@@ -132,7 +130,7 @@ namespace {
 			auto& existing = **it;
 
 			entry.id = existing.id;
-			entry.state = existing.state; // dropped once the render leaves the queue, see sync_active_entries
+			entry.state = existing.state; // dropped once the render leaves the queue
 			entry.thumbnail = existing.thumbnail;
 
 			existing = std::move(entry);
@@ -192,12 +190,11 @@ namespace {
 			return u::contains(queued, entry.state.get());
 		};
 
-		// a render that left the queue without a result was cancelled, so its row goes with it
+		// left the queue without a result, so it was cancelled
 		std::erase_if(entries, [&](const auto& entry) {
 			return entry->active && !is_queued(*entry);
 		});
 
-		// nothing left to keep the render state alive for once it's out of the queue
 		for (auto& entry : entries) {
 			if (entry->state && !is_queued(*entry))
 				entry->state.reset();
@@ -339,7 +336,7 @@ namespace {
 	std::vector<ui::RenderHistoryAction> get_active_entry_actions(const std::shared_ptr<const Entry>& entry) {
 		std::vector<ui::RenderHistoryAction> actions;
 
-		// only the render at the front is going, the rest haven't started so there's nothing to pause
+		// only the front render is running
 		if (entry->queue_index == 0) {
 			actions.push_back(
 				{
@@ -460,7 +457,7 @@ void history::render_button(ui::Container& container) {
 		return;
 	}
 
-	// only the button opens the history. hovering the panel keeps an already open one open, so you can reach into it
+	// only the button opens the history, hovering the panel keeps it open
 	panel_open = button_rect.expand(HOVER_SLACK).contains(keys::mouse_pos) ||
 	             (panel_open && panel_showing && panel_rect.expand(HOVER_SLACK).contains(keys::mouse_pos));
 
@@ -484,7 +481,7 @@ void history::render_panel(ui::Container& container, float delta_time) {
 
 	sync_active_entries();
 
-	// Keep the origin around while the rows go stale so the backdrop can fold away with them.
+	// so the backdrop can fold away with the rows
 	panel_collapse_rect = !button_rect.is_empty() ? std::optional<gfx::Rect>{ button_rect } : std::nullopt;
 	if (!panel_collapse_rect)
 		panel_transforming = false;
@@ -500,17 +497,15 @@ void history::render_panel(ui::Container& container, float delta_time) {
 	for (const auto& entry_ptr : get_ordered_entries()) {
 		auto& entry = *entry_ptr;
 
-		// The timer is only a fallback for entries the user never interacts with. Once an auto-shown entry has
-		// been hovered, keep it under the cursor and dismiss it as soon as the cursor leaves.
+		// the timer is a fallback, once an auto shown entry is hovered it's dismissed when the cursor leaves
 		if (!panel_open && (entry.auto_display_hovered ? !hovering : now > entry.shown_until))
 			continue;
 
-		// hovering the panel, or opening the full history, counts as interacting with an auto-shown entry
 		if (hovering)
 			entry.auto_display_hovered = true;
 
 		if (shown_count == 0)
-			container.current_position.y += header_height(); // the header is drawn with the backdrop, behind the rows
+			container.current_position.y += header_height(); // the header is drawn with the backdrop
 
 		shown_count++;
 		if (entry.active)
@@ -572,7 +567,6 @@ void history::render_panel(ui::Container& container, float delta_time) {
 		if (panel_showing && panel_collapse_rect)
 			panel_transforming = true;
 
-		// keep the last rect around so the backdrop can animate out in place rather than snapping shut under the rows
 		panel_showing = false;
 		return;
 	}
@@ -585,7 +579,7 @@ void history::render_panel(ui::Container& container, float delta_time) {
 	if (!panel_showing && panel_collapse_rect)
 		panel_transforming = true;
 
-	// grows and shrinks with the rows, but starts at the right size rather than unfolding from whatever it was
+	// starts at the right size rather than animating from the old one
 	panel_height = panel_showing ? u::lerp(panel_height, goal_height, 25.f * delta_time, 0.5f) : goal_height;
 	panel_showing = true;
 
@@ -594,13 +588,12 @@ void history::render_panel(ui::Container& container, float delta_time) {
 }
 
 void history::draw_panel(ui::Container& container, ui::Container& button_container) {
-	// the button is always visible, whether or not the panel has anything to show
 	if (panel_rect.is_empty() || container.elements.empty()) {
 		ui::render_container(button_container);
 		return;
 	}
 
-	// Follows the rows' shared animation: from the button to its full bounds on the way in, and back on the way out.
+	// follows the rows' animation
 	float anim = 0.f;
 	for (const auto& [id, element] : container.elements) {
 		anim = std::max(anim, element.animations.at(ui::hasher("main")).current);
@@ -626,9 +619,8 @@ void history::draw_panel(ui::Container& container, ui::Container& button_contain
 	render::rounded_rect_filled(panel_rect, PANEL_COLOR.adjust_alpha(draw_opacity), PANEL_ROUNDING);
 	render::rounded_rect_stroke(panel_rect, PANEL_BORDER_COLOR.adjust_alpha(draw_opacity), PANEL_ROUNDING);
 
-	// the header sits with the backdrop rather than in the container, so scrolling doesn't drag it away.
-	// it shares its row with the button, so it's centered against that. it stays outside the row overflow clip so
-	// its transformed glyphs aren't cut off while the panel is expanding
+	// the header is drawn with the backdrop so it doesn't scroll, and outside the row clip so it isn't cut off while
+	// expanding
 	gfx::Rect usable = container.get_usable_rect();
 	int header_top = panel_rect.y + (container.padding ? container.padding->top : 0);
 
@@ -639,12 +631,11 @@ void history::draw_panel(ui::Container& container, ui::Container& button_contain
 		fonts::dejavu
 	);
 
-	// transform the backdrop/header now, before the button is drawn, so the button itself is excluded and stays
-	// put rather than folding away with them
+	// transform before the button is drawn so it stays put
 	if (transform_contents)
 		render::transform_draw_vertices(first_vertex, panel_rect, animated_panel_rect, anim);
 
-	// drawn above the backdrop but below the rows: scrolled-over entries cover it back up
+	// above the backdrop, below the rows
 	ui::render_container(button_container);
 
 	size_t rows_first_vertex = render::draw_vertex_count();
@@ -663,7 +654,6 @@ void history::draw_panel(ui::Container& container, ui::Container& button_contain
 		}
 	}
 
-	// the rows live inside the panel, nothing of them shows past its edges
 	ui::render_container(container);
 
 	for (const auto& [row_animation, current] : row_animations)

@@ -1,13 +1,9 @@
 #pragma once
 
 namespace rendering {
-	// Thread-safe render state shared between the UI thread (which issues
-	// pause/stop and reads progress) and the render threads (which report
-	// progress and preview frames). All mutable state is private; the two
-	// sides only ever touch it through the methods below.
+	// render state shared between the ui thread and the render threads
 	struct RenderState {
-		// what a render is busy with before it starts producing frames, so the UI can say why it's taking a
-		// while (see RenderState::report_log_line). these happen in order, so the latest one reported wins
+		// what a render is doing before it produces frames, so the ui can say why it's taking a while
 		enum class InitStage : uint8_t {
 			NONE,
 			GENERATING_MASK,
@@ -83,8 +79,7 @@ namespace rendering {
 		// fold a vspipe "Frame: n/m" update into progress + the status string
 		void report_frame_progress(int current_frame, int total_frames);
 
-		// scan a raw stderr line for the sentinels blur's scripts print before a slow one-off step, so the
-		// UI can show a more specific loading message than "initialising"
+		// look for the markers blur's scripts print before slow steps, for more specific loading messages
 		void report_log_line(const std::string& line);
 
 		// -- preview frames (jpeg piped out of ffmpeg) --

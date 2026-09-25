@@ -297,8 +297,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 						if (current_render) {
 							auto progress = current_render->state->get_progress();
 							if (!progress.rendered_a_frame && !current_render->state->is_paused()) {
-								// keep redrawing so the loading spinner animates while initialising / building the
-								// tensorrt engine
+								// keep redrawing so the loading spinner animates
 								want_to_render = true;
 							}
 
@@ -327,7 +326,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 					}
 				}
 
-				// while a render and a queue are both up, the nav offers whichever isn't being looked at
+				// offer whichever of the render and queue screens isn't being looked at
 				if (auto target = components::main::get_screen_switch_target()) {
 					ui::set_next_same_line(nav_container);
 					ui::add_button(

@@ -66,9 +66,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# link the c++ runtime statically, so builds run on distros whose libstdc++ is older than the compiler's.
-# and don't export anything from static libraries, or shared ones that use the same library (e.g. libpng and
-# freetype, which libass and gtk load) bind to our copy instead of their own
+# link the c++ runtime statically so builds run on distros with an older libstdc++, and don't export symbols from
+# static libraries so shared libraries using the same one (e.g. libpng) don't bind to ours
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_link_options(-static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL)
 endif()
@@ -96,7 +95,7 @@ find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3)
 find_package(SDL3_image CONFIG REQUIRED)
 find_package(Freetype REQUIRED)
 
-# linux uses the system's EGL/GLES from its graphics drivers. vcpkg's ANGLE can't open X11 or Wayland windows there
+# linux uses the system's EGL/GLES, vcpkg's ANGLE can't open X11 or Wayland windows
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   set(BLUR_USE_ANGLE OFF)
 else()
@@ -295,8 +294,7 @@ if(BLUR_USE_ANGLE)
     PRIVATE unofficial::angle::libEGL unofficial::angle::libGLESv2
   )
 
-  # SDL dlopens EGL/GLES at runtime, so a static ANGLE can never work - catch it
-  # here (wrong triplet, see VCPKG_TARGET_TRIPLET handling above) rather than at startup.
+  # SDL dlopens EGL/GLES, so a static ANGLE can't work (wrong triplet)
   get_target_property(BLUR_ANGLE_EGL_TYPE unofficial::angle::libEGL TYPE)
   if(NOT BLUR_ANGLE_EGL_TYPE STREQUAL "SHARED_LIBRARY")
     message(

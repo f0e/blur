@@ -165,16 +165,13 @@ def main():
     untrimmed = video
     video = video[start:end]
 
-    # a frame timing log says exactly which frames are repeats and when every real frame belongs, so where
-    # there is one it takes deduplication's place rather than running alongside it
+    # a frame timing log replaces deduplication
     try:
         deduplicate_threshold = float(settings["deduplicate_threshold"])
     except (ValueError, TypeError, KeyError):
         raise u.BlurException(f"Deduplicate threshold is not a number: '{settings['deduplicate_threshold']}'")
 
-    # how far a picture is carried before it's held instead. it's deduplication's setting, but it's a
-    # preference about interpolation rather than about deduplication, so a logged timeline honours it too -
-    # except for 0, which means deduplication is off and says nothing about how far to interpolate
+    # how far a picture is interpolated across before it's held. 0 means dedupe is off, not a range
     deduplicate_range: int | None = int(settings["deduplicate_range"])
     if deduplicate_range == -1:  # -1 = infinite
         deduplicate_range = None
@@ -194,8 +191,6 @@ def main():
             hold=hold,
         )
 
-    # a timeline is rendered by retiming, whichever source it came from, and that needs the masks either way.
-    # the deduplicate setting turns off deduplication, not a log - logs have their own setting
     retiming = (settings["deduplicate"] and settings["deduplicate_range"] != 0) or logged_timing is not None
     apply_masks = settings["interpolate"] or retiming
     mask_name = settings["mask"] if apply_masks else ""
@@ -252,8 +247,7 @@ def main():
         if settings["input_timescale"] != 1:
             video = u.assume_scaled_fps(video, 1 / input_timescale)
 
-    # nothing is rendered here - a timeline says which frames are real and when they belong, and interpolation
-    # renders onto it. see blur/retime.py
+    # the timeline is rendered during interpolation, see blur/retime.py
     timeline = logged_timing
     debug_timeline = None
     if retiming and logged_timing is None:
@@ -266,9 +260,7 @@ def main():
         )
 
     if timeline is not None and settings["debug"]:
-        # `timeline` is cleared as soon as an interpolation pass takes it, so the debug overlay - which is
-        # drawn right at the end, on frames that are finished and in a format text can go on - keeps its
-        # own handle on it, and on the framerate its frame numbers are counted in
+        # `timeline` is cleared once interpolation takes it, so keep a copy for the debug overlay
         debug_timeline = timeline
         debug_source_fps = video.fps
 
@@ -277,8 +269,7 @@ def main():
         match method:
             case "svp":
                 if settings["manual_svp"]:
-                    # the framerate goes in unless the hand written string already says one. (retiming
-                    # replaces it either way - it interpolates at a rate of its own choosing)
+                    # add the framerate unless the manual string already has one
                     smooth_json = json.loads(settings["smooth_string"])
                     if "rate" not in smooth_json:
                         smooth_json["rate"] = {"num": int(new_fps), "abs": True}
@@ -396,8 +387,7 @@ def main():
                         f"Invalid pre-interpolation method: '{settings['pre_interpolation_method']}'. Should be one of: 'rife', 'rife (tensorrt)'"
                     )
 
-                # whichever interpolation runs first is the one that fills deduplication's gaps, since after
-                # it there's nothing left of the source timeline to fill them on
+                # the first interpolation pass fills deduplication's gaps
                 video = interpolate_to(
                     settings["pre_interpolation_method"],
                     video,
@@ -429,9 +419,7 @@ def main():
         interpolated = video.num_frames != frames_before_interpolation
 
     if timeline is not None:
-        # nothing interpolated, so deduplication fills its own gaps, at the framerate the video already has.
-        # this is the only place 'deduplicate method' is read - when interpolation runs it takes the timeline
-        # instead, and fills the gaps with whatever method it was already going to use
+        # no interpolation, so deduplication fills its own gaps using 'deduplicate method'
         method = settings["deduplicate_method"]
         log.info(f"filling duplicate frames with {method}")
 
@@ -440,8 +428,7 @@ def main():
             method = "rife"
 
         if method == "old":
-            # the one method that doesn't retime - it patches a blend over each duplicate instead, so it has
-            # no use for the timeline
+            # the only method that doesn't use the timeline
             video = blur.deduplicate.fill_drops_old(
                 video,
                 threshold=deduplicate_threshold,
@@ -450,8 +437,7 @@ def main():
         else:
             video = interpolate_to(method, video, video.fps, timeline=timeline)
 
-    # masking. retiming is included because filling a dropped frame means interpolating one, and it's
-    # interpolation that warps an overlay - but if neither actually ran there are no artifacts to put back
+    # masking, only needed if something was interpolated
     mask_clips = []
     if (mask_name or auto_mask) and (retiming or interpolated):
         mask_clips = build_mask_clips(
@@ -468,9 +454,7 @@ def main():
     if mask_clips:
         video = blur.mask.protect(video, original, blur.mask.combine(mask_clips))
 
-    # debug: write over the frames deduplication had a hand in, and only those. drawn after masking so the
-    # text can't be masked away, and before blending - which averages frames together, and will smear this
-    # along with everything else, so turn blur off to read it
+    # debug: label the frames retiming touched. turn blur off to read it
     if debug_timeline is not None:
         video = blur.retime.annotate(video, debug_timeline, video.fps / debug_source_fps)
 

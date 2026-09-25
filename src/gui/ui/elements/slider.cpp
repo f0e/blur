@@ -343,7 +343,7 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 
 					helpers::text_input::select_all(&slider_data.text_input, &state.edit_state);
 
-					// don't let the drag that follows this same press wipe the select-all
+					// so the drag from this press doesn't clear the select-all
 					state.selected_all_mouse_lock = true;
 				}
 			}

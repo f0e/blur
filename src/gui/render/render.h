@@ -43,8 +43,7 @@ namespace fonts {
 		inline constexpr float ICON = 14.f;
 	}
 
-	// these are initialised at their most common size - call them with another one to get the same
-	// typeface resized, e.g. fonts::dejavu(fonts::size::SMALL)
+	// initialised at their most common size, call them with another size to resize
 	inline render::Font dejavu;   // size::BODY
 	inline render::Font garamond; // size::HEADER
 	inline render::Font icons;    // size::ICON
@@ -289,7 +288,7 @@ namespace render {
 	gfx::Rect pop_clip_rect();
 	gfx::Rect get_clip_rect();
 
-	// Captures and transforms a group of already-submitted primitives as one unit.
+	// transforms a group of already submitted primitives as one unit
 	[[nodiscard]] size_t draw_vertex_count();
 	void transform_draw_vertices(size_t first_vertex, const gfx::Rect& from, const gfx::Rect& to, float opacity = 1.f);
 
