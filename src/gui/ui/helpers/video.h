@@ -235,6 +235,7 @@ private:
 	std::atomic<double> m_cached_percent_pos{ -1.0 };
 	std::atomic<double> m_cached_time_pos{ -1.0 };
 	std::atomic<bool> m_paused{ true };
+	std::chrono::steady_clock::time_point m_frame_step_time;
 	std::atomic<double> m_cached_duration{ -1.0 };
 	std::atomic<double> m_cached_fps{ 0.0 };
 	std::atomic<int64_t> m_cached_width{ 0 };

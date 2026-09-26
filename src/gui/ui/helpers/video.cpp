@@ -55,7 +55,9 @@ void VideoPlayer::handle_key_press(SDL_Keycode key) {
 		}
 
 		case SDLK_PERIOD: {
-			run_command_async({ "frame-step", "1", "seek" });
+			// the seek flag doesn't move forward. this plays one frame, with the audio muted, then pauses again
+			m_frame_step_time = std::chrono::steady_clock::now();
+			run_command_async({ "frame-step", "1", "mute" });
 			break;
 		}
 
@@ -502,7 +504,15 @@ bool VideoPlayer::process_mpv_events() {
 					m_cached_time_pos = available ? *static_cast<double*>(prop->data) : -1.0;
 				}
 				else if (std::strcmp(name, "pause") == 0 && available) {
-					m_paused = *static_cast<int*>(prop->data) != 0;
+					bool paused = *static_cast<int*>(prop->data) != 0;
+
+					// a frame step can unpause for the frame, which isn't really playing. mpv doesn't always say it
+					// did, so it's only ignored just after a step
+					constexpr auto FRAME_STEP_WINDOW = std::chrono::milliseconds(200);
+					if (!paused && std::chrono::steady_clock::now() - m_frame_step_time < FRAME_STEP_WINDOW)
+						break;
+
+					m_paused = paused;
 					changed = true;
 				}
 				else if (std::strcmp(name, "duration/full") == 0) {
