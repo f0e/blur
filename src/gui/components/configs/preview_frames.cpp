@@ -1,7 +1,7 @@
 #include "preview_frames.h"
 
 #include "../notifications.h"
-#include "../../player_blur_preview.h"
+#include "../../mask_preview.h"
 #include "../../ui/helpers/video.h"
 #include "common/media.h"
 
@@ -9,11 +9,8 @@ namespace preview_frames = gui::components::configs::preview_frames;
 
 namespace {
 	std::unique_ptr<PlayerBlurPreview> blurred_preview;
-	std::unique_ptr<BlurPreview> mask_preview;
+	std::unique_ptr<MaskPreview> mask_preview;
 	bool showing_mask = false;
-
-	// a mask is worked out from the whole video, so it only needs reloading when the masking settings change
-	std::optional<BlurSettings> mask_settings;
 
 	std::shared_ptr<VideoPlayer> source_player;
 	std::optional<float> source_timestamp;
@@ -81,28 +78,19 @@ namespace {
 		if (source_player && !source_player->is_paused())
 			source_player->set_paused(true);
 
-		if (!mask_settings || !config_blur::same_masking(*mask_settings, request.settings))
-			mask_settings = request.settings;
-
 		if (!mask_preview)
-			mask_preview = std::make_unique<BlurPreview>();
+			mask_preview = std::make_unique<MaskPreview>();
 
-		mask_preview->update(
+		auto state = mask_preview->update(
 			{
 				.video_path = request.video_path,
 				.video_info = info,
-				.settings = *mask_settings,
+				.settings = request.settings,
 				.app_settings = request.app_settings,
-				.mask = true,
 			}
 		);
 
 		show_error("Failed to generate mask preview.", mask_preview->take_error());
-
-		PlayerBlurPreview::State state{
-			.overlay = mask_preview->ready_player(),
-			.status = mask_preview->status(),
-		};
 
 		preview_frames::Result result{
 			.loading = !state.overlay && !state.status.failed,
@@ -238,13 +226,12 @@ void preview_frames::handle_event(const SDL_Event& event, bool& to_render) {
 bool preview_frames::save_mask(
 	const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
 ) {
-	return mask_preview && mask_preview->save_frame(path, std::move(on_done));
+	return mask_preview && mask_preview->save(path, std::move(on_done));
 }
 
 void preview_frames::reset() {
 	blurred_preview.reset();
 	mask_preview.reset();
-	mask_settings.reset();
 
 	source_player.reset();
 	source_timestamp.reset();
