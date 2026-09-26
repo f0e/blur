@@ -8,7 +8,7 @@
 
 #include "../ui/ui.h"
 #include "../ui/elements/videos/videos.h"
-#include "../blur_preview.h"
+#include "../player_blur_preview.h"
 #include "notifications.h"
 #include "common/masks.h"
 #include "../render/render.h"
@@ -53,7 +53,7 @@ namespace {
 	}
 
 	bool blur_preview_enabled = false;
-	std::unique_ptr<BlurPreview> blur_preview;
+	std::unique_ptr<PlayerBlurPreview> blur_preview;
 
 	// configs are read from disk, so the last one's kept until its file changes
 	struct {
@@ -79,25 +79,11 @@ namespace {
 		return settings;
 	}
 
-	std::string init_stage_text(rendering::RenderState::InitStage stage) {
-		switch (stage) {
-			case rendering::RenderState::InitStage::GENERATING_MASK:
-				return "analysing video to generate a mask...";
-			case rendering::RenderState::InitStage::BUILDING_ENGINE:
-				return "building tensorrt engine, this may take a few minutes...";
-			case rendering::RenderState::InitStage::NONE:
-				break;
-		}
-
-		return "rendering preview...";
-	}
-
 	struct BlurPreviewState {
 		std::optional<ui::VideoOverlay> overlay;
 		std::optional<std::string> status;
 	};
 
-	// the config's output is shown over the video while it's paused, it can't keep up with playback
 	BlurPreviewState update_blur_preview(
 		const tasks::PendingVideo& pending_video, const GlobalAppSettings& app_config
 	) {
@@ -116,30 +102,18 @@ namespace {
 		if (!player || !ui::videos::is_loaded(pending_video.video_path))
 			return {};
 
-		if (!player->is_paused())
-			return { .status = "pause to see it" };
-
-		auto time = player->get_time_pos();
-		const auto& info = *pending_video.video_info;
-		if (!time || info.video_duration <= 0.0)
-			return {};
-
-		// mpv's clock starts with the container, which can be before the video's first frame
-		double video_time = *time - (info.video_start_time - info.start_time);
-		auto position = static_cast<float>(std::clamp(video_time / info.video_duration, 0.0, 1.0));
-
 		if (!blur_preview)
-			blur_preview = std::make_unique<BlurPreview>();
+			blur_preview = std::make_unique<PlayerBlurPreview>();
 
 		auto settings = get_render_settings(pending_video);
 
-		blur_preview->update(
+		auto state = blur_preview->update(
 			{
+				.player = *player,
 				.video_path = pending_video.video_path,
-				.video_info = info,
+				.video_info = *pending_video.video_info,
 				.settings = settings,
 				.app_settings = app_config,
-				.position = position,
 			}
 		);
 
@@ -149,17 +123,15 @@ namespace {
 			);
 		}
 
-		auto ready_player = blur_preview->ready_player();
-		auto status = blur_preview->status();
+		BlurPreviewState result{ .status = PlayerBlurPreview::status_text(state) };
+		if (!state.playing) {
+			result.overlay = ui::VideoOverlay{ .player = state.overlay };
 
-		BlurPreviewState state{ .overlay = ui::VideoOverlay{ .player = ready_player } };
+			if (!state.overlay && !result.status)
+				result.status = "rendering preview...";
+		}
 
-		if (status.failed)
-			state.status = "couldn't generate the preview";
-		else if (!ready_player)
-			state.status = init_stage_text(status.init_stage);
-
-		return state;
+		return result;
 	}
 
 	// with skip_queue on, the queue screen is only needed when a config or trim needs sorting out
