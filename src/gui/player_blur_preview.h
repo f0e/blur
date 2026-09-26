@@ -21,7 +21,8 @@ public:
 	struct State {
 		bool playing = false;
 
-		// while paused, the blurred frame once it's ready. until then the video stands in faded
+		// while paused, the blurred frame to show. after a seek that's the last one until the video has a newer frame,
+		// then nothing while the video stands in faded until the new blurred frame's ready
 		std::shared_ptr<VideoPlayer> overlay;
 
 		BlurPreview::Status status;
@@ -44,4 +45,7 @@ public:
 
 private:
 	std::unique_ptr<BlurPreview> m_preview;
+
+	// the player's frame count when a blurred frame was last up to date
+	std::optional<uint64_t> m_player_frames_at_blur;
 };

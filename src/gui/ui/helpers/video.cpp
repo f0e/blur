@@ -263,8 +263,10 @@ void VideoPlayer::handle_mpv_event(const SDL_Event& event, bool& redraw, bool sh
 			// a seek resets the output, which asks for the old frame to be redrawn before the new one arrives
 			mpv_render_frame_info info{};
 			mpv_render_context_get_info(m_mpv_gl, { .type = MPV_RENDER_PARAM_NEXT_FRAME_INFO, .data = &info });
-			if (!(info.flags & MPV_RENDER_FRAME_INFO_REDRAW))
+			if (!(info.flags & MPV_RENDER_FRAME_INFO_REDRAW)) {
 				m_awaiting_seek_frame = false;
+				m_frame_count++;
+			}
 		}
 	}
 
