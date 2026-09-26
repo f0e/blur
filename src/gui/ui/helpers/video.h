@@ -209,6 +209,8 @@ public:
 	);
 
 private:
+	static constexpr uint64_t SEEK_REPLY_ID = 1;
+
 	mpv_handle* m_mpv = nullptr;
 	mpv_render_context* m_mpv_gl = nullptr;
 	Uint32 m_wakeup_on_mpv_render_update;
@@ -233,7 +235,7 @@ private:
 	std::string m_file_errors;
 	std::optional<std::string> m_load_error;
 
-	uint64_t m_next_reply_id = 2; // 1 is seeks
+	uint64_t m_next_reply_id = SEEK_REPLY_ID + 1;
 	std::unordered_map<uint64_t, std::function<void(std::optional<std::string>)>> m_reply_callbacks;
 
 	std::atomic<bool> m_new_frame_available{ false };
