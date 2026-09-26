@@ -93,7 +93,6 @@ namespace {
 		show_error("Failed to generate mask preview.", mask_preview->take_error());
 
 		preview_frames::Result result{
-			.loading = !state.overlay && !state.status.failed,
 			.failed = state.status.failed,
 			.video_duration = static_cast<float>(info.video_duration),
 			.status = PlayerBlurPreview::status_text(state),
@@ -108,10 +107,7 @@ namespace {
 	preview_frames::Result update_blurred(const preview_frames::Request& request, const media::VideoInfo& info) {
 		update_source_player(request, info, request.app_settings.config_preview_seek);
 
-		preview_frames::Result result{
-			.loading = true,
-			.video_duration = static_cast<float>(info.video_duration),
-		};
+		preview_frames::Result result{ .video_duration = static_cast<float>(info.video_duration) };
 
 		if (!source_player)
 			return result;
@@ -135,7 +131,6 @@ namespace {
 		result.failed = state.status.failed;
 		result.frame_timing_log = state.status.frame_timing_log;
 		result.status = PlayerBlurPreview::status_text(state);
-		result.loading = !state.playing && !state.overlay && !state.status.failed;
 
 		// the seek bar follows playback and frame stepping. a seek that's on its way would put it back where it came
 		// from
@@ -181,13 +176,8 @@ preview_frames::Result preview_frames::update(const Request& request) {
 		info = video.info;
 	}
 
-	Result result{
-		.loading = true,
-		.video_duration = static_cast<float>(info.video_duration),
-	};
-
 	if (!info.has_video_stream)
-		return result;
+		return { .video_duration = static_cast<float>(info.video_duration) };
 
 	showing_mask = request.show_mask;
 
