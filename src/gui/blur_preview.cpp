@@ -186,7 +186,7 @@ void BlurPreview::finish_build() {
 	}
 	m_log_offset = 0;
 
-	m_state = std::make_shared<rendering::RenderState>();
+	m_state = std::make_unique<rendering::RenderState>();
 	m_failed = false;
 
 	u::log("loading blur preview for {}", u::path_to_string(pending.key.video_path));

@@ -104,7 +104,7 @@ private:
 	std::optional<Key> m_loaded;
 	std::optional<float> m_position;
 
-	std::shared_ptr<rendering::RenderState> m_state = std::make_shared<rendering::RenderState>();
+	std::unique_ptr<rendering::RenderState> m_state = std::make_unique<rendering::RenderState>();
 	std::optional<rendering::RenderError> m_error;
 	bool m_failed = false;
 
