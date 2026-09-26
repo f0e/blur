@@ -19,7 +19,6 @@ public:
 
 	PreviewState update(const Request& request);
 
-	// why the mask couldn't be generated, once
 	std::optional<rendering::RenderError> take_error() {
 		return m_preview.take_error();
 	}

@@ -116,7 +116,6 @@ private:
 
 // what a preview has to show at the moment
 struct PreviewState {
-	// the video's playing, which a blurred preview can't keep up with
 	bool playing = false;
 
 	// the preview's frame to show. while this is empty the video stands in faded

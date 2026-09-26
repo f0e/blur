@@ -21,7 +21,6 @@ public:
 	// after a seek the last blurred frame stays up until the video has a newer frame to stand in with
 	PreviewState update(const Request& request);
 
-	// why the preview couldn't be loaded, once
 	std::optional<rendering::RenderError> take_error() {
 		return m_preview.take_error();
 	}

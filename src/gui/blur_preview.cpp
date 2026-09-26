@@ -7,7 +7,6 @@ namespace {
 	// stops a held slider from rebuilding the script every ui frame
 	constexpr auto REBUILD_DEBOUNCE = std::chrono::milliseconds(250);
 
-	// mpv opens .vpy files through ffmpeg's vapoursynth demuxer, which needs vsscript
 	void load_vsscript() {
 		static bool loaded = false;
 		if (loaded)

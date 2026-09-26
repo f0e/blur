@@ -6,7 +6,7 @@ PreviewState PlayerBlurPreview::update(const Request& request) {
 	if (!request.player.is_paused())
 		return { .playing = true };
 
-	// a seek's target, so the blurred frame's rendered alongside the player seeking there
+	// mpv gives a seek's target as the position straight away, so the blurred frame renders alongside the seek
 	auto position = player_position(request.player, request.video_info);
 	if (!position)
 		return { .status = m_preview.status() };
