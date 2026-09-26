@@ -180,6 +180,12 @@ $plugins = @(
             "svpflow-4.2.0.142/lib-windows/vapoursynth/x64/svpflow1_vs64.dll",
             "svpflow-4.2.0.142/lib-windows/vapoursynth/x64/svpflow2_vs64.dll"
         );
+    },
+    @{
+        Name         = "AVISource";
+        Url          = "https://github.com/vapoursynth/vs-avisource-obsolete/releases/download/R1/avisource-r1.7z";
+        Sha256       = "f43b6285b90fee682d9f669fe6aedca22592b7ba9d4be77ea5965a0af908d124";
+        FilePatterns = @("win64/avisource.dll");
     }
 )
 

@@ -230,6 +230,9 @@ std::vector<std::string> rendering::detail::build_vspipe_video_args(
 	if (preview_mask)
 		args.insert(args.end(), { "-a", "preview_mask=true" });
 
+	if (video_info.frameserver)
+		args.insert(args.end(), { "-a", "frameserver=true" });
+
 	if (skipped_frames > 0)
 		args.insert(args.end(), { "-a", std::format("skip_frames={}", skipped_frames) });
 

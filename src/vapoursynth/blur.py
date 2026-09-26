@@ -33,6 +33,7 @@ EXPECTED_PLUGINS = [
 ]
 
 LSMASH_PLUGIN = "systems.innocent.lsmas"
+AVISOURCE_PLUGIN = "com.vapoursynth.avisource"
 
 BESTSOURCE_HW_DEVICES = {
     "darwin": ["videotoolbox"],
@@ -99,7 +100,13 @@ def main():
         log.info("LSMASH isn't available, falling back to BestSource")
         source_plugin = "BestSource"
 
-    if source_plugin == "LWLibavSource":
+    if globals().get("frameserver") == "true":
+        # debugmode frameserver signpost avis only decode through its vfw codec, which ffmpeg (meaning bestsource/lsmas) can't use
+        if AVISOURCE_PLUGIN not in loaded_plugins:
+            raise u.BlurException("Rendering frameserver output needs the AVISource VapourSynth plugin")
+
+        video = core.avisource.AVISource(str(video_path))
+    elif source_plugin == "LWLibavSource":
 
         def lwlibav_source(prefer_hw: int):
             return core.lsmas.LWLibavSource(

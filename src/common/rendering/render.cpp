@@ -235,6 +235,13 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 
 	bool trimmed = start != 0.f || end != 1.f;
 
+	if (video_info.frameserver && video_info.has_undecodable_audio) {
+		return tl::unexpected(
+			"Frameserver audio can't be read. Turn on 'Write audio as PCM samples in signpost AVI' in DebugMode "
+			"FrameServer and restart it"
+		);
+	}
+
 	auto ffmpeg_args = detail::build_ffmpeg_video_args(
 		input_path, video_info, settings, app_settings, output_path, start_frame, end_frame, trimmed
 	);

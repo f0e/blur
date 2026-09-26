@@ -72,7 +72,7 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 			"error",
 			"-show_entries",
 			// clang-format off
-			"stream=index,codec_type,sample_rate,color_range,r_frame_rate,pix_fmt,color_space,color_transfer,color_primaries,width,height,start_time,duration",
+			"stream=index,codec_type,codec_name,codec_tag_string,sample_rate,color_range,r_frame_rate,pix_fmt,color_space,color_transfer,color_primaries,width,height,start_time,duration",
 			// clang-format on
 			"-show_entries",
 			"format=duration,start_time",
@@ -147,6 +147,7 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 			info.color_space = opt_str(stream, "color_space");
 			info.color_transfer = opt_str(stream, "color_transfer");
 			info.color_primaries = opt_str(stream, "color_primaries");
+			info.frameserver = stream.value("codec_tag_string", "") == "DFSC";
 
 			if (stream.contains("r_frame_rate")) {
 				const auto fps = u::split_string(stream["r_frame_rate"].get<std::string>(), "/");
@@ -161,6 +162,9 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 				info.video_duration = std::stod(stream["duration"].get<std::string>());
 		}
 		else if (codec_type == "audio") {
+			if (!opt_str(stream, "codec_name"))
+				info.has_undecodable_audio = true;
+
 			if (stream.contains("sample_rate"))
 				info.audio_sample_rates.push_back(std::stoi(stream["sample_rate"].get<std::string>()));
 

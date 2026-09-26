@@ -24,6 +24,10 @@ namespace media {
 
 		int preroll_frames = 0;
 
+		// debugmode frameserver signpost avi
+		bool frameserver = false;
+		bool has_undecodable_audio = false;
+
 		bool operator==(const VideoInfo& other) const = default;
 	};
 
