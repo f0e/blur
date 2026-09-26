@@ -118,7 +118,8 @@ void BlurPreview::update(const Request& request) {
 		m_failed = false;
 
 	m_requested = key;
-	m_requested_position = request.position;
+	// compared as the output frame's time, since nearby positions can land on the same frame
+	m_requested_target = output_seek_target(request.settings, request.video_info, request.position);
 
 	if (auto error = m_player->take_load_error()) {
 		auto parsed = rendering::detail::parse_error_output(*error);
@@ -142,9 +143,9 @@ void BlurPreview::update(const Request& request) {
 		start_build(request);
 	}
 
-	if (m_loaded == key && !m_pending && m_position != request.position) {
-		m_position = request.position;
-		m_player->seek(output_seek_target(request.settings, request.video_info, request.position), true);
+	if (m_loaded == key && !m_pending && m_target != m_requested_target) {
+		m_target = m_requested_target;
+		m_player->seek(m_requested_target, true);
 	}
 
 	if (!ready_player())
@@ -154,7 +155,6 @@ void BlurPreview::update(const Request& request) {
 void BlurPreview::start_build(const Request& request) {
 	m_pending = PendingScript{
 		.key = *m_requested,
-		.video_info = request.video_info,
 		// device indices can wait on device detection, so it's built off the main thread
 		.script = std::async(
 			std::launch::async,
@@ -199,14 +199,10 @@ void BlurPreview::finish_build() {
 
 	u::log("loading blur preview for {}", u::path_to_string(pending.key.video_path));
 
-	m_player->load_file(
-		m_script_path,
-		{},
-		load_options(output_seek_target(pending.key.settings, pending.video_info, m_requested_position))
-	);
+	m_player->load_file(m_script_path, {}, load_options(m_requested_target));
 
 	m_loaded = pending.key;
-	m_position = m_requested_position;
+	m_target = m_requested_target;
 }
 
 void BlurPreview::read_log() {
@@ -239,8 +235,7 @@ std::shared_ptr<VideoPlayer> BlurPreview::ready_player() const {
 	if (!m_player)
 		return nullptr;
 
-	bool current =
-		!m_failed && !m_pending && m_requested && m_loaded == m_requested && m_position == m_requested_position;
+	bool current = !m_failed && !m_pending && m_requested && m_loaded == m_requested && m_target == m_requested_target;
 
 	if (!current || !m_player->has_frame() || !m_player->get_video_dimensions() || !m_player->seek_settled())
 		return nullptr;
