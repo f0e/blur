@@ -46,16 +46,25 @@ namespace {
 		return static_cast<double>(settings.output_timescale) / settings.input_timescale;
 	}
 
-	// where in blur.py's output to seek for a position. with blur on the output's frames are sparse, so it's snapped to
-	// the nearest one
-	float output_seek_target(const BlurSettings& settings, const media::VideoInfo& video_info, float position) {
+	// the time in blur.py's output of the frame shown for a position. with blur on the output's frames are sparse,
+	// so it's the nearest one
+	double output_time(const BlurSettings& settings, const media::VideoInfo& video_info, float position) {
 		double time = position * video_info.video_duration / output_speed(settings);
+
+		if (!settings.blur)
+			return time;
+
+		double fps = settings.blur_output_fps;
+		return std::round(time * fps) / fps;
+	}
+
+	float output_seek_target(const BlurSettings& settings, const media::VideoInfo& video_info, float position) {
+		double time = output_time(settings, video_info, position);
 
 		if (!settings.blur)
 			return static_cast<float>(time);
 
-		double fps = settings.blur_output_fps;
-		return VideoPlayer::frame_seek_target(std::round(time * fps) / fps, fps);
+		return VideoPlayer::frame_seek_target(time, settings.blur_output_fps);
 	}
 
 	std::vector<std::pair<std::string, std::string>> load_options(float start) {
@@ -258,15 +267,7 @@ BlurPreview::Status BlurPreview::status() const {
 }
 
 double BlurPreview::source_time(const BlurSettings& settings, const media::VideoInfo& video_info, float position) {
-	double time = position * video_info.video_duration;
-
-	if (!settings.blur)
-		return time;
-
-	double fps = settings.blur_output_fps;
-	double output_time = std::round(time / output_speed(settings) * fps) / fps;
-
-	return output_time * output_speed(settings);
+	return output_time(settings, video_info, position) * output_speed(settings);
 }
 
 std::optional<rendering::RenderError> BlurPreview::take_error() {
