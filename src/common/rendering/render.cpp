@@ -77,7 +77,10 @@ tl::expected<std::string, std::string> rendering::build_preview_script(
 	return std::format(
 		R"(import sys
 
-sys.path.insert(1, {})
+# python stays loaded between scripts, so this is only added once
+lib_path = {}
+if lib_path not in sys.path:
+    sys.path.insert(1, lib_path)
 
 import blur.preview
 
