@@ -24,7 +24,6 @@ namespace gui::components::configs::preview_frames {
 
 	struct Result {
 		std::optional<Frame> frame;
-		bool loading = false;
 		bool failed = false;
 		bool playing = false;
 		float video_duration = 0.f;
