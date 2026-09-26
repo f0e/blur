@@ -101,7 +101,8 @@ public:
 	// https://github.com/mpv-player/mpv/blob/v0.41.0/player/video.c#L471
 	[[nodiscard]] static float frame_seek_target(double frame_time, double fps) {
 		constexpr double MPV_HR_SEEK_TOLERANCE = 0.005;
-		return static_cast<float>(frame_time + MPV_HR_SEEK_TOLERANCE - (0.5 / fps));
+		// negative times count from the end
+		return static_cast<float>(std::max(0.0, frame_time + MPV_HR_SEEK_TOLERANCE - (0.5 / fps)));
 	}
 
 	void seek(float seconds, bool exact) {
