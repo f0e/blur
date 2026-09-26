@@ -78,6 +78,7 @@ void VideoPlayer::reset_loaded_file() {
 	m_has_frame = false;
 
 	m_cached_percent_pos = -1.0;
+	m_cached_time_pos = -1.0;
 	m_cached_duration = -1.0;
 	m_cached_fps = 0.0;
 	m_cached_width = 0;
@@ -292,6 +293,8 @@ void VideoPlayer::initialize_mpv(float volume) {
 	mpv_set_option_string(m_mpv, "volume", std::format("{:.2f}", volume).c_str());
 
 	mpv_observe_property(m_mpv, 0, "percent-pos", MPV_FORMAT_DOUBLE);
+	mpv_observe_property(m_mpv, 0, "time-pos", MPV_FORMAT_DOUBLE);
+	mpv_observe_property(m_mpv, 0, "pause", MPV_FORMAT_FLAG);
 	mpv_observe_property(m_mpv, 0, "duration/full", MPV_FORMAT_DOUBLE);
 	mpv_observe_property(m_mpv, 0, "container-fps", MPV_FORMAT_DOUBLE);
 	mpv_observe_property(m_mpv, 0, "hwdec-current", MPV_FORMAT_STRING);
@@ -494,6 +497,13 @@ bool VideoPlayer::process_mpv_events() {
 
 				if (std::strcmp(name, "percent-pos") == 0) {
 					m_cached_percent_pos = available ? *static_cast<double*>(prop->data) : -1.0;
+				}
+				else if (std::strcmp(name, "time-pos") == 0) {
+					m_cached_time_pos = available ? *static_cast<double*>(prop->data) : -1.0;
+				}
+				else if (std::strcmp(name, "pause") == 0 && available) {
+					m_paused = *static_cast<int*>(prop->data) != 0;
+					changed = true;
 				}
 				else if (std::strcmp(name, "duration/full") == 0) {
 					m_cached_duration = available ? *static_cast<double*>(prop->data) : -1.0;
