@@ -36,7 +36,12 @@ public:
 
 	void handle_key_press(SDL_Keycode key);
 
-	void load_file(const std::filesystem::path& file_path, std::optional<float> start_time = {});
+	// options are mpv's per-file ones, e.g. { "demuxer-lavf-format", "vapoursynth" }
+	void load_file(
+		const std::filesystem::path& file_path,
+		std::optional<float> start_time = {},
+		const std::vector<std::pair<std::string, std::string>>& options = {}
+	);
 	void stop();
 
 	bool render(int w, int h);
@@ -64,6 +69,12 @@ public:
 		return m_is_seeking;
 	}
 
+	// the last seek's frame has arrived and nothing else is queued. mpv can say a seek's done before its frame's
+	// ready to draw, which would show the frame from before it for a moment
+	[[nodiscard]] bool seek_settled() const {
+		return !m_is_seeking && !m_queued_seek && !m_awaiting_seek_frame;
+	}
+
 	[[nodiscard]] std::optional<double> get_fps() const {
 		if (m_cached_fps > 0.0)
 			return m_cached_fps.load();
@@ -83,6 +94,14 @@ public:
 	// mpv reports the video ready before it's decoded anything, drawing it before this is a black frame
 	[[nodiscard]] bool has_frame() const {
 		return is_video_ready() && m_has_frame;
+	}
+
+	// an exact seek shows the first frame at or after the target minus 5ms, which at high fps can be the frame before
+	// the one meant. this aims half a frame into it instead
+	// https://github.com/mpv-player/mpv/blob/v0.41.0/player/video.c#L471
+	[[nodiscard]] static float frame_seek_target(double frame_time, double fps) {
+		constexpr double MPV_HR_SEEK_TOLERANCE = 0.005;
+		return static_cast<float>(frame_time + MPV_HR_SEEK_TOLERANCE - (0.5 / fps));
 	}
 
 	void seek(float seconds, bool exact) {
@@ -160,6 +179,17 @@ public:
 		return m_current_file_path;
 	}
 
+	// the error lines mpv logged for the last file that failed to load, once
+	std::optional<std::string> take_load_error() {
+		return std::exchange(m_load_error, std::nullopt);
+	}
+
+	// saves the current frame at the video's own size, in the format the extension names. on_done gets an error, if
+	// there was one
+	void screenshot_to_file(
+		const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
+	);
+
 private:
 	mpv_handle* m_mpv = nullptr;
 	mpv_render_context* m_mpv_gl = nullptr;
@@ -179,6 +209,13 @@ private:
 
 	std::optional<Seek> m_queued_seek;
 	bool m_is_seeking = false;
+	bool m_awaiting_seek_frame = false;
+
+	std::string m_file_errors;
+	std::optional<std::string> m_load_error;
+
+	uint64_t m_next_reply_id = 2; // 1 is seeks
+	std::unordered_map<uint64_t, std::function<void(std::optional<std::string>)>> m_reply_callbacks;
 
 	std::atomic<bool> m_new_frame_available{ false };
 	std::atomic<bool> m_has_frame{ false };
@@ -205,11 +242,14 @@ private:
 
 	void on_mpv_render_update();
 
-	void process_mpv_events();
+	// true when something the ui shows changed, like a seek finishing
+	bool process_mpv_events();
 
 	void gen_fbo_texture();
 
 	void setup_fbo_texture(int w, int h);
+
+	void observe_dimensions();
 
 	void reset_loaded_file();
 
