@@ -77,16 +77,24 @@ namespace {
 		}
 	}
 
+	bool is_rgb_pix_fmt(const std::string& pix_fmt) {
+		return pix_fmt.find("rgb") != std::string::npos || pix_fmt.find("bgr") != std::string::npos ||
+		       pix_fmt.starts_with("gbr");
+	}
+
 	// carry the source's colour metadata through so the output isn't reinterpreted
 	void append_colour_param_args(std::vector<std::string>& args, const media::VideoInfo& video_info) {
 		std::vector<std::string> params;
+
+		// blur.py converts rgb sources to yuv, so their pixel format and matrix don't carry over
+		bool rgb = video_info.pix_fmt && is_rgb_pix_fmt(*video_info.pix_fmt);
 
 		if (video_info.color_range && *video_info.color_range != "") {
 			std::string range = *video_info.color_range == "pc" ? "full" : "limited";
 			params.emplace_back("range=" + range);
 		}
 
-		if (video_info.color_space && *video_info.color_space != "")
+		if (!rgb && video_info.color_space && *video_info.color_space != "")
 			params.emplace_back("colorspace=" + *video_info.color_space);
 
 		if (video_info.color_transfer && *video_info.color_transfer != "")
@@ -108,7 +116,7 @@ namespace {
 
 		args.insert(args.end(), { "-vf", filter });
 
-		if (video_info.pix_fmt) {
+		if (video_info.pix_fmt && !rgb) {
 			args.insert(args.end(), { "-pix_fmt", *video_info.pix_fmt });
 		}
 	}

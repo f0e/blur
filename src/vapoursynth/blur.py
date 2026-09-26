@@ -154,6 +154,15 @@ def main():
         if video is None:
             video = bestsource(hwdevice=None)
 
+    # rgb sources (frameservers, lossless captures) can't go through svp or out as y4m
+    if video.format.color_family == vs.RGB:
+        video = core.resize.Bicubic(
+            video,
+            format=vs.YUV420P8,
+            matrix=u.guess_matrix(video.width, video.height),
+            range=vs.RANGE_FULL if color_range == "pc" else vs.RANGE_LIMITED,
+        )
+
     # trimming
     start = int(globals().get("start", 0))
     end = int(globals().get("end", video.num_frames))
