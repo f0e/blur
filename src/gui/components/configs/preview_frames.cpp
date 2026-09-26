@@ -106,7 +106,7 @@ namespace {
 	}
 
 	preview_frames::Result update_blurred(const preview_frames::Request& request, const media::VideoInfo& info) {
-		update_source_player(request, info, request.app_settings.config_preview_seek);
+		update_source_player(request, info, request.position);
 
 		preview_frames::Result result{ .video_duration = static_cast<float>(info.video_duration) };
 

@@ -11,6 +11,8 @@
 #include "../mask_preview.h"
 #include "../player_blur_preview.h"
 #include "notifications.h"
+#include "configs/configs.h"
+#include "../fonts/icons.h"
 #include "common/masks.h"
 #include "../render/render.h"
 #include <SDL3/SDL_dialog.h>
@@ -25,6 +27,8 @@ namespace {
 	main::MainScreen last_main_screen = main::MainScreen::HOME;
 
 	const std::string NO_CONFIG_OPTION = "select a config";
+
+	const int EDIT_CONFIG_BUTTON_GAP = 6;
 
 	// keyed on the config too since its encode preset decides whether trimming works
 	std::map<std::pair<size_t, std::string>, bool> trim_disabled_cache;
@@ -524,7 +528,14 @@ void main::render_pending(
 			config_missing_message,
 			gfx::Color(255, 100, 100),
 			[&] {
-				ui::add_dropdown(
+				bool can_edit_config = !pending_video->config_name.empty();
+
+				const int edit_button_size = ui::get_dropdown_box_height(fonts::dejavu);
+				std::optional<int> dropdown_width;
+				if (can_edit_config)
+					dropdown_width = config_container.get_usable_rect().w - edit_button_size - EDIT_CONFIG_BUTTON_GAP;
+
+				auto* dropdown = ui::add_dropdown(
 					std::format("config dropdown {}", pending_video->video_id),
 					config_container,
 					"config",
@@ -550,8 +561,48 @@ void main::render_pending(
 						invalidate_trim_support();
 					},
 					// show the placeholder as muted without making it selectable
-					{ NO_CONFIG_OPTION }
+					{ NO_CONFIG_OPTION },
+					{},
+					{},
+					dropdown_width
 				);
+
+				if (!can_edit_config)
+					return;
+
+				ui::set_next_same_line(config_container);
+
+				auto* edit_button = ui::add_icon_button(
+					"edit config button",
+					config_container,
+					icons::COG,
+					fonts::icons,
+					gfx::Size(edit_button_size, edit_button_size),
+					gfx::Color::white(120),
+					gfx::Color::white(),
+					[pending_video] {
+						const auto& player = ui::videos::player;
+
+						float seek = 0.f;
+						if (player && pending_video->video_info && ui::videos::is_loaded(pending_video->video_path)) {
+							player->set_paused(true);
+
+							seek =
+								PlayerBlurPreview::player_position(*player, *pending_video->video_info).value_or(0.f);
+						}
+
+						gui::components::configs::edit_config_for_video(
+							pending_video->config_name, pending_video->video_path, seek
+						);
+					},
+					"Edit config & preview using this video"
+				);
+
+				// line it up with the dropdown's box rather than its label
+				auto& edit_rect = edit_button->element->rect;
+				edit_rect.x = config_container.get_usable_rect().x2() - edit_rect.w;
+				edit_rect.y = dropdown->element->rect.y2() - edit_rect.h;
+				edit_button->element->orig_rect = edit_rect;
 			}
 		);
 
