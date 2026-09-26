@@ -9,6 +9,7 @@
 #include "../ui/ui.h"
 #include "../ui/elements/videos/videos.h"
 #include "../mask_preview.h"
+#include "../player_blur_preview.h"
 #include "notifications.h"
 #include "common/masks.h"
 #include "../render/render.h"
@@ -83,7 +84,7 @@ namespace {
 		return settings;
 	}
 
-	struct BlurPreviewState {
+	struct QueuePreviewState {
 		std::optional<ui::VideoOverlay> overlay;
 		std::optional<std::string> status;
 	};
@@ -95,7 +96,7 @@ namespace {
 			);
 	}
 
-	BlurPreviewState update_preview(const tasks::PendingVideo& pending_video, const GlobalAppSettings& app_config) {
+	QueuePreviewState update_preview(const tasks::PendingVideo& pending_video, const GlobalAppSettings& app_config) {
 		if (!blur_preview_enabled)
 			blur_preview.reset();
 
@@ -138,8 +139,7 @@ namespace {
 
 			return {
 				.overlay = ui::VideoOverlay{ .player = state.overlay },
-				.status = state.overlay ? PlayerBlurPreview::status_text(state)
-				                        : PlayerBlurPreview::status_text(state).value_or("loading mask..."),
+				.status = state.status_text("loading mask..."),
 			};
 		}
 
@@ -158,13 +158,9 @@ namespace {
 
 		show_preview_error("Failed to generate blur preview.", blur_preview->take_error());
 
-		BlurPreviewState result{ .status = PlayerBlurPreview::status_text(state) };
-		if (!state.playing) {
+		QueuePreviewState result{ .status = state.status_text("rendering preview...") };
+		if (!state.playing)
 			result.overlay = ui::VideoOverlay{ .player = state.overlay };
-
-			if (!state.overlay && !result.status)
-				result.status = "rendering preview...";
-		}
 
 		return result;
 	}

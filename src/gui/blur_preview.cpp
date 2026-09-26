@@ -279,6 +279,28 @@ void BlurPreview::handle_event(const SDL_Event& event, bool& to_render) {
 		m_player->handle_mpv_event(event, to_render, true);
 }
 
+std::optional<std::string> PreviewState::status_text(std::optional<std::string> loading_text) const {
+	if (playing)
+		return "pause to see it blurred";
+
+	if (overlay)
+		return std::nullopt;
+
+	if (status.failed)
+		return "couldn't generate the preview";
+
+	switch (status.init_stage) {
+		case rendering::RenderState::InitStage::GENERATING_MASK:
+			return "analysing video to generate a mask...";
+		case rendering::RenderState::InitStage::BUILDING_ENGINE:
+			return "building tensorrt engine, this may take a few minutes...";
+		case rendering::RenderState::InitStage::NONE:
+			break;
+	}
+
+	return loading_text;
+}
+
 bool BlurPreview::save_frame(
 	const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
 ) const {

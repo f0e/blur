@@ -18,17 +18,8 @@ public:
 		// NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 	};
 
-	struct State {
-		bool playing = false;
-
-		// while paused, the blurred frame to show. after a seek that's the last one until the video has a newer frame,
-		// then nothing while the video stands in faded until the new blurred frame's ready
-		std::shared_ptr<VideoPlayer> overlay;
-
-		BlurPreview::Status status;
-	};
-
-	State update(const Request& request);
+	// after a seek the last blurred frame stays up until the video has a newer frame to stand in with
+	PreviewState update(const Request& request);
 
 	// why the preview couldn't be loaded, once
 	std::optional<rendering::RenderError> take_error() {
@@ -38,9 +29,6 @@ public:
 	void handle_event(const SDL_Event& event, bool& to_render) {
 		m_preview.handle_event(event, to_render);
 	}
-
-	// what to tell the user while there's nothing blurred to show. nothing when it's just on its way
-	[[nodiscard]] static std::optional<std::string> status_text(const State& state);
 
 	// how far through the video the player is, 0-1
 	[[nodiscard]] static std::optional<float> player_position(
