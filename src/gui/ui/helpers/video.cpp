@@ -462,7 +462,7 @@ bool VideoPlayer::process_mpv_events() {
 			}
 			case MPV_EVENT_COMMAND_REPLY: {
 				changed = true;
-				// a failed seek never restarts playback, so it has to be cleared here
+
 				auto callback = m_reply_callbacks.find(mp_event->reply_userdata);
 				if (callback != m_reply_callbacks.end()) {
 					auto on_done = std::move(callback->second);
@@ -474,6 +474,7 @@ bool VideoPlayer::process_mpv_events() {
 						on_done(std::nullopt);
 				}
 
+				// a failed seek never restarts playback, so it has to be cleared here
 				if (mp_event->reply_userdata == SEEK_REPLY_ID && mp_event->error < 0) {
 					u::log_error("MPV: Seek failed: {}", mpv_error_string(mp_event->error));
 					m_is_seeking = false;
