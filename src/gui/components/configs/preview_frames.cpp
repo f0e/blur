@@ -39,7 +39,7 @@ namespace {
 	// put on the frame the blurred frame for this position is centred on, so nothing jumps when that arrives
 	void update_source_player(const preview_frames::Request& request, const media::VideoInfo& info, float position) {
 		if (source_player && position == playback_position) {
-			// wherever it was last put, it's somewhere else now
+			// playback's moved it on from where it was last seeked to
 			source_timestamp.reset();
 			return;
 		}

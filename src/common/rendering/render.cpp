@@ -65,8 +65,7 @@ tl::expected<std::string, std::string> rendering::build_preview_script(
 		return nlohmann::json(str).dump();
 	};
 
-	// vapoursynth reads VAPOURSYNTH_EXTRA_PLUGIN_PATH through its crt's cached environment, which setting it from the
-	// app doesn't reliably reach, so the script loads the plugins itself
+	// setting VAPOURSYNTH_EXTRA_PLUGIN_PATH from the app doesn't reliably reach vapoursynth, so the script loads them
 	std::string plugins_path = R"("")";
 #ifdef _WIN32
 	if (blur.used_installer)

@@ -81,8 +81,7 @@ public:
 		return m_is_seeking;
 	}
 
-	// the last seek's frame has arrived and nothing else is queued. mpv can say a seek's done before its frame's
-	// ready to draw, which would show the frame from before it for a moment
+	// the last seek's frame has arrived and nothing else is queued
 	[[nodiscard]] bool seek_settled() const {
 		return !m_is_seeking && !m_queued_seek && !m_awaiting_seek_frame;
 	}
