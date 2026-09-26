@@ -1,1 +1,0 @@
-../../../src/vapoursynth/get_rife_gpus.py

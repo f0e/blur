@@ -1,5 +1,9 @@
 #pragma once
 
+#include <algorithm>
+
+#include "point.h"
+
 namespace gfx {
 	class Point;
 	class Size;
@@ -17,6 +21,8 @@ namespace gfx {
 
 		constexpr Rect(const Point& position, const Size& size);
 		constexpr Rect(const Point& p1, const Point& p2);
+
+		constexpr bool operator==(const Rect& other) const = default;
 
 		// Position and size accessors
 		[[nodiscard]] constexpr Point position() const;
@@ -44,11 +50,41 @@ namespace gfx {
 			return y + h;
 		}
 
-		[[nodiscard]] constexpr Point top_left() const;
-		[[nodiscard]] constexpr Point top_right() const;
-		[[nodiscard]] constexpr Point bottom_left() const;
-		[[nodiscard]] constexpr Point bottom_right() const;
-		[[nodiscard]] constexpr Point center() const;
+		[[nodiscard]] constexpr Point top_left() const {
+			return { x, y };
+		}
+
+		[[nodiscard]] constexpr Point top_right() const {
+			return { x + w, y };
+		}
+
+		[[nodiscard]] constexpr Point bottom_left() const {
+			return { x, y + h };
+		}
+
+		[[nodiscard]] constexpr Point bottom_right() const {
+			return { x + w, y + h };
+		}
+
+		[[nodiscard]] constexpr Point top_center() const {
+			return { x + (w / 2), y };
+		}
+
+		[[nodiscard]] constexpr Point bottom_center() const {
+			return { x + (w / 2), y + h };
+		}
+
+		[[nodiscard]] constexpr Point left_center() const {
+			return { x, y + (h / 2) };
+		}
+
+		[[nodiscard]] constexpr Point right_center() const {
+			return { x + w, y + (h / 2) };
+		}
+
+		[[nodiscard]] constexpr Point center() const {
+			return { x + (w / 2), y + (h / 2) };
+		}
 
 		[[nodiscard]] constexpr Point origin() const {
 			return top_left();
@@ -144,10 +180,13 @@ namespace gfx {
 			return { nx, ny, nx2 - nx, ny2 - ny };
 		}
 
-		// Non-constexpr methods that need external state or implementation
+		[[nodiscard]] static Rect lerp(const Rect& from, const Rect& to, float amount);
+
+		// methods that need external state or implementation
 		[[nodiscard]] bool hovered() const;
 		[[nodiscard]] float mouse_percent_x(bool uncapped = false) const;
 		[[nodiscard]] float mouse_percent_y(bool uncapped = false) const;
+		[[nodiscard]] bool on_screen() const;
 		void clamp_to(const Rect& boundary);
 
 		constexpr Rect operator+(const Point& offset) const;

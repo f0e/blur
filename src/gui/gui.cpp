@@ -6,12 +6,51 @@
 #include "ui/ui.h"
 #include "components/notifications.h"
 #include "components/configs/configs.h"
+#include "components/configs/preview_frames.h"
+#include "os/taskbar.h"
 
 #define DEBUG_RENDER_LOGGING 0
 
 namespace {
 	const int PAD_X = 24;
 	const int PAD_Y = PAD_X;
+
+	// runs every tick rather than every drawn frame so the icon updates while minimised
+	void update_taskbar_progress() {
+		using os::taskbar::ProgressState;
+
+		auto current = rendering::video_render_queue.front();
+
+		if (current) {
+			gui::render_failed = false;
+
+			auto progress = current->state->get_progress();
+
+			// no frame count yet (starting up, or building a tensorrt engine)
+			if (!progress.rendered_a_frame || progress.total_frames <= 0) {
+				os::taskbar::set_progress(ProgressState::INDETERMINATE);
+				return;
+			}
+
+			os::taskbar::set_progress(
+				current->state->is_paused() ? ProgressState::PAUSED : ProgressState::NORMAL,
+				float(progress.current_frame) / float(progress.total_frames)
+			);
+			return;
+		}
+
+		if (gui::render_failed) {
+			// keep the red bar until the window's focused
+			if (sdl::window && !(SDL_GetWindowFlags(sdl::window) & SDL_WINDOW_INPUT_FOCUS)) {
+				os::taskbar::set_progress(ProgressState::ERRORED, 1.f);
+				return;
+			}
+
+			gui::render_failed = false;
+		}
+
+		os::taskbar::set_progress(ProgressState::NONE);
+	}
 }
 
 int gui::run() {
@@ -26,10 +65,15 @@ int gui::run() {
 
 	bool rendered_last = false;
 
-	while (true) {
+	while (!blur.exiting) {
 		auto frame_start = std::chrono::steady_clock::now();
 
 		sdl::update_vsync();
+
+		// check if app config was edited & we have to re-render
+		to_render |= sdl::poll_config_reload();
+
+		update_taskbar_progress();
 
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {
@@ -59,19 +103,7 @@ int gui::run() {
 						u::log("loading config: {}", path);
 
 						try {
-							const auto file_settings = config_blur::parse(path);
-
-							ui::reset_tied_sliders();
-							gui::components::configs::settings = file_settings;
-
-							gui::components::configs::loaded_config = true;
-							gui::components::configs::should_load_config = false;
-
-							gui::renderer::screen = gui::renderer::Screens::CONFIG;
-
-							gui::components::notifications::add(
-								"Imported config", ui::NotificationType::INFO, {}, std::chrono::duration<float>(2.f)
-							);
+							gui::components::configs::import_config(config_blur::parse(path));
 						}
 						catch (const std::exception& e) {
 							gui::components::notifications::add(
@@ -85,14 +117,12 @@ int gui::run() {
 						break;
 					}
 
-					if (gui::renderer::screen == gui::renderer::Screens::CONFIG) {
-						auto sample_video_path = blur.settings_path / "sample_video.mp4";
-						bool sample_video_exists = std::filesystem::exists(sample_video_path);
-						if (!sample_video_exists) {
-							tasks::add_sample_video(path);
+					if (gui::renderer::screen == gui::renderer::Screens::CONFIG &&
+					    !gui::components::configs::has_sample_video())
+					{
+						tasks::add_sample_video(path);
 
-							break;
-						}
+						break;
 					}
 
 					tasks::add_files({ path });
@@ -104,17 +134,31 @@ int gui::run() {
 					break;
 			}
 
+			ui::handle_videos_event(event, to_render);
+			gui::components::configs::preview_frames::handle_event(event, to_render);
+
 			if (keys::process_event(event)) {
 				ui::on_update_input_start();
-
 				to_render |= ui::update_container_input(renderer::notification_container);
-				to_render |= ui::update_container_input(renderer::nav_container);
 
-				to_render |= ui::update_container_input(renderer::main_container);
-				to_render |= ui::update_container_input(renderer::config_container);
-				to_render |= ui::update_container_input(renderer::option_information_container);
-				to_render |= ui::update_container_input(renderer::config_preview_header_container);
-				to_render |= ui::update_container_input(renderer::config_preview_content_container);
+				if (ui::dialog::is_open()) {
+					// modal, nothing behind it gets input
+					to_render |= ui::dialog::update_input();
+				}
+				else {
+					to_render |= ui::update_container_input(renderer::history_panel_container);
+					to_render |= ui::update_container_input(renderer::history_button_container);
+					to_render |= ui::update_container_input(renderer::update_container);
+					to_render |= ui::update_container_input(renderer::navigation_button_container);
+					to_render |= ui::update_container_input(renderer::nav_container);
+
+					to_render |= ui::update_container_input(renderer::main_container);
+					to_render |= ui::update_container_input(renderer::queue_config_container);
+					to_render |= ui::update_container_input(renderer::queue_container);
+					to_render |= ui::update_container_input(renderer::config_container);
+					to_render |= ui::update_container_input(renderer::option_information_container);
+					to_render |= ui::update_container_input(renderer::config_preview_content_container);
+				}
 
 				ui::on_update_input_end();
 			}
@@ -141,11 +185,16 @@ int gui::run() {
 
 			double time_to_sleep = sdl::vsync_frame_time_ms - elapsed_ms;
 			if (time_to_sleep > 0.f)
-				SDL_Delay(time_to_sleep);
+				SDL_WaitEventTimeout(nullptr, time_to_sleep);
 		}
 		else {
 			rendered_last = false;
-			SDL_Delay(sdl::TICKRATE_MS);
+
+			// wait on events rather than sleeping so pushed video frame events wake us up
+			SDL_WaitEventTimeout(nullptr, (int)sdl::TICKRATE_MS);
 		}
 	}
+
+	sdl::cleanup();
+	return 0;
 }

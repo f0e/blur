@@ -9,9 +9,13 @@ namespace gui::renderer {
 	inline constexpr int PAD_X = 24;
 	inline constexpr int PAD_Y = PAD_X;
 
+	inline constexpr int HISTORY_PANEL_W = 380;
+	inline constexpr int HISTORY_PANEL_PAD = 10;
+
 	inline constexpr float FPS_SMOOTHING = 0.95f;
 
 	enum class Screens : uint8_t {
+		TEST,
 		MAIN,
 		CONFIG
 	};
@@ -19,14 +23,22 @@ namespace gui::renderer {
 	inline Screens screen = Screens::MAIN;
 
 	inline ui::Container main_container;
+	inline ui::Container queue_config_container;
+	inline ui::Container queue_container;
 	inline ui::Container config_container;
-	inline ui::Container config_preview_header_container;
 	inline ui::Container config_preview_content_container;
 	inline ui::Container option_information_container;
 	inline ui::Container notification_container;
+	inline ui::Container history_button_container;
+	inline ui::Container history_panel_container;
+	inline ui::Container update_container;
 	inline ui::Container nav_container;
+	inline ui::Container navigation_button_container;
 
 	bool redraw_window(bool rendered_last, bool want_to_render);
 
-	void on_render_finished(Render* render, const tl::expected<RenderResult, std::string>& result);
+	void on_render_finished(
+		const rendering::VideoRenderDetails& render,
+		const tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>>& result
+	);
 }

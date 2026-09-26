@@ -1,24 +1,90 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(VCPKG_LIBRARY_LINKAGE static)
-if(WIN32)
-  set(VCPKG_TARGET_TRIPLET
-      "x64-windows-static"
-      CACHE STRING "")
+# catch a missing vcpkg before project() fails with a vaguer toolchain error
+if(
+  CMAKE_TOOLCHAIN_FILE MATCHES "vcpkg\\.cmake$"
+  AND NOT EXISTS "${CMAKE_TOOLCHAIN_FILE}"
+)
+  message(
+    FATAL_ERROR
+    "vcpkg toolchain not found at:\n  ${CMAKE_TOOLCHAIN_FILE}\n"
+    "VCPKG_ROOT is \"$ENV{VCPKG_ROOT}\". Install vcpkg there, e.g.:\n"
+    "  git clone https://github.com/microsoft/vcpkg \"$ENV{VCPKG_ROOT}\"\n"
+    "  \"$ENV{VCPKG_ROOT}/bootstrap-vcpkg.sh\"\n"
+    "or point VCPKG_ROOT at an existing install()."
+  )
 endif()
 
-# Force static runtime on Windows
+set(
+  VCPKG_OVERLAY_TRIPLETS
+  "${CMAKE_CURRENT_LIST_DIR}/cmake/triplets"
+  CACHE STRING
+  ""
+  FORCE
+)
+
+# CMAKE_HOST_SYSTEM_PROCESSOR isn't set until project(), too late for vcpkg's
+# toolchain, so query the host arch directly instead
+cmake_host_system_information(RESULT BLUR_HOST_PROCESSOR QUERY OS_PLATFORM)
+string(TOLOWER "${BLUR_HOST_PROCESSOR}" BLUR_HOST_PROCESSOR)
+if(BLUR_HOST_PROCESSOR MATCHES "^(arm64|aarch64)$")
+  set(BLUR_VCPKG_ARCH arm64)
+else()
+  set(BLUR_VCPKG_ARCH x64)
+endif()
+
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+  set(BLUR_VCPKG_PLATFORM windows)
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+  set(BLUR_VCPKG_PLATFORM osx)
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+  set(BLUR_VCPKG_PLATFORM linux)
+endif()
+
+if(BLUR_VCPKG_PLATFORM)
+  set(BLUR_VCPKG_DEFAULT_TRIPLET "${BLUR_VCPKG_ARCH}-${BLUR_VCPKG_PLATFORM}")
+
+  # default to the -blur triplet instead of vcpkg's stock one
+  if(NOT VCPKG_TARGET_TRIPLET)
+    set(
+      VCPKG_TARGET_TRIPLET
+      "${BLUR_VCPKG_DEFAULT_TRIPLET}-blur"
+      CACHE STRING
+      ""
+      FORCE
+    )
+  endif()
+endif()
+
+# force static runtime on windows
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-project(blur LANGUAGES C CXX)
+project(blur VERSION 3.0.0 LANGUAGES C CXX)
 
 # global settings
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY
-    ${PROJECT_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE})
-set(CMAKE_BINARY_DIR ${PROJECT_SOURCE_DIR}/build/${CMAKE_BUILD_TYPE})
+
+# link the c++ runtime statically so builds run on distros with an older libstdc++, and don't export symbols from
+# static libraries so shared libraries using the same one (e.g. libpng) don't bind to ours
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_link_options(-static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL)
+endif()
+set(
+  CMAKE_RUNTIME_OUTPUT_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}
+)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
+# version comes from project() above, bump it there
+set(BLUR_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
+configure_file(
+  "${CMAKE_SOURCE_DIR}/cmake/blur_version.h.in"
+  "${BLUR_GENERATED_DIR}/blur_version.h"
+  @ONLY
+)
 
 # packages
 find_package(nlohmann_json CONFIG REQUIRED)
@@ -28,7 +94,30 @@ find_package(CLI11 CONFIG REQUIRED)
 find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3)
 find_package(SDL3_image CONFIG REQUIRED)
 find_package(Freetype REQUIRED)
-find_package(glad CONFIG REQUIRED)
+
+# linux uses the system's EGL/GLES, vcpkg's ANGLE can't open X11 or Wayland windows
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set(BLUR_USE_ANGLE OFF)
+else()
+  set(BLUR_USE_ANGLE ON)
+endif()
+
+if(BLUR_USE_ANGLE)
+  find_package(unofficial-angle REQUIRED CONFIG)
+
+  # always use release ANGLE builds cause debug versions are slow asf
+  foreach(angle_target unofficial::angle::libEGL unofficial::angle::libGLESv2)
+    if(TARGET ${angle_target})
+      set_target_properties(
+        ${angle_target}
+        PROPERTIES MAP_IMPORTED_CONFIG_DEBUG "Release;Debug"
+      )
+    endif()
+  endforeach()
+else()
+  find_package(OpenGL REQUIRED COMPONENTS EGL GLES3)
+endif()
+
 find_package(GTest CONFIG REQUIRED)
 find_package(tl-expected CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
@@ -38,59 +127,78 @@ file(GLOB_RECURSE COMMON_SOURCES "src/common/*.cpp")
 file(GLOB_RECURSE CLI_SOURCES "src/cli/*.cpp")
 file(GLOB_RECURSE GUI_SOURCES "src/gui/*.cpp")
 file(GLOB_RECURSE CLI_TEST_SOURCES "tests/cli/*.cpp")
-list(FILTER CLI_TEST_SOURCES EXCLUDE REGEX
-     "^.*/tests/plot_weighting_functions/.*$")
+list(
+  FILTER CLI_TEST_SOURCES
+  EXCLUDE
+  REGEX "^.*/tests/plot_weighting_functions/.*$"
+)
 
-# Create CLI sources without main for tests
+# create CLI sources without main for tests
 set(CLI_SOURCES_NO_MAIN ${CLI_SOURCES})
 list(FILTER CLI_SOURCES_NO_MAIN EXCLUDE REGEX ".*main\\.cpp$")
 
 # collect imgui sources
-set(IMGUI_SOURCES
-    dependencies/imgui/imgui.cpp
-    dependencies/imgui/imgui_demo.cpp
-    dependencies/imgui/imgui_draw.cpp
-    dependencies/imgui/imgui_tables.cpp
-    dependencies/imgui/imgui_widgets.cpp
-    dependencies/imgui/backends/imgui_impl_sdl3.cpp
-    dependencies/imgui/backends/imgui_impl_opengl3.cpp
-    dependencies/imgui/misc/freetype/imgui_freetype.cpp)
+set(
+  IMGUI_SOURCES
+  dependencies/imgui/imgui.cpp
+  dependencies/imgui/imgui_demo.cpp
+  dependencies/imgui/imgui_draw.cpp
+  dependencies/imgui/imgui_tables.cpp
+  dependencies/imgui/imgui_widgets.cpp
+  dependencies/imgui/backends/imgui_impl_sdl3.cpp
+  dependencies/imgui/backends/imgui_impl_opengl3.cpp
+  dependencies/imgui/misc/freetype/imgui_freetype.cpp
+)
 
 file(GLOB_RECURSE RESOURCES "resources/*")
 
 # common
 add_library(blur-common STATIC ${COMMON_SOURCES})
-target_include_directories(blur-common PUBLIC src)
+target_include_directories(blur-common PUBLIC src ${BLUR_GENERATED_DIR})
 target_link_libraries(
   blur-common
-  PUBLIC nlohmann_json::nlohmann_json
-         cpr::cpr
-         Boost::system
-         Boost::filesystem
-         Threads::Threads
-         tl::expected
-         spdlog::spdlog)
+  PUBLIC
+    nlohmann_json::nlohmann_json
+    cpr::cpr
+    Boost::system
+    Boost::filesystem
+    Threads::Threads
+    tl::expected
+    spdlog::spdlog
+)
 target_precompile_headers(blur-common PUBLIC src/common/common_pch.h)
 target_compile_definitions(
-  blur-common PUBLIC NOMINMAX BOOST_FILESYSTEM_NO_LIB
-                     BOOST_FILESYSTEM_STATIC_LINK=1 SPDLOG_NO_EXCEPTIONS)
+  blur-common
+  PUBLIC
+    NOMINMAX
+    BOOST_FILESYSTEM_NO_LIB
+    BOOST_FILESYSTEM_STATIC_LINK=1
+    SPDLOG_NO_EXCEPTIONS
+)
 
 # common settings
 function(setup_target target)
   target_include_directories(${target} PRIVATE src)
   target_link_libraries(
     ${target}
-    PRIVATE nlohmann_json::nlohmann_json
-            cpr::cpr
-            Boost::system
-            Boost::filesystem
-            Threads::Threads
-            tl::expected
-            spdlog::spdlog)
-  target_compile_definitions(${target} PRIVATE NOMINMAX BOOST_FILESYSTEM_NO_LIB
-                                               BOOST_FILESYSTEM_STATIC_LINK=1)
+    PRIVATE
+      nlohmann_json::nlohmann_json
+      cpr::cpr
+      Boost::system
+      Boost::filesystem
+      Threads::Threads
+      tl::expected
+      spdlog::spdlog
+  )
+  target_compile_definitions(
+    ${target}
+    PRIVATE NOMINMAX BOOST_FILESYSTEM_NO_LIB BOOST_FILESYSTEM_STATIC_LINK=1
+  )
   if(WIN32)
-    set(${target} resources/resources_win32.rc)
+    target_compile_definitions(
+      ${target}
+      PRIVATE BLUR_RC_FILE_NAME="$<TARGET_FILE_NAME:${target}>"
+    )
   endif()
   if(APPLE)
     target_link_libraries(${target} PRIVATE "-framework CoreFoundation")
@@ -98,8 +206,10 @@ function(setup_target target)
     get_target_property(is_bundle ${target} MACOSX_BUNDLE)
 
     if(is_bundle)
-      set(BUILD_RESOURCES_DIR
-          "$<TARGET_BUNDLE_DIR:${target}>/Contents/Resources")
+      set(
+        BUILD_RESOURCES_DIR
+        "$<TARGET_BUNDLE_DIR:${target}>/Contents/Resources"
+      )
     else()
       set(BUILD_RESOURCES_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
     endif()
@@ -112,8 +222,10 @@ function(setup_target target)
     TARGET ${target}
     POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory ${BUILD_RESOURCES_DIR}/lib
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${PROJECT_SOURCE_DIR}/src/vapoursynth" ${BUILD_RESOURCES_DIR}/lib)
+    COMMAND
+      ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/src/vapoursynth"
+      ${BUILD_RESOURCES_DIR}/lib
+  )
 endfunction()
 
 if(CMAKE_BUILD_TYPE STREQUAL Debug)
@@ -138,87 +250,204 @@ if(WIN32)
 endif()
 
 # imgui
-target_include_directories(blur
-                           PRIVATE ${PROJECT_SOURCE_DIR}/dependencies/imgui)
-target_compile_definitions(blur PRIVATE IMGUI_IMPL_OPENGL_LOADER_CUSTOM)
+target_include_directories(
+  blur
+  PRIVATE ${PROJECT_SOURCE_DIR}/dependencies/imgui
+)
+target_compile_definitions(blur PRIVATE IMGUI_IMPL_OPENGL_ES3)
 
 # stb
 target_include_directories(blur PRIVATE ${PROJECT_SOURCE_DIR}/dependencies/stb)
 
+# mpv
+find_package(PkgConfig)
+find_package(MPV REQUIRED)
+
+target_include_directories(blur PRIVATE ${MPV_INCLUDE_DIRS})
+
+if(WIN32)
+  target_link_libraries(blur PRIVATE ${MPV_LIBRARY})
+
+  if(MPV_DLL)
+    add_custom_command(
+      TARGET blur
+      POST_BUILD
+      COMMAND
+        ${CMAKE_COMMAND} -E copy_if_different "${MPV_DLL}"
+        "$<TARGET_FILE_DIR:blur>/"
+      COMMENT "Copying mpv DLL to output directory"
+    )
+  endif()
+else()
+  target_link_libraries(blur PRIVATE ${MPV_LIBRARY})
+  target_link_directories(blur PRIVATE ${MPV_LIBRARY_DIRS})
+endif()
+
 target_link_libraries(
-  blur PRIVATE blur-common SDL3::SDL3 SDL3_image::SDL3_image Freetype::Freetype
-               glad::glad)
+  blur
+  PRIVATE blur-common SDL3::SDL3 SDL3_image::SDL3_image Freetype::Freetype
+)
 
-if(APPLE)
-  # Disable precompiled headers for the .mm file and .cpp file
-  set_source_files_properties(src/gui/os/desktop_notification_mac.mm
-                              PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
-
-  # Set Objective-C++ compilation for both files
-  set_source_files_properties(src/gui/os/desktop_notification_mac.mm
-                              PROPERTIES COMPILE_FLAGS "-x objective-c++")
-
-  # Add the .mm file for macOS notifications
-  target_sources(blur PRIVATE src/gui/os/desktop_notification_mac.mm)
-
+if(BLUR_USE_ANGLE)
   target_link_libraries(
     blur
-    PRIVATE "-framework CoreVideo" "-framework CoreGraphics"
-            "-framework Foundation" "-framework AppKit"
-            "-framework UserNotifications")
+    PRIVATE unofficial::angle::libEGL unofficial::angle::libGLESv2
+  )
 
-  set(MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/src/Info.plist")
+  # SDL dlopens EGL/GLES, so a static ANGLE can't work (wrong triplet)
+  get_target_property(BLUR_ANGLE_EGL_TYPE unofficial::angle::libEGL TYPE)
+  if(NOT BLUR_ANGLE_EGL_TYPE STREQUAL "SHARED_LIBRARY")
+    message(
+      FATAL_ERROR
+      "ANGLE was built as a ${BLUR_ANGLE_EGL_TYPE} by triplet ${VCPKG_TARGET_TRIPLET}, but SDL loads it dynamically. "
+      "Reconfigure with a -blur triplet (delete the build directory if it was configured with an older cmake)."
+    )
+  endif()
 
-  set_target_properties(
+  target_compile_definitions(
     blur
-    PROPERTIES MACOSX_BUNDLE TRUE
-               MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/src/Info.plist
-               MACOSX_BUNDLE_BUNDLE_NAME "Blur"
-               MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
-               MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
-               MACOSX_BUNDLE_GUI_IDENTIFIER "com.f0e.blur"
-               OUTPUT_NAME "Blur"
-               XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS
-               "${CMAKE_SOURCE_DIR}/src/Blur.entitlements"
-               XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "-"
-               XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "YES"
-               XCODE_ATTRIBUTE_CODE_SIGN_INJECT_BASE_ENTITLEMENTS "YES"
-               XCODE_ATTRIBUTE_OTHER_CODE_SIGN_FLAGS "--deep"
-               XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "YES")
+    PRIVATE
+      BLUR_USE_ANGLE
+      BLUR_ANGLE_EGL_LIBRARY="$<TARGET_FILE_NAME:unofficial::angle::libEGL>"
+      BLUR_ANGLE_GLES_LIBRARY="$<TARGET_FILE_NAME:unofficial::angle::libGLESv2>"
+  )
 
-  # Specify the .icns file as the app icon
-  set(MACOSX_BUNDLE_ICON_FILE blur.icns)
+  if(APPLE)
+    # put dylibs in Contents/Frameworks like they should be instead of alongside the executable
+    set(BLUR_ANGLE_RUNTIME_DIR "$<TARGET_BUNDLE_CONTENT_DIR:blur>/Frameworks")
+  else()
+    set(BLUR_ANGLE_RUNTIME_DIR "$<TARGET_FILE_DIR:blur>")
+  endif()
 
-  # Ensure the .icns file is included in the app bundle's Resources folder
-  set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/blur.icns
-                              PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
-
-  # Link the .icns file to the target
-  target_sources(blur PRIVATE ${CMAKE_SOURCE_DIR}/resources/blur.icns)
-
-  # Add a post-build step that will run after the bundle is created
   add_custom_command(
     TARGET blur
     POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E echo "Copying resources to bundle..."
-    # Make sure the destination directories exist
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/"
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-            "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/vapoursynth"
-    # Copy ci/out directory if it exists
-    COMMAND ${CMAKE_COMMAND} -E echo "Copying ci/out files..."
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/ci/out"
-            "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/"
-    # Copy vapoursynth scripts
-    COMMAND ${CMAKE_COMMAND} -E echo "Copying vapoursynth files..."
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${BLUR_ANGLE_RUNTIME_DIR}"
     COMMAND
-      ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/src/vapoursynth"
+      ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE:unofficial::angle::libEGL>" "${BLUR_ANGLE_RUNTIME_DIR}/"
+    COMMAND
+      ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE:unofficial::angle::libGLESv2>" "${BLUR_ANGLE_RUNTIME_DIR}/"
+    COMMENT "Copying ANGLE runtime to output directory"
+  )
+else()
+  # SDL loads libEGL itself, but blur calls GLES directly
+  target_link_libraries(blur PRIVATE OpenGL::EGL OpenGL::GLES3)
+endif()
+
+if(APPLE)
+  set_target_properties(
+    blur
+    PROPERTIES
+      BUILD_RPATH "@executable_path;@executable_path/../Frameworks"
+      INSTALL_RPATH "@executable_path;@executable_path/../Frameworks"
+  )
+elseif(UNIX)
+  set_target_properties(
+    blur
+    PROPERTIES
+      BUILD_RPATH "$ORIGIN"
+      INSTALL_RPATH "$ORIGIN"
+      BUILD_WITH_INSTALL_RPATH TRUE
+  )
+endif()
+
+if(APPLE)
+  set_source_files_properties(
+    src/gui/os/desktop_notification_mac.mm
+    src/gui/os/window_mac.mm
+    src/gui/os/clipboard_mac.mm
+    src/gui/os/file_browser_mac.mm
+    src/gui/os/taskbar_mac.mm
+    src/gui/os/drag_mac.mm
+    PROPERTIES SKIP_PRECOMPILE_HEADERS ON
+  )
+
+  set_source_files_properties(
+    src/gui/os/desktop_notification_mac.mm
+    src/gui/os/window_mac.mm
+    src/gui/os/clipboard_mac.mm
+    src/gui/os/file_browser_mac.mm
+    src/gui/os/taskbar_mac.mm
+    src/gui/os/drag_mac.mm
+    PROPERTIES COMPILE_FLAGS "-x objective-c++"
+  )
+
+  target_sources(
+    blur
+    PRIVATE
+      src/gui/os/desktop_notification_mac.mm
+      src/gui/os/window_mac.mm
+      src/gui/os/clipboard_mac.mm
+      src/gui/os/file_browser_mac.mm
+      src/gui/os/taskbar_mac.mm
+      src/gui/os/drag_mac.mm
+  )
+
+  target_link_libraries(
+    blur
+    PRIVATE
+      "-framework CoreVideo"
+      "-framework CoreGraphics"
+      "-framework Foundation"
+      "-framework AppKit"
+      "-framework UserNotifications"
+      "-framework QuartzCore"
+  )
+
+  configure_file(
+    "${CMAKE_SOURCE_DIR}/src/Info.plist.in"
+    "${BLUR_GENERATED_DIR}/Info.plist"
+    @ONLY
+  )
+
+  set(MACOSX_BUNDLE_INFO_PLIST "${BLUR_GENERATED_DIR}/Info.plist")
+
+  set_target_properties(
+    blur
+    PROPERTIES
+      MACOSX_BUNDLE TRUE
+      MACOSX_BUNDLE_INFO_PLIST "${BLUR_GENERATED_DIR}/Info.plist"
+      MACOSX_BUNDLE_BUNDLE_NAME "Blur"
+      MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+      MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+      MACOSX_BUNDLE_GUI_IDENTIFIER "com.f0e.blur"
+      OUTPUT_NAME "Blur"
+      XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS
+        "${CMAKE_SOURCE_DIR}/src/Blur.entitlements"
+      XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "-"
+      XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "YES"
+      XCODE_ATTRIBUTE_CODE_SIGN_INJECT_BASE_ENTITLEMENTS "YES"
+      XCODE_ATTRIBUTE_OTHER_CODE_SIGN_FLAGS "--deep"
+      XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "YES"
+  )
+
+  set(MACOSX_BUNDLE_ICON_FILE blur.icns)
+
+  set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/resources/blur.icns
+    PROPERTIES MACOSX_PACKAGE_LOCATION "Resources"
+  )
+
+  target_sources(blur PRIVATE ${CMAKE_SOURCE_DIR}/resources/blur.icns)
+
+  # bundle resources
+  add_custom_target(
+    blur-bundle-resources
+    COMMAND
+      ${CMAKE_COMMAND} -E make_directory
       "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/lib"
-    # Verify the copy worked
-    COMMAND ${CMAKE_COMMAND} -E echo "Resource copying complete"
-    # The VERBATIM flag ensures command arguments are correctly escaped
-    VERBATIM)
+    COMMAND
+      rsync -a --delete --exclude /lib --exclude /blur.icns
+      "${CMAKE_SOURCE_DIR}/ci/out/"
+      "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/"
+    COMMAND
+      rsync -a --delete "${CMAKE_SOURCE_DIR}/src/vapoursynth/"
+      "$<TARGET_BUNDLE_DIR:blur>/Contents/Resources/lib/"
+    VERBATIM
+  )
+  add_dependencies(blur blur-bundle-resources)
 elseif(UNIX)
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(Systemd IMPORTED_TARGET GLOBAL libsystemd>=239)
@@ -229,7 +458,10 @@ elseif(UNIX)
 elseif(WIN32)
   find_package(cppwinrt CONFIG REQUIRED)
 
-  target_link_libraries(blur PRIVATE Shcore Microsoft::CppWinRT windowsapp)
+  target_link_libraries(
+    blur
+    PRIVATE Shcore Shell32 Microsoft::CppWinRT windowsapp
+  )
 endif()
 
 target_precompile_headers(blur PRIVATE src/gui/gui_pch.h)
@@ -238,8 +470,10 @@ setup_target(blur)
 # tests
 enable_testing()
 add_executable(blur-tests ${CLI_SOURCES_NO_MAIN} ${CLI_TEST_SOURCES})
-target_link_libraries(blur-tests PRIVATE blur-common GTest::gtest
-                                         GTest::gtest_main CLI11::CLI11)
+target_link_libraries(
+  blur-tests
+  PRIVATE blur-common GTest::gtest GTest::gtest_main CLI11::CLI11
+)
 target_precompile_headers(blur-tests PRIVATE tests/cli/cli_test_pch.h)
 setup_target(blur-tests)
 

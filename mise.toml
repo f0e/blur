@@ -1,19 +1,24 @@
 [tasks.setup]
-run = """
-pre-commit install
-"""
+run = "hk install"
 
 [tasks.check]
-run = """
-uv run ci/run-clangd-tidy.py -use-color \
-  -source-filter='^((?!/dependencies/|/vcpkg_installed/).)*$' \
-  -p='./build'
-"""
+run = "hk check --all"
+
+[tasks.fix]
+run = "hk fix --all"
 
 [tools]
 cmake = "latest"
 meson = "latest"
 ninja = "latest"
-"pipx:pre-commit" = "latest"
+hk = "v2.1.0"
+"pipx:clang-format" = "20.1.8"
+"pipx:clangd" = "20.1.8"
+"pipx:ruff" = "latest"
+"pipx:zizmor" = "latest"
+shellcheck = "latest"
+shfmt = "latest"
+actionlint = "latest"
 "pipx:clangd-tidy" = "latest"
+"pipx:gersemi" = "latest"
 uv = "latest"

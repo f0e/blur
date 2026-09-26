@@ -1,11 +1,15 @@
 #include "configs.h"
-#include "../../renderer.h"
+#include "../../fonts/icons.h"
 
 #include "../../ui/ui.h"
 #include "../../render/render.h"
 
-#include "common/config_presets.h"
+#include "common/config_encoding_presets.h"
 #include "common/config_app.h"
+#include "common/masks.h"
+#include "common/devices.h"
+#include "common/rife_models.h"
+#include "common/encoding.h"
 
 namespace configs = gui::components::configs;
 
@@ -34,33 +38,73 @@ void configs::set_interpolated_fps() {
 }
 
 void configs::options(ui::Container& container) {
-	static const gfx::Color section_color = gfx::Color::white(renderer::MUTED_SHADE);
+	hovered_weighting.clear();
+	hovered_mask.clear();
+
+	auto validation = config_blur::validate(settings, app_settings, encoding_preset_settings, false);
+
+	auto validated_element = [&](config_blur::ValidationField field,
+	                             const std::string& error_id,
+	                             const std::function<void()>& add_element) {
+		auto it = std::ranges::find(validation.errors, field, &config_blur::ValidationError::field);
+		std::optional<std::string> message = it != validation.errors.end() ? std::optional(it->message) : std::nullopt;
+		ui::add_with_message(container, error_id, message, ERROR_COLOR, add_element);
+	};
 
 	bool first_section = true;
-	auto section_component = [&](std::string label, bool* setting = nullptr, bool forced_on = false) {
-		if (!first_section) {
-			ui::add_separator(std::format("section {} separator", label), container, ui::SeparatorStyle::FADE_RIGHT);
-		}
-		else
-			first_section = false;
+	auto section_component = [&](const std::string& label, bool* setting = nullptr, bool forced_on = false) {
+		section(container, first_section, label, setting, forced_on);
+	};
 
-		if (!setting)
-			return;
-
-		if (!forced_on) {
-			ui::add_checkbox(std::format("section {} checkbox", label), container, label, *setting, fonts::dejavu);
+	auto model_dropdown = [&](const std::string& label,
+	                          const std::vector<std::string>& models,
+	                          std::string& model,
+	                          const std::filesystem::path& folder) {
+		auto options = models;
+		std::vector<std::string> missing;
+		if (!model.empty() && !u::contains(models, model)) {
+			options.push_back(model);
+			missing.push_back(model);
 		}
-		else {
-			ui::add_text(std::format("section {}", label), container, label, gfx::Color::white(), fonts::dejavu);
 
-			ui::add_text(
-				std::format("section {} forced", label),
-				container,
-				"forced on as settings in this section have been modified",
-				gfx::Color::white(renderer::MUTED_SHADE),
-				fonts::dejavu
-			);
-		}
+		int button_size = ui::get_dropdown_box_height(fonts::dejavu);
+
+		container.push_element_gap(DELETE_ICON_GAP);
+		auto* dropdown = ui::add_dropdown(
+			label + " dropdown",
+			container,
+			label,
+			options,
+			model,
+			fonts::dejavu,
+			{},
+			missing,
+			{},
+			{},
+			container.get_usable_rect().w - button_size - DELETE_ICON_GAP
+		);
+		container.pop_element_gap();
+
+		ui::set_next_same_line(container);
+
+		// align with the dropdown box specifically
+		container.current_position.y = dropdown->element->rect.y2() - button_size;
+
+		ui::add_icon_button(
+			label + " folder button",
+			container,
+			icons::FOLDER,
+			fonts::icons,
+			gfx::Size(button_size, button_size),
+			DELETE_ICON_COLOR,
+			gfx::Color::white(),
+			[folder] {
+				std::string url = std::format("file://{}", u::path_to_string(folder));
+				if (!SDL_OpenURL(url.c_str()))
+					u::log_error("Failed to open models folder: {}", SDL_GetError());
+			},
+			"Open models folder"
+		);
 	};
 
 	/*
@@ -104,20 +148,45 @@ void configs::options(ui::Container& container) {
 		const auto& dropdown_data = std::get<ui::DropdownElementData>(weighting_dropdown->element->data);
 		hovered_weighting = dropdown_data.hovered_option;
 
-		if (weighting_dropdown->animations.at(ui::hasher("expand")).goal > 0) {
-			if (old_tab.empty()) {
-				old_tab = selected_tab;
-				selected_tab = "weightings";
-			}
-		}
-		else {
-			if (!old_tab.empty()) {
-				selected_tab = old_tab;
-				old_tab.clear();
-			}
-		}
+		set_temporary_tab(
+			"blur weighting", weighting_dropdown->animations.at(ui::hasher("expand")).goal > 0, RIGHT_TABS[1]
+		);
 
-		ui::add_slider("blur gamma", container, 1.f, 10.f, &settings.blur_gamma, "blur gamma: {:.2f}", fonts::dejavu);
+		ui::add_checkbox(
+			"preserve brightness checkbox",
+			container,
+			"preserve brightness",
+			settings.preserve_brightness,
+			fonts::dejavu
+		);
+
+		ui::add_checkbox("bloom checkbox", container, "bloom", settings.bloom, fonts::dejavu);
+
+		if (settings.bloom) {
+			ui::add_slider(
+				"bloom threshold",
+				container,
+				0.f,
+				1.f,
+				&settings.bloom_threshold,
+				"bloom threshold: {:.2f}",
+				fonts::dejavu,
+				{},
+				0.01f
+			);
+
+			ui::add_slider(
+				"bloom strength",
+				container,
+				0.f,
+				1.f,
+				&settings.bloom_strength,
+				"bloom strength: {:.2f}",
+				fonts::dejavu,
+				{},
+				0.01f
+			);
+		}
 	}
 
 	/*
@@ -167,14 +236,21 @@ void configs::options(ui::Container& container) {
 			);
 		}
 
+		std::vector<std::string> interpolation_options = {
+			"svp",
+			"rife",
+			"mvtools",
+		};
+
+		if (devices::initialised && !devices::tensorrt.empty()) {
+			interpolation_options.insert(interpolation_options.begin() + 2, "rife (tensorrt)");
+		}
+
 		ui::add_dropdown(
 			"interpolation method dropdown",
 			container,
 			"interpolation method",
-			{
-				"svp",
-				"rife", // plugins broken on mac rn idk why todo: fix when its fixed
-			},
+			interpolation_options,
 			settings.interpolation_method,
 			fonts::dejavu
 		);
@@ -183,7 +259,7 @@ void configs::options(ui::Container& container) {
 	/*
 	    Pre-interpolation
 	*/
-	if (settings.interpolate && settings.interpolation_method != "rife") {
+	if (settings.interpolate) {
 		section_component("pre-interpolation", &settings.pre_interpolate);
 
 		if (settings.pre_interpolate) {
@@ -227,6 +303,23 @@ void configs::options(ui::Container& container) {
 					}
 				);
 			}
+
+			std::vector<std::string> pre_interpolation_options = {
+				"rife",
+			};
+
+			if (devices::initialised && !devices::tensorrt.empty()) {
+				pre_interpolation_options.insert(pre_interpolation_options.end(), "rife (tensorrt)");
+			}
+
+			ui::add_dropdown(
+				"pre-interpolation method dropdown",
+				container,
+				"pre-interpolation method",
+				pre_interpolation_options,
+				settings.pre_interpolation_method,
+				fonts::dejavu
+			);
 		}
 	}
 
@@ -238,17 +331,63 @@ void configs::options(ui::Container& container) {
 	ui::add_checkbox("deduplicate checkbox", container, "deduplicate", settings.deduplicate, fonts::dejavu);
 
 	if (settings.deduplicate) {
-		ui::add_dropdown(
-			"deduplicate method dropdown",
+		// deduplication happens as part of interpolation when it's on, so there's no method to pick
+		if (settings.interpolate) {
+			ui::add_text(
+				"deduplicate method interpolation note",
+				container,
+				"filled by the interpolation method",
+				WARNING_COLOR,
+				fonts::dejavu
+			);
+		}
+		else {
+			ui::add_dropdown(
+				"deduplicate method dropdown",
+				container,
+				"deduplicate method",
+				{
+					"svp",
+					"rife",
+#ifdef TENSORRT
+					"rife (tensorrt)",
+#endif
+					"mvtools",
+					"old",
+				},
+				settings.deduplicate_method,
+				fonts::dejavu
+			);
+		}
+	}
+
+	/*
+	    Masking
+	*/
+	if (settings.interpolate || settings.deduplicate) {
+		section_component("masking");
+
+		static std::string selected_mask;
+		selected_mask = settings.mask.empty() ? masks::NONE_OPTION : settings.mask;
+
+		auto* mask_dropdown = ui::add_dropdown(
+			"default mask dropdown",
 			container,
-			"deduplicate method",
-			{
-				"svp",
-				"rife",
-				"old",
+			"default mask",
+			masks::options(settings.mask),
+			selected_mask,
+			fonts::dejavu,
+			[](std::string* new_value) {
+				configs::settings.mask = *new_value == masks::NONE_OPTION ? "" : *new_value;
 			},
-			settings.deduplicate_method,
-			fonts::dejavu
+			{ masks::NONE_OPTION }
+		);
+
+		const auto& dropdown_data = std::get<ui::DropdownElementData>(mask_dropdown->element->data);
+		hovered_mask = dropdown_data.hovered_option;
+
+		ui::add_checkbox(
+			"default auto mask checkbox", container, "default auto mask", settings.auto_mask, fonts::dejavu
 		);
 	}
 
@@ -257,24 +396,46 @@ void configs::options(ui::Container& container) {
 	*/
 	section_component("rendering");
 
-	ui::add_dropdown(
-		"codec dropdown",
-		container,
-		std::format("encode preset ({})", settings.gpu_encoding ? "gpu: " + app_settings.gpu_type : "cpu"),
-		u::get_supported_presets(settings.gpu_encoding, app_settings.gpu_type),
-		settings.encode_preset,
-		fonts::dejavu
+	auto presets = encoding::get_supported_encoding_presets(
+		encoding_preset_settings, settings.gpu_encoding, app_settings.gpu_type
 	);
 
+	if (!presets.empty() && !u::contains(presets, settings.encode_preset)) {
+		settings.encode_preset = presets[0];
+	}
+
+	if (presets.empty()) {
+		ui::add_text(
+			"no presets text",
+			container,
+			"no presets available. try toggling 'gpu encoding'",
+			WARNING_COLOR,
+			fonts::dejavu
+		);
+	}
+	else {
+		validated_element(config_blur::ValidationField::ENCODE_PRESET, "encode preset error", [&] {
+			ui::add_dropdown(
+				"codec dropdown",
+				container,
+				std::format("encode preset ({})", settings.gpu_encoding ? "gpu: " + app_settings.gpu_type : "cpu"),
+				presets,
+				settings.encode_preset,
+				fonts::dejavu
+			);
+		});
+	}
+
 	if (settings.advanced.ffmpeg_override.empty()) {
-		std::vector<std::string> preset_args = config_presets::get_preset_params(
+		std::vector<std::string> preset_args = config_encoding_presets::get_preset_params(
+			encoding_preset_settings,
 			settings.gpu_encoding ? app_settings.gpu_type : "cpu",
 			u::to_lower(settings.encode_preset.empty() ? "h264" : settings.encode_preset),
 			settings.quality
 		);
 
-		auto codec = config_presets::extract_codec_from_args(preset_args);
-		auto quality_config = config_presets::get_quality_config(codec ? *codec : "");
+		auto codec = config_encoding_presets::extract_codec_from_args(preset_args);
+		auto quality_config = config_encoding_presets::get_quality_config(codec ? *codec : "");
 
 		// // clamp current quality to new range
 		// settings.quality = std::clamp(settings.quality, quality_config.min_quality, quality_config.max_quality);
@@ -297,7 +458,7 @@ void configs::options(ui::Container& container) {
 			"ffmpeg override quality warning",
 			container,
 			"quality overridden by custom ffmpeg filters",
-			gfx::Color(252, 186, 3, 150),
+			WARNING_COLOR,
 			fonts::dejavu
 		);
 	}
@@ -312,6 +473,34 @@ void configs::options(ui::Container& container) {
 
 	ui::add_text_input("output path input", container, app_settings.output_prefix, "output path", fonts::dejavu);
 
+	ui::add_checkbox("upscale checkbox", container, "upscale", settings.upscale, fonts::dejavu);
+
+	/*
+	    Rife Models
+	*/
+	bool uses_rife = settings.uses_interpolation_method("rife");
+#ifdef TENSORRT
+	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
+#else
+	bool uses_rife_trt = false;
+#endif
+
+	if (uses_rife || uses_rife_trt) {
+		section_component("rife models");
+
+		// the folders are listed every frame so models dropped in show up straight away
+		if (uses_rife)
+			model_dropdown("rife model", rife_models::list(), settings.rife_model, rife_models::get_path());
+
+#ifdef TENSORRT
+		if (uses_rife_trt) {
+			model_dropdown(
+				"rife (tensorrt) model", rife_models::list_trt(), settings.rife_trt_model, rife_models::get_trt_path()
+			);
+		}
+#endif
+	}
+
 	/*
 	    GPU Acceleration
 	*/
@@ -319,15 +508,26 @@ void configs::options(ui::Container& container) {
 
 	ui::add_checkbox("gpu decoding checkbox", container, "gpu decoding", settings.gpu_decoding, fonts::dejavu);
 
-	ui::add_checkbox(
-		"gpu interpolation checkbox", container, "gpu interpolation", settings.gpu_interpolation, fonts::dejavu
-	);
+	if (devices::get_svp_gpu_supported() == false) {
+		ui::add_text(
+			"gpu interpolation unsupported warning",
+			container,
+			"gpu interpolation isn't supported by your gpu",
+			WARNING_COLOR,
+			fonts::dejavu
+		);
+	}
+	else {
+		ui::add_checkbox(
+			"gpu interpolation checkbox", container, "gpu interpolation", settings.gpu_interpolation, fonts::dejavu
+		);
+	}
 
 	if (settings.advanced.ffmpeg_override.empty()) {
 		ui::add_checkbox("gpu encoding checkbox", container, "gpu encoding", settings.gpu_encoding, fonts::dejavu);
 
 		if (settings.gpu_encoding) {
-			auto gpu_types = u::get_available_gpu_types();
+			auto gpu_types = encoding::get_available_gpu_types();
 			if (gpu_types.size() > 1) {
 				ui::add_dropdown(
 					"gpu encoding type dropdown",
@@ -345,40 +545,73 @@ void configs::options(ui::Container& container) {
 			"ffmpeg override gpu encoding warning",
 			container,
 			"gpu encoding overridden by custom ffmpeg filters",
-			gfx::Color(252, 186, 3, 150),
+			WARNING_COLOR,
 			fonts::dejavu
 		);
 	}
 
-	static std::string rife_gpu;
+	auto device_dropdown = [&](const std::string& label,
+	                           const std::map<int, std::string>& device_list,
+	                           std::string& device,
+	                           const std::optional<std::string>& auto_device,
+	                           std::string& selected) {
+		if (devices::initialised && device_list.empty()) {
+			selected = "none available";
+			ui::add_dropdown(label + " dropdown", container, label, {}, selected, fonts::dejavu);
+			return;
+		}
 
-	if (app_settings.rife_gpu_index == -1) {
-		rife_gpu = "default - will use first available";
-	}
-	else {
-		if (blur.initialised_rife_gpus && !blur.rife_gpus.empty()) {
-			rife_gpu = blur.rife_gpus.at(app_settings.rife_gpu_index);
+		std::string auto_option = auto_device ? std::format("auto ({})", *auto_device) : "auto";
+
+		std::vector<std::string> options = { auto_option };
+		if (devices::initialised) {
+			for (const auto& [index, name] : device_list)
+				options.push_back(name);
+		}
+
+		std::vector<std::string> missing;
+		if (device == "auto") {
+			selected = auto_option;
 		}
 		else {
-			rife_gpu = std::format("gpu {}", app_settings.rife_gpu_index);
-		}
-	}
+			selected = device;
 
-	ui::add_dropdown(
-		"rife gpu dropdown",
-		container,
-		"rife gpu",
-		blur.rife_gpu_names,
-		rife_gpu,
-		fonts::dejavu,
-		[&](std::string* new_gpu_name) {
-			for (const auto& [gpu_index, gpu_name] : blur.rife_gpus) {
-				if (gpu_name == *new_gpu_name) {
-					app_settings.rife_gpu_index = gpu_index;
-				}
+			// add the current device as a muted option if its not available anymore
+			if (devices::initialised && !u::contains(options, device)) {
+				options.push_back(device);
+				missing.push_back(device);
 			}
 		}
+
+		ui::add_dropdown(
+			label + " dropdown",
+			container,
+			label,
+			options,
+			selected,
+			fonts::dejavu,
+			[&device, auto_option](std::string* new_value) {
+				device = *new_value == auto_option ? "auto" : *new_value;
+			},
+			missing
+		);
+	};
+
+	static std::string rife_device;
+	device_dropdown(
+		"rife device", devices::rife, app_settings.rife_device, devices::get_auto_rife_device(), rife_device
 	);
+
+#ifdef TENSORRT
+	static std::string tensorrt_device;
+	device_dropdown(
+		"rife (tensorrt) device",
+		devices::tensorrt,
+		app_settings.tensorrt_device,
+		devices::get_auto_tensorrt_device(),
+		tensorrt_device
+	);
+#endif
 
 	/*
 	    Timescale
@@ -461,33 +694,49 @@ void configs::options(ui::Container& container) {
 			);
 		}
 
-		std::istringstream iss(settings.advanced.deduplicate_threshold);
-		float f = NAN;
-		iss >> std::noskipws >> f; // try to read as float
-		bool is_float = iss.eof() && !iss.fail();
+		validated_element(config_blur::ValidationField::DEDUPLICATE_THRESHOLD, "deduplicate threshold error", [&] {
+			ui::add_text_input(
+				"deduplicate threshold input",
+				container,
+				settings.advanced.deduplicate_threshold,
+				"deduplicate threshold",
+				fonts::dejavu
+			);
+		});
 
-		if (!is_float)
-			container.push_element_gap(2);
-
-		ui::add_text_input(
-			"deduplicate threshold input",
+		ui::add_dropdown(
+			"deduplicate real frame dropdown",
 			container,
-			settings.advanced.deduplicate_threshold,
-			"deduplicate threshold",
+			"deduplicate real frame",
+			{ "first", "last", "center", "surrounding" },
+			settings.advanced.duplicate_timing,
 			fonts::dejavu
 		);
 
-		if (!is_float) {
-			container.pop_element_gap();
-
-			ui::add_text(
-				"deduplicate threshold not a float warning",
+		if (settings.advanced.duplicate_timing == "surrounding") {
+			ui::add_slider(
+				"max future checks slider",
 				container,
-				"deduplicate threshold must be a decimal number",
-				gfx::Color(255, 0, 0, 255),
+				0,
+				10,
+				&settings.advanced.max_future_checks,
+				"max future checks: {}",
 				fonts::dejavu
 			);
 		}
+
+		/*
+		    Advanced Frame Timing
+		*/
+		section_component("advanced frame timing");
+
+		ui::add_checkbox(
+			"frame timing logs checkbox",
+			container,
+			"use frame timing logs",
+			settings.advanced.frame_timing_logs,
+			fonts::dejavu
+		);
 
 		/*
 		    Advanced Rendering
@@ -498,32 +747,26 @@ void configs::options(ui::Container& container) {
 			"video container text input", container, settings.advanced.video_container, "video container", fonts::dejavu
 		);
 
-		bool bad_audio = settings.timescale && (u::contains(settings.advanced.ffmpeg_override, "-c:a copy") ||
-		                                        u::contains(settings.advanced.ffmpeg_override, "-codec:a copy"));
-		if (bad_audio)
-			container.push_element_gap(2);
-
-		ui::add_text_input(
-			"custom ffmpeg filters text input",
-			container,
-			settings.advanced.ffmpeg_override,
-			"custom ffmpeg filters",
-			fonts::dejavu
-		);
-
-		if (bad_audio) {
-			container.pop_element_gap();
-
-			ui::add_text(
-				"timescale audio copy warning",
+		validated_element(config_blur::ValidationField::FFMPEG_OVERRIDE, "custom ffmpeg filters error", [&] {
+			ui::add_text_input(
+				"custom ffmpeg filters text input",
 				container,
-				"cannot use -c:a copy while using timescale",
-				gfx::Color(255, 0, 0, 255),
+				settings.advanced.ffmpeg_override,
+				"custom ffmpeg filters",
 				fonts::dejavu
 			);
-		}
+		});
 
 		ui::add_checkbox("debug checkbox", container, "debug", settings.advanced.debug, fonts::dejavu);
+
+		ui::add_dropdown(
+			"source plugin dropdown",
+			container,
+			"source plugin",
+			config_blur::SOURCE_PLUGINS,
+			settings.advanced.source_plugin,
+			fonts::dejavu
+		);
 
 		/*
 		    Advanced Interpolation
@@ -531,33 +774,43 @@ void configs::options(ui::Container& container) {
 		section_component("advanced interpolation");
 
 		if (settings.interpolation_method == "svp") {
-			ui::add_dropdown(
-				"SVP interpolation preset dropdown",
-				container,
-				"SVP interpolation preset",
-				config_blur::SVP_INTERPOLATION_PRESETS,
-				settings.advanced.svp_interpolation_preset,
-				fonts::dejavu
+			validated_element(
+				config_blur::ValidationField::SVP_INTERPOLATION_PRESET, "SVP interpolation preset error", [&] {
+					ui::add_dropdown(
+						"SVP interpolation preset dropdown",
+						container,
+						"SVP interpolation preset",
+						config_blur::SVP_INTERPOLATION_PRESETS,
+						settings.advanced.svp_interpolation_preset,
+						fonts::dejavu
+					);
+				}
 			);
 
-			ui::add_dropdown(
-				"SVP interpolation algorithm dropdown",
-				container,
-				"SVP interpolation algorithm",
-				config_blur::SVP_INTERPOLATION_ALGORITHMS,
-				settings.advanced.svp_interpolation_algorithm,
-				fonts::dejavu
+			validated_element(
+				config_blur::ValidationField::SVP_INTERPOLATION_ALGORITHM, "SVP interpolation algorithm error", [&] {
+					ui::add_dropdown(
+						"SVP interpolation algorithm dropdown",
+						container,
+						"SVP interpolation algorithm",
+						config_blur::SVP_INTERPOLATION_ALGORITHMS,
+						settings.advanced.svp_interpolation_algorithm,
+						fonts::dejavu
+					);
+				}
 			);
 		}
 
-		ui::add_dropdown(
-			"interpolation block size dropdown",
-			container,
-			"interpolation block size",
-			config_blur::INTERPOLATION_BLOCK_SIZES,
-			settings.advanced.interpolation_blocksize,
-			fonts::dejavu
-		);
+		validated_element(config_blur::ValidationField::INTERPOLATION_BLOCKSIZE, "interpolation block size error", [&] {
+			ui::add_dropdown(
+				"interpolation block size dropdown",
+				container,
+				"interpolation block size",
+				config_blur::INTERPOLATION_BLOCK_SIZES,
+				settings.advanced.interpolation_blocksize,
+				fonts::dejavu
+			);
+		});
 
 		ui::add_slider(
 			"interpolation mask area slider",
@@ -569,7 +822,64 @@ void configs::options(ui::Container& container) {
 			fonts::dejavu
 		);
 
-		ui::add_text_input("rife model", container, settings.advanced.rife_model, "rife model", fonts::dejavu);
+		/*
+		    Advanced Masking
+		*/
+		if ((settings.interpolate || settings.deduplicate) && settings.auto_mask) {
+			section_component("advanced masking");
+
+			ui::add_slider(
+				"auto mask stillness slider",
+				container,
+				0.f,
+				1.f,
+				&settings.advanced.auto_mask.stillness,
+				"auto mask stillness: {:.2f}",
+				fonts::dejavu,
+				{},
+				0.01f
+			);
+
+			ui::add_slider(
+				"auto mask fill slider",
+				container,
+				0,
+				100,
+				&settings.advanced.auto_mask.fill,
+				"auto mask fill: {}px",
+				fonts::dejavu
+			);
+
+			ui::add_slider(
+				"auto mask padding slider",
+				container,
+				0,
+				32,
+				&settings.advanced.auto_mask.padding,
+				"auto mask padding: {}px",
+				fonts::dejavu
+			);
+
+			ui::add_slider(
+				"auto mask feather slider",
+				container,
+				0,
+				32,
+				&settings.advanced.auto_mask.feather,
+				"auto mask feather: {}px",
+				fonts::dejavu
+			);
+
+			ui::add_slider(
+				"auto mask samples slider",
+				container,
+				4,
+				64,
+				&settings.advanced.auto_mask.samples,
+				"auto mask samples: {}",
+				fonts::dejavu
+			);
+		}
 
 		/*
 		    Advanced Blur
@@ -649,16 +959,58 @@ void configs::parse_interp() {
 };
 
 void configs::save_config() {
-	config_blur::create(config_blur::get_global_config_path(), settings);
-	current_global_settings = settings;
+	flush_selected_config();
+
+	// remove first so a config that was deleted and re-added under the same name is kept
+	for (const auto& [name, config] : saved_configs) {
+		if (!edited_configs.contains(name))
+			config_blur::remove(name);
+	}
+
+	for (const auto& [name, config] : edited_configs) {
+		auto existing = saved_configs.find(name);
+		if (existing != saved_configs.end() && existing->second == config)
+			continue;
+
+		config_blur::save(name, config);
+	}
+
+	saved_configs = edited_configs;
 
 	config_app::create(config_app::get_app_config_path(), app_settings);
 	current_app_settings = app_settings;
+
+	// the preset file is parsed back trimmed, so trim now to keep what's shown the same as what's saved
+	for (auto& gpu_presets : encoding_preset_settings.all_gpu_presets) {
+		for (auto& preset : gpu_presets.presets) {
+			if (preset.is_default)
+				continue;
+
+			preset.name = u::trim(preset.name);
+			preset.args = u::trim(preset.args);
+		}
+	}
+
+	config_encoding_presets::save(encoding_preset_settings);
+	current_encoding_preset_settings = encoding_preset_settings;
+
+	// same for rule patterns
+	for (auto& rule : rule_settings.rules) {
+		rule.pattern = u::trim(rule.pattern);
+	}
+
+	config_rules::save(rule_settings);
+	current_rule_settings = rule_settings;
 };
 
 void configs::on_load() {
-	current_global_settings = settings;
+	flush_selected_config();
+	saved_configs = edited_configs;
 	parse_interp();
 
 	current_app_settings = app_settings;
+
+	current_encoding_preset_settings = encoding_preset_settings;
+
+	current_rule_settings = rule_settings;
 };

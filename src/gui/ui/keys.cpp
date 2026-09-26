@@ -1,5 +1,6 @@
 #include "keys.h"
 #include "gui/ui/ui.h"
+#include "gui/render/render.h"
 
 bool keys::process_event(const SDL_Event& event) {
 	if (ui::get_active_element() &&
@@ -18,8 +19,14 @@ bool keys::process_event(const SDL_Event& event) {
 		}
 	}
 
+	ui::event_queue.push_back(event);
+
 	switch (event.type) {
 		case SDL_EVENT_WINDOW_MOUSE_LEAVE: {
+			if (mouse_captured)
+				// mid-drag, we're still tracking the mouse outside the window. don't drop the drag
+				return true;
+
 			mouse_pos = { -1, -1 };
 			pressed_mouse_keys
 				.clear(); // fix mouseup not being registered when left the window todo: handle this properly
@@ -27,14 +34,27 @@ bool keys::process_event(const SDL_Event& event) {
 			return true;
 		}
 
+		case SDL_EVENT_WINDOW_FOCUS_LOST: {
+			// we won't hear about the mouse being released, so don't leave anything mid-press (or mid-drag)
+			pressed_mouse_keys.clear();
+			held_mouse_keys.clear();
+			pressing_keys.clear();
+			return true;
+		}
+
 		case SDL_EVENT_MOUSE_MOTION: {
-			mouse_pos = { static_cast<int>(event.motion.x), static_cast<int>(event.motion.y) };
+			mouse_pos = {
+				static_cast<int>(event.motion.x / render::ui_scale),
+				static_cast<int>(event.motion.y / render::ui_scale),
+			};
 			return true;
 		}
 
 		case SDL_EVENT_MOUSE_BUTTON_DOWN: {
 			// mouse_pos = position; // TODO: assuming this is inaccurate too
 			pressed_mouse_keys.insert(event.button.button);
+			mouse_click_counts[event.button.button] = event.button.clicks;
+			mouse_press_ids[event.button.button]++;
 			return true;
 		}
 
@@ -60,7 +80,13 @@ bool keys::process_event(const SDL_Event& event) {
 			// if (event.wheel.type()) // trackpad
 			// 	scroll_delta_precise = event.wheelDelta().y;
 			// else // mouse
-			scroll_delta = -event.wheel.y * 1500.f;
+
+			if (scroll_delta == 0.f && scroll_x_delta == 0.f)
+				// start of a scroll, see which direction it's (primarily) in
+				scroll_is_horizontal = std::abs(event.wheel.x) > std::abs(event.wheel.y);
+
+			scroll_delta += scroll_is_horizontal ? 0 : -event.wheel.y;
+			scroll_x_delta += scroll_is_horizontal ? -event.wheel.x : 0;
 			// todo: better trackpad scrolling (https://github.com/libsdl-org/SDL/pull/5382)
 			return true;
 		}
@@ -70,6 +96,21 @@ bool keys::process_event(const SDL_Event& event) {
 	}
 
 	return false;
+}
+
+void keys::set_mouse_capture(bool capture) {
+	if (capture == mouse_captured)
+		return;
+
+	mouse_captured = capture;
+
+	if (!SDL_CaptureMouse(capture))
+		u::log_error("failed to {} mouse capture: {}", capture ? "enable" : "disable", SDL_GetError());
+}
+
+void keys::forget_mouse_buttons() {
+	pressed_mouse_keys.clear();
+	held_mouse_keys.clear();
 }
 
 void keys::on_frame_start() {
@@ -93,6 +134,16 @@ void keys::on_key_press_handled(std::uint8_t scancode) {
 
 bool keys::is_rect_pressed(const gfx::Rect& rect, std::uint8_t button) {
 	return rect.contains(mouse_pos) && is_mouse_down(button);
+}
+
+int keys::get_click_count(std::uint8_t button) {
+	auto it = mouse_click_counts.find(button);
+	return it == mouse_click_counts.end() ? 0 : it->second;
+}
+
+std::uint64_t keys::get_mouse_press_id(std::uint8_t button) {
+	auto it = mouse_press_ids.find(button);
+	return it == mouse_press_ids.end() ? 0 : it->second;
 }
 
 bool keys::is_mouse_down(std::uint8_t button) {

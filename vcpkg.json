@@ -2,7 +2,7 @@
   "vcpkg-configuration": {
     "default-registry": {
       "kind": "git",
-      "baseline": "9f8fff7f4cc138d96fe881c37878ee23ed395fc9",
+      "baseline": "3f7b5a12ef0a55e7b59339b2b69cac4b56d6dbf9",
       "repository": "https://github.com/microsoft/vcpkg"
     },
     "registries": [
@@ -15,6 +15,10 @@
   },
   "name": "blur",
   "dependencies": [
+    {
+      "name": "angle",
+      "platform": "!linux"
+    },
     {
       "name": "boost-asio",
       "version>=": "1.83.0"
@@ -30,7 +34,6 @@
     },
     "cpr",
     "freetype",
-    "glad",
     "gtest",
     "nlohmann-json",
     {
@@ -41,10 +44,28 @@
     {
       "name": "sdl3-image",
       "features": [
-        "jpeg"
+        "jpeg",
+        "png"
       ]
     },
-    "tl-expected",
-    "spdlog"
-  ]
+    "spdlog",
+    "tl-expected"
+  ],
+  "default-features": [
+    "angle-metal"
+  ],
+  "features": {
+    "angle-metal": {
+      "description": "Use ANGLE's Metal renderer on Apple platforms",
+      "dependencies": [
+        {
+          "name": "angle",
+          "features": [
+            "metal"
+          ],
+          "platform": "osx"
+        }
+      ]
+    }
+  }
 }

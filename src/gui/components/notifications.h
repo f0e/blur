@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ui/ui.h"
+#include "common/rendering.h"
 
 namespace gui::components::notifications {
 	inline constexpr float NOTIFICATION_LENGTH = 4.f;
@@ -33,6 +34,12 @@ namespace gui::components::notifications {
 		const std::optional<std::function<void(const std::string& id)>>& on_click = {},
 		std::optional<std::chrono::duration<float>> duration = std::chrono::duration<float>(NOTIFICATION_LENGTH),
 		bool closable = true
+	);
+
+	void show_failure_notification(
+		const std::string& error_header,
+		const std::variant<std::string, rendering::RenderError>& error,
+		std::optional<std::chrono::duration<float>> duration
 	);
 
 	void close(const std::string& id);

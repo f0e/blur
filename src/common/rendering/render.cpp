@@ -1,0 +1,295 @@
+#include "render.h"
+#include "render_commands.h"
+#include "render_pipeline.h"
+#include "common/devices.h"
+#ifdef TENSORRT
+#	include "common/rife_models.h"
+#endif
+#include "common/media.h"
+
+namespace {
+	// a preview renders from a start frame and keeps one output frame: the first, or the second with blur on since the
+	// first has nothing to blend with. that frame should come from the source frame under the seek bar
+	// @todo: revisit if i ever change that behaviour (first frame of video not being blurred properly thing)
+	double get_warmup_time(const BlurSettings& settings) {
+		// blurred output is exactly blur_output_fps (change_fps in blur/interpolate.py), so this is output frame 1
+		return settings.blur ? 1.0 / settings.blur_output_fps : 0.0;
+	}
+
+	std::optional<double> get_fps(const media::VideoInfo& video_info) {
+		if (video_info.fps_num <= 0 || video_info.fps_den <= 0)
+			return {};
+
+		return static_cast<double>(video_info.fps_num) / video_info.fps_den;
+	}
+
+	double get_frames_per_output(const BlurSettings& settings, double fps) {
+		if (settings.timescale)
+			fps = fps / settings.input_timescale * settings.output_timescale;
+
+		return fps / settings.blur_output_fps;
+	}
+
+	// source frames between the start and the kept frame. change_fps takes output frame n from round(n / factor),
+	// and llrint rounds halves to even like python
+	int64_t get_lead_frames(const BlurSettings& settings, double fps) {
+		return settings.blur ? std::llrint(get_frames_per_output(settings, fps)) : 0;
+	}
+
+	// source frames needed for the kept frame to exist. change_fps floors its length so output frame 1 takes 2 output
+	// frames' worth, plus one for each interpolation pass that floors too. rife needs at least 2
+	int64_t get_render_length(const BlurSettings& settings, double fps) {
+		if (!settings.blur)
+			return 2;
+
+		return static_cast<int64_t>(std::ceil(2 * get_frames_per_output(settings, fps))) + 2;
+	}
+
+	int64_t get_render_start(const BlurSettings& settings, const media::VideoInfo& video_info, double fps, float seek) {
+		auto frame_count = std::llround(video_info.video_duration * fps);
+		auto seek_frame = static_cast<int64_t>(std::clamp(seek, 0.f, 1.f) * frame_count);
+		auto last = std::max<int64_t>(0, frame_count - get_render_length(settings, fps));
+
+		return std::clamp<int64_t>(seek_frame - get_lead_frames(settings, fps), 0, last);
+	}
+
+	std::optional<std::string> check_tensorrt_installed(const BlurSettings& settings) {
+#ifdef TENSORRT
+		if (!settings.uses_interpolation_method("rife (tensorrt)"))
+			return {};
+
+		if (!rife_models::trt_installed()) {
+			return "TensorRT RIFE isn't installed. Rerun the installer and select \"NVIDIA TensorRT RIFE interpolation\", or use a different interpolation method";
+		}
+
+		std::error_code ec;
+		if (!std::filesystem::exists(rife_models::get_trt_path() / (settings.rife_trt_model + ".onnx"), ec)) {
+			return std::format(
+				"TensorRT RIFE model '{}' wasn't found in {}",
+				settings.rife_trt_model,
+				u::path_to_string(rife_models::get_trt_path())
+			);
+		}
+#endif
+
+		return {};
+	}
+}
+
+tl::expected<rendering::FrameRenderResult, std::variant<std::string, rendering::RenderError>> rendering::render_frame(
+	const std::filesystem::path& input_path,
+	const BlurSettings& settings,
+	const GlobalAppSettings& app_settings,
+	const std::shared_ptr<RenderState>& state,
+	float seek,
+	bool preview_mask
+) {
+	if (!blur.initialised)
+		return tl::unexpected("Blur not initialised");
+
+	if (!std::filesystem::exists(input_path))
+		return tl::unexpected("Input path does not exist");
+
+	if (auto error = check_tensorrt_installed(settings))
+		return tl::unexpected(*error);
+
+	auto merged_settings =
+		detail::merge_settings(settings, app_settings, devices::get_device_indices(app_settings));
+
+	auto video_info = media::get_video_info(input_path);
+	if (!video_info.has_video_stream)
+		return tl::unexpected("Input is not a valid video or is unreadable");
+
+	size_t start_frame = 0;
+	if (auto fps = get_fps(video_info))
+		start_frame = get_render_start(settings, video_info, *fps, seek);
+
+	auto vspipe_args =
+		detail::build_vspipe_video_args(input_path, merged_settings, video_info, start_frame, {}, {}, preview_mask);
+
+	RenderCommands commands = {
+        .vspipe_video = std::move(vspipe_args),
+        .ffmpeg = {
+            "-loglevel", "error",
+            "-hide_banner",
+            "-stats",
+            "-i", "-",
+            "-ss", std::to_string(get_warmup_time(settings)),
+            "-map", "0:v",
+            "-frames:v", "1",
+            "-c:v", "mjpeg",
+            "-q:v", "2",
+            "-f", "image2pipe",
+            "-",
+        },
+        .ffmpeg_stops_early = true,
+    };
+
+	state->enable_preview_capture();
+
+	auto pipeline_result = detail::execute_pipeline(commands, state, settings.advanced.debug, false, nullptr);
+
+	if (!pipeline_result)
+		return tl::unexpected(pipeline_result.error());
+
+	return FrameRenderResult{
+		.frame_jpeg = state->take_preview_jpeg(),
+		.stopped = pipeline_result->stopped,
+	};
+}
+
+float rendering::get_preview_frame_timestamp(
+	const BlurSettings& settings, const media::VideoInfo& video_info, float seek
+) {
+	auto fps = get_fps(video_info);
+	if (!fps)
+		return 0.f;
+
+	auto frame = get_render_start(settings, video_info, *fps, seek) + get_lead_frames(settings, *fps);
+
+	// mpv's clock starts with the container, which can be before the video's first frame
+	double frame_time = video_info.video_start_time - video_info.start_time + (static_cast<double>(frame) / *fps);
+
+	// an exact mpv seek shows the first frame at or after target - 5ms, so aim half a frame before this one
+	// https://github.com/mpv-player/mpv/blob/v0.41.0/player/video.c#L471
+	constexpr double MPV_HR_SEEK_TOLERANCE = 0.005;
+
+	return static_cast<float>(frame_time + MPV_HR_SEEK_TOLERANCE - (0.5 / *fps));
+}
+
+std::pair<size_t, size_t> rendering::get_trim_frame_range(const media::VideoInfo& video_info, float start, float end) {
+	if (video_info.fps_num <= 0 || video_info.fps_den <= 0)
+		return { 0, 0 };
+
+	double abs_start_time = video_info.video_start_time + (start * video_info.duration);
+	double abs_end_time = video_info.video_start_time + (end * video_info.duration);
+
+	auto start_frame = static_cast<size_t>(
+		std::llround((abs_start_time - video_info.video_start_time) * video_info.fps_num / video_info.fps_den)
+	);
+	auto end_frame = static_cast<size_t>(
+		std::llround((abs_end_time - video_info.video_start_time) * video_info.fps_num / video_info.fps_den)
+	);
+
+	return { start_frame, end_frame };
+}
+
+bool rendering::has_enough_frames_to_render(const media::VideoInfo& video_info, float start, float end) {
+	auto [start_frame, end_frame] = get_trim_frame_range(video_info, start, end);
+	return end_frame > start_frame;
+}
+
+tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>> rendering::detail::
+	render_video(
+		const std::filesystem::path& input_path,
+		const media::VideoInfo& video_info,
+		const BlurSettings& settings,
+		const std::shared_ptr<RenderState>& state,
+		const GlobalAppSettings& app_settings,
+		const std::optional<std::filesystem::path>& output_path_override,
+		float start,
+		float end,
+		const std::function<void()>& progress_callback
+	) {
+	if (!blur.initialised)
+		return tl::unexpected("Blur not initialised");
+
+	if (!std::filesystem::exists(input_path))
+		return tl::unexpected("Input path does not exist");
+
+	if (auto error = check_tensorrt_installed(settings))
+		return tl::unexpected(*error);
+
+	auto merged_settings =
+		detail::merge_settings(settings, app_settings, devices::get_device_indices(app_settings));
+
+	std::filesystem::path output_path;
+	if (output_path_override) {
+		output_path = *output_path_override;
+	}
+	else {
+		auto output_res = detail::build_output_filename(input_path, settings, app_settings);
+		if (!output_res) {
+			return tl::unexpected(output_res.error());
+		}
+
+		output_path = *output_res;
+	}
+
+	u::log("Rendering '{}'", input_path.stem());
+
+	if (blur.verbose) {
+		u::log("Source video at {:.2f} timescale", settings.input_timescale);
+		if (settings.interpolate) {
+			u::log("Interpolated to {}fps with {:.2f} timescale", settings.interpolated_fps, settings.output_timescale);
+		}
+		if (settings.blur) {
+			u::log(
+				"Motion blurred to {}fps ({}%)", settings.blur_output_fps, static_cast<int>(settings.blur_amount * 100)
+			);
+		}
+		u::log("Rendered at {:.2f} speed with crf {}", settings.output_timescale, settings.quality);
+	}
+
+	auto [start_frame, end_frame] = get_trim_frame_range(video_info, start, end);
+
+	bool trimmed = start != 0.f || end != 1.f;
+
+	if (video_info.frameserver && !video_info.ffmpeg_can_decode_audio) {
+		return tl::unexpected(
+			"Frameserver audio can't be read. Turn on 'Write audio as PCM samples in signpost AVI' in DebugMode "
+			"FrameServer and restart it"
+		);
+	}
+
+	auto ffmpeg_args = detail::build_ffmpeg_video_args(
+		input_path, video_info, settings, app_settings, output_path, start_frame, end_frame, trimmed
+	);
+	if (!ffmpeg_args)
+		return tl::unexpected(ffmpeg_args.error());
+
+	RenderCommands commands = {
+		.vspipe_video = detail::build_vspipe_video_args(
+			input_path,
+			merged_settings,
+			video_info,
+			start_frame,
+			end_frame,
+			// untrimmed renders use the whole video like previews do, so they share a cached mask
+			trimmed ? std::optional{ std::pair{ start_frame, end_frame } } : std::nullopt,
+			false,
+			detail::get_skipped_frames(settings, app_settings, video_info)
+		),
+		.ffmpeg = *ffmpeg_args,
+	};
+
+	// add preview pipe if needed
+	if (settings.preview && blur.using_preview) {
+		auto preview_args = detail::build_ffmpeg_preview_args();
+		commands.ffmpeg.insert(commands.ffmpeg.end(), preview_args.begin(), preview_args.end());
+
+		state->enable_preview_capture();
+	}
+
+	auto pipeline_result = detail::execute_pipeline(commands, state, settings.advanced.debug, true, progress_callback);
+	if (!pipeline_result)
+		return tl::unexpected(pipeline_result.error());
+
+	if (pipeline_result->stopped) {
+		std::filesystem::remove(output_path);
+		u::log("Stopped render '{}'", input_path.stem());
+	}
+	else {
+		if (settings.copy_dates) {
+			detail::copy_file_timestamp(input_path, output_path);
+		}
+		if (blur.verbose) {
+			u::log("Finished rendering '{}'", input_path.stem());
+		}
+	}
+
+	return RenderResult{
+		.output_path = output_path,
+		.stopped = pipeline_result->stopped,
+	};
+}

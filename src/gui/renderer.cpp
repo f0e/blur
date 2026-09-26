@@ -2,6 +2,7 @@
 
 #include "common/config_app.h"
 #include "common/rendering.h"
+#include "common/devices.h"
 
 #include "gui/ui/keys.h"
 #include "sdl.h"
@@ -9,10 +10,14 @@
 
 #include "ui/ui.h"
 #include "render/render.h"
+#include "fonts/icons.h"
 #include "os/desktop_notification.h"
 
 #include "components/main.h"
 #include "components/notifications.h"
+#include "components/render_history.h"
+#include "components/update_notice.h"
+#include "components/test.h"
 #include "components/configs/configs.h"
 
 #define DEBUG_RENDER 0
@@ -72,6 +77,23 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 	ui::reset_container(nav_container, sdl::window, nav_container_rect, fonts::dejavu.height(), {});
 
+	const int navigation_button_size = ui::button_height(fonts::dejavu);
+	gfx::Rect navigation_button_container_rect;
+
+	if (screen == Screens::CONFIG) {
+		navigation_button_container_rect =
+			gfx::Rect(rect.x + PAD_X, rect.y + PAD_Y, navigation_button_size, navigation_button_size);
+	}
+	else {
+		navigation_button_container_rect = gfx::Rect(
+			rect.x + PAD_X,
+			nav_container_rect.y + ((nav_container_rect.h - navigation_button_size) / 2),
+			navigation_button_size,
+			navigation_button_size
+		);
+	}
+	ui::reset_container(navigation_button_container, sdl::window, navigation_button_container_rect, 0, {});
+
 	int nav_cutoff = rect.y2() - nav_container_rect.y;
 	int bottom_pad = std::max(PAD_Y, nav_cutoff);
 
@@ -82,53 +104,89 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 	const int config_page_container_gap = PAD_X / 2;
 
-	gfx::Rect config_container_rect = rect;
+	const int config_container_element_gap = 9;
+	const int base_config_width = 200 + (PAD_X * 2);
+	const int queue_title_area_height = PAD_Y + fonts::garamond(fonts::size::SMALL_HEADER).height() + PAD_Y;
 
-	if (components::configs::loaded_config) {
-		config_container_rect.w = 200 + PAD_X * 2;
-	}
+	gfx::Rect queue_config_container_rect = rect;
+	const int queue_usable_height = std::max(rect.h - PAD_Y - bottom_pad, 0);
+	const int preferred_queue_width =
+		static_cast<int>(std::lround((queue_usable_height / 1.5f) * (16.f / 9.f))) + (PAD_X * 2);
+	const int queue_width = std::min(preferred_queue_width, rect.w - base_config_width);
+	const int queue_page_width = base_config_width + queue_width;
+
+	queue_config_container_rect.x = rect.center().x - queue_page_width / 2;
+	queue_config_container_rect.w = base_config_width;
 
 	ui::reset_container(
-		config_container, sdl::window, config_container_rect, 9, ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X }
+		queue_config_container,
+		sdl::window,
+		queue_config_container_rect,
+		config_container_element_gap,
+		ui::Padding{ queue_title_area_height, PAD_X, bottom_pad, PAD_X }
+	);
+
+	gfx::Rect queue_container_rect = queue_config_container_rect;
+	queue_container_rect.x = queue_config_container_rect.x2();
+	queue_container_rect.w = queue_width;
+
+	ui::reset_container(
+		queue_container, sdl::window, queue_container_rect, 13, ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X }
+	);
+
+	gfx::Rect config_container_rect = rect;
+
+	// presets need the room, ffmpeg commands are long
+	int config_goal_width = components::configs::selected_config_tab == "encoding" ? rect.w : base_config_width;
+
+	static float config_width = config_goal_width;
+	float last_config_width = config_width;
+	config_width = u::lerp(config_width, (float)config_goal_width, 25.f * delta_time, 0.5f);
+	want_to_render |= config_width != last_config_width;
+
+	config_container_rect.w = std::lround(config_width);
+
+	ui::reset_container(
+		config_container,
+		sdl::window,
+		config_container_rect,
+		config_container_element_gap,
+		ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X }
 	);
 
 	gfx::Rect config_preview_container_rect = rect;
 	config_preview_container_rect.x = config_container_rect.x2() + config_page_container_gap;
 	config_preview_container_rect.w -= config_container_rect.w + config_page_container_gap;
 
-	gfx::Rect config_preview_header_container_rect = config_preview_container_rect;
-	config_preview_header_container_rect.h = 80;
-
-	ui::reset_container(
-		config_preview_header_container,
-		sdl::window,
-		config_preview_header_container_rect,
-		fonts::dejavu.height(),
-		ui::Padding{ PAD_Y, PAD_X }
-	);
-
 	gfx::Rect config_preview_content_container_rect = config_preview_container_rect;
-	config_preview_content_container_rect.y = config_preview_header_container_rect.y2();
-	config_preview_content_container_rect.h -= config_preview_header_container_rect.h;
 
 	ui::reset_container(
 		config_preview_content_container,
 		sdl::window,
 		config_preview_content_container_rect,
 		fonts::dejavu.height(),
-		ui::Padding{ 0, PAD_X, bottom_pad, PAD_X }
+		ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X }
 	);
+
+	gfx::Rect option_information_container_rect = config_preview_container_rect;
+	ui::Padding option_information_padding{ PAD_Y, PAD_X, bottom_pad, PAD_X };
+
+	if (components::configs::selected_config_tab == "encoding") {
+		// presets tab takes up the whole space so show option info in the same area
+		option_information_container_rect = config_container_rect;
+		option_information_padding.top += ui::tabs_height(fonts::dejavu) + config_container_element_gap;
+	}
 
 	ui::reset_container(
 		option_information_container,
 		sdl::window,
-		config_preview_container_rect,
-		9,
-		ui::Padding{ PAD_Y, PAD_X, bottom_pad, PAD_X }
+		option_information_container_rect,
+		config_container_element_gap,
+		option_information_padding
 	);
 
 	gfx::Rect notification_container_rect = rect;
-	notification_container_rect.w = 230;
+	notification_container_rect.w = ui::NOTIFICATION_DEFAULT_W;
 	notification_container_rect.x =
 		rect.x2() - notification_container_rect.w - components::notifications::NOTIFICATIONS_PAD_X;
 	notification_container_rect.h = 300;
@@ -136,89 +194,260 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 
 	ui::reset_container(notification_container, sdl::window, notification_container_rect, 6, {});
 
-	switch (screen) {
-		case Screens::MAIN: {
-			if (components::configs::should_load_config) {
-				components::configs::loaded_config = false;
-			}
+	// render history
+	const int history_button_size = components::render_history::BUTTON_SIZE;
 
-			components::main::home_screen(main_container, delta_time);
+	const ui::Padding history_panel_padding{ HISTORY_PANEL_PAD, HISTORY_PANEL_PAD, HISTORY_PANEL_PAD, 12 };
+
+	gfx::Rect history_button_container_rect = rect;
+	history_button_container_rect.w = history_button_size;
+	history_button_container_rect.h = history_button_size;
+	history_button_container_rect.x = rect.x2() - PAD_X - history_button_size;
+	history_button_container_rect.y = rect.y + PAD_Y + ((ui::tabs_height(fonts::dejavu) - history_button_size) / 2);
+
+	ui::reset_container(history_button_container, sdl::window, history_button_container_rect, 0, {});
+
+	gfx::Rect history_panel_container_rect = rect;
+	history_panel_container_rect.w = HISTORY_PANEL_W;
+	history_panel_container_rect.x = history_button_container_rect.x2() + history_panel_padding.right - HISTORY_PANEL_W;
+	history_panel_container_rect.y = history_button_container_rect.y - history_panel_padding.top;
+	history_panel_container_rect.h = rect.y2() - PAD_Y - history_panel_container_rect.y;
+
+	ui::reset_container(history_panel_container, sdl::window, history_panel_container_rect, 6, history_panel_padding);
+
+	gfx::Rect update_container_rect = rect;
+	update_container_rect.w = ui::NOTIFICATION_DEFAULT_W;
+	update_container_rect.x = rect.x2() - update_container_rect.w - PAD_X;
+
+	ui::reset_container(
+		update_container, sdl::window, update_container_rect, 6, ui::Padding{ 0, 0, nav_container_rect.h, 0 }
+	);
+
+	bool render_corner_update_notice = components::update_notice::is_updating();
+	ui::AnimatedElement* config_back_button = nullptr;
+
+	// built first so it gets escape before the screens do
+	ui::dialog::build(sdl::window, rect);
+
+	switch (screen) {
+		case Screens::TEST: {
+			components::test::screen(main_container, delta_time);
+
+			ui::add_button(
+				"test back navigation",
+				navigation_button_container,
+				"",
+				fonts::dejavu,
+				[] {
+					screen = Screens::MAIN;
+				},
+				{},
+				icons::BACK
+			);
+			break;
+		}
+		case Screens::MAIN: {
+			auto main_screen =
+				components::main::screen(main_container, queue_config_container, queue_container, delta_time);
+
+			components::render_history::render_button(history_button_container);
+			components::render_history::render_panel(history_panel_container, delta_time);
 
 			if (initialisation_res) {
-				auto current_render = rendering.get_current_render();
-				if (current_render) {
+				switch (main_screen) {
+					case components::main::MainScreen::HOME: {
+#ifdef _DEBUG
+						ui::add_button("test button", navigation_button_container, "Test", fonts::dejavu, [] {
+							screen = Screens::TEST;
+						});
+#endif
+						break;
+					}
+					case components::main::MainScreen::PENDING: {
+						const auto& pending = tasks::get_pending_copy();
+
+						ui::add_button("start button", nav_container, "Start", fonts::dejavu, [] {
+							tasks::start_pending_videos();
+						});
+
+						// r = start rendering
+						if (keys::is_key_pressed(SDL_SCANCODE_R)) {
+							tasks::start_pending_videos();
+						}
+
+						ui::set_next_same_line(nav_container);
+						ui::add_button("cancel button", nav_container, "Cancel", fonts::dejavu, [] {
+							tasks::cancel_all_pending();
+						});
+
+						// escape = cancel
+						if (keys::is_key_pressed(SDL_SCANCODE_ESCAPE)) {
+							tasks::cancel_all_pending();
+						}
+
+						ui::set_next_same_line(nav_container);
+						components::main::open_files_button(nav_container, "Add files");
+
+						ui::center_elements_in_container(queue_container, true, false);
+
+						break;
+					}
+					case components::main::MainScreen::PROGRESS: {
+						auto current_render = rendering::video_render_queue.front();
+						if (current_render) {
+							auto progress = current_render->state->get_progress();
+							if (!progress.rendered_a_frame && !current_render->state->is_paused()) {
+								// keep redrawing so the loading spinner animates
+								want_to_render = true;
+							}
+
+							ui::add_button(
+								current_render->state->is_paused() ? "resume render button" : "pause render button",
+								nav_container,
+								current_render->state->is_paused() ? "Resume" : "Pause",
+								fonts::dejavu,
+								[] {
+									auto current_render = rendering::video_render_queue.front();
+									current_render->state->toggle_pause();
+								}
+							);
+						}
+
+						ui::set_next_same_line(nav_container);
+						ui::add_button("stop render button", nav_container, "Cancel", fonts::dejavu, [] {
+							auto current_render = rendering::video_render_queue.front();
+							current_render->state->stop();
+						});
+
+						ui::set_next_same_line(nav_container);
+						components::main::open_files_button(nav_container, "Add files");
+
+						break;
+					}
+				}
+
+				// offer whichever of the render and queue screens isn't being looked at
+				if (auto target = components::main::get_screen_switch_target()) {
+					ui::set_next_same_line(nav_container);
 					ui::add_button(
-						(*current_render)->is_paused() ? "resume render button" : "pause render button",
+						"screen switch button",
 						nav_container,
-						(*current_render)->is_paused() ? "Resume" : "Pause",
+						*target == components::main::MainScreen::PROGRESS ? "View render" : "View queue",
 						fonts::dejavu,
-						[] {
-							auto current_render = rendering.get_current_render();
-							if ((*current_render)->is_paused())
-								(*current_render)->resume();
-							else
-								(*current_render)->pause();
+						[target] {
+							components::main::show_screen(*target);
 						}
 					);
-
-					ui::set_next_same_line(nav_container);
-					ui::add_button("stop render button", nav_container, "Cancel", fonts::dejavu, [] {
-						auto current_render = rendering.get_current_render();
-						if (current_render)
-							(*current_render)->stop();
-					});
-
-					ui::set_next_same_line(nav_container);
-					components::main::open_files_button(nav_container, "Add files");
 				}
 
 				ui::set_next_same_line(nav_container);
-				ui::add_button("config button", nav_container, "Config", fonts::dejavu, [] {
-					screen = Screens::CONFIG;
-				});
+				ui::add_button(
+					"configuration navigation",
+					nav_container,
+					"Config",
+					fonts::dejavu,
+					[] {
+						components::configs::enter_screen();
+					},
+					{},
+					icons::SETTINGS
+				);
 			}
 
 			ui::center_elements_in_container(main_container);
 
+			render_corner_update_notice |= main_screen == components::main::MainScreen::HOME;
+
 			break;
 		}
 		case Screens::CONFIG: {
-			components::configs::should_load_config = true;
-
-			ui::set_next_same_line(nav_container);
-			ui::add_button("back button", nav_container, "Back", fonts::dejavu, [] {
-				screen = Screens::MAIN;
-			});
+			components::render_history::render_button(history_button_container);
+			components::render_history::render_panel(history_panel_container, delta_time);
 
 			components::configs::screen(
 				config_container,
 				nav_container,
-				config_preview_header_container,
 				config_preview_content_container,
 				option_information_container,
 				delta_time
 			);
 
-			ui::center_elements_in_container(config_preview_header_container);
+			config_back_button = ui::add_button(
+				"config back navigation",
+				navigation_button_container,
+				"",
+				fonts::dejavu,
+				[] {
+					components::configs::leave_screen([] {
+						screen = Screens::MAIN;
+					});
+				},
+				{},
+				icons::BACK
+			);
+
 			ui::center_elements_in_container(config_preview_content_container);
 			ui::center_elements_in_container(option_information_container, true, false);
 
+			// the app tab draws its own update notice
+			if (components::configs::selected_config_tab == "app")
+				render_corner_update_notice = false;
+
 			break;
 		}
+	}
+
+	if (render_corner_update_notice) {
+		components::update_notice::render(update_container);
+		ui::anchor_elements_to_bottom(update_container);
+	}
+
+	// config preview cleanup TODO: hate this code pattern? how else do i do this nicely tho?
+	static Screens last_screen = screen;
+	if (last_screen != screen) {
+		if (last_screen == Screens::CONFIG)
+			components::configs::reset_config_preview();
+
+		// the preset may have just been changed in the config tab, and whether trimming is possible depends on it
+		components::main::invalidate_trim_support();
+
+		last_screen = screen;
+	}
+
+	static bool showing_benchmark_notification = false;
+	if (devices::benchmarking != showing_benchmark_notification) {
+		showing_benchmark_notification = devices::benchmarking;
+
+		if (showing_benchmark_notification)
+			components::notifications::add(
+				"benchmarking notification", "Initialising GPU devices...", ui::NotificationType::INFO, {}, {}, false
+			);
+		else
+			components::notifications::close("benchmarking notification");
 	}
 
 	components::notifications::render(notification_container);
 
 	ui::center_elements_in_container(nav_container);
 
+	want_to_render |= ui::update_container_frame(history_panel_container, delta_time);
+	want_to_render |= ui::update_container_frame(history_button_container, delta_time);
 	want_to_render |= ui::update_container_frame(notification_container, delta_time);
+	want_to_render |= ui::update_container_frame(update_container, delta_time);
 	want_to_render |= ui::update_container_frame(nav_container, delta_time);
+	want_to_render |= ui::update_container_frame(navigation_button_container, delta_time);
 
 	want_to_render |= ui::update_container_frame(main_container, delta_time);
+	want_to_render |= ui::update_container_frame(queue_config_container, delta_time);
+	want_to_render |= ui::update_container_frame(queue_container, delta_time);
 	want_to_render |= ui::update_container_frame(config_container, delta_time);
-	want_to_render |= ui::update_container_frame(config_preview_header_container, delta_time);
 	want_to_render |= ui::update_container_frame(config_preview_content_container, delta_time);
 	want_to_render |= ui::update_container_frame(option_information_container, delta_time);
+
+	ui::stick_element_to_top(config_container, config_back_button);
+
+	want_to_render |= ui::dialog::update_frame(delta_time);
+	want_to_render |= ui::tooltip::update(delta_time);
 	ui::on_update_frame_end();
 
 	if (!want_to_render)
@@ -263,13 +492,21 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		}
 #endif
 
-		// front -> back
+		ui::render_container(queue_config_container);
+		ui::render_container(queue_container);
 		ui::render_container(main_container);
 		ui::render_container(config_container);
 		ui::render_container(config_preview_content_container);
-		ui::render_container(config_preview_header_container);
 		ui::render_container(option_information_container);
 		ui::render_container(nav_container);
+		ui::render_container(navigation_button_container);
+		ui::render_container(update_container);
+		components::render_history::draw_panel(history_panel_container, history_button_container);
+
+		ui::dialog::render();
+
+		ui::tooltip::render();
+
 		ui::render_container(notification_container);
 
 		// file drop overlay
@@ -292,55 +529,34 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	return true;
 }
 
-void gui::renderer::on_render_finished(Render* render, const tl::expected<RenderResult, std::string>& result) {
+void gui::renderer::on_render_finished(
+	const rendering::VideoRenderDetails& render,
+	const tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>>& result
+) {
+	std::string video_name = u::path_to_string(render.input_path.stem());
+
 	if (!result) {
-		gui::components::notifications::add(
-			std::format("Render '{}' failed. Click to copy error message", render->get_video_name()),
-			ui::NotificationType::NOTIF_ERROR,
-			[result](const std::string& id) {
-				SDL_SetClipboardText(result.error().c_str());
+		components::render_history::add_failure(render, result.error());
 
-				gui::components::notifications::close(id);
-
-				gui::components::notifications::add(
-					"Copied error message to clipboard",
-					ui::NotificationType::INFO,
-					{},
-					std::chrono::duration<float>(2.f)
-				);
-			},
-			std::nullopt
-		);
+		gui::render_failed = true;
 
 		auto app_config = config_app::get_app_config();
 		if (app_config.render_failure_notifications) {
-			desktop_notification::show("Blur render failed", u::truncate_with_ellipsis(result.error(), 100));
+			desktop_notification::show("Blur render failed", std::format("Failed to render video {}", video_name));
 		}
+
 		return;
 	}
 
 	if (result->stopped) {
-		gui::components::notifications::add(
-			std::format("Render '{}' stopped", render->get_video_name()), ui::NotificationType::INFO
-		);
+		gui::components::notifications::add(std::format("Render '{}' stopped", video_name), ui::NotificationType::INFO);
 		return;
 	}
 
-	auto output_path = render->get_output_video_path();
-
-	gui::components::notifications::add(
-		std::format("Render '{}' completed", render->get_video_name()),
-		ui::NotificationType::SUCCESS,
-		[output_path](const std::string& id) {
-			std::string file_url = std::format("file://{}", output_path);
-			if (!SDL_OpenURL(file_url.c_str())) {
-				u::log_error("Failed to open output folder: {}", SDL_GetError());
-			}
-		}
-	);
+	components::render_history::add_success(render, *result);
 
 	auto app_config = config_app::get_app_config();
 	if (app_config.render_success_notifications) {
-		desktop_notification::show("Blur render complete", "Render completed successfully");
+		desktop_notification::show("Blur render complete", std::format("Finished rendering {}", video_name));
 	}
 }

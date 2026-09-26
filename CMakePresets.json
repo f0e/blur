@@ -4,6 +4,7 @@
     {
       "name": "base",
       "hidden": true,
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
       "cacheVariables": {
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_COLOR_DIAGNOSTICS": "ON"
@@ -25,7 +26,9 @@
       },
       "cacheVariables": {
         "CMAKE_C_COMPILER": "cl",
-        "CMAKE_CXX_COMPILER": "cl"
+        "CMAKE_CXX_COMPILER": "cl",
+        "MPV_INCLUDE_DIR": "${sourceDir}/mpv/include",
+        "MPV_LIBRARY": "${sourceDir}/mpv/libmpv-2.dll"
       },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {

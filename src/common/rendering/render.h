@@ -1,0 +1,45 @@
+#pragma once
+
+#include "render_types.h"
+#include "render_errors.h"
+#include "render_state.h"
+#include "common/config_app.h"
+#include "common/config_blur.h"
+#include "common/media.h"
+
+// turn settings into commands, run the pipeline, and handle the output file
+namespace rendering {
+	struct FrameRenderResult {
+		std::vector<uint8_t> frame_jpeg;
+		bool stopped = false;
+	};
+
+	tl::expected<FrameRenderResult, std::variant<std::string, RenderError>> render_frame(
+		const std::filesystem::path& input_path,
+		const BlurSettings& settings,
+		const GlobalAppSettings& app_settings = config_app::get_app_config(),
+		const std::shared_ptr<RenderState>& state = std::make_shared<RenderState>(),
+		float seek = 0.f,
+		bool preview_mask = false
+	);
+
+	float get_preview_frame_timestamp(const BlurSettings& settings, const media::VideoInfo& video_info, float seek);
+
+	std::pair<size_t, size_t> get_trim_frame_range(const media::VideoInfo& video_info, float start, float end);
+
+	bool has_enough_frames_to_render(const media::VideoInfo& video_info, float start, float end);
+
+	namespace detail {
+		tl::expected<RenderResult, std::variant<std::string, RenderError>> render_video(
+			const std::filesystem::path& input_path,
+			const media::VideoInfo& video_info,
+			const BlurSettings& settings,
+			const std::shared_ptr<RenderState>& state,
+			const GlobalAppSettings& app_settings,
+			const std::optional<std::filesystem::path>& output_path_override,
+			float start,
+			float end,
+			const std::function<void()>& progress_callback
+		);
+	}
+}

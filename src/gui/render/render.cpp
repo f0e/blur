@@ -4,11 +4,12 @@
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_opengl3.h>
 #include <misc/freetype/imgui_freetype.h>
+#include <imgui_internal.h>
 
 #include "../fonts/dejavu_sans.h"
-#include "../fonts/eb_garamond.h"
+#include "../fonts/nv_garamond.h"
 #include "../fonts/icons.h"
-#include "imgui_internal.h"
+#include "common/waveforms.h"
 
 namespace {
 	gfx::Color interpolate_color(const std::vector<gfx::Color>& colors, const std::vector<float>& positions, float t) {
@@ -53,24 +54,9 @@ bool render::ImGuiWrap::init(SDL_Window* window, const SDL_GLContext& context) {
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
 
-	// Setup Platform/Renderer backends
-	// Decide GL+GLSL versions
-#if defined(IMGUI_IMPL_OPENGL_ES2)
-	// GL ES 2.0 + GLSL 100 (WebGL 1.0)
-	const char* glsl_version = "#version 100";
-#elif defined(IMGUI_IMPL_OPENGL_ES3)
-	// GL ES 3.0 + GLSL 300 es (WebGL 2.0)
-	const char* glsl_version = "#version 300 es";
-#elif defined(__APPLE__)
-	// GL 3.2 Core + GLSL 150
-	const char* glsl_version = "#version 150";
-#else
-	// GL 3.0 + GLSL 130
-	const char* glsl_version = "#version 130";
-#endif
-
+	// set up the OpenGL ES 3 backends
 	ImGui_ImplSDL3_InitForOpenGL(window, context);
-	ImGui_ImplOpenGL3_Init(glsl_version);
+	ImGui_ImplOpenGL3_Init("#version 300 es");
 
 	return true;
 }
@@ -79,56 +65,90 @@ bool render::init(SDL_Window* window, const SDL_GLContext& context) {
 	if (!imgui.init(window, context))
 		return false;
 
-	// TODO: Consider using ImFontGlyphRangesBuilder to build glyph ranges from textual data.
-
-	// ImFontGlyphRangesBuilder builder;
-	// builder.AddRanges(imgui.io->Fonts->GetGlyphRangesDefault());
-	// // builder.AddRanges(imgui.io->Fonts->GetGlyphRangesGreek());
-	// // builder.AddRanges(imgui.io->Fonts->GetGlyphRangesKorean());
-	// // builder.AddRanges(imgui.io->Fonts->GetGlyphRangesJapanese());
-	// // builder.AddRanges(imgui.io->Fonts->GetGlyphRangesChineseSimplifiedCommon());
-	// // builder.AddRanges(imgui.io->Fonts->GetGlyphRangesCyrillic());
-	// // builder.AddRanges(imgui.io->Fonts->GetGlyphRangesThai());
-	// // builder.AddRanges(imgui.io->Fonts->GetGlyphRangesVietnamese());
-	// ImVector<ImWchar> custom_ranges;
-	// builder.BuildRanges(&custom_ranges);
-
-	// ^ TODO: RANDOM CRASH TODO REFACTOR  IMPORTANT FIX  YES
-	const auto* ranges = imgui.io->Fonts->GetGlyphRangesDefault();
-
 	ImFontConfig font_cfg;
-	font_cfg.RasterizerDensity = SDL_GetWindowPixelDensity(window); // TODO PORT: update when changing screen
 
 	// init fonts
-	if (!fonts::dejavu.init(DEJAVU_SANS_COMPRESSED_DATA, 13.f, &font_cfg, ranges))
+	if (!fonts::dejavu.init(DEJAVU_SANS_COMPRESSED_DATA, fonts::size::BODY, &font_cfg))
 		return false;
 
-	if (!fonts::header_font.init(EB_GARAMOND_COMPRESSED_DATA, 30.f, &font_cfg, ranges))
+	if (!fonts::garamond.init(NV_GARAMOND_COMPRESSED_DATA, fonts::size::HEADER, &font_cfg))
 		return false;
 
-	if (!fonts::smaller_header_font.init(EB_GARAMOND_COMPRESSED_DATA, 18.f, &font_cfg, ranges))
+	if (!fonts::icons.init(ICONS_COMPRESSED_DATA, fonts::size::ICON, &font_cfg))
 		return false;
 
-	if (!fonts::icons.init(ICONS_COMPRESSED_DATA, 14.f, &font_cfg, ranges))
-		return false;
+	fonts::icons.set_ink_aligned(true);
+
+	initialised = true;
 
 	return true;
 }
 
 void render::destroy() {
+	initialised = false;
+
+	if (!imgui.ctx)
+		return;
+
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplSDL3_Shutdown();
 	ImGui::DestroyContext();
+
+	imgui.ctx = nullptr;
+	imgui.io = nullptr;
+	imgui.drawlist = nullptr;
+}
+
+float render::get_content_scale(SDL_Window* window) {
+	if (dpi_scale_override > 0.f)
+		return dpi_scale_override;
+
+	// SDL_GetWindowDisplayScale includes the retina pixel density, which imgui/sdl already handle, so divide it out
+	float display_scale = SDL_GetWindowDisplayScale(window);
+	float pixel_density = SDL_GetWindowPixelDensity(window);
+
+	if (display_scale <= 0.f)
+		return 1.f;
+
+	float content_scale = pixel_density > 0.f ? display_scale / pixel_density : display_scale;
+
+	// never shrink the ui below the design size
+	return std::max(content_scale, 1.f);
 }
 
 void render::update_window_size(SDL_Window* window) {
-	SDL_GetWindowSize(window, &window_size.w, &window_size.h);
+	ui_scale = get_content_scale(window);
+
+	int window_w = 0;
+	int window_h = 0;
+	SDL_GetWindowSize(window, &window_w, &window_h);
+
+	// lay out in logical units so everything scales with the os content scale
+	window_size.w = (int)std::lround((float)window_w / ui_scale);
+	window_size.h = (int)std::lround((float)window_h / ui_scale);
 }
 
 void render::ImGuiWrap::begin(SDL_Window* window) {
 	// Start the Dear ImGui frame
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplSDL3_NewFrame();
+
+	// render the logical layout onto the full framebuffer, making everything ui_scale times bigger while keeping text
+	// crisp. has to happen before ImGui::NewFrame()
+	{
+		int pixel_w = 0;
+		int pixel_h = 0;
+		SDL_GetWindowSizeInPixels(window, &pixel_w, &pixel_h);
+
+		io->DisplaySize = ImVec2((float)window_size.w, (float)window_size.h);
+		io->DisplayFramebufferScale = ImVec2(
+			window_size.w > 0 ? (float)pixel_w / (float)window_size.w : 1.f,
+			window_size.h > 0 ? (float)pixel_h / (float)window_size.h : 1.f
+		);
+
+		framebuffer_scale = std::max(io->DisplayFramebufferScale.x, io->DisplayFramebufferScale.y);
+	}
+
 	ImGui::NewFrame();
 
 	drawlist = ImGui::GetForegroundDrawList();
@@ -144,7 +164,7 @@ void render::ImGuiWrap::begin(SDL_Window* window) {
 
 void render::ImGuiWrap::end(SDL_Window* window) { // NOLINT(readability-convert-member-functions-to-static)
 	                                              // ^ yeah, but this is nicer to call
-	static constexpr ImVec4 clear_colour = ImVec4(0.f, 0.f, 0.f, 1.f);
+	static constexpr ImVec4 CLEAR_COLOUR = ImVec4(0.f, 0.f, 0.f, 1.f);
 
 	for (auto& call : late_draw_calls) {
 		call();
@@ -160,12 +180,13 @@ void render::ImGuiWrap::end(SDL_Window* window) { // NOLINT(readability-convert-
 	glViewport(0, 0, drawable_width, drawable_height);
 
 	glClearColor(
-		clear_colour.x * clear_colour.w,
-		clear_colour.y * clear_colour.w,
-		clear_colour.z * clear_colour.w,
-		clear_colour.w
+		CLEAR_COLOUR.x * CLEAR_COLOUR.w,
+		CLEAR_COLOUR.y * CLEAR_COLOUR.w,
+		CLEAR_COLOUR.z * CLEAR_COLOUR.w,
+		CLEAR_COLOUR.w
 	);
 	glClear(GL_COLOR_BUFFER_BIT);
+
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	SDL_GL_SwapWindow(window);
 }
@@ -392,14 +413,7 @@ void render::quadrilateral_stroke(
 	);
 }
 
-void render::triangle_filled(
-	const gfx::Point& p1,
-	const gfx::Point& p2,
-	const gfx::Point& p3,
-	const gfx::Color& col,
-	float thickness,
-	bool anti_aliased
-) {
+void render::triangle_filled(const gfx::Point& p1, const gfx::Point& p2, const gfx::Point& p3, const gfx::Color& col) {
 	imgui.drawlist->AddTriangleFilled(p1, p2, p3, col.to_imgui());
 }
 
@@ -454,30 +468,31 @@ void render::text(
 	const std::string& text,
 	const Font& font,
 	unsigned int flags,
-	float rotation_deg,
-	int rotation_pivot_y
+	float rotation_deg
 ) {
 	if (!font)
 		return;
 
-	ImGui::PushFont(font.im_font());
+	ImGui::PushFont(font.im_font(), font.size());
 
-	int vtx_idx_begin = imgui.drawlist->_VtxCurrentIdx;
+	int vtx_idx_begin = imgui.drawlist->VtxBuffer.Size;
 
 	if (flags) {
-		const auto size = font.calc_size(text);
+		// the box the alignment flags line up with, relative to pos
+		const gfx::Rect box =
+			font.ink_aligned() ? font.calc_ink_bounds(text) : gfx::Rect(gfx::Point(), font.calc_size(text));
 
 		if (flags & FONT_CENTERED_X)
-			pos.x -= int(size.w * 0.5f);
+			pos.x -= box.x + int(box.w * 0.5f);
 
 		if (flags & FONT_CENTERED_Y)
-			pos.y -= int(size.h * 0.5f);
+			pos.y -= box.y + int(box.h * 0.5f);
 
 		if (flags & FONT_RIGHT_ALIGN)
-			pos.x -= size.w;
+			pos.x -= box.x2();
 
 		if (flags & FONT_BOTTOM_ALIGN)
-			pos.y -= size.h;
+			pos.y -= box.y2();
 
 		if (flags & FONT_OUTLINE) {
 			const gfx::Color outline_colour(0, 0, 0, colour.a * 0.8f);
@@ -508,17 +523,29 @@ void render::text(
 	imgui.drawlist->AddText(font.im_font(), font.size(), pos, colour.to_imgui(), text.data());
 
 	if (rotation_deg != 0.f) {
-		int vtx_idx_end = imgui.drawlist->_VtxCurrentIdx;
+		int vtx_idx_end = imgui.drawlist->VtxBuffer.Size;
+		if (vtx_idx_begin == vtx_idx_end) {
+			ImGui::PopFont();
+			return;
+		}
 
-		auto text_size = font.calc_size(text);
-		gfx::Rect text_rect(pos, gfx::Size(text_size.w, rotation_pivot_y));
+		// use the center of the vertices that were actually drawn
+		float min_x = imgui.drawlist->VtxBuffer[vtx_idx_begin].pos.x;
+		float max_x = min_x;
+		float min_y = imgui.drawlist->VtxBuffer[vtx_idx_begin].pos.y;
+		float max_y = min_y;
+		for (int i = vtx_idx_begin + 1; i < vtx_idx_end; i++) {
+			min_x = std::min(min_x, imgui.drawlist->VtxBuffer[i].pos.x);
+			max_x = std::max(max_x, imgui.drawlist->VtxBuffer[i].pos.x);
+			min_y = std::min(min_y, imgui.drawlist->VtxBuffer[i].pos.y);
+			max_y = std::max(max_y, imgui.drawlist->VtxBuffer[i].pos.y);
+		}
 
-		ImVec2 pivot_in = text_rect.center();
-		ImVec2 pivot_out = text_rect.center();
+		ImVec2 pivot((min_x + max_x) * 0.5f, (min_y + max_y) * 0.5f);
 
 		float ang = u::deg_to_rad(rotation_deg);
 		ImGui::ShadeVertsTransformPos(
-			imgui.drawlist, vtx_idx_begin, vtx_idx_end, pivot_in, std::cos(ang), std::sin(ang), pivot_out
+			imgui.drawlist, vtx_idx_begin, vtx_idx_end, pivot, std::cos(ang), std::sin(ang), pivot
 		);
 	}
 
@@ -609,24 +636,6 @@ void render::image(const gfx::Rect& rect, const Texture& texture, const gfx::Col
 	);
 }
 
-void render::image_with_borders(
-	const gfx::Rect& rect,
-	const Texture& texture,
-	const gfx::Color& border_color,
-	const gfx::Color& inner_border_color,
-	float border_thickness,
-	const gfx::Color& tint_color
-) {
-	if (!texture.is_valid())
-		return;
-
-	image(rect.shrink(3), texture, tint_color);
-
-	rect_stroke(rect.shrink(2), border_color, border_thickness);
-	rect_stroke(rect.shrink(1), inner_border_color, border_thickness);
-	rect_stroke(rect, border_color, border_thickness);
-}
-
 void render::image_rounded(
 	const gfx::Rect& rect,
 	const Texture& texture,
@@ -669,6 +678,230 @@ void render::rounded_image_with_borders(
 	rounded_rect_stroke(rect, border_color, rounding, rounding_flags, border_thickness);
 }
 
+void render::borders(const gfx::Rect& rect, const gfx::Color& border_color, const gfx::Color& inner_border_color) {
+	rect_stroke(rect.shrink(2), border_color, 1.f);
+	rect_stroke(rect.shrink(1), inner_border_color, 1.f);
+	rect_stroke(rect, border_color, 1.f);
+}
+
+void render::spinner(
+	const gfx::Point& pos,
+	float radius,
+	const gfx::Color& background_color,
+	const gfx::Color& highlight_color,
+	float thickness,
+	float alpha,
+	float trail_degrees
+) {
+	constexpr float SPIN_DEGREES_PER_SECOND = 320.f;
+	constexpr int SPIN_SEGMENTS = 32;
+
+	ImVec2 center = pos;
+
+	// background ring
+	circle_stroke(pos, radius, background_color.adjust_alpha(alpha), thickness, SPIN_SEGMENTS);
+
+	// head ring
+	float head_degree = std::fmod((float)ImGui::GetTime() * SPIN_DEGREES_PER_SECOND, 360.f);
+	float tail_degree = head_degree - trail_degrees;
+
+	for (int i = 0; i < SPIN_SEGMENTS; i++) {
+		float segment_start_fraction = (float)i / SPIN_SEGMENTS;
+		float segment_end_fraction = (float)(i + 1) / SPIN_SEGMENTS;
+
+		float segment_start_angle = u::deg_to_rad(tail_degree + (trail_degrees * segment_start_fraction));
+		float segment_end_angle = u::deg_to_rad(tail_degree + (trail_degrees * segment_end_fraction));
+
+		ImVec2 segment_start_pos(
+			center.x + (std::cos(segment_start_angle) * radius), center.y + (std::sin(segment_start_angle) * radius)
+		);
+		ImVec2 segment_end_pos(
+			center.x + (std::cos(segment_end_angle) * radius), center.y + (std::sin(segment_end_angle) * radius)
+		);
+
+		gfx::Color segment_color = highlight_color.adjust_alpha(segment_end_fraction * alpha);
+
+		// note: directly calling AddLine for float precision
+		imgui.drawlist->AddLine(segment_start_pos, segment_end_pos, segment_color.to_imgui(), thickness);
+	}
+}
+
+namespace {
+	gfx::Point catmull_rom(
+		const gfx::Point& p0, const gfx::Point& p1, const gfx::Point& p2, const gfx::Point& p3, float t
+	) {
+		float t2 = t * t;
+		float t3 = t2 * t;
+
+		float x = 0.5f * ((2.0f * p1.x) + ((-p0.x + p2.x) * t) +
+		                  (((2.0f * p0.x) - (5.0f * p1.x) + (4.0f * p2.x) - p3.x) * t2) +
+		                  ((-p0.x + (3.0f * p1.x) - (3.0f * p2.x) + p3.x) * t3));
+
+		float y = 0.5f * ((2.0f * p1.y) + ((-p0.y + p2.y) * t) +
+		                  (((2.0f * p0.y) - (5.0f * p1.y) + (4.0f * p2.y) - p3.y) * t2) +
+		                  ((-p0.y + (3.0f * p1.y) - (3.0f * p2.y) + p3.y) * t3));
+
+		return { (int)x, (int)y };
+	}
+}
+
+void render::waveform(
+	const gfx::Rect& rect,
+	const gfx::Rect& active_rect,
+	const gfx::Color& color,
+	const std::vector<int16_t>& samples,
+	int16_t max_sample,
+	float zoom_start,
+	float zoom_end
+) {
+	if (samples.empty() || max_sample <= 0 || rect.w <= 1)
+		return;
+
+	zoom_start = std::clamp(zoom_start, 0.0f, 1.0f);
+	zoom_end = std::clamp(zoom_end, 0.0f, 1.0f);
+	if (zoom_start >= zoom_end)
+		return;
+
+	const int width = rect.w;
+	const int height = rect.h;
+	const int y_center = rect.y + (height / 2);
+	const float scale = height * 0.5f;
+
+	const size_t total_samples = samples.size();
+	const size_t start_idx = static_cast<size_t>(zoom_start * total_samples);
+	const size_t end_idx = std::min(static_cast<size_t>(zoom_end * total_samples), total_samples);
+
+	if (start_idx >= end_idx)
+		return;
+
+	const size_t sample_range = end_idx - start_idx;
+	const float samples_per_pixel = static_cast<float>(sample_range) / width;
+
+	int16_t display_max = waveforms::get_audio_percentile_peak(samples, 1.f); // 0.999f);
+
+	if (samples_per_pixel >= 2.0f) {
+		// Zoomed out: draw amplitude envelope
+		for (int x = 0; x < width; ++x) {
+			const size_t pixel_start = start_idx + static_cast<size_t>(x * samples_per_pixel);
+			const size_t pixel_end = std::min(start_idx + static_cast<size_t>((x + 1) * samples_per_pixel), end_idx);
+
+			// Find peak amplitude in this pixel range
+			float peak_amplitude = 0.0f;
+			for (size_t i = pixel_start; i < pixel_end; ++i) {
+				float amplitude = std::abs(static_cast<float>(samples[i])) / display_max;
+				amplitude = std::min(amplitude, 1.0f);
+				peak_amplitude = std::max(peak_amplitude, amplitude);
+			}
+
+			// Draw symmetric line above and below center
+			const int amplitude_height = static_cast<int>(peak_amplitude * scale);
+
+			if (amplitude_height > 0) {
+				const int y_top = y_center - amplitude_height;
+				const int y_bottom = y_center + amplitude_height;
+
+				const gfx::Point p1{ rect.x + x, y_top };
+				const gfx::Point p2{ rect.x + x, y_bottom };
+
+				auto line_color = color;
+				if (!active_rect.contains(p1) && !active_rect.contains(p2)) {
+					line_color = line_color.adjust_alpha(0.5f);
+				}
+
+				line(p1, p2, line_color, true, 1.0f);
+			}
+			else {
+				gfx::Point point{ rect.x + x, y_center };
+
+				auto point_color = color;
+				if (!active_rect.contains(point)) {
+					point_color = point_color.adjust_alpha(0.5f);
+				}
+
+				rect_filled(gfx::Rect(point, gfx::Size(1, 1)), point_color);
+			}
+		}
+	}
+	else {
+		// Zoomed in: draw smooth interpolated curve
+		std::vector<gfx::Point> points;
+		points.reserve(sample_range);
+
+		for (size_t i = start_idx; i < end_idx; ++i) {
+			float amplitude = std::abs(static_cast<float>(samples[i])) / display_max;
+			amplitude = std::min(amplitude, 1.0f);
+
+			const int x = rect.x + static_cast<int>((i - start_idx) * width / static_cast<float>(sample_range));
+
+			// Alternate above/below center based on sample index
+			const bool draw_above = (i % 2 == 0);
+			const int y = draw_above ? y_center - static_cast<int>(amplitude * scale)  // Above center
+			                         : y_center + static_cast<int>(amplitude * scale); // Below center
+
+			points.push_back({ x, y });
+		}
+
+		if (points.size() >= 4) {
+			// Draw Catmull-Rom spline
+			// TODO MR: really small amplitudes still drawing 2 pixels high line? copy zoomed out rect thingy to make it
+			// 1 pixel?
+			for (size_t i = 1; i + 2 < points.size(); ++i) {
+				const gfx::Point& p0 = points[i - 1];
+				const gfx::Point& p1 = points[i];
+				const gfx::Point& p2 = points[i + 1];
+				const gfx::Point& p3 = points[i + 2];
+
+				auto segment_color = color;
+				if (!active_rect.contains(p1) && !active_rect.contains(p2)) {
+					segment_color = segment_color.adjust_alpha(0.5f);
+				}
+
+				gfx::Point prev = p1;
+				for (int j = 1; j <= 12; ++j) {
+					const float t = j / 12.0f;
+					const gfx::Point current = catmull_rom(p0, p1, p2, p3, t);
+					line(prev, current, segment_color, true, 1.5f);
+					prev = current;
+				}
+			}
+		}
+		else if (points.size() >= 2) {
+			for (size_t i = 1; i < points.size(); ++i) {
+				auto segment_color = color;
+				if (!active_rect.contains(points[i - 1]) && !active_rect.contains(points[i])) {
+					segment_color = segment_color.adjust_alpha(0.5f);
+				}
+				line(points[i - 1], points[i], segment_color, true, 1.5f);
+			}
+		}
+	}
+}
+
+void render::rect_side(const gfx::Rect& rect, const gfx::Color& color, RectSide side, int thickness) {
+	switch (side) {
+		case RectSide::LEFT: {
+			// Top horizontal
+			rect_filled(gfx::Rect{ rect.x, rect.y - thickness, rect.w, thickness }, color);
+			// Vertical
+			rect_filled(
+				gfx::Rect{ rect.x - thickness, rect.y - thickness, thickness, rect.h + (thickness * 2) }, color
+			);
+			// Bottom horizontal
+			rect_filled(gfx::Rect{ rect.x, rect.y + rect.h, rect.w, thickness }, color);
+			break;
+		}
+		case RectSide::RIGHT: {
+			// Top horizontal
+			rect_filled(gfx::Rect{ rect.x, rect.y - thickness, rect.w, thickness }, color);
+			// Vertical
+			rect_filled(gfx::Rect{ rect.x + rect.w, rect.y - thickness, thickness, rect.h + (thickness * 2) }, color);
+			// Bottom horizontal
+			rect_filled(gfx::Rect{ rect.x, rect.y + rect.h, rect.w, thickness }, color);
+			break;
+		}
+	}
+}
+
 void render::push_clip_rect(const gfx::Rect& rect, bool intersect_clip_rect) {
 	imgui.drawlist->PushClipRect(rect.origin(), rect.max(), intersect_clip_rect);
 }
@@ -703,6 +936,34 @@ gfx::Rect render::get_clip_rect() {
 	};
 }
 
+size_t render::draw_vertex_count() {
+	return static_cast<size_t>(imgui.drawlist->VtxBuffer.Size);
+}
+
+void render::transform_draw_vertices(size_t first_vertex, const gfx::Rect& from, const gfx::Rect& to, float opacity) {
+	if (from.is_empty())
+		return;
+
+	opacity = std::clamp(opacity, 0.f, 1.f);
+
+	if (from == to && opacity == 1.f)
+		return;
+
+	float scale_x = to.w / static_cast<float>(from.w);
+	float scale_y = to.h / static_cast<float>(from.h);
+
+	for (size_t i = first_vertex; i < static_cast<size_t>(imgui.drawlist->VtxBuffer.Size); i++) {
+		auto& vertex = imgui.drawlist->VtxBuffer[static_cast<int>(i)];
+
+		vertex.pos.x = to.x + ((vertex.pos.x - from.x) * scale_x);
+		vertex.pos.y = to.y + ((vertex.pos.y - from.y) * scale_y);
+
+		uint32_t alpha = (vertex.col >> IM_COL32_A_SHIFT) & 0xff;
+		alpha = static_cast<uint32_t>(std::lround(alpha * opacity));
+		vertex.col = (vertex.col & ~IM_COL32_A_MASK) | (alpha << IM_COL32_A_SHIFT);
+	}
+}
+
 bool render::clip_string(std::string& text, const Font& font, int max_width, int min_chars) {
 	int size = font.calc_size(text).w;
 	if (size <= max_width)
@@ -726,6 +987,72 @@ bool render::clip_string(std::string& text, const Font& font, int max_width, int
 	return false;
 }
 
+namespace {
+	int utf8_seq_len(unsigned char c) {
+		if (c < 0x80)
+			return 1;
+		if ((c & 0xE0) == 0xC0)
+			return 2;
+		if ((c & 0xF0) == 0xE0)
+			return 3;
+		if ((c & 0xF8) == 0xF0)
+			return 4;
+		return 1;
+	}
+}
+
+std::vector<std::string> render::wrap_text_verbatim(const std::string& text, int max_width, const Font& font) {
+	std::vector<std::string> lines;
+	if (!font)
+		return lines;
+
+	auto limit = static_cast<float>(std::max(max_width, 1));
+
+	size_t line_start = 0;
+	while (true) {
+		size_t newline = text.find('\n', line_start);
+		size_t line_end = newline == std::string::npos ? text.length() : newline;
+
+		size_t start = line_start;
+		size_t break_at = std::string::npos;
+		float width = 0.f;
+
+		size_t i = line_start;
+		while (i < line_end) {
+			size_t next = std::min(i + utf8_seq_len(static_cast<unsigned char>(text[i])), line_end);
+			float advance = font.calc_width(text.data() + i, text.data() + next);
+
+			// i > start so a field narrower than one glyph doesn't loop forever
+			if (width + advance > limit && i > start) {
+				size_t split = break_at > start && break_at != std::string::npos ? break_at : i;
+
+				lines.push_back(text.substr(start, split - start));
+				start = split;
+				break_at = std::string::npos;
+
+				width = font.calc_width(text.data() + start, text.data() + i);
+			}
+
+			width += advance;
+
+			// break after the space so it stays on the previous line
+			if (text[i] == ' ' || text[i] == '\t')
+				break_at = next;
+
+			i = next;
+		}
+
+		lines.push_back(text.substr(start, line_end - start));
+
+		if (newline == std::string::npos)
+			break;
+
+		line_start = newline + 1;
+	}
+
+	return lines;
+}
+
 std::vector<std::string> render::wrap_text(
 	const std::string& text, const gfx::Size& dimensions, const Font& font, int line_height
 ) {
@@ -734,43 +1061,92 @@ std::vector<std::string> render::wrap_text(
 		return lines;
 
 	std::istringstream iss(text);
-	std::string word;
-	std::string current_line;
+	std::string line;
 
-	while (iss >> word) {
-		std::string test_line = current_line;
-		if (!test_line.empty())
-			test_line += ' ';
-		test_line += word;
+	while (std::getline(iss, line)) {
+		std::istringstream line_stream(line);
+		std::string word;
+		std::string current_line;
 
-		if (font.calc_size(test_line).w > dimensions.w) {
-			if (!current_line.empty()) {
-				lines.push_back(current_line);
-				current_line = word;
-			}
-			else {
-				// Word itself is too long, hard break
-				std::string sub_word;
-				for (char c : word) {
-					sub_word += c;
-					if (font.calc_size(sub_word).w > dimensions.w) {
-						if (sub_word.length() > 1) {
-							lines.push_back(sub_word.substr(0, sub_word.length() - 1));
-							sub_word = sub_word.back();
+		while (line_stream >> word) {
+			std::string test_line = current_line;
+			if (!test_line.empty())
+				test_line += ' ';
+			test_line += word;
+
+			if (font.calc_size(test_line).w > dimensions.w) {
+				if (!current_line.empty()) {
+					lines.push_back(current_line);
+					current_line = word;
+				}
+				else {
+					// Word itself is too long, hard break
+					std::string sub_word;
+					for (char c : word) {
+						sub_word += c;
+						if (font.calc_size(sub_word).w > dimensions.w) {
+							if (sub_word.length() > 1) {
+								lines.push_back(sub_word.substr(0, sub_word.length() - 1));
+								sub_word = sub_word.back();
+							}
 						}
 					}
+					current_line = sub_word;
 				}
-				current_line = sub_word;
+			}
+			else {
+				current_line = test_line;
 			}
 		}
-		else {
-			current_line = test_line;
-		}
-	}
 
-	if (!current_line.empty()) {
-		lines.push_back(current_line);
+		if (!current_line.empty()) {
+			lines.push_back(current_line);
+		}
+		else {
+			lines.push_back("");
+		}
 	}
 
 	return lines;
+}
+
+namespace {
+	SDL_Surface* bytes_to_surface(const void* data, size_t size, const char* type) {
+		SDL_IOStream* io = SDL_IOFromConstMem(data, size);
+		if (!io)
+			return nullptr;
+
+		SDL_Surface* surface = IMG_LoadTyped_IO(io, /*closeio=*/true, type);
+		if (!surface)
+			return nullptr;
+
+		SDL_Surface* rgba = SDL_ConvertSurface(surface, SDL_PIXELFORMAT_RGBA32);
+		SDL_DestroySurface(surface);
+
+		return rgba;
+	}
+}
+
+SDL_Surface* render::jpeg_bytes_to_surface(const void* data, size_t size) {
+	return bytes_to_surface(data, size, "JPG");
+}
+
+SDL_Surface* render::png_bytes_to_surface(const void* data, size_t size) {
+	return bytes_to_surface(data, size, "PNG");
+}
+
+std::shared_ptr<render::Texture> render::texture_from_jpeg(std::span<const uint8_t> jpeg) {
+	if (jpeg.empty())
+		return nullptr;
+
+	SDL_Surface* rgba = jpeg_bytes_to_surface(jpeg.data(), jpeg.size());
+	if (!rgba)
+		return nullptr;
+
+	auto texture = std::make_shared<Texture>();
+	bool loaded = texture->load_from_surface(rgba);
+
+	SDL_DestroySurface(rgba);
+
+	return loaded ? texture : nullptr;
 }

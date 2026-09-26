@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config_blur.h"
+
 namespace weighting {
 	std::vector<double> normalize(const std::vector<double>& weights);
 	std::vector<double> scale_range(int n, double start, double end);
@@ -30,5 +32,5 @@ namespace weighting {
 		std::string error;
 	};
 
-	GetWeightsResult get_weights(const BlurSettings& settings, int video_fps);
+	GetWeightsResult get_weights(const BlurSettings& settings, std::optional<int> video_fps);
 }

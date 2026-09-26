@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include <cmath>
+
 namespace gfx {
 	class Size;
 	class Rect;

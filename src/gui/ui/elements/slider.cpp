@@ -1,5 +1,6 @@
 #include "../ui.h"
 #include "../../render/render.h"
+#include "../../fonts/icons.h"
 #include "../keys.h"
 
 constexpr float SLIDER_ROUNDING = 4.0f;
@@ -8,7 +9,6 @@ constexpr int TRACK_HEIGHT = 4;
 constexpr int LINE_HEIGHT_ADD = 7;
 constexpr int TRACK_LABEL_GAP = 10;
 constexpr int TOOLTIP_GAP = 4;
-const std::string TIED_ICON = "a"; // chain
 constexpr int TIED_ICON_GAP = 3;
 constexpr gfx::Size TIE_PAD(5, 3);
 constexpr float TIE_ROUNDING = 4.0f;
@@ -36,7 +36,7 @@ namespace {
 	SliderPositions get_slider_positions(
 		const ui::Container& container, const ui::AnimatedElement& element, const ui::SliderElementData& slider_data
 	) {
-		int line_height = slider_data.font->height();
+		int line_height = slider_data.font.height();
 
 		gfx::Rect track_rect = element.element->rect;
 		track_rect.h = TRACK_HEIGHT;
@@ -51,10 +51,10 @@ namespace {
 		gfx::Point tied_text_pos;
 
 		if (slider_data.is_tied_slider) {
-			const int icon_size = fonts::icons.calc_size(TIED_ICON).w;
+			const int icon_size = fonts::icons.calc_size(icons::CHAIN).w;
 			const int text_size =
-				slider_data.tied_text.empty() ? 0 : slider_data.font->calc_size(slider_data.tied_text).w;
-			const int tie_text_height = std::max(slider_data.font->height(), fonts::icons.height());
+				slider_data.tied_text.empty() ? 0 : slider_data.font.calc_size(slider_data.tied_text).w;
+			const int tie_text_height = std::max(slider_data.font.height(), fonts::icons.height());
 
 			gfx::Size tied_size(
 				icon_size + (slider_data.tied_text.empty() ? 0 : TIED_ICON_GAP + text_size) // no gap if empty text
@@ -78,7 +78,7 @@ namespace {
 			tooltip_pos.y += line_height + TOOLTIP_GAP;
 			track_rect.y += line_height + TOOLTIP_GAP;
 
-			line_height = slider_data.font->height();
+			line_height = slider_data.font.height();
 		}
 
 		track_rect.y += line_height + TRACK_LABEL_GAP;
@@ -143,7 +143,6 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 			auto& observer = slider_observers[element.element->id];
 
 			if (*slider_data.is_tied && slider_data.tied_value) {
-				// Get current tied value
 				float current_tied_val = std::visit(to_float_ptr, *slider_data.tied_value);
 
 				if (observer.init && current_tied_val != observer.last_tied_value) {
@@ -172,11 +171,12 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 	float max_val = std::visit(to_float, slider_data.max_value);
 
 	// Normalize progress
-	float progress = std::clamp((current_val - min_val) / (max_val - min_val), 0.f, 1.f);
+	float range = max_val - min_val;
+	float progress = range != 0.f ? std::clamp((current_val - min_val) / range, 0.f, 1.f) : 0.f;
 
 	int track_shade = 40 + (20 * hover_anim);
 	gfx::Color track_color(track_shade, track_shade, track_shade, anim * 255);
-	gfx::Color filled_color = HIGHLIGHT_COLOR.adjust_alpha(anim);
+	gfx::Color filled_color = highlight_color.adjust_alpha(anim);
 	gfx::Color handle_border_color(0, 0, 0, anim * 50);
 	gfx::Color text_color(255, 255, 255, anim * 255);
 	gfx::Color tooltip_color(125, 125, 125, anim * 255);
@@ -207,12 +207,12 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 	}
 	else {
 		std::string label = format_label(slider_data.current_value, slider_data.label_format);
-		render::text(positions.label_rect.origin(), text_color, label, *slider_data.font);
+		render::text(positions.label_rect.origin(), text_color, label, slider_data.font);
 	}
 
 	// Render tooltip if provided
 	if (!slider_data.tooltip.empty()) {
-		render::text(positions.tooltip_pos, tooltip_color, slider_data.tooltip, *slider_data.font);
+		render::text(positions.tooltip_pos, tooltip_color, slider_data.tooltip, slider_data.font);
 	}
 
 	// Render tied icon
@@ -226,8 +226,8 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 		auto tie_text_colour = gfx::Color::lerp(tooltip_color, text_color, tied_anim);
 		// gfx::Color tie_text_colour = *slider_data.is_tied ? text_color : tooltip_color;
 
-		render::text(positions.tied_icon_pos, tie_text_colour, TIED_ICON, fonts::icons);
-		render::text(positions.tied_text_pos, tie_text_colour, slider_data.tied_text, *slider_data.font);
+		render::text(positions.tied_icon_pos, tie_text_colour, icons::CHAIN, fonts::icons);
+		render::text(positions.tied_text_pos, tie_text_colour, slider_data.tied_text, slider_data.font);
 	}
 
 	// Render track and filled portion
@@ -318,8 +318,11 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 			}
 		};
 
+		// grab this before we claim the press below, which clears it
+		bool pressed = keys::is_mouse_down();
+
 		// text input: handle clicks
-		if (keys::is_mouse_down()) {
+		if (pressed) {
 			if (label_hovered) {
 				keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
 
@@ -336,24 +339,12 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 					auto& state = ui::helpers::text_input::add_text_edit(element.element->id, slider_data.text_input);
 					state.active = true;
 
-					SDL_Rect input_rect = {
-						positions.label_rect.x, positions.label_rect.y, positions.label_rect.w, positions.label_rect.h
-					};
 					SDL_StartTextInput(container.window);
-					SDL_SetTextInputArea(container.window, &input_rect, 0);
 
 					helpers::text_input::select_all(&slider_data.text_input, &state.edit_state);
-				}
-				else {
-					auto& state = helpers::text_input::text_input_map.at(element.element->id);
 
-					// Use stb_textedit_click to set cursor position (relative to text start)
-					helpers::text_input::click(
-						&slider_data.text_input,
-						&state.edit_state,
-						keys::mouse_pos.x - positions.label_rect.x,
-						keys::mouse_pos.y - positions.label_rect.y
-					);
+					// so the drag from this press doesn't clear the select-all
+					state.selected_all_mouse_lock = true;
 				}
 			}
 			else {
@@ -386,15 +377,22 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 					text_event_queue.erase(text_event_queue.begin());
 				}
 
-				// --- Handle Mouse Drag ---
-				if (state.active && keys::is_mouse_dragging(SDL_BUTTON_LEFT)) {
-					helpers::text_input::drag(
-						&slider_data.text_input,
-						&state.edit_state,
-						keys::mouse_pos.x - positions.label_rect.x,
-						keys::mouse_pos.y - positions.label_rect.y
-					);
-				}
+				gfx::Point text_relative_pos(
+					keys::mouse_pos.x - positions.label_rect.x + static_cast<int>(state.scroll_x),
+					keys::mouse_pos.y - positions.label_rect.y
+				);
+
+				helpers::text_input::handle_mouse(
+					slider_data.text_input,
+					state,
+					text_relative_pos,
+					label_hovered,
+					pressed,
+					keys::get_click_count(),
+					(SDL_GetModState() & SDL_KMOD_SHIFT) != 0u
+				);
+
+				helpers::text_input::update_ime_area(container.window, state, slider_data.font);
 
 				bool value_changed = false;
 
@@ -487,6 +485,12 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 	return false;
 }
 
+void ui::remove_slider(AnimatedElement& element) {
+	if (slider_observers.contains(element.element->id)) {
+		slider_observers.erase(element.element->id);
+	}
+}
+
 ui::AnimatedElement* ui::add_slider(
 	const std::string& id,
 	Container& container,
@@ -511,7 +515,7 @@ ui::AnimatedElement* ui::add_slider(
 	                       .max_value = max_value,
 	                       .current_value = value,
 	                       .label_format = label_format,
-	                       .font = &font,
+	                       .font = font,
 	                       .on_change = std::move(on_change),
 	                       .precision = precision,
 	                       .tooltip = tooltip,
@@ -564,7 +568,7 @@ ui::AnimatedElement* ui::add_slider_tied(
 	                       .max_value = max_value,
 	                       .current_value = value,
 	                       .label_format = label_format,
-	                       .font = &font,
+	                       .font = font,
 	                       .on_change = std::move(on_change),
 	                       .precision = precision,
 	                       .tooltip = tooltip,
@@ -573,7 +577,8 @@ ui::AnimatedElement* ui::add_slider_tied(
 	                       .tied_value = tied_value,
 	                       .tied_text = tied_text },
 		render_slider,
-		update_slider
+		update_slider,
+		remove_slider
 	);
 
 	return add_element(

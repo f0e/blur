@@ -1,238 +1,500 @@
 #include "configs.h"
+#include "../../fonts/icons.h"
 
-#include "common/rendering_frame.h"
+#include "preview_frames.h"
+
+#include "common/masks.h"
 #include "common/weighting.h"
 
 #include "../../tasks.h"
 
-#include "../../ui/ui.h"
-#include "../../render/render.h"
 #include "../notifications.h"
+#include "../../renderer.h"
+#include "../../render/render.h"
+#include "../../ui/ui.h"
 
-namespace configs = gui::components::configs;
+namespace {
+	// left over from the last ui frame - the seek bar is added after the preview image it affects
+	bool seek_bar_dragging = false;
 
-void configs::config_preview(ui::Container& container) {
-	static BlurSettings previewed_settings;
-	static bool first = true;
-
-	static auto debounce_time = std::chrono::milliseconds(50);
-	auto now = std::chrono::steady_clock::now();
-	static auto last_render_time = now;
-
-	static size_t preview_id = 0;
-	static std::filesystem::path preview_path;
-	static bool loading = false;
-	static bool error = false;
-	static std::mutex preview_mutex;
-
-	auto sample_video_path = blur.settings_path / "sample_video.mp4";
-	bool sample_video_exists = std::filesystem::exists(sample_video_path);
-
-	auto render_preview = [&] {
-		if (!sample_video_exists) {
-			preview_path.clear();
-			return;
-		}
-
-		if (first) {
-			first = false;
-		}
-		else {
-			if (settings == previewed_settings && !first && !just_added_sample_video)
-				return;
-
-			if (now - last_render_time < debounce_time)
-				return;
-		}
-
-		u::log("generating config preview");
-
-		previewed_settings = settings;
-		just_added_sample_video = false;
-		last_render_time = now;
-
-		{
-			std::lock_guard<std::mutex> lock(preview_mutex);
-			loading = true;
-		}
-
-		auto local_settings = settings;
-		auto local_app_settings = app_settings;
-		std::thread([sample_video_path, local_settings, local_app_settings] {
-			FrameRender* render = nullptr;
-
-			{
-				std::lock_guard<std::mutex> lock(render_mutex);
-
-				// stop ongoing renders early, a new render's coming bro
-				for (auto& render : renders) {
-					render->stop();
-				}
-
-				render = renders.emplace_back(std::make_unique<FrameRender>()).get();
-			}
-
-			auto res = render->render(sample_video_path, local_settings, local_app_settings);
-
-			if (render == renders.back().get())
-			{ // todo: this should be correct right? any cases where this doesn't work?
-				loading = false;
-
-				if (res) {
-					std::lock_guard<std::mutex> lock(preview_mutex);
-					preview_id++;
-
-					Blur::remove_temp_path(preview_path.parent_path());
-
-					preview_path = *res;
-
-					u::log("config preview finished rendering");
-				}
-				else {
-					if (res.error() != "Input path does not exist") {
-						gui::components::notifications::add(
-							"Failed to generate config preview. Click to copy error message",
-							ui::NotificationType::NOTIF_ERROR,
-							[res](const std::string& id) {
-								SDL_SetClipboardText(res.error().c_str());
-
-								gui::components::notifications::close(id);
-
-								gui::components::notifications::add(
-									"Copied error message to clipboard",
-									ui::NotificationType::INFO,
-									{},
-									std::chrono::duration<float>(2.f)
-								);
-							}
-						);
-					}
-				}
-			}
-
-			render->set_can_delete();
-		}).detach();
+	struct SaveMaskDialogState {
+		std::string name;
+		std::string error;
 	};
 
-	render_preview();
+	tl::expected<std::filesystem::path, std::string> get_mask_preset_path(const std::string& entered_name) {
+		auto valid_name = u::validate_filename(entered_name);
+		if (!valid_name)
+			return tl::unexpected(valid_name.error());
 
-	// remove finished renders
-	{
-		std::lock_guard<std::mutex> lock(render_mutex);
-		std::erase_if(renders, [](const auto& render) {
-			return render->can_delete();
-		});
+		std::string name = *valid_name;
+
+		if (!u::to_lower(name).ends_with(".png"))
+			name += ".png";
+
+		auto path = masks::get_path() / u::string_to_path(name);
+		std::error_code ec;
+		if (std::filesystem::exists(path, ec))
+			return tl::unexpected("A mask preset with that name already exists.");
+
+		return path;
 	}
 
-	try {
-		if (!preview_path.empty() && std::filesystem::exists(preview_path) && !error) {
-			auto element = ui::add_image(
-				"config preview image",
-				container,
-				preview_path,
-				container.get_usable_rect().size(),
-				std::to_string(preview_id),
-				gfx::Color::white(loading ? 100 : 255)
-			);
-		}
-		else {
-			if (sample_video_exists) {
-				if (loading) {
-					ui::add_text(
-						"loading config preview text",
-						container,
-						"Loading config preview...",
-						gfx::Color::white(100),
-						fonts::dejavu,
-						FONT_CENTERED_X
-					);
-				}
-				else {
-					ui::add_text(
-						"failed to generate preview text",
-						container,
-						"Failed to generate preview.",
-						gfx::Color::white(100),
-						fonts::dejavu,
-						FONT_CENTERED_X
-					);
-				}
-			}
-			else {
-				ui::add_text(
-					"sample video does not exist text",
-					container,
-					"No preview video found.",
-					gfx::Color::white(100),
-					fonts::dejavu,
-					FONT_CENTERED_X
-				);
+	tl::expected<std::filesystem::path, std::string> save_mask_preset(
+		const std::vector<uint8_t>& jpeg, const std::string& name
+	) {
+		auto path = get_mask_preset_path(name);
+		if (!path)
+			return tl::unexpected(path.error());
 
-				ui::add_text(
-					"sample video does not exist text 2",
-					container,
-					"Drop a video here to add one.",
-					gfx::Color::white(100),
-					fonts::dejavu,
-					FONT_CENTERED_X
-				);
+		std::error_code ec;
+		std::filesystem::create_directories(path->parent_path(), ec);
+		if (ec)
+			return tl::unexpected(std::format("Could not create the masks folder: {}", ec.message()));
 
-				ui::add_button("open preview file button", container, "Or open file", fonts::dejavu, [] {
-					static auto file_callback = [](void* userdata, const char* const* files, int filter) {
-						if (files != nullptr && *files != nullptr) {
-							const char* file = *files;
-							tasks::add_sample_video(u::string_to_path(file));
+		SDL_Surface* surface = render::jpeg_bytes_to_surface(jpeg.data(), jpeg.size());
+		if (!surface)
+			return tl::unexpected("Could not read the current mask preview.");
+
+		bool saved = IMG_SavePNG(surface, u::path_to_string(*path).c_str());
+		SDL_DestroySurface(surface);
+
+		if (!saved)
+			return tl::unexpected(std::format("Could not save the mask preset: {}", SDL_GetError()));
+
+		return *path;
+	}
+
+	void open_save_mask_dialog(std::vector<uint8_t> jpeg) {
+		auto state = std::make_shared<SaveMaskDialogState>();
+
+		ui::dialog::open(
+			{
+				.title = "Save mask preset",
+				.content =
+					[state](ui::Container& container) {
+						ui::add_text_input(
+							"mask preset name input",
+							container,
+							state->name,
+							"name",
+							fonts::dejavu,
+							"",
+							[state](const std::string&) {
+								state->error.clear();
+							}
+						);
+
+						if (!state->error.empty()) {
+							ui::add_text(
+								"mask preset save error",
+								container,
+								state->error,
+								gfx::Color(255, 80, 80, 255),
+								fonts::dejavu(fonts::size::SMALL)
+							);
 						}
-					};
+					},
+				.action_required = true,
+				.close_on_confirm = false,
+				.confirm_text = "Save",
+				.on_confirm =
+					[state, jpeg = std::move(jpeg)] {
+						auto saved = save_mask_preset(jpeg, state->name);
+						if (!saved) {
+							state->error = saved.error();
+							return;
+						}
 
-					const SDL_DialogFileFilter filters[] = {
-						{ "Video files",
-						  "webm;mkv;flv;vob;ogv;ogg;rrc;gifv;mng;mov;avi;qt;wmv;yuv;rm;rmvb;asf;amv;mp4;m4p;m4v;mpg;"
-						  "mp2;mpeg;mpe;"
-						  "mpv;svi;3gp;3g2;mxf;roq;nsv;f4v;f4p;f4a;f4b;mod;ts;m2ts;mts;divx;bik;wtv;drc" }
-					};
-
-					SDL_ShowOpenFileDialog(
-						file_callback, // callback
-						nullptr,       // userdata
-						nullptr,       // parent window
-						filters,       // file filters
-						0,             // number of filters
-						"",            // default path
-						false          // allow multiple files
-					);
-				});
+						ui::dialog::close();
+						gui::components::notifications::add(
+							std::format("Saved mask preset '{}'", u::path_to_string(saved->filename())),
+							ui::NotificationType::SUCCESS
+						);
+					},
 			}
-		}
+		);
 	}
-	catch (std::filesystem::filesystem_error& e) {
-		// i have no idea. std::filesystem::exists threw?
-		u::log_error("std::filesystem::exists threw");
+
+	std::optional<std::string> init_stage_text(rendering::RenderState::InitStage stage) {
+		switch (stage) {
+			case rendering::RenderState::InitStage::GENERATING_MASK:
+				return "Analysing video to generate a mask...";
+			case rendering::RenderState::InitStage::BUILDING_ENGINE:
+				return "Building TensorRT engine. This may take a few minutes...";
+			case rendering::RenderState::InitStage::NONE:
+				break;
+		}
+
+		return std::nullopt;
+	}
+
+	void confirm_clear_sample_video() {
+		ui::dialog::confirm_destructive("Remove sample video?", "", "Remove", [] {
+			gui::components::configs::clear_sample_video();
+		});
 	}
 }
 
-// todo: refactor
-void configs::preview(ui::Container& header_container, ui::Container& content_container) {
-	int interp_fps = 1200;
-	bool parsed_interp_fps = false;
+namespace configs = gui::components::configs;
 
+void configs::reset_config_preview() {
+	preview_frames::reset();
+
+	seek_bar_dragging = false;
+}
+
+bool configs::has_sample_video() {
+	return !app_settings.sample_video_path.empty() &&
+	       std::filesystem::exists(u::string_to_path(app_settings.sample_video_path));
+}
+
+void configs::set_sample_video(const std::filesystem::path& path) {
+	app_settings.sample_video_path = u::path_to_string(path);
+	save_preview_app_settings();
+}
+
+void configs::clear_sample_video() {
+	app_settings.sample_video_path.clear();
+	save_preview_app_settings();
+
+	reset_config_preview();
+}
+
+void configs::save_preview_app_settings() {
+	// only save the preview settings, leaving the user's other changes unsaved
+	auto saved_settings = config_app::get_app_config();
+	saved_settings.sample_video_path = app_settings.sample_video_path;
+	saved_settings.config_preview_seek = app_settings.config_preview_seek;
+
+	config_app::create(config_app::get_app_config_path(), saved_settings);
+
+	current_app_settings.sample_video_path = app_settings.sample_video_path;
+	current_app_settings.config_preview_seek = app_settings.config_preview_seek;
+}
+
+void configs::config_preview(ui::Container& container) {
+	// from the last ui frame since the seek bar is added further down. cleared here in case the seek bar stops being
+	// drawn mid-drag
+	bool dragging_seek_bar = seek_bar_dragging;
+	seek_bar_dragging = false;
+
+	auto sample_video_path = u::string_to_path(app_settings.sample_video_path);
+	bool sample_video_set = !app_settings.sample_video_path.empty();
+	bool sample_video_exists = sample_video_set && std::filesystem::exists(sample_video_path);
+
+	// an unusable video goes in as an empty path, which tears the preview down
+	auto preview_video_path = sample_video_exists ? sample_video_path : std::filesystem::path{};
+
+	bool masking = (settings.interpolate || settings.deduplicate) && (!settings.mask.empty() || settings.auto_mask);
+	if (!masking)
+		show_mask_preview = false;
+
+	bool showing_hovered_mask = !hovered_mask.empty() && hovered_mask != masks::NONE_OPTION;
+
+	auto preview = preview_frames::update(
+		{
+			.video_path = preview_video_path,
+			.settings = settings,
+			.app_settings = app_settings,
+			.seeking = dragging_seek_bar,
+			.show_mask = show_mask_preview,
+		}
+	);
+
+	auto add_open_sample_video_prompt = [&](bool was_deleted) {
+		ui::add_text(
+			"drop sample video text",
+			container,
+			was_deleted ? "Drop a video here to add a new one" : "Drop a video here to add one.",
+			gfx::Color::white(100),
+			fonts::dejavu,
+			FONT_CENTERED_X
+		);
+
+		ui::add_button("open preview file button", container, "Or open file", fonts::dejavu, [] {
+			static auto file_callback = [](void* userdata, const char* const* files, int filter) {
+				if (files != nullptr && *files != nullptr) {
+					const char* file = *files;
+					tasks::add_sample_video(u::string_to_path(file));
+				}
+			};
+
+			const std::array filters = {
+				SDL_DialogFileFilter{
+					.name = "Video files",
+					.pattern =
+						"webm;mkv;flv;vob;ogv;ogg;rrc;gifv;mng;mov;avi;qt;wmv;yuv;rm;rmvb;asf;amv;mp4;m4p;m4v;mpg;mp2;mpeg;mpe;mpv;svi;3gp;3g2;mxf;roq;nsv;f4v;f4p;f4a;f4b;mod;ts;m2ts;mts;divx;bik;wtv;drc",
+				},
+			};
+
+			SDL_ShowOpenFileDialog(file_callback, nullptr, nullptr, filters.data(), 0, "", false);
+		});
+	};
+
+	if (!sample_video_set) {
+		ui::add_text(
+			"no sample video text",
+			container,
+			"No preview video found.",
+			gfx::Color::white(100),
+			fonts::dejavu,
+			FONT_CENTERED_X
+		);
+
+		add_open_sample_video_prompt(false);
+		return;
+	}
+
+	if (!sample_video_exists) {
+		ui::add_text(
+			"missing sample video text",
+			container,
+			std::format("Preview video ({}) no longer exists.", u::path_to_string(sample_video_path.filename())),
+			gfx::Color::white(100),
+			fonts::dejavu,
+			FONT_CENTERED_X
+		);
+
+		ui::add_button("remove old sample video button", container, "Clear sample video", fonts::dejavu, [] {
+			confirm_clear_sample_video();
+		});
+
+		add_open_sample_video_prompt(true);
+
+		return;
+	}
+
+	const int mask_control_height = fonts::dejavu.height();
+
+	auto add_mask_controls = [&] {
+		if (!masking)
+			return;
+
+		container.push_element_gap(SEEK_BAR_BOTTOM_GAP);
+
+		auto* separator = ui::add_separator("mask controls separator", container, ui::SeparatorStyle::FADE_BOTH);
+
+		container.pop_element_gap();
+
+		bool show_save_button =
+			show_mask_preview && !showing_hovered_mask && preview.frame && preview.frame->up_to_date;
+
+		if (show_save_button)
+			container.push_element_gap(6);
+
+		auto* show_mask_checkbox = ui::add_checkbox(
+			"show mask preview checkbox", container, "show mask", show_mask_preview, fonts::dejavu, {}, true
+		);
+
+		if (show_save_button) {
+			container.pop_element_gap();
+
+			ui::set_next_same_line(container);
+
+			auto* save_button = ui::add_icon_button(
+				"save mask preset button",
+				container,
+				icons::SAVE,
+				fonts::icons,
+				gfx::Size(mask_control_height, mask_control_height),
+				gfx::Color::white(190),
+				gfx::Color::white(),
+				[] {
+					open_save_mask_dialog(preview_frames::current_mask_jpeg());
+				},
+				"Save mask as preset"
+			);
+		}
+	};
+
+	constexpr int PREVIEW_IMAGE_GAP = 2;
+	const int seek_bar_height = ui::seek_bar_height(fonts::dejavu(fonts::size::SMALL));
+
+	auto add_seek_bar_row = [&] {
+		container.push_element_gap(SEEK_BAR_BOTTOM_GAP);
+
+		container.push_element_gap(DELETE_ICON_GAP);
+		auto* seek_bar = ui::add_seek_bar(
+			"config preview seek bar",
+			container,
+			app_settings.config_preview_seek,
+			fonts::dejavu(fonts::size::SMALL),
+			preview.video_duration,
+			container.get_usable_rect().w - seek_bar_height - DELETE_ICON_GAP
+		);
+
+		seek_bar_dragging = ui::get_active_element() == seek_bar;
+
+		// save once the drag is over rather than writing the config on every frame it moves
+		if (app_settings.config_preview_seek != current_app_settings.config_preview_seek && !seek_bar_dragging) {
+			save_preview_app_settings();
+		}
+
+		ui::set_next_same_line(container);
+		container.pop_element_gap();
+
+		ui::add_icon_button(
+			"remove sample video button",
+			container,
+			icons::CLOSE,
+			fonts::icons,
+			gfx::Size(seek_bar_height, seek_bar_height),
+			DELETE_ICON_COLOR,
+			DELETE_ICON_HOVER_COLOR,
+			[] {
+				confirm_clear_sample_video();
+			},
+			"Remove sample video"
+		);
+
+		container.pop_element_gap();
+	};
+
+	std::string preview_image_id = "config preview image";
+	bool preview_image_added = false;
+	if (showing_hovered_mask || preview.frame) {
+		container.push_element_gap(PREVIEW_IMAGE_GAP);
+
+		if (showing_hovered_mask) {
+			auto mask_path = masks::get_path() / u::string_to_path(hovered_mask);
+			preview_image_added = ui::add_image(
+									  "config preview image",
+									  container,
+									  mask_path,
+									  container.get_usable_rect().size(),
+									  "hovered mask " + hovered_mask,
+									  gfx::Color::white()
+			)
+			                          .has_value();
+		}
+		else if (preview.frame->player) {
+			preview_image_id = "config preview video";
+			preview_image_added = ui::add_video_frame(
+									  preview_image_id,
+									  container,
+									  preview.frame->player,
+									  container.get_usable_rect().size(),
+									  gfx::Color::white(100)
+			)
+			                          .has_value();
+		}
+		else {
+			// anything that isn't the finished blurred frame for the current settings is faded out
+			preview_image_added = ui::add_image(
+									  "config preview image",
+									  container,
+									  preview.frame->texture,
+									  container.get_usable_rect().size(),
+									  preview.frame->image_id,
+									  gfx::Color::white(preview.frame->up_to_date ? 255 : 100)
+			)
+			                          .has_value();
+		}
+
+		container.pop_element_gap();
+	}
+	else if (preview.rendering) {
+		std::string loading_text =
+			init_stage_text(preview.init_stage)
+				.value_or(show_mask_preview ? "Loading mask preview..." : "Initialising config preview...");
+
+		container.push_element_gap(PREVIEW_IMAGE_GAP);
+
+		ui::add_text(
+			"loading config preview text",
+			container,
+			{ "", loading_text, "" }, // HACKY to get it to span more lines @todo: cleaner solution
+			gfx::Color::white(100),
+			fonts::dejavu,
+			FONT_CENTERED_X
+		);
+
+		container.pop_element_gap();
+	}
+	else {
+		container.push_element_gap(PREVIEW_IMAGE_GAP);
+
+		ui::add_text(
+			"failed to generate preview text",
+			container,
+			{ "", "Failed to generate preview.", "" }, // HACKY to get it to span more lines @todo: cleaner solution
+			gfx::Color::white(100),
+			fonts::dejavu,
+			FONT_CENTERED_X
+		);
+
+		container.pop_element_gap();
+	}
+
+	add_seek_bar_row();
+
+	if (preview_image_added && preview.rendering) {
+		if (auto stage_text = init_stage_text(preview.init_stage)) {
+			ui::add_text(
+				"preview init stage text",
+				container,
+				*stage_text,
+				gfx::Color::white(gui::renderer::MUTED_SHADE),
+				fonts::dejavu(fonts::size::SMALL),
+				FONT_CENTERED_X
+			);
+		}
+	}
+
+	if (!preview.frame_timing_log.empty()) {
+		ui::add_text(
+			"frame timing log text",
+			container,
+			"using accurate frame timings",
+			gfx::Color::white(gui::renderer::MUTED_SHADE),
+			fonts::dejavu(fonts::size::SMALL),
+			FONT_CENTERED_X
+		);
+	}
+
+	add_mask_controls();
+
+	if (preview_image_added)
+		ui::shrink_element_to_fit_container_height(container, preview_image_id);
+}
+
+void configs::preview_tabs(ui::Container& container) {
+	release_stale_temporary_tab();
+
+	auto on_tab_select = [&container] {
+		container.scroll_to_top = true;
+
+		// clicking a tab makes it stick
+		old_tab.clear();
+		temp_tab_owner.clear();
+	};
+
+	auto* tabs = ui::add_tabs("preview tab", container, RIGHT_TABS, selected_right_tab, fonts::dejavu, on_tab_select);
+
+	ui::center_element(container, tabs);
+	tabs->element->fixed = true;
+
+	ui::add_spacing(container, 8);
+}
+
+// todo: refactor
+void configs::preview(ui::Container& container, float delta_time) {
+	std::optional<int> interp_fps;
 	if (settings.interpolate) {
 		std::istringstream iss(settings.interpolated_fps);
 		int temp_fps{};
 		if ((iss >> temp_fps) && iss.eof()) {
 			interp_fps = temp_fps;
-			parsed_interp_fps = true;
 		}
 	}
 
-	ui::add_tabs("preview tab", header_container, TABS, selected_tab, fonts::dejavu, [] {
-		old_tab.clear();
-	});
+	preview_tabs(container);
 
-	if (selected_tab == "output video") {
-		config_preview(content_container);
+	if (selected_right_tab == RIGHT_TABS[0]) {
+		config_preview(container);
 	}
-	else {
+	else if (selected_right_tab == RIGHT_TABS[1]) {
 		auto weight_settings = settings;
 
 		if (!hovered_weighting.empty())
@@ -240,12 +502,12 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 
 		auto weights_res = weighting::get_weights(weight_settings, interp_fps);
 		if (weights_res.error.empty()) {
-			ui::add_weighting_graph("weighting graph", content_container, weights_res.weights, parsed_interp_fps);
+			ui::add_weighting_graph("weighting graph", container, weights_res.weights, interp_fps.has_value());
 		}
 		else {
 			ui::add_text(
 				"weighting error",
-				content_container,
+				container,
 				weights_res.error,
 				gfx::Color(255, 50, 50, 255),
 				fonts::dejavu,
@@ -253,79 +515,17 @@ void configs::preview(ui::Container& header_container, ui::Container& content_co
 			);
 		}
 	}
-
-	ui::add_separator("config preview separator", content_container, ui::SeparatorStyle::FADE_BOTH);
-
-	auto validation_res = config_blur::validate(settings, false);
-	if (!validation_res) {
-		ui::add_text(
-			"config validation error/s",
-			content_container,
-			validation_res.error(),
-			gfx::Color(255, 50, 50, 255),
-			fonts::dejavu,
-			FONT_CENTERED_X | FONT_OUTLINE
-		);
-
-		ui::add_button(
-			"fix config button", content_container, "Reset invalid config options to defaults", fonts::dejavu, [&] {
-				config_blur::validate(settings, true);
-			}
-		);
+	else if (selected_right_tab == RIGHT_TABS[2]) {
+		rules(container, delta_time);
 	}
 
-	ui::add_button("export config", content_container, "Export", fonts::dejavu, [] {
-		std::string exported_config = config_blur::export_concise(settings);
-		SDL_SetClipboardText(exported_config.c_str());
+	auto validation_res = config_blur::validate(settings, app_settings, encoding_preset_settings, false);
+	std::string fixable_errors = validation_res.message(true);
+	if (!fixable_errors.empty()) {
+		ui::add_separator("config preview separator", container, ui::SeparatorStyle::FADE_BOTH);
 
-		gui::components::notifications::add(
-			"Exported config to clipboard", ui::NotificationType::INFO, {}, std::chrono::duration<float>(2.f)
-		);
-	});
-
-	ui::set_next_same_line(content_container);
-
-	ui::add_button("import config", content_container, "Import", fonts::dejavu, [] {
-		size_t len = 0;
-		void* clipboard_data = SDL_GetClipboardData("text/plain", &len);
-
-		if (clipboard_data && len > 0) {
-			std::string clipboard_text(static_cast<char*>(clipboard_data), len);
-			SDL_free(clipboard_data);
-
-			try {
-				auto clipboard_settings = config_blur::parse(clipboard_text);
-
-				ui::reset_tied_sliders();
-				settings = clipboard_settings;
-
-				gui::components::notifications::add(
-					"Imported config from clipboard", ui::NotificationType::INFO, {}, std::chrono::duration<float>(2.f)
-				);
-			}
-			catch (const std::exception& e) {
-				gui::components::notifications::add(
-					std::string("Failed to load config: ") + e.what(),
-					ui::NotificationType::NOTIF_ERROR,
-					{},
-					std::chrono::duration<float>(3.f)
-				);
-			}
-		}
-		else {
-			gui::components::notifications::add(
-				"Clipboard is empty or unreadable",
-				ui::NotificationType::NOTIF_ERROR,
-				{},
-				std::chrono::duration<float>(2.f)
-			);
-		}
-	});
-
-	ui::add_button("open config folder", content_container, "Open config folder", fonts::dejavu, [] {
-		std::string file_url = std::format("file://{}", blur.settings_path);
-		if (!SDL_OpenURL(file_url.c_str())) {
-			u::log_error("Failed to open config folder: {}", SDL_GetError());
-		}
-	});
+		ui::add_button("fix config button", container, "Reset invalid config options to defaults", fonts::dejavu, [] {
+			config_blur::validate(settings, app_settings, encoding_preset_settings, true);
+		});
+	}
 }

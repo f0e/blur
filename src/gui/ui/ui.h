@@ -1,9 +1,16 @@
 #pragma once
 
 #include "../render/render.h"
+#include "../thumbnails.h"
 #include "helpers/text_input.h"
+#include "common/media.h"
+
+class VideoPlayer;
 
 namespace ui {
+	inline constexpr gfx::Color DEFAULT_HIGHLIGHT_COLOR = { 133, 24, 16, 255 };
+	inline gfx::Color highlight_color = DEFAULT_HIGHLIGHT_COLOR;
+
 	inline size_t frame = 0;
 
 	struct Padding {
@@ -23,16 +30,28 @@ namespace ui {
 		BAR,
 		TEXT,
 		IMAGE,
+		VIDEO_FRAME,
+		VIDEO,
+		TIMELINE,
 		BUTTON,
+		ICON_BUTTON,
 		NOTIFICATION,
+		RENDER_HISTORY_ENTRY,
 		SLIDER,
 		TEXT_INPUT,
 		CHECKBOX,
 		DROPDOWN,
+		COLOR_PICKER,
+		SEEK_BAR,
 		SEPARATOR,
+		DRAG_HANDLE,
 		WEIGHTING_GRAPH,
 		TABS,
 		HINT,
+		SPINNER,
+		UPDATE_NOTICE,
+		LOGO_AND_VERSION,
+		LINK
 	};
 
 	struct BarElementData {
@@ -41,7 +60,7 @@ namespace ui {
 		gfx::Color fill_color;
 		std::optional<std::string> bar_text;
 		std::optional<gfx::Color> text_color;
-		std::optional<const render::Font*> font;
+		std::optional<render::Font> font;
 
 		bool operator==(const BarElementData& other) const {
 			return percent_fill == other.percent_fill && background_color == other.background_color &&
@@ -53,7 +72,7 @@ namespace ui {
 	struct TextElementData {
 		std::vector<std::string> lines;
 		gfx::Color color;
-		const render::Font* font;
+		render::Font font;
 		unsigned int flags;
 
 		bool operator==(const TextElementData& other) const {
@@ -73,6 +92,17 @@ namespace ui {
 
 		bool operator==(const SeparatorElementData& other) const {
 			return style == other.style;
+		}
+	};
+
+	struct DragHandleElementData {
+		std::string tooltip;
+
+		gfx::Rect row_rect;
+		int row_anchor_y = 0;
+
+		bool operator==(const DragHandleElementData& other) const {
+			return tooltip == other.tooltip && row_rect == other.row_rect && row_anchor_y == other.row_anchor_y;
 		}
 	};
 
@@ -118,24 +148,92 @@ namespace ui {
 	}
 
 	struct ImageElementData {
-		std::filesystem::path image_path;
 		std::shared_ptr<render::Texture> texture;
 		std::string image_id;
 		gfx::Color image_color;
 
 		bool operator==(const ImageElementData& other) const {
-			return image_path == other.image_path && texture == other.texture && image_id == other.image_id &&
-			       image_color == other.image_color;
+			return texture == other.texture && image_id == other.image_id && image_color == other.image_color;
+		}
+	};
+
+	struct VideoFrameElementData {
+		std::shared_ptr<VideoPlayer> player;
+		gfx::Color color;
+
+		bool operator==(const VideoFrameElementData& other) const = default;
+	};
+
+	struct UIVideo {
+		size_t video_id;
+		std::filesystem::path path;
+		std::optional<media::VideoInfo> video_info;
+		float* start = nullptr;
+		float* end = nullptr;
+		bool trim_disabled = false;
+
+		bool operator==(const UIVideo& other) const = default;
+	};
+
+	struct VideoWaveform {
+		std::vector<int16_t> samples;
+		int16_t max_sample = 0;
+	};
+
+	struct VideoElementData {
+		UIVideo video;
+		std::optional<thumbnails::ThumbnailRes> thumbnail;
+		bool active = false;
+		float fade = 0.f;
+		size_t* index = nullptr;
+		size_t list_index = 0;
+		size_t video_count = 1;
+		std::function<void(size_t video_id)> on_remove;
+
+		bool operator==(const VideoElementData& other) const {
+			return video == other.video && thumbnail == other.thumbnail && active == other.active &&
+			       fade == other.fade && index == other.index && list_index == other.list_index &&
+			       video_count == other.video_count;
+		}
+	};
+
+	struct TimelineElementData {
+		UIVideo video;
+		VideoWaveform* waveform = nullptr;
+		bool active = false;
+		float fade = 0.f;
+		bool interactive = false;
+
+		bool operator==(const TimelineElementData& other) const {
+			return video == other.video && waveform == other.waveform && active == other.active && fade == other.fade &&
+			       interactive == other.interactive;
 		}
 	};
 
 	struct ButtonElementData {
 		std::string text;
-		const render::Font* font;
+		render::Font font;
 		std::optional<std::function<void()>> on_press;
+		std::optional<gfx::Color> accent_color;
+		std::optional<std::string> icon;
 
 		bool operator==(const ButtonElementData& other) const {
-			return text == other.text && font == other.font;
+			return text == other.text && font == other.font && accent_color == other.accent_color && icon == other.icon;
+		}
+	};
+
+	struct IconButtonElementData {
+		std::string icon;
+		render::Font font;
+		gfx::Color color;
+		gfx::Color hover_color;
+		std::string tooltip;
+		std::optional<std::function<void()>> on_press;
+		float rotation_deg = 0.f;
+
+		bool operator==(const IconButtonElementData& other) const {
+			return icon == other.icon && font == other.font && color == other.color &&
+			       hover_color == other.hover_color && tooltip == other.tooltip && rotation_deg == other.rotation_deg;
 		}
 	};
 
@@ -148,7 +246,7 @@ namespace ui {
 	struct NotificationElementData {
 		std::vector<std::string> lines;
 		NotificationType type;
-		const render::Font* font;
+		render::Font font;
 		int line_height;
 		std::optional<std::function<void(const std::string& id)>> on_click;
 		std::optional<std::function<void(const std::string& id)>> on_close;
@@ -158,12 +256,43 @@ namespace ui {
 		}
 	};
 
+	struct RenderHistoryAction {
+		std::string icon;
+		std::string label;
+		std::string tooltip;
+		std::function<void()> on_press;
+
+		bool operator==(const RenderHistoryAction& other) const {
+			return icon == other.icon && label == other.label && tooltip == other.tooltip;
+		}
+	};
+
+	struct RenderHistoryEntryElementData {
+		std::string title;
+		std::vector<std::string> detail_lines;
+		bool error;
+		std::optional<float> progress;
+		std::shared_ptr<render::Texture> thumbnail; // null until one has been generated
+		std::vector<RenderHistoryAction> actions;
+		std::optional<std::function<void()>> on_click;
+		std::optional<std::filesystem::path> drag_path;
+		std::optional<gfx::Rect> collapse_rect; // where the row grows out of and shrinks back into
+		render::Font font;
+		int line_height;
+
+		bool operator==(const RenderHistoryEntryElementData& other) const {
+			return title == other.title && detail_lines == other.detail_lines && error == other.error &&
+			       progress == other.progress && thumbnail == other.thumbnail && actions == other.actions &&
+			       drag_path == other.drag_path && font == other.font;
+		}
+	};
+
 	struct SliderElementData {
 		std::variant<int, float> min_value;
 		std::variant<int, float> max_value;
 		std::variant<int*, float*> current_value;
 		std::string label_format;
-		const render::Font* font;
+		render::Font font;
 		std::optional<std::function<void(const std::variant<int*, float*>&)>> on_change;
 		float precision;
 		std::string tooltip;
@@ -186,17 +315,28 @@ namespace ui {
 
 	struct TextInputElementData {
 		helpers::text_input::TextInputData text_input;
+		std::string label;
 		std::string placeholder;
 
 		bool operator==(const TextInputElementData& other) const {
-			return text_input == other.text_input && placeholder == other.placeholder;
+			return text_input == other.text_input && label == other.label && placeholder == other.placeholder;
+		}
+	};
+
+	struct SeekBarElementData {
+		float* value;
+		float duration;
+		render::Font font;
+
+		bool operator==(const SeekBarElementData& other) const {
+			return value == other.value && duration == other.duration && font == other.font;
 		}
 	};
 
 	struct CheckboxElementData {
 		std::string label;
 		bool* checked;
-		const render::Font* font;
+		render::Font font;
 		std::optional<std::function<void(bool)>> on_change;
 
 		bool operator==(const CheckboxElementData& other) const {
@@ -204,17 +344,64 @@ namespace ui {
 		}
 	};
 
+	struct DropdownOptionAction {
+		std::string icon;
+		std::string tooltip;
+		std::optional<gfx::Color> color; // empty uses the standard muted action color
+		gfx::Color hover_color = gfx::Color::white();
+		// empty makes the icon informational rather than clickable
+		std::function<void(const std::string& option)> on_press;
+		// empty applies to every option
+		std::function<bool(const std::string& option)> applies_to;
+	};
+
+	struct DropdownAddAction {
+		std::string tooltip;
+		std::function<void()> on_press;
+	};
+
 	struct DropdownElementData {
-		std::string label;
+		std::string label; // empty omits the label and its vertical spacing
 		std::vector<std::string> options;
 		std::string* selected;
-		const render::Font* font;
+		render::Font font;
 		std::optional<std::function<void(std::string*)>> on_change;
+		std::vector<std::string> muted_options;
+		std::vector<DropdownOptionAction> option_actions;
+		std::optional<DropdownAddAction> add_action;
 
 		std::string hovered_option;
 
 		bool operator==(const DropdownElementData& other) const {
-			return label == other.label && options == other.options && selected == other.selected && font == other.font;
+			return label == other.label && options == other.options && selected == other.selected &&
+			       font == other.font && muted_options == other.muted_options;
+		}
+	};
+
+	struct ColorPickerElementData {
+		std::string label;
+		std::string* hex; // empty = use the default color
+		render::Font font;
+		gfx::Color default_color;
+		std::vector<gfx::Color> presets;
+		std::optional<std::function<void()>> on_change;
+
+		// internal state (keep out of operator==)
+		float hue = 0.f;
+		float saturation = 0.f;
+		float brightness = 0.f;
+		std::string synced_hex; // the hex the hsb was taken from, to detect outside changes
+		int drag_target = 0;    // ColorPickerDrag
+		bool mouse_was_down = false;
+		bool open = false;
+		int hovered_preset = -1;
+
+		std::string editing_text;
+		helpers::text_input::TextInputData text_input;
+
+		bool operator==(const ColorPickerElementData& other) const {
+			return label == other.label && hex == other.hex && font == other.font &&
+			       default_color == other.default_color && presets == other.presets;
 		}
 	};
 
@@ -231,7 +418,7 @@ namespace ui {
 		std::vector<std::string> options;
 
 		std::string* selected;
-		const render::Font* font;
+		render::Font font;
 		std::optional<std::function<void()>> on_select;
 
 		std::vector<gfx::Rect> option_offset_rects;
@@ -253,10 +440,76 @@ namespace ui {
 	struct HintElementData {
 		std::vector<Paragraph> paragraphs;
 		gfx::Color color;
-		const render::Font* font;
+		render::Font font;
 
 		bool operator==(const HintElementData& other) const {
 			return paragraphs == other.paragraphs && color == other.color && font == other.font;
+		}
+	};
+
+	struct SpinnerElementData {
+		gfx::Color background_color;
+		gfx::Color highlight_color;
+		float radius;
+		float thickness;
+		float trail_degrees;
+
+		bool operator==(const SpinnerElementData& other) const {
+			return background_color == other.background_color && highlight_color == other.highlight_color &&
+			       radius == other.radius && thickness == other.thickness && trail_degrees == other.trail_degrees;
+		}
+	};
+
+	struct UpdateNoticeLink {
+		std::string text;
+		bool primary = false;
+		std::optional<std::function<void()>> on_press;
+
+		bool operator==(const UpdateNoticeLink& other) const {
+			return text == other.text && primary == other.primary;
+		}
+	};
+
+	enum class UpdateNoticeAlign : std::uint8_t {
+		RIGHT,
+		CENTER,
+	};
+
+	struct UpdateNoticeElementData {
+		std::string status;
+		std::string subtext;
+		std::optional<float> progress;
+		UpdateNoticeAlign align;
+		render::Font font;
+
+		bool operator==(const UpdateNoticeElementData& other) const {
+			return status == other.status && subtext == other.subtext && progress == other.progress &&
+			       align == other.align && font == other.font;
+		}
+	};
+
+	struct LogoAndVersionElementData {
+		std::shared_ptr<render::Texture> logo;
+		std::string title;
+		std::string subtitle;
+		render::Font title_font;
+		render::Font font;
+
+		bool operator==(const LogoAndVersionElementData& other) const {
+			return logo == other.logo && title == other.title && subtitle == other.subtitle &&
+			       title_font == other.title_font && font == other.font;
+		}
+	};
+
+	struct LinkElementData {
+		std::string text;
+		std::optional<std::function<void()>> on_press;
+		gfx::Color color;
+		gfx::Color hover_color;
+		render::Font font;
+
+		bool operator==(const LinkElementData& other) const {
+			return text == other.text && color == other.color && hover_color == other.hover_color && font == other.font;
 		}
 	};
 
@@ -264,24 +517,38 @@ namespace ui {
 		BarElementData,
 		TextElementData,
 		ImageElementData,
+		VideoFrameElementData,
+		VideoElementData,
+		TimelineElementData,
 		ButtonElementData,
+		IconButtonElementData,
 		NotificationElementData,
+		RenderHistoryEntryElementData,
 		SliderElementData,
+		SeekBarElementData,
 		TextInputElementData,
 		CheckboxElementData,
 		DropdownElementData,
+		ColorPickerElementData,
 		SeparatorElementData,
+		DragHandleElementData,
 		WeightingGraphElementData,
 		TabsElementData,
-		HintElementData>;
+		HintElementData,
+		SpinnerElementData,
+		UpdateNoticeElementData,
+		LogoAndVersionElementData,
+		LinkElementData>;
 
 	struct AnimationState {
 		float speed;
 		float current = 0.f;
 		float goal = 0.f;
+		float snap = 0.001f;
 		bool complete = false;
 
-		AnimationState(float speed, float value = 0.f) : speed(speed), current(value), goal(value) {}
+		AnimationState(float speed, float value = 0.f, float snap = 0.001f)
+			: speed(speed), current(value), goal(value), snap(snap) {}
 
 		// delete default constructor since we always need a duration
 		AnimationState() = delete;
@@ -293,7 +560,7 @@ namespace ui {
 		bool update(float delta_time) {
 			float old_current = current;
 			current = std::clamp(
-				u::lerp(current, goal, speed * delta_time, 0.001f), std::min(current, goal), std::max(current, goal)
+				u::lerp(current, goal, speed * delta_time, snap), std::min(current, goal), std::max(current, goal)
 			);
 
 			complete = current == goal;
@@ -313,7 +580,11 @@ namespace ui {
 		ElementData data;
 		std::function<void(const Container&, const AnimatedElement&)> render_fn;
 		std::optional<std::function<bool(const Container&, AnimatedElement&)>> update_fn;
+		std::optional<std::function<void(AnimatedElement&)>> remove_fn;
+		std::optional<std::function<void(AnimatedElement&)>> stale_fn;
 		bool fixed = false;
+		bool always_render = false;
+		bool auto_center_horizontal = true;
 		gfx::Rect orig_rect;
 
 		Element(
@@ -323,10 +594,14 @@ namespace ui {
 			ElementData data,
 			std::function<void(const Container&, const AnimatedElement&)> render_fn,
 			std::optional<std::function<bool(const Container&, AnimatedElement&)>> update_fn = std::nullopt,
-			bool fixed = false
+			std::optional<std::function<void(AnimatedElement&)>> remove_fn = std::nullopt,
+			std::optional<std::function<void(AnimatedElement&)>> stale_fn = std::nullopt,
+			bool fixed = false,
+			bool always_render = false
 		)
 			: id(std::move(id)), type(type), rect(rect), data(std::move(data)), render_fn(std::move(render_fn)),
-			  update_fn(std::move(update_fn)), fixed(fixed), orig_rect(rect) {}
+			  update_fn(std::move(update_fn)), remove_fn(std::move(remove_fn)), stale_fn(std::move(stale_fn)),
+			  fixed(fixed), always_render(always_render), orig_rect(rect) {}
 
 		bool update(const Element& other) {
 			this->id = other.id;
@@ -334,7 +609,11 @@ namespace ui {
 			this->rect = other.rect;
 			this->render_fn = other.render_fn;
 			this->update_fn = other.update_fn;
+			this->remove_fn = other.remove_fn;
+			this->stale_fn = other.stale_fn;
 			this->fixed = other.fixed;
+			this->always_render = other.always_render;
+			this->auto_center_horizontal = other.auto_center_horizontal;
 			this->orig_rect = other.orig_rect;
 
 			bool updated = this->data != other.data;
@@ -349,6 +628,7 @@ namespace ui {
 		std::unique_ptr<Element> element;
 		std::unordered_map<size_t, AnimationState> animations;
 		int z_index = 0;
+		bool went_stale = false;
 	};
 
 	const inline AnimationState DEFAULT_ANIMATION(25.f);
@@ -366,11 +646,18 @@ namespace ui {
 
 		gfx::Point current_position;
 		std::optional<Padding> padding;
+		std::optional<int> usable_width;
 		bool updated = false;
 		int last_margin_bottom = 0;
 
+		bool next_same_line = false; // set by set_next_same_line, consumed by the next added element
+		int same_line_bottom = 0;    // where the current line ends, so shorter elements don't pull the next ones up
+
 		float scroll_y = 0.f;
 		float scroll_speed_y = 0.f;
+		bool scroll_to_top = false;
+
+		AnimationState scrollbar_anim = AnimationState(60.f);
 
 		[[nodiscard]] gfx::Rect get_usable_rect() const {
 			gfx::Rect usable = rect;
@@ -380,10 +667,19 @@ namespace ui {
 				usable.w -= padding->left + padding->right;
 				usable.h -= padding->top + padding->bottom;
 			}
+
+			if (usable_width) {
+				int available_width = std::max(usable.w, 0);
+				int width = std::clamp(*usable_width, 0, available_width);
+				usable.x += (usable.w - width) / 2;
+				usable.w = width;
+			}
+
 			return usable;
 		}
 
 		std::stack<int> element_gaps;
+		std::stack<std::optional<int>> usable_widths;
 
 		void push_element_gap(int new_element_gap) {
 			element_gaps.push(element_gap);
@@ -395,11 +691,25 @@ namespace ui {
 			element_gap = new_element_gap;
 			element_gaps.pop();
 		}
+
+		void push_usable_width(float scale) {
+			auto usable = get_usable_rect();
+			usable_widths.push(usable_width);
+			usable_width = std::lround(usable.w * std::clamp(scale, 0.f, 1.f));
+			current_position.x = get_usable_rect().x;
+		}
+
+		void pop_usable_width() {
+			usable_width = usable_widths.top();
+			usable_widths.pop();
+			current_position.x = get_usable_rect().x;
+		}
 	};
 
 	inline auto hasher = std::hash<std::string>{};
 
 	inline std::vector<SDL_Event> text_event_queue;
+	inline std::vector<SDL_Event> event_queue;
 
 	struct SliderObserver {
 		bool init = false;
@@ -408,8 +718,10 @@ namespace ui {
 
 	inline std::unordered_map<std::string, SliderObserver> slider_observers;
 
-	inline const auto HIGHLIGHT_COLOR = gfx::Color(133, 24, 16, 255);
 	inline const int TYPE_SWITCH_PADDING = 5;
+
+	// how far inside its border an image is drawn. it's that inner area that has the image's aspect ratio
+	inline const int IMAGE_INSET = 3;
 
 	void render_bar(const Container& container, const AnimatedElement& element);
 
@@ -417,14 +729,44 @@ namespace ui {
 
 	void render_image(const Container& container, const AnimatedElement& element);
 
+	void render_video_frame(const Container& container, const AnimatedElement& element);
+
+	void render_video(const Container& container, const AnimatedElement& element);
+	bool update_video(const Container& container, AnimatedElement& element);
+	void remove_video(AnimatedElement& element);
+	void pause_stale_video(AnimatedElement& element);
+
+	void render_timeline(const Container& container, const AnimatedElement& element);
+	bool update_timeline(const Container& container, AnimatedElement& element);
+
+	void handle_videos_event(const SDL_Event& event, bool& to_render);
+
 	void render_button(const Container& container, const AnimatedElement& element);
 	bool update_button(const Container& container, AnimatedElement& element);
+	int button_height(const render::Font& font);
+
+	int button_width(const std::string& text, const render::Font& font, const std::optional<std::string>& icon = {});
+
+	void render_icon_button(const Container& container, const AnimatedElement& element);
+	bool update_icon_button(const Container& container, AnimatedElement& element);
+
+	inline const int NOTIFICATION_DEFAULT_W = 270;
+
+	inline constexpr int RENDER_HISTORY_ENTRY_PADDING = 8;
+	inline constexpr int RENDER_HISTORY_ACTION_SIZE = 20;
 
 	void render_notification(const Container& container, const AnimatedElement& element);
 	bool update_notification(const Container& container, AnimatedElement& element);
 
+	void render_render_history_entry(const Container& container, const AnimatedElement& element);
+	bool update_render_history_entry(const Container& container, AnimatedElement& element);
+
 	void render_slider(const Container& container, const AnimatedElement& element);
 	bool update_slider(const Container& container, AnimatedElement& element);
+	void remove_slider(AnimatedElement& element);
+
+	void render_seek_bar(const Container& container, const AnimatedElement& element);
+	bool update_seek_bar(const Container& container, AnimatedElement& element);
 
 	void render_text_input(const Container& container, const AnimatedElement& element);
 	bool update_text_input(const Container& container, AnimatedElement& element);
@@ -435,7 +777,16 @@ namespace ui {
 	void render_dropdown(const Container& container, const AnimatedElement& element);
 	bool update_dropdown(const Container& container, AnimatedElement& element);
 
+	void render_color_picker(const Container& container, const AnimatedElement& element);
+	bool update_color_picker(const Container& container, AnimatedElement& element);
+	void remove_color_picker(AnimatedElement& element);
+
+	bool is_color_picker_open(const Container& container, const std::string& id);
+
 	void render_separator(const Container& container, const AnimatedElement& element);
+
+	void render_drag_handle(const Container& container, const AnimatedElement& element);
+	bool update_drag_handle(const Container& container, AnimatedElement& element);
 
 	void render_weighting_graph(const Container& container, const AnimatedElement& element);
 
@@ -443,6 +794,15 @@ namespace ui {
 	bool update_tabs(const Container& container, AnimatedElement& element);
 
 	void render_hint(const Container& container, const AnimatedElement& element);
+
+	void render_spinner(const Container& container, const AnimatedElement& element);
+
+	void render_update_notice(const Container& container, const AnimatedElement& element);
+
+	void render_logo_and_version(const Container& container, const AnimatedElement& element);
+
+	void render_link(const Container& container, const AnimatedElement& element);
+	bool update_link(const Container& container, AnimatedElement& element);
 
 	void reset_container(
 		Container& container,
@@ -476,7 +836,7 @@ namespace ui {
 		int bar_width,
 		std::optional<std::string> bar_text = {},
 		std::optional<gfx::Color> text_color = {},
-		std::optional<const render::Font*> font = {}
+		std::optional<render::Font> font = {}
 	);
 
 	AnimatedElement* add_text(
@@ -526,12 +886,58 @@ namespace ui {
 		gfx::Color image_color = gfx::Color::white()
 	); // use image_id to distinguish images that have the same filename and reload it (e.g. if its updated)
 
+	std::optional<AnimatedElement*> add_image(
+		const std::string& id,
+		Container& container,
+		std::shared_ptr<render::Texture> texture,
+		const gfx::Size& max_size,
+		const std::string& image_id = "",
+		gfx::Color image_color = gfx::Color::white()
+	);
+
+	// the player's current frame, sized like add_image. nothing's added until a video is loaded
+	std::optional<AnimatedElement*> add_video_frame(
+		const std::string& id,
+		Container& container,
+		std::shared_ptr<VideoPlayer> player,
+		const gfx::Size& max_size,
+		gfx::Color color = gfx::Color::white()
+	);
+
+	void add_videos(
+		const std::string& id,
+		Container& container,
+		const std::vector<UIVideo>& ui_videos,
+		size_t& index,
+		float& start,
+		float& end,
+		float& volume,
+		bool hardware_decoding,
+		bool trim_disabled,
+		const std::function<void(size_t video_id)>& on_remove
+	);
+
 	AnimatedElement* add_button(
 		const std::string& id,
 		Container& container,
 		const std::string& text,
 		const render::Font& font,
-		std::optional<std::function<void()>> on_press = {}
+		std::optional<std::function<void()>> on_press = {},
+		std::optional<gfx::Color> accent_color = {},
+		std::optional<std::string> icon = {}
+	);
+
+	AnimatedElement* add_icon_button(
+		const std::string& id,
+		Container& container,
+		const std::string& icon,
+		const render::Font& font,
+		const gfx::Size& size,
+		gfx::Color color,
+		gfx::Color hover_color,
+		std::optional<std::function<void()>> on_press = {},
+		const std::string& tooltip = "",
+		float rotation_deg = 0.f
 	);
 
 	AnimatedElement* add_notification(
@@ -542,6 +948,21 @@ namespace ui {
 		const render::Font& font,
 		std::optional<std::function<void(const std::string& id)>> on_click = {},
 		std::optional<std::function<void(const std::string& id)>> on_close = {}
+	);
+
+	AnimatedElement* add_render_history_entry(
+		const std::string& id,
+		Container& container,
+		const std::string& title,
+		const std::string& detail,
+		bool error,
+		const std::optional<float>& progress,
+		const std::shared_ptr<render::Texture>& thumbnail,
+		const std::vector<RenderHistoryAction>& actions,
+		std::optional<std::function<void()>> on_click,
+		const std::optional<std::filesystem::path>& drag_path,
+		const std::optional<gfx::Rect>& collapse_rect,
+		const render::Font& font
 	);
 
 	AnimatedElement* add_slider(
@@ -573,13 +994,39 @@ namespace ui {
 		const std::string& tooltip = ""
 	);
 
+	int seek_bar_height(const render::Font& font);
+
+	AnimatedElement* add_seek_bar(
+		const std::string& id,
+		Container& container,
+		float& value,
+		const render::Font& font,
+		float duration = 0.f,
+		std::optional<int> width = {} // defaults to filling the container
+	);
+
+	// height of a text input's field using this font (excluding any label), for lining other elements up with one
+	int text_input_height(const render::Font& font);
+
 	AnimatedElement* add_text_input(
 		const std::string& id,
 		Container& container,
 		std::string& text,
-		const std::string& placeholder,
+		const std::string& label,
 		const render::Font& font,
-		std::optional<std::function<void(const std::string&)>> on_change = {}
+		const std::string& placeholder = "",
+		std::optional<std::function<void(const std::string&)>> on_change = {},
+		bool read_only = false,
+		std::optional<int> width = {} // defaults to filling the container
+	);
+
+	// a read only, wrapped text field that can still be selected and copied
+	AnimatedElement* add_selectable_text(
+		const std::string& id,
+		Container& container,
+		const std::string& text,
+		const render::Font& font,
+		std::optional<int> width = {} // defaults to filling the container
 	);
 
 	AnimatedElement* add_checkbox(
@@ -588,7 +1035,8 @@ namespace ui {
 		const std::string& label,
 		bool& checked,
 		const render::Font& font,
-		std::optional<std::function<void(bool)>> on_change = {}
+		std::optional<std::function<void(bool)>> on_change = {},
+		bool inline_element = false
 	);
 
 	AnimatedElement* add_dropdown(
@@ -598,12 +1046,31 @@ namespace ui {
 		const std::vector<std::string>& options,
 		std::string& selected,
 		const render::Font& font,
-		std::optional<std::function<void(std::string*)>> on_change = {}
+		std::optional<std::function<void(std::string*)>> on_change = {},
+		const std::vector<std::string>& muted_options = {},
+		const std::vector<DropdownOptionAction>& option_actions = {},
+		std::optional<DropdownAddAction> add_action = {},
+		std::optional<int> width = {} // empty fills the container
+	);
+
+	int get_dropdown_box_height(const render::Font& font);
+
+	AnimatedElement* add_color_picker(
+		const std::string& id,
+		Container& container,
+		const std::string& label,
+		std::string& hex,
+		const render::Font& font,
+		gfx::Color default_color,
+		const std::vector<gfx::Color>& presets = {},
+		std::optional<std::function<void()>> on_change = {}
 	);
 
 	AnimatedElement* add_weighting_graph(
 		const std::string& id, Container& container, const std::vector<double>& weights, bool accurate_fps
 	);
+
+	int tabs_height(const render::Font& font);
 
 	AnimatedElement* add_tabs(
 		const std::string& id,
@@ -624,23 +1091,185 @@ namespace ui {
 
 	AnimatedElement* add_separator(const std::string& id, Container& container, SeparatorStyle style);
 
+	AnimatedElement* add_drag_handle(
+		const std::string& id, Container& container, const gfx::Size& size, const std::string& tooltip = ""
+	);
+
+	AnimatedElement* add_spinner(
+		const std::string& id,
+		Container& container,
+		float radius = 8.f,
+		gfx::Color background_color = gfx::Color::white(50),
+		gfx::Color highlight_color = gfx::Color::white(),
+		float thickness = 2.f,
+		float trail_degrees = 180.f
+	);
+
+	AnimatedElement* add_update_notice(
+		const std::string& id,
+		Container& container,
+		const std::string& status,
+		const std::string& subtext,
+		const std::vector<std::vector<UpdateNoticeLink>>& lines,
+		std::optional<float> progress,
+		const render::Font& font,
+		UpdateNoticeAlign align = UpdateNoticeAlign::RIGHT
+	);
+
+	AnimatedElement* add_logo_and_version(
+		const std::string& id,
+		Container& container,
+		std::shared_ptr<render::Texture> logo,
+		const std::string& title,
+		const std::string& subtitle,
+		const render::Font& title_font,
+		const render::Font& font
+	);
+
+	AnimatedElement* add_link(
+		const std::string& id,
+		Container& container,
+		const std::string& text,
+		const render::Font& font,
+		std::optional<std::function<void()>> on_press = {},
+		gfx::Color color = gfx::Color::white(105),
+		gfx::Color hover_color = gfx::Color::white()
+	);
+
 	void add_spacing(Container& container, int spacing);
+
+	void reserve_space(Container& container, int height);
+
+	// adds an element, followed by an optional message tucked in close underneath it (e.g. a validation error)
+	void add_with_message(
+		Container& container,
+		const std::string& message_id,
+		const std::optional<std::string>& message,
+		const gfx::Color& color,
+		const std::function<void()>& add_element,
+		unsigned int message_flags = EFontFlags::FONT_NONE
+	);
 
 	void set_next_same_line(Container& container);
 
 	void center_elements_in_container(Container& container, bool horizontal = true, bool vertical = true);
 
+	void center_element(Container& container, AnimatedElement* animated_element);
+	void center_elements(Container& container, const std::vector<AnimatedElement*>& animated_elements);
+	void shrink_element_to_fit_container_height(Container& container, const std::string& element_id);
+
+	void right_align_element(Container& container, AnimatedElement* animated_element);
+	void right_align_elements(Container& container, const std::vector<AnimatedElement*>& animated_elements);
+
+	void anchor_elements_to_bottom(Container& container);
+	void stick_element_to_top(const Container& scroll_container, AnimatedElement* animated_element);
+
 	std::vector<decltype(Container::elements)::iterator> get_sorted_container_elements(Container& container);
+
+	struct ScrollbarGeometry {
+		gfx::Rect track_rect;
+		gfx::Rect thumb_rect;
+		gfx::Rect grab_rect; // wider than the bar so it's grabbable
+		float thumb_travel{};
+		float max_scroll{};
+	};
+
+	std::optional<ScrollbarGeometry> get_scrollbar_geometry(
+		const gfx::Rect& bounds, float visible_height, float content_height, float scroll
+	);
+	void render_scrollbar(const ScrollbarGeometry& geometry, float hover_anim, float alpha = 1.f);
+	bool update_scrollbar(
+		const Container& container,
+		const void* owner,
+		const std::optional<ScrollbarGeometry>& geometry,
+		float& scroll,
+		AnimationState& hover_anim,
+		bool can_hover = true,
+		bool can_grab = true
+	);
+	bool is_dragging_scrollbar(const void* owner);
 
 	void set_cursor(SDL_SystemCursor cursor);
 
 	void set_active_element(AnimatedElement& element, const std::string& type = "");
 	AnimatedElement* get_active_element();
 	std::string get_active_element_type();
+	bool is_active_element(const AnimatedElement& element, const std::string& type = "");
 	void reset_active_element();
 
 	bool set_hovered_element(AnimatedElement& element);
 	std::string get_hovered_id();
+
+	namespace tooltip {
+		inline const float DELAY = 0.6f;
+
+		void set(const std::string& text, const render::Font& font = fonts::dejavu);
+
+		void on_input_end(const std::string& hovered_element_id);
+
+		bool update(float delta_time);
+		void render();
+	}
+
+	namespace dialog {
+		struct Options {
+			std::string title;
+
+			// adds everything between the title and the buttons. runs every frame
+			std::function<void(Container& container)> content;
+
+			bool action_required = false;
+			bool close_on_confirm = true;
+			int width = 330;
+
+			std::string confirm_text = "Confirm";
+			std::string cancel_text = "Cancel";
+			std::optional<std::string> confirm_icon;
+
+			std::optional<gfx::Color> confirm_color;
+
+			std::function<void()> on_confirm;
+			std::function<void()> on_cancel;
+		};
+
+		void open(Options options);
+		void close();
+		bool is_open();
+
+		// styled elements for Options::content
+
+		// the main line under the title, explaining what's happening
+		void add_body(Container& container, const std::string& id, const std::string& text);
+
+		// smaller, dimmer supporting text
+		void add_detail(Container& container, const std::string& id, const std::string& text);
+
+		// labels a group of content below it
+		void add_heading(Container& container, const std::string& id, const std::string& text);
+
+		// a labelled, selectable block of text
+		void add_field(
+			Container& container,
+			const std::string& id,
+			const std::string& label,
+			const std::string& text,
+			const render::Font& font = fonts::dejavu
+		);
+
+		void confirm_destructive(
+			const std::string& title,
+			const std::string& body,
+			const std::string& confirm_text,
+			std::function<void()> on_confirm,
+			const std::string& detail = ""
+		);
+
+		void build(SDL_Window* window, const gfx::Rect& screen_rect);
+
+		bool update_input();
+		bool update_frame(float delta_time);
+		void render();
+	}
 
 	bool update_container_input(Container& container);
 	void on_update_input_start();

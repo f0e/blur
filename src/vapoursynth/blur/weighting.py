@@ -3,7 +3,7 @@
 
 import math
 import warnings
-from typing import Iterable
+from collections.abc import Iterable
 from numbers import Number
 
 import blur.utils as u
@@ -75,9 +75,7 @@ def gaussian(
         warnings.warn(f"Using only first 2 values from bound {bound}")
 
     x_vals = scale_range(frames, bound[0], bound[1])
-    weights = [
-        math.exp(-((x - mean) ** 2) / (2 * standard_deviation**2)) for x in x_vals
-    ]
+    weights = [math.exp(-((x - mean) ** 2) / (2 * standard_deviation**2)) for x in x_vals]
     return normalize(weights)
 
 
@@ -100,14 +98,10 @@ def gaussian_reverse(
     return weights[::-1]
 
 
-def gaussian_sym(
-    frames: int, standard_deviation: Number = 1, bound: tuple[Number, Number] = (0, 2)
-) -> list[float]:
+def gaussian_sym(frames: int, standard_deviation: Number = 1, bound: tuple[Number, Number] = (0, 2)) -> list[float]:
     """Symmetric gaussian with peak at center."""
     max_abs = max(abs(b) for b in bound[:2])
-    return gaussian(
-        frames, mean=0, standard_deviation=standard_deviation, bound=(-max_abs, max_abs)
-    )
+    return gaussian(frames, mean=0, standard_deviation=standard_deviation, bound=(-max_abs, max_abs))
 
 
 def vegas(frames: int) -> list[float]:

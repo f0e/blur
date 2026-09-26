@@ -1,387 +1,240 @@
+"""Deduplication - working out a timeline from the pictures alone.
+
+A frame that differs from the one before by less than `threshold` is a repeat, which splits the video into runs
+of identical frames. Where each run's real picture belongs can't be known from the video, so `timing` picks a
+guess. The result is a timeline for blur/retime.py. A frame timing log (blur/frame_timing.py) replaces this.
+"""
+
+import blur.utils as u
 import vapoursynth as vs
+from blur import log, retime
 from vapoursynth import core
 
-import blur.interpolate
-import blur.utils as u
+# which frame of a run of repeats is the real one. only matters when run lengths vary
+#
+#   FIRST        the start of the run, what a live recording does
+#   LAST         the end of the run, e.g. a variable rate recording resampled to a fixed one
+#   CENTER       the middle of the run, at most half a run out either way
+#   SURROUNDING  ignore the run and interpolate between the frames either side of it. needs a bigger range
+TIMING_FIRST = "first"
+TIMING_LAST = "last"
+TIMING_CENTER = "center"
+TIMING_SURROUNDING = "surrounding"
+TIMINGS = [TIMING_FIRST, TIMING_LAST, TIMING_CENTER, TIMING_SURROUNDING]
 
-cur_interp = None
-dupe_last_good_idx = 0
-dupe_next_good_idx = 0
-duped_frames = 0
+# set if a scan reads past its window, which `_reach` should prevent. checked by the tests
+WINDOW_CLAMPED = False
 
-
-def find_next_good_frame(clip, duplicate_index: int, threshold: float, max_frames: int):
-    duped_frame = clip[duplicate_index]
-    index = duplicate_index + 1
-    last_possible_index = len(clip) - 1  # for clarity (this shit always trips me up)
-
-    if max_frames:
-        max_permitted = duplicate_index + max_frames
-        if last_possible_index > max_permitted:
-            last_possible_index = max_permitted
-
-    while index <= last_possible_index:
-        test_frame = clip[index]
-        diffclip = core.std.PlaneStats(test_frame, duped_frame)
-
-        for frame_index2, frame2 in enumerate(diffclip.frames()):
-            if frame2.props["PlaneStatsDiff"] >= threshold:
-                return index
-
-        index += 1
-
-    return None
+# times are in half frames so CENTER's anchors are whole numbers
+HALF = 2
 
 
-def create_rife_interp(good_frames, duped_frames, model_path: str, gpu_index: int):
-    interp = core.rife.RIFE(
-        good_frames,
-        fps_num=duped_frames,
-        fps_den=1,
-        model_path=model_path,
-        gpu_id=gpu_index,
-    )
-
-    return interp[1 : 1 + duped_frames]  # first frame is a duplicate
+def _resolution(timing: str) -> int:
+    """How many decisions a source frame needs. CENTER can anchor halfway through a frame so it needs two."""
+    return HALF if timing == TIMING_CENTER else 1
 
 
-def create_svp_interp(
-    good_frames,
-    duped_frames,
-    svp_preset: str,
-    svp_algorithm: int,
-    svp_blocksize: int,
-    svp_masking: int,
-    svp_gpu: bool,
-):
-    [super_string, vectors_string, smooth_string] = (
-        blur.interpolate.generate_svp_strings(
-            new_fps=duped_frames,
-            preset=svp_preset,
-            algorithm=svp_algorithm,
-            blocksize=svp_blocksize,
-            # overlap=2,
-            # speed="medium",
-            masking=svp_masking,
-            gpu=svp_gpu,
-        )
-    )
-
-    super = core.svp1.Super(good_frames, super_string)
-    vectors = core.svp1.Analyse(
-        super["clip"], super["data"], good_frames, vectors_string
-    )
-
-    interp = core.svp2.SmoothFps(
-        good_frames,
-        super["clip"],
-        super["data"],
-        vectors["clip"],
-        vectors["data"],
-        smooth_string,
-        src=good_frames,
-        fps=good_frames.fps,
-    )
-
-    return interp[1 : 1 + duped_frames]  # first frame is a duplicate
+def _reach(timing: str, max_gap: int) -> int:
+    """How far either side of itself a decision has to read. CENTER measures neighbouring runs so reaches further."""
+    return (2 * max_gap if timing == TIMING_CENTER else max_gap) + 2
 
 
-def get_interp(
-    clip,
-    duplicate_index: int,
+def _decisions(
+    clip: vs.VideoNode,
     threshold: float,
-    max_frames: int,
-    interp_creator,
-    **kwargs,
-):
-    global cur_interp, dupe_last_good_idx, dupe_next_good_idx, duped_frames
+    max_gap: int,
+    timing: str,
+    future_checks: int,
+) -> vs.VideoNode:
+    """For every frame of `clip`, which two real frames it sits between and when they belong. Pairs never span
+    more than `max_gap` frames, past that the picture holds then moves over the last `max_gap` frames."""
+    diffs = core.std.PlaneStats(clip, clip[0] + clip)
 
-    dupe_last_good_idx = duplicate_index - 1
-    dupe_next_good_idx = find_next_good_frame(
-        clip, duplicate_index, threshold, max_frames
-    )
+    reach = _reach(timing, max_gap)
+    offsets = list(range(-reach, reach + 1))
+    window = [retime.shifted(diffs, offset) for offset in offsets]
 
-    if not dupe_next_good_idx:
-        cur_interp = None
-        return
+    resolution = _resolution(timing)
+    if resolution != 1:
+        window = [core.std.Interleave([shifted] * resolution) for shifted in window]
 
-    duped_frames = dupe_next_good_idx - dupe_last_good_idx
+    length = clip.num_frames
+    last = length - 1
 
-    # generate fake clip which includes the two good frames. this will be used to interpolate between them.
-    # todo: possibly including more frames will result in better results?
-    good_frames = clip[dupe_last_good_idx] + clip[dupe_next_good_idx]
+    # only the props matter
+    holder = core.std.BlankClip(width=1, height=1, format=vs.GRAY8, length=length * resolution, keep=True)
 
-    cur_interp = interp_creator(good_frames, duped_frames, **kwargs)
-    cur_interp = core.std.AssumeFPS(cur_interp, fpsnum=1, fpsden=1)
+    base = 1 + offsets.index(0)
 
+    def decide(n: int, f: list[vs.VideoFrame]) -> vs.VideoFrame:
+        source = n // resolution
+        time = n * (HALF // resolution)
 
-def interpolate_dupes(
-    clip, frame_index: int, threshold: float, max_frames: int, interp_creator, **kwargs
-):
-    global cur_interp, dupe_last_good_idx, dupe_next_good_idx
+        def diff(index: int) -> float:
+            wanted = base + index - source
+            edge = min(max(wanted, 1), len(f) - 1)
 
-    clip1 = core.std.AssumeFPS(clip, fpsnum=1, fpsden=1)
+            if edge != wanted:
+                global WINDOW_CLAMPED
+                WINDOW_CLAMPED = True
 
-    if cur_interp is None:
-        # haven't interpolated yet
-        get_interp(clip1, frame_index, threshold, max_frames, interp_creator, **kwargs)
+            return f[edge].props["PlaneStatsDiff"]  # type: ignore[return-value]
 
-    if cur_interp is None:
-        # interpolated but no dedupe solution. get out
-        return clip
+        def run(index: int, back: int, on: int) -> tuple[int, int, bool, bool]:
+            """The run of identical frames `index` is in. The flags say the run continued past where the scan
+            could look."""
+            low = max(0, index - back)
+            high = min(last, index + on)
 
-    # combine the good frames with the interpolated ones so that vapoursynth can use them by indexing
-    # (i hate how you have to do this, there might be nicer way idk)
-    good_before = core.std.Trim(clip1, first=0, last=dupe_last_good_idx)
-    good_after = core.std.Trim(clip1, first=dupe_next_good_idx)
+            start = index
+            while start > low and diff(start) < threshold:
+                start -= 1
 
-    joined = good_before + cur_interp + good_after
+            end = index
+            while end < high and diff(end + 1) < threshold:
+                end += 1
 
-    return core.std.AssumeFPS(joined, src=clip)
-
-
-def create_frame_handler(video, threshold, max_frames, interp_creator, debug, **kwargs):
-    def handle_frames(n, f):
-        global cur_interp
-
-        if f.props["PlaneStatsDiff"] >= threshold or n == 0:
-            cur_interp = None
-            return video
-
-        interp = interpolate_dupes(
-            video, n, threshold, max_frames, interp_creator, **kwargs
-        )
-
-        if debug:
-            gap = duped_frames - 1
-            return core.text.Text(
-                clip=interp,
-                text=f"duplicate, {gap} gap, diff: {f.props['PlaneStatsDiff']:.4f}",
-                alignment=8,
+            return (
+                start,
+                end,
+                start > 0 and diff(start) < threshold,
+                end < last and diff(end + 1) < threshold,
             )
 
-        return interp
+        def held() -> tuple[int, int, int, int, int]:
+            return source, HALF * source, source, HALF * source, 1
 
-    return handle_frames
+        def pair(left: int, left_time: int, right: int, right_time: int) -> tuple[int, int, int, int, int]:
+            # hold `left` then move over the last `max_gap` frames
+            return (
+                left,
+                max(left_time, right_time - HALF * max_gap),
+                right,
+                right_time,
+                0,
+            )
+
+        start, end, open_start, open_end = run(source, max_gap, max_gap)
+
+        if timing == TIMING_FIRST:
+            answer = held() if open_end or end >= last else pair(start, HALF * start, end + 1, HALF * (end + 1))
+
+        elif timing == TIMING_LAST:
+            if source < end:
+                # moving from the previous run's picture towards this one, which needs the previous run in reach
+                answer = (
+                    held()
+                    if open_end or open_start
+                    else pair(max(start - 1, 0), HALF * max(start - 1, 0), end, HALF * end)
+                )
+            elif end >= last:
+                answer = held()
+            else:
+                _, next_end, _, next_open = run(end + 1, 0, max_gap)
+                answer = held() if next_open else pair(end, HALF * end, next_end, HALF * next_end)
+
+        elif timing == TIMING_CENTER:
+            # needs both ends of the run known
+            if open_start or open_end:
+                answer = held()
+            elif time >= start + end:
+                if end >= last:
+                    answer = held()
+                else:
+                    next_start, next_end, _, next_open = run(end + 1, 0, max_gap)
+                    answer = held() if next_open else pair(start, start + end, next_start, next_start + next_end)
+            elif start <= 0:
+                answer = held()
+            else:
+                prev_start, prev_end, prev_open, _ = run(start - 1, max_gap, 0)
+                answer = held() if prev_open else pair(prev_start, prev_start + prev_end, start, start + end)
+
+        else:  # TIMING_SURROUNDING
+            # a run of one anchors itself, longer runs are stepped over
+            lone = start == end
+            unreachable = open_end or end >= last or (not lone and (open_start or start <= 0))
+
+            if unreachable:
+                answer = held()
+            else:
+                left = source if lone else start - 1
+                right = end + 1
+
+                # keep stepping over following runs while the range allows
+                for _ in range(future_checks):
+                    if right >= last:
+                        break
+
+                    room = max(0, left + max_gap - 1 - right)
+
+                    _, next_end, _, next_open = run(right, 0, room)
+
+                    # stop on a run of one, or when there's no room to step over
+                    if next_end == right or next_open or next_end >= last or next_end + 1 - left > max_gap:
+                        break
+
+                    right = next_end + 1
+
+                answer = held() if right - left > max_gap else pair(left, HALF * left, right, HALF * right)
+
+        left, left_time, right, right_time, hold = answer
+
+        out = f[0].copy()
+        out.props[retime.PROP_FRAMES] = [left] if hold else [left, right]
+        out.props[retime.PROP_TIMES] = [left_time] if hold else [left_time, right_time]
+        out.props[retime.PROP_TIME_SCALE] = HALF
+        out.props[retime.PROP_DIFF] = diff(source)
+
+        return out
+
+    return core.std.ModifyFrame(holder, [holder, *window], decide)
 
 
-def fill_drops_rife(
-    _video: vs.VideoNode,
-    is_full_color_range: bool,
-    model_path: str,
-    gpu_index: int,
-    threshold: float = 0.1,
-    max_frames: int | None = None,
-    debug=False,
-):
-    u.check_model_path(model_path)
+def analyse(
+    clip: vs.VideoNode,
+    threshold: float,
+    max_gap: int | None,
+    timing: str = TIMING_FIRST,
+    future_checks: int = 0,
+) -> retime.Timeline:
+    """Set up deduplication for `clip`, without reading any of it yet."""
+    if timing not in TIMINGS:
+        raise u.BlurException(f"Deduplicate real frame must be one of: {', '.join(TIMINGS)}")
 
-    def process(video):
-        diffclip = core.std.PlaneStats(video, video[0] + video)
-        handler = create_frame_handler(
-            video,
-            threshold,
-            max_frames,
-            create_rife_interp,
-            debug,
-            model_path=model_path,
-            gpu_index=gpu_index,
-        )
-        return core.std.FrameEval(video, handler, prop_src=diffclip)
+    future_checks = max(0, int(future_checks))
 
-    return u.with_format(_video, is_full_color_range, vs.RGBS, process)
+    if max_gap is None:
+        log.info(f"deduplication: unlimited range, capped at {retime.MAX_GAP_LIMIT} frames")
+        max_gap = retime.MAX_GAP_LIMIT
+    else:
+        max_gap = max(1, min(int(max_gap), retime.MAX_GAP_LIMIT))
 
+    where = (
+        "working from the frames either side of a run"
+        if timing == TIMING_SURROUNDING
+        else f"{timing} frame of a run is the real one"
+    )
+    log.info(f"deduplicating (threshold {threshold}, up to {max_gap} frames apart, {where})")
 
-def fill_drops_multiple(
-    _video: vs.VideoNode,
-    is_full_color_range: bool,
-    threshold: float = 0.1,
-    max_frames: int | None = None,
-    svp_preset=blur.interpolate.DEFAULT_PRESET,
-    svp_algorithm=blur.interpolate.DEFAULT_ALGORITHM,
-    svp_blocksize=blur.interpolate.DEFAULT_BLOCKSIZE,
-    svp_masking=blur.interpolate.DEFAULT_MASKING,
-    svp_gpu=blur.interpolate.DEFAULT_GPU,
-    debug=False,
-):
-    def process(video):
-        diffclip = core.std.PlaneStats(video, video[0] + video)
-        handler = create_frame_handler(
-            video,
-            threshold,
-            max_frames,
-            create_svp_interp,
-            debug,
-            svp_preset=svp_preset,
-            svp_algorithm=svp_algorithm,
-            svp_blocksize=svp_blocksize,
-            svp_masking=svp_masking,
-            svp_gpu=svp_gpu,
-        )
-        return core.std.FrameEval(video, handler, prop_src=diffclip)
-
-    return u.with_format(_video, is_full_color_range, vs.YUV420P8, process)
+    return retime.Timeline(
+        decisions=_decisions(clip, threshold, max_gap, timing, future_checks),
+        length=clip.num_frames,
+        max_gap=max_gap,
+        resolution=_resolution(timing),
+    )
 
 
 def fill_drops_old(clip, threshold=0.1, debug=False):
+    """The original deduplication, kept for the 'old' method. Replaces each duplicate with the halfway point."""
     if not isinstance(clip, vs.VideoNode):
-        raise ValueError("This is not a clip")
+        raise TypeError("This is not a clip")
 
     differences = core.std.PlaneStats(clip, clip[0] + clip)
 
     super = core.mv.Super(clip)
     forward_vectors = core.mv.Analyse(super, isb=False)
     backwards_vectors = core.mv.Analyse(super, isb=True)
-    filldrops = core.mv.FlowInter(
-        clip, super, mvbw=backwards_vectors, mvfw=forward_vectors, ml=1
-    )
-
-    def selectFunc(n, f):
-        if f.props["PlaneStatsDiff"] < threshold:
-            if debug:
-                return core.text.Text(
-                    filldrops,
-                    f"interpolated, diff: {f.props['PlaneStatsDiff']:.3f}",
-                    alignment=8,
-                )
-
-            return filldrops
-        else:
-            return clip
-
-    return core.std.FrameEval(clip, selectFunc, prop_src=differences)
-
-
-def fill_drops_svp(
-    video,
-    threshold: float = 0.1,
-    svp_preset=blur.interpolate.DEFAULT_PRESET,
-    svp_algorithm=blur.interpolate.DEFAULT_ALGORITHM,
-    svp_blocksize=blur.interpolate.DEFAULT_BLOCKSIZE,
-    svp_masking=blur.interpolate.DEFAULT_MASKING,
-    svp_gpu=blur.interpolate.DEFAULT_GPU,
-    debug=False,
-):
-    if not isinstance(video, vs.VideoNode):
-        raise ValueError("This is not a video")
-
-    [super_string, vectors_string, smooth_string] = (
-        blur.interpolate.generate_svp_strings(
-            new_fps=video.fps,
-            preset=svp_preset,
-            algorithm=svp_algorithm,
-            blocksize=svp_blocksize,
-            masking=svp_masking,
-            gpu=svp_gpu,
-        )
-    )
-
-    super = core.svp1.Super(video, super_string)
-    vectors = core.svp1.Analyse(super["clip"], super["data"], video, vectors_string)
-    filldrops = core.svp2.SmoothFps(
-        video,
-        super["clip"],
-        super["data"],
-        vectors["clip"],
-        vectors["data"],
-        smooth_string,
-        src=video,
-        fps=video.fps,
-    )
-
-    def selectFunc(n, f):
-        if f.props["PlaneStatsDiff"] >= threshold or n == 0:
-            return video
-
-        clip_1fps = core.std.AssumeFPS(video, fpsnum=1, fpsden=1)
-
-        good_frames = clip_1fps[n - 1] + clip_1fps[n + 1]
-
-        [super_string, vectors_string, smooth_string] = (
-            blur.interpolate.generate_svp_strings(
-                new_fps=3,
-                preset=svp_preset,
-                algorithm=svp_algorithm,
-                blocksize=svp_blocksize,
-                # overlap=2,
-                # speed="medium",
-                masking=svp_masking,
-                gpu=svp_gpu,
-            )
-        )
-
-        super = core.svp1.Super(good_frames, super_string)
-        vectors = core.svp1.Analyse(
-            super["clip"], super["data"], good_frames, vectors_string
-        )
-
-        cur_interp = core.svp2.SmoothFps(
-            good_frames,
-            super["clip"],
-            super["data"],
-            vectors["clip"],
-            vectors["data"],
-            smooth_string,
-            src=good_frames,
-            fps=good_frames.fps,
-        )
-
-        # trim edges (they're just the input frames)
-        cur_interp = cur_interp[1:-1]
-
-        # combine the good frames with the interpolated ones so that vapoursynth can use them by indexing
-        # (i hate how you have to do this, there might be nicer way idk)
-        good_before = core.std.Trim(clip_1fps, first=0, last=n - 1)
-        good_after = core.std.Trim(clip_1fps, first=n + 1)
-
-        joined = good_before + cur_interp + good_after
-
-        out_video = core.std.AssumeFPS(joined, src=video)
-
-        if debug:
-            return core.text.Text(
-                out_video,
-                f"interpolated, diff: {f.props['PlaneStatsDiff']:.3f}",
-                alignment=8,
-            )
-
-        return out_video
-
-    differences = core.std.PlaneStats(video, video[0] + video)
-    return core.std.FrameEval(video, selectFunc, prop_src=differences)
-
-
-def fill_drops_mvtools(clip, threshold=0.1, debug=False):
-    if not isinstance(clip, vs.VideoNode):
-        raise ValueError("This is not a clip")
-
-    differences = core.std.PlaneStats(clip, clip[0] + clip)
-
-    pel = 4
-    rfilter = 4
-    sharp = 0
-    blksize = 4
-    overlap = 2
-    search = 5
-    searchparam = 3
-    dct = 5
-
-    super = core.mv.Super(
-        clip, hpad=blksize, vpad=blksize, pel=pel, rfilter=rfilter, sharp=sharp
-    )
-
-    analyse_args = dict(
-        blksize=blksize,
-        overlap=overlap,
-        search=search,
-        searchparam=searchparam,
-        dct=dct,
-    )
-
-    bv = core.mv.Analyse(super, isb=True, **analyse_args)
-    fv = core.mv.Analyse(super, isb=False, **analyse_args)
-
-    filldrops = core.mv.FlowInter(clip, super, mvbw=bv, mvfw=fv, ml=200)
+    filldrops = core.mv.FlowInter(clip, super, mvbw=backwards_vectors, mvfw=forward_vectors, ml=1)
 
     def selectFunc(n, f):
         if f.props["PlaneStatsDiff"] < threshold:
