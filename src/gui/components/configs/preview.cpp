@@ -12,6 +12,7 @@
 #include "../../renderer.h"
 #include "../../render/render.h"
 #include "../../ui/ui.h"
+#include "../../mask_preview.h"
 
 namespace {
 	bool playback_seek_unsaved = false;
@@ -163,7 +164,7 @@ void configs::config_preview(ui::Container& container) {
 	// an unusable video goes in as an empty path, which tears the preview down
 	auto preview_video_path = sample_video_exists ? sample_video_path : std::filesystem::path{};
 
-	bool masking = (settings.interpolate || settings.deduplicate) && (!settings.mask.empty() || settings.auto_mask);
+	bool masking = MaskPreview::applies(settings);
 	if (!masking)
 		show_mask_preview = false;
 
