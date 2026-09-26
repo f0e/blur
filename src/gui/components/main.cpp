@@ -8,7 +8,7 @@
 
 #include "../ui/ui.h"
 #include "../ui/elements/videos/videos.h"
-#include "../player_blur_preview.h"
+#include "../mask_preview.h"
 #include "notifications.h"
 #include "common/masks.h"
 #include "../render/render.h"
@@ -52,8 +52,12 @@ namespace {
 		return disabled;
 	}
 
+	// only one of these shows at a time
 	bool blur_preview_enabled = false;
+	bool mask_preview_enabled = false;
+
 	std::unique_ptr<PlayerBlurPreview> blur_preview;
+	std::unique_ptr<MaskPreview> mask_preview;
 
 	// configs are read from disk, so the last one's kept until its file changes
 	struct {
@@ -84,13 +88,22 @@ namespace {
 		std::optional<std::string> status;
 	};
 
-	BlurPreviewState update_blur_preview(
-		const tasks::PendingVideo& pending_video, const GlobalAppSettings& app_config
-	) {
-		if (!blur_preview_enabled) {
+	void show_preview_error(const std::string& header, const std::optional<rendering::RenderError>& error) {
+		if (error)
+			gui::components::notifications::show_failure_notification(
+				header, *error, std::chrono::duration<float>(10.f)
+			);
+	}
+
+	BlurPreviewState update_preview(const tasks::PendingVideo& pending_video, const GlobalAppSettings& app_config) {
+		if (!blur_preview_enabled)
 			blur_preview.reset();
+
+		if (!mask_preview_enabled)
+			mask_preview.reset();
+
+		if (!blur_preview_enabled && !mask_preview_enabled)
 			return {};
-		}
 
 		if (!pending_video.video_info || !pending_video.video_info->ffmpeg_can_decode_video)
 			return {};
@@ -102,10 +115,36 @@ namespace {
 		if (!player || !ui::videos::is_loaded(pending_video.video_path))
 			return {};
 
+		auto settings = get_render_settings(pending_video);
+
+		if (mask_preview_enabled) {
+			if (!mask_preview)
+				mask_preview = std::make_unique<MaskPreview>();
+
+			// the mask's a still image
+			if (!player->is_paused())
+				player->set_paused(true);
+
+			auto state = mask_preview->update(
+				{
+					.video_path = pending_video.video_path,
+					.video_info = *pending_video.video_info,
+					.settings = settings,
+					.app_settings = app_config,
+				}
+			);
+
+			show_preview_error("Failed to generate mask preview.", mask_preview->take_error());
+
+			return {
+				.overlay = ui::VideoOverlay{ .player = state.overlay },
+				.status = state.overlay ? PlayerBlurPreview::status_text(state)
+				                        : PlayerBlurPreview::status_text(state).value_or("loading mask..."),
+			};
+		}
+
 		if (!blur_preview)
 			blur_preview = std::make_unique<PlayerBlurPreview>();
-
-		auto settings = get_render_settings(pending_video);
 
 		auto state = blur_preview->update(
 			{
@@ -117,11 +156,7 @@ namespace {
 			}
 		);
 
-		if (auto error = blur_preview->take_error()) {
-			gui::components::notifications::show_failure_notification(
-				"Failed to generate blur preview.", *error, std::chrono::duration<float>(10.f)
-			);
-		}
+		show_preview_error("Failed to generate blur preview.", blur_preview->take_error());
 
 		BlurPreviewState result{ .status = PlayerBlurPreview::status_text(state) };
 		if (!state.playing) {
@@ -173,13 +208,17 @@ void main::show_screen(MainScreen main_screen) {
 	prefer_render_screen = main_screen == MainScreen::PROGRESS;
 }
 
-void main::release_blur_preview() {
+void main::release_previews() {
 	blur_preview.reset();
+	mask_preview.reset();
 }
 
 void main::handle_event(const SDL_Event& event, bool& to_render) {
 	if (blur_preview)
 		blur_preview->handle_event(event, to_render);
+
+	if (mask_preview)
+		mask_preview->handle_event(event, to_render);
 }
 
 void main::invalidate_trim_support() {
@@ -454,7 +493,12 @@ void main::render_pending(
 
 	bool trim_disabled = is_trim_disabled(*pending_video);
 
-	auto preview_state = update_blur_preview(*pending_video, app_config);
+	// the mask option only shows when there's a mask, so it can't stay on without one
+	bool masking = !pending_video->config_name.empty() && MaskPreview::applies(get_render_settings(*pending_video));
+	if (!masking)
+		mask_preview_enabled = false;
+
+	auto preview_state = update_preview(*pending_video, app_config);
 
 	ui::add_videos(
 		"test video",
@@ -572,13 +616,37 @@ void main::render_pending(
 			true
 		);
 
+		ui::add_separator("queue preview separator", config_container, ui::SeparatorStyle::FADE_BOTH);
+
 		ui::add_checkbox(
-			"preview blur checkbox", config_container, "preview blur", blur_preview_enabled, fonts::dejavu
+			"preview blur checkbox",
+			config_container,
+			"preview blur",
+			blur_preview_enabled,
+			fonts::dejavu,
+			[](bool enabled) {
+				if (enabled)
+					mask_preview_enabled = false;
+			}
 		);
+
+		if (masking) {
+			ui::add_checkbox(
+				"preview mask checkbox",
+				config_container,
+				"preview mask",
+				mask_preview_enabled,
+				fonts::dejavu,
+				[](bool enabled) {
+					if (enabled)
+						blur_preview_enabled = false;
+				}
+			);
+		}
 
 		if (preview_state.status) {
 			ui::add_text(
-				"preview blur status",
+				"preview status",
 				config_container,
 				*preview_state.status,
 				gfx::Color::white(renderer::MUTED_SHADE),
