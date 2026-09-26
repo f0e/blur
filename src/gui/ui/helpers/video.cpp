@@ -3,6 +3,7 @@
 
 const int SEEK_SECS = 3;
 const uint64_t SEEK_REPLY_ID = 1;
+const uint64_t DIMENSIONS_OBSERVE_ID = 1;
 
 VideoPlayer::~VideoPlayer() {
 	// clean up opengl resources
@@ -63,9 +64,17 @@ void VideoPlayer::handle_key_press(SDL_Keycode key) {
 	}
 }
 
+void VideoPlayer::observe_dimensions() {
+	mpv_unobserve_property(m_mpv, DIMENSIONS_OBSERVE_ID);
+
+	mpv_observe_property(m_mpv, DIMENSIONS_OBSERVE_ID, "dwidth", MPV_FORMAT_INT64);
+	mpv_observe_property(m_mpv, DIMENSIONS_OBSERVE_ID, "dheight", MPV_FORMAT_INT64);
+}
+
 void VideoPlayer::reset_loaded_file() {
 	m_loaded_file = {};
 	m_is_seeking = false;
+	m_awaiting_seek_frame = false;
 	m_has_frame = false;
 
 	m_cached_percent_pos = -1.0;
@@ -73,17 +82,49 @@ void VideoPlayer::reset_loaded_file() {
 	m_cached_fps = 0.0;
 	m_cached_width = 0;
 	m_cached_height = 0;
+
+	// mpv only sends a property when it changes, and the next file can be the same size. observing again sends the
+	// current size, so it isn't left cleared
+	if (m_mpv)
+		observe_dimensions();
 }
 
-void VideoPlayer::load_file(const std::filesystem::path& file_path, std::optional<float> start_time) {
+void VideoPlayer::load_file(
+	const std::filesystem::path& file_path,
+	std::optional<float> start_time,
+	const std::vector<std::pair<std::string, std::string>>& options
+) {
 	// opening at the start time rather than seeking after means frame 0 is never shown
 	if (start_time)
 		run_command_async({ "set", "start", std::to_string(*start_time) });
 
-	run_command_async({ "loadfile", u::path_to_string(file_path) });
+	if (options.empty()) {
+		run_command_async({ "loadfile", u::path_to_string(file_path) });
+	}
+	else {
+		std::string option_list;
+		for (const auto& [key, value] : options) {
+			if (!option_list.empty())
+				option_list += ",";
+
+			// %length% quoting lets values contain commas
+			option_list += std::format("{}=%{}%{}", key, value.size(), value);
+		}
+
+		run_command_async({ "loadfile", u::path_to_string(file_path), "replace", "-1", option_list });
+	}
 
 	m_current_file_path = file_path;
 	reset_loaded_file();
+}
+
+void VideoPlayer::screenshot_to_file(
+	const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
+) {
+	uint64_t reply_id = m_next_reply_id++;
+	m_reply_callbacks[reply_id] = std::move(on_done);
+
+	run_command_async({ "screenshot-to-file", u::path_to_string(path), "video" }, reply_id);
 }
 
 void VideoPlayer::stop() {
@@ -215,11 +256,18 @@ void VideoPlayer::handle_mpv_event(const SDL_Event& event, bool& redraw, bool sh
 			redraw = true;
 			m_new_frame_available = true;
 			m_has_frame = true;
+
+			// a seek resets the output, which asks for the old frame to be redrawn before the new one arrives
+			mpv_render_frame_info info{};
+			mpv_render_context_get_info(m_mpv_gl, { .type = MPV_RENDER_PARAM_NEXT_FRAME_INFO, .data = &info });
+			if (!(info.flags & MPV_RENDER_FRAME_INFO_REDRAW))
+				m_awaiting_seek_frame = false;
 		}
 	}
 
 	if (event.type == m_wakeup_on_mpv_events) {
-		process_mpv_events();
+		if (process_mpv_events())
+			redraw = true;
 	}
 }
 
@@ -246,9 +294,8 @@ void VideoPlayer::initialize_mpv(float volume) {
 	mpv_observe_property(m_mpv, 0, "percent-pos", MPV_FORMAT_DOUBLE);
 	mpv_observe_property(m_mpv, 0, "duration/full", MPV_FORMAT_DOUBLE);
 	mpv_observe_property(m_mpv, 0, "container-fps", MPV_FORMAT_DOUBLE);
-	mpv_observe_property(m_mpv, 0, "dwidth", MPV_FORMAT_INT64);
-	mpv_observe_property(m_mpv, 0, "dheight", MPV_FORMAT_INT64);
 	mpv_observe_property(m_mpv, 0, "hwdec-current", MPV_FORMAT_STRING);
+	observe_dimensions();
 
 	int result = mpv_initialize(m_mpv);
 	if (result < 0) {
@@ -328,6 +375,7 @@ void VideoPlayer::send_queued_seek() {
 	auto seek = *m_queued_seek;
 	m_queued_seek = {};
 	m_is_seeking = true;
+	m_awaiting_seek_frame = true;
 
 	std::string flags = "absolute";
 	if (seek.exact)
@@ -350,7 +398,9 @@ void VideoPlayer::on_mpv_render_update() {
 	}
 }
 
-void VideoPlayer::process_mpv_events() {
+bool VideoPlayer::process_mpv_events() {
+	bool changed = false;
+
 	// handle all pending mpv events
 	while (true) {
 		mpv_event* mp_event = mpv_wait_event(m_mpv, 0);
@@ -362,16 +412,22 @@ void VideoPlayer::process_mpv_events() {
 		switch (mp_event->event_id) {
 			case MPV_EVENT_LOG_MESSAGE: {
 				auto* msg = static_cast<mpv_event_log_message*>(mp_event->data);
-				if (std::strstr(msg->text, "DR image")) {
+				if (msg->log_level <= MPV_LOG_LEVEL_ERROR) {
+					u::log_error("MPV [{}]: {}", msg->prefix, msg->text);
+					m_file_errors += msg->text;
+				}
+				else if (std::strstr(msg->text, "DR image")) {
 					u::log("MPV Log: {}", msg->text);
 				}
 				break;
 			}
 			case MPV_EVENT_START_FILE: {
+				changed = true;
 				u::log("MPV: Starting file");
 				m_loaded_file = {};
 				m_is_seeking = false;
 				m_has_frame = false;
+				m_file_errors.clear();
 				break;
 			}
 			case MPV_EVENT_FILE_LOADED: {
@@ -379,6 +435,7 @@ void VideoPlayer::process_mpv_events() {
 				break;
 			}
 			case MPV_EVENT_VIDEO_RECONFIG: {
+				changed = true;
 				u::log("MPV: Video reconfigured");
 				// video is now ready to render
 				m_loaded_file = m_current_file_path;
@@ -386,24 +443,40 @@ void VideoPlayer::process_mpv_events() {
 				break;
 			}
 			case MPV_EVENT_PLAYBACK_RESTART: {
+				changed = true;
 				u::log("MPV: Playback restarted");
 				m_is_seeking = false;
 				send_queued_seek();
 				break;
 			}
 			case MPV_EVENT_COMMAND_REPLY: {
+				changed = true;
 				// a failed seek never restarts playback, so it has to be cleared here
+				auto callback = m_reply_callbacks.find(mp_event->reply_userdata);
+				if (callback != m_reply_callbacks.end()) {
+					auto on_done = std::move(callback->second);
+					m_reply_callbacks.erase(callback);
+
+					if (mp_event->error < 0)
+						on_done(mpv_error_string(mp_event->error));
+					else
+						on_done(std::nullopt);
+				}
+
 				if (mp_event->reply_userdata == SEEK_REPLY_ID && mp_event->error < 0) {
 					u::log_error("MPV: Seek failed: {}", mpv_error_string(mp_event->error));
 					m_is_seeking = false;
+					m_awaiting_seek_frame = false;
 					send_queued_seek();
 				}
 				break;
 			}
 			case MPV_EVENT_END_FILE: {
+				changed = true;
 				auto* end_event = static_cast<mpv_event_end_file*>(mp_event->data);
 				if (end_event->reason == MPV_END_FILE_REASON_ERROR) {
 					u::log_error("MPV: File ended with error: {}", mpv_error_string(end_event->error));
+					m_load_error = m_file_errors.empty() ? mpv_error_string(end_event->error) : m_file_errors;
 				}
 				else {
 					u::log("MPV: File ended normally");
@@ -454,4 +527,6 @@ void VideoPlayer::process_mpv_events() {
 			}
 		}
 	}
+
+	return changed;
 }
