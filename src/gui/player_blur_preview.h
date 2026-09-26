@@ -31,9 +31,13 @@ public:
 	State update(const Request& request);
 
 	// why the preview couldn't be loaded, once
-	std::optional<rendering::RenderError> take_error();
+	std::optional<rendering::RenderError> take_error() {
+		return m_preview.take_error();
+	}
 
-	void handle_event(const SDL_Event& event, bool& to_render);
+	void handle_event(const SDL_Event& event, bool& to_render) {
+		m_preview.handle_event(event, to_render);
+	}
 
 	// what to tell the user while there's nothing blurred to show. nothing when it's just on its way
 	[[nodiscard]] static std::optional<std::string> status_text(const State& state);
@@ -44,7 +48,7 @@ public:
 	);
 
 private:
-	std::unique_ptr<BlurPreview> m_preview;
+	BlurPreview m_preview;
 
 	// the player's frame count when a blurred frame was last up to date
 	std::optional<uint64_t> m_player_frames_at_blur;

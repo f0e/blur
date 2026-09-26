@@ -2,19 +2,16 @@
 #include "ui/helpers/video.h"
 
 PlayerBlurPreview::State PlayerBlurPreview::update(const Request& request) {
+	// the blurred preview's kept loaded while playing, so pausing again only has to seek
 	if (!request.player.is_paused())
 		return { .playing = true };
-
-	// kept loaded while playing, so pausing again only has to seek
-	if (!m_preview)
-		m_preview = std::make_unique<BlurPreview>();
 
 	// a seek's target, so the blurred frame's rendered alongside the player seeking there
 	auto position = player_position(request.player, request.video_info);
 	if (!position)
-		return { .status = m_preview->status() };
+		return { .status = m_preview.status() };
 
-	m_preview->update(
+	m_preview.update(
 		{
 			.video_path = request.video_path,
 			.video_info = request.video_info,
@@ -24,9 +21,9 @@ PlayerBlurPreview::State PlayerBlurPreview::update(const Request& request) {
 		}
 	);
 
-	State state{ .status = m_preview->status() };
+	State state{ .status = m_preview.status() };
 
-	if (auto ready = m_preview->ready_player()) {
+	if (auto ready = m_preview.ready_player()) {
 		m_player_frames_at_blur = request.player.frame_count();
 		state.overlay = ready;
 		return state;
@@ -34,18 +31,9 @@ PlayerBlurPreview::State PlayerBlurPreview::update(const Request& request) {
 
 	// the last blurred frame stays up until the player has a newer frame to stand in with
 	if (request.player.frame_count() == m_player_frames_at_blur)
-		state.overlay = m_preview->previous_player();
+		state.overlay = m_preview.previous_player();
 
 	return state;
-}
-
-std::optional<rendering::RenderError> PlayerBlurPreview::take_error() {
-	return m_preview ? m_preview->take_error() : std::nullopt;
-}
-
-void PlayerBlurPreview::handle_event(const SDL_Event& event, bool& to_render) {
-	if (m_preview)
-		m_preview->handle_event(event, to_render);
 }
 
 std::optional<std::string> PlayerBlurPreview::status_text(const State& state) {
