@@ -2,6 +2,7 @@
 
 #include "../notifications.h"
 #include "../../mask_preview.h"
+#include "../../player_blur_preview.h"
 #include "../../ui/helpers/video.h"
 #include "common/media.h"
 
@@ -95,7 +96,7 @@ namespace {
 		preview_frames::Result result{
 			.failed = state.status.failed,
 			.video_duration = static_cast<float>(info.video_duration),
-			.status = PlayerBlurPreview::status_text(state),
+			.status = state.status_text(),
 		};
 
 		if (state.overlay)
@@ -130,7 +131,7 @@ namespace {
 		result.playing = state.playing;
 		result.failed = state.status.failed;
 		result.frame_timing_log = state.status.frame_timing_log;
-		result.status = PlayerBlurPreview::status_text(state);
+		result.status = state.status_text();
 
 		// the seek bar follows playback and frame stepping. a seek that's on its way would put it back where it came
 		// from
