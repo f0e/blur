@@ -46,7 +46,16 @@ void ui::render_video(const Container& container, const AnimatedElement& element
 	int alpha = anim * 255;
 	float video_alpha = alpha * (1.f - data.fade);
 
-	if (data.video.video_info) {
+	if (data.video.video_info && !data.video.video_info->ffmpeg_can_decode_video) {
+		render::text(
+			rect.center(),
+			gfx::Color::white(155 * anim),
+			"can't preview this video",
+			fonts::dejavu,
+			FONT_CENTERED_X | FONT_CENTERED_Y
+		);
+	}
+	else if (data.video.video_info) {
 		bool player_drawn = videos::player && videos::player->is_video_ready() && videos::is_loaded(data.video.path) &&
 		                    videos::player->draw(rect.shrink(1), gfx::Color::white(video_alpha));
 

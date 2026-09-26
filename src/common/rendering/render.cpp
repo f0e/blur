@@ -235,7 +235,7 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 
 	bool trimmed = start != 0.f || end != 1.f;
 
-	if (video_info.frameserver && video_info.has_undecodable_audio) {
+	if (video_info.frameserver && !video_info.ffmpeg_can_decode_audio) {
 		return tl::unexpected(
 			"Frameserver audio can't be read. Turn on 'Write audio as PCM samples in signpost AVI' in DebugMode "
 			"FrameServer and restart it"

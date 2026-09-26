@@ -26,7 +26,8 @@ namespace media {
 
 		// debugmode frameserver signpost avi
 		bool frameserver = false;
-		bool has_undecodable_audio = false;
+		bool ffmpeg_can_decode_video = true;
+		bool ffmpeg_can_decode_audio = true;
 
 		bool operator==(const VideoInfo& other) const = default;
 	};

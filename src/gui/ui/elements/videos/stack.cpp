@@ -131,7 +131,14 @@ void ui::add_videos(
 	bool switched = loaded_path && *loaded_path != active_video.path;
 	loaded_path = active_video.path;
 
-	if (!videos::is_loaded(active_video.path)) {
+	// mpv decodes with ffmpeg too, so it can't play these (e.g. frameserver signposts)
+	bool playable = !active_video.video_info || active_video.video_info->ffmpeg_can_decode_video;
+
+	if (!playable) {
+		if (videos::player->get_current_file_path())
+			videos::player->stop();
+	}
+	else if (!videos::is_loaded(active_video.path)) {
 		videos::player->load_file(active_video.path);
 		videos::player->set_paused(true);
 	}
@@ -180,13 +187,15 @@ void ui::add_videos(
 
 		gfx::Rect video_rect(usable_rect.center().x - (size.w / 2), base_y + std::lround(offset), size.w, size.h);
 
+		bool previewable = ui_video.video_info && ui_video.video_info->ffmpeg_can_decode_video;
+
 		Element video_element(
 			video_id,
 			ElementType::VIDEO,
 			video_rect,
 			VideoElementData{
 				.video = ui_video,
-				.thumbnail = ui_video.video_info ? thumbnails::get(ui_video.path) : std::nullopt,
+				.thumbnail = previewable ? thumbnails::get(ui_video.path) : std::nullopt,
 				.active = active,
 				.fade = fade,
 				.index = &index,

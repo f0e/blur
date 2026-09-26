@@ -148,6 +148,7 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 			info.color_transfer = opt_str(stream, "color_transfer");
 			info.color_primaries = opt_str(stream, "color_primaries");
 			info.frameserver = stream.value("codec_tag_string", "") == "DFSC";
+			info.ffmpeg_can_decode_video = opt_str(stream, "codec_name").has_value();
 
 			if (stream.contains("r_frame_rate")) {
 				const auto fps = u::split_string(stream["r_frame_rate"].get<std::string>(), "/");
@@ -163,7 +164,7 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 		}
 		else if (codec_type == "audio") {
 			if (!opt_str(stream, "codec_name"))
-				info.has_undecodable_audio = true;
+				info.ffmpeg_can_decode_audio = false;
 
 			if (stream.contains("sample_rate"))
 				info.audio_sample_rates.push_back(std::stoi(stream["sample_rate"].get<std::string>()));
