@@ -234,7 +234,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	bool queue_shown =
 		screen == Screens::MAIN && components::main::current_screen() == components::main::MainScreen::PENDING;
 	if (!queue_shown)
-		components::main::release_blur_preview();
+		components::main::release_previews();
 
 	if (screen != Screens::CONFIG)
 		components::configs::preview_frames::pause();
