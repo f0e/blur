@@ -1,21 +1,25 @@
 #include "preview_frames.h"
 
 #include "../notifications.h"
-#include "../../blur_preview.h"
+#include "../../player_blur_preview.h"
 #include "../../ui/helpers/video.h"
 #include "common/media.h"
 
 namespace preview_frames = gui::components::configs::preview_frames;
 
 namespace {
-	std::unique_ptr<BlurPreview> blurred_preview;
+	std::unique_ptr<PlayerBlurPreview> blurred_preview;
 	std::unique_ptr<BlurPreview> mask_preview;
+	bool showing_mask = false;
 
 	// a mask is worked out from the whole video, so it only needs reloading when the masking settings change
 	std::optional<BlurSettings> mask_settings;
 
 	std::shared_ptr<VideoPlayer> source_player;
 	std::optional<float> source_timestamp;
+
+	// the seek bar follows playback, which isn't a seek
+	std::optional<float> playback_position;
 
 	struct {
 		std::mutex mutex;
@@ -34,8 +38,14 @@ namespace {
 		}).detach();
 	}
 
-	// kept on the frame the blurred frame for this position is centred on, so nothing jumps when that arrives
+	// put on the frame the blurred frame for this position is centred on, so nothing jumps when that arrives
 	void update_source_player(const preview_frames::Request& request, const media::VideoInfo& info, float position) {
+		if (source_player && position == playback_position) {
+			// wherever it was last put, it's somewhere else now
+			source_timestamp.reset();
+			return;
+		}
+
 		if (info.fps_num <= 0 || info.fps_den <= 0)
 			return;
 
@@ -60,12 +70,98 @@ namespace {
 		}
 	}
 
-	BlurPreview& get_preview(bool mask) {
-		auto& preview = mask ? mask_preview : blurred_preview;
-		if (!preview)
-			preview = std::make_unique<BlurPreview>();
+	void show_error(const std::string& header, const std::optional<rendering::RenderError>& error) {
+		if (error)
+			gui::components::notifications::show_failure_notification(
+				header, *error, std::chrono::duration<float>(10.f)
+			);
+	}
 
-		return *preview;
+	preview_frames::Result update_mask(const preview_frames::Request& request, const media::VideoInfo& info) {
+		if (source_player && !source_player->is_paused())
+			source_player->set_paused(true);
+
+		if (!mask_settings || !config_blur::same_masking(*mask_settings, request.settings))
+			mask_settings = request.settings;
+
+		if (!mask_preview)
+			mask_preview = std::make_unique<BlurPreview>();
+
+		mask_preview->update(
+			{
+				.video_path = request.video_path,
+				.video_info = info,
+				.settings = *mask_settings,
+				.app_settings = request.app_settings,
+				.mask = true,
+			}
+		);
+
+		show_error("Failed to generate mask preview.", mask_preview->take_error());
+
+		PlayerBlurPreview::State state{
+			.overlay = mask_preview->ready_player(),
+			.status = mask_preview->status(),
+		};
+
+		preview_frames::Result result{
+			.loading = !state.overlay && !state.status.failed,
+			.failed = state.status.failed,
+			.video_duration = static_cast<float>(info.video_duration),
+			.status = PlayerBlurPreview::status_text(state),
+		};
+
+		if (state.overlay)
+			result.frame = preview_frames::Frame{ .player = state.overlay };
+
+		return result;
+	}
+
+	preview_frames::Result update_blurred(const preview_frames::Request& request, const media::VideoInfo& info) {
+		update_source_player(request, info, request.app_settings.config_preview_seek);
+
+		preview_frames::Result result{
+			.loading = true,
+			.video_duration = static_cast<float>(info.video_duration),
+		};
+
+		if (!source_player)
+			return result;
+
+		if (!blurred_preview)
+			blurred_preview = std::make_unique<PlayerBlurPreview>();
+
+		auto state = blurred_preview->update(
+			{
+				.player = *source_player,
+				.video_path = request.video_path,
+				.video_info = info,
+				.settings = request.settings,
+				.app_settings = request.app_settings,
+			}
+		);
+
+		show_error("Failed to generate config preview.", blurred_preview->take_error());
+
+		result.playing = state.playing;
+		result.failed = state.status.failed;
+		result.frame_timing_log = state.status.frame_timing_log;
+		result.status = PlayerBlurPreview::status_text(state);
+		result.loading = !state.playing && !state.overlay && !state.status.failed;
+
+		// the seek bar follows playback and frame stepping. a seek that's on its way would put it back where it came
+		// from
+		if (source_player->seek_settled()) {
+			playback_position = PlayerBlurPreview::player_position(*source_player, info);
+			result.playback_position = playback_position;
+		}
+
+		if (state.overlay)
+			result.frame = preview_frames::Frame{ .player = state.overlay };
+		else if (source_player->has_frame() && source_player->get_video_dimensions())
+			result.frame = preview_frames::Frame{ .player = source_player, .faded = !state.playing };
+
+		return result;
 	}
 }
 
@@ -105,59 +201,27 @@ preview_frames::Result preview_frames::update(const Request& request) {
 	if (!info.has_video_stream)
 		return result;
 
-	float position = request.app_settings.config_preview_seek;
+	showing_mask = request.show_mask;
 
-	const BlurSettings* settings = &request.settings;
-	if (request.show_mask) {
-		if (!mask_settings || !config_blur::same_masking(*mask_settings, request.settings))
-			mask_settings = request.settings;
+	if (request.show_mask)
+		return update_mask(request, info);
 
-		settings = &*mask_settings;
-	}
+	return update_blurred(request, info);
+}
 
-	auto& preview = get_preview(request.show_mask);
+void preview_frames::handle_key_press(SDL_Keycode key) {
+	if (source_player && !showing_mask)
+		source_player->handle_key_press(key);
+}
 
-	preview.update(
-		{
-			.video_path = request.video_path,
-			.video_info = info,
-			.settings = *settings,
-			.app_settings = request.app_settings,
-			.position = position,
-			.mask = request.show_mask,
-		}
-	);
+void preview_frames::toggle_playback() {
+	if (source_player && !showing_mask)
+		source_player->cycle_paused();
+}
 
-	if (auto error = preview.take_error()) {
-		gui::components::notifications::show_failure_notification(
-			request.show_mask ? "Failed to generate mask preview." : "Failed to generate config preview.",
-			*error,
-			std::chrono::duration<float>(10.f)
-		);
-	}
-
-	auto status = preview.status();
-	result.init_stage = status.init_stage;
-	result.frame_timing_log = status.frame_timing_log;
-	result.failed = status.failed;
-
-	if (auto player = preview.ready_player()) {
-		result.frame = Frame{ .player = player, .up_to_date = true };
-		result.loading = false;
-		return result;
-	}
-
-	result.loading = !status.failed;
-
-	// the source stands in for the blurred video, but isn't anything like a mask
-	if (!request.show_mask) {
-		update_source_player(request, info, position);
-
-		if (source_player && source_player->has_frame() && source_player->get_video_dimensions())
-			result.frame = Frame{ .player = source_player };
-	}
-
-	return result;
+void preview_frames::pause() {
+	if (source_player && !source_player->is_paused())
+		source_player->set_paused(true);
 }
 
 void preview_frames::handle_event(const SDL_Event& event, bool& to_render) {
@@ -184,6 +248,7 @@ void preview_frames::reset() {
 
 	source_player.reset();
 	source_timestamp.reset();
+	playback_position.reset();
 
 	std::lock_guard lock(video.mutex);
 	video.path.clear();

@@ -160,8 +160,11 @@ namespace ui {
 	struct VideoFrameElementData {
 		std::shared_ptr<VideoPlayer> player;
 		gfx::Color color;
+		std::optional<std::function<void()>> on_click;
 
-		bool operator==(const VideoFrameElementData& other) const = default;
+		bool operator==(const VideoFrameElementData& other) const {
+			return player == other.player && color == other.color && on_click.has_value() == other.on_click.has_value();
+		}
 	};
 
 	struct UIVideo {
@@ -739,6 +742,7 @@ namespace ui {
 	void render_image(const Container& container, const AnimatedElement& element);
 
 	void render_video_frame(const Container& container, const AnimatedElement& element);
+	bool update_video_frame(const Container& container, AnimatedElement& element);
 
 	void render_video(const Container& container, const AnimatedElement& element);
 	bool update_video(const Container& container, AnimatedElement& element);
@@ -910,7 +914,8 @@ namespace ui {
 		Container& container,
 		std::shared_ptr<VideoPlayer> player,
 		const gfx::Size& max_size,
-		gfx::Color color = gfx::Color::white()
+		gfx::Color color = gfx::Color::white(),
+		std::optional<std::function<void()>> on_click = {}
 	);
 
 	void add_videos(
