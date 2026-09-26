@@ -420,7 +420,11 @@ bool VideoPlayer::process_mpv_events() {
 			case MPV_EVENT_LOG_MESSAGE: {
 				auto* msg = static_cast<mpv_event_log_message*>(mp_event->data);
 				if (msg->log_level <= MPV_LOG_LEVEL_ERROR) {
-					u::log_error("MPV [{}]: {}", msg->prefix, msg->text);
+					std::string_view text = msg->text;
+					if (text.ends_with('\n'))
+						text.remove_suffix(1);
+
+					u::log_error("MPV [{}]: {}", msg->prefix, text);
 					m_file_errors += msg->text;
 				}
 				else if (std::strstr(msg->text, "DR image")) {
