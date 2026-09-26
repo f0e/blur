@@ -65,6 +65,18 @@ public:
 		return {};
 	}
 
+	// seconds, on mpv's clock (which starts with the container)
+	[[nodiscard]] std::optional<double> get_time_pos() const {
+		if (m_cached_time_pos >= 0.0)
+			return m_cached_time_pos.load();
+
+		return {};
+	}
+
+	[[nodiscard]] bool is_paused() const {
+		return m_paused;
+	}
+
 	[[nodiscard]] bool is_seeking() const {
 		return m_is_seeking;
 	}
@@ -221,6 +233,8 @@ private:
 	std::atomic<bool> m_new_frame_available{ false };
 	std::atomic<bool> m_has_frame{ false };
 	std::atomic<double> m_cached_percent_pos{ -1.0 };
+	std::atomic<double> m_cached_time_pos{ -1.0 };
+	std::atomic<bool> m_paused{ true };
 	std::atomic<double> m_cached_duration{ -1.0 };
 	std::atomic<double> m_cached_fps{ 0.0 };
 	std::atomic<int64_t> m_cached_width{ 0 };

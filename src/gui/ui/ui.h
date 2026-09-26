@@ -180,9 +180,18 @@ namespace ui {
 		int16_t max_sample = 0;
 	};
 
+	// shown in place of the active video, like its blurred preview
+	struct VideoOverlay {
+		// null until it's ready, the video's shown faded meanwhile
+		std::shared_ptr<VideoPlayer> player;
+
+		bool operator==(const VideoOverlay& other) const = default;
+	};
+
 	struct VideoElementData {
 		UIVideo video;
 		std::optional<thumbnails::ThumbnailRes> thumbnail;
+		std::optional<VideoOverlay> overlay;
 		bool active = false;
 		float fade = 0.f;
 		size_t* index = nullptr;
@@ -191,9 +200,9 @@ namespace ui {
 		std::function<void(size_t video_id)> on_remove;
 
 		bool operator==(const VideoElementData& other) const {
-			return video == other.video && thumbnail == other.thumbnail && active == other.active &&
-			       fade == other.fade && index == other.index && list_index == other.list_index &&
-			       video_count == other.video_count;
+			return video == other.video && thumbnail == other.thumbnail && overlay == other.overlay &&
+			       active == other.active && fade == other.fade && index == other.index &&
+			       list_index == other.list_index && video_count == other.video_count;
 		}
 	};
 
@@ -914,7 +923,8 @@ namespace ui {
 		float& volume,
 		bool hardware_decoding,
 		bool trim_disabled,
-		const std::function<void(size_t video_id)>& on_remove
+		const std::function<void(size_t video_id)>& on_remove,
+		const std::optional<VideoOverlay>& active_overlay = {}
 	);
 
 	AnimatedElement* add_button(
