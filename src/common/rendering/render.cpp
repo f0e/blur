@@ -157,6 +157,66 @@ float rendering::get_preview_frame_timestamp(
 	return static_cast<float>(frame_time + MPV_HR_SEEK_TOLERANCE - (0.5 / *fps));
 }
 
+tl::expected<std::string, std::string> rendering::build_preview_script(
+	const std::filesystem::path& input_path,
+	const BlurSettings& settings,
+	const GlobalAppSettings& app_settings,
+	const media::VideoInfo& video_info,
+	bool preview_mask,
+	const std::filesystem::path& log_path
+) {
+	if (auto error = check_tensorrt_installed(settings))
+		return tl::unexpected(*error);
+
+	auto merged_settings = detail::merge_settings(settings, app_settings, devices::get_device_indices(app_settings));
+
+	auto vspipe_args =
+		detail::build_vspipe_video_args(input_path, merged_settings, video_info, {}, {}, {}, preview_mask);
+
+	// vspipe hands every -a over as a string, so these stay strings too
+	nlohmann::json script_args = nlohmann::json::object();
+	for (size_t i = 0; i + 1 < vspipe_args.size(); i++) {
+		if (vspipe_args[i] != "-a")
+			continue;
+
+		const auto& arg = vspipe_args[++i];
+		auto split = arg.find('=');
+		if (split != std::string::npos)
+			script_args[arg.substr(0, split)] = arg.substr(split + 1);
+	}
+
+	auto python_path = [](const std::filesystem::path& path) {
+		std::string str = u::path_to_string(path);
+		std::ranges::replace(str, '\\', '/');
+		return nlohmann::json(str).dump();
+	};
+
+	// vapoursynth reads VAPOURSYNTH_EXTRA_PLUGIN_PATH through its crt's cached environment, which setting it from the
+	// app doesn't reliably reach, so the script loads the plugins itself
+	std::string plugins_path = R"("")";
+#ifdef _WIN32
+	if (blur.used_installer)
+		plugins_path = python_path(blur.resources_path / "lib/vapoursynth/vs-plugins");
+#endif
+
+	// json strings and objects of strings are valid python literals
+	return std::format(
+		R"(import sys
+
+sys.path.insert(1, {})
+
+import blur.preview
+
+blur.preview.run({}, {}, {}, {})
+)",
+		python_path(blur.resources_path / "lib"),
+		python_path(blur.resources_path / "lib" / "blur.py"),
+		script_args.dump(),
+		plugins_path,
+		python_path(log_path)
+	);
+}
+
 std::pair<size_t, size_t> rendering::get_trim_frame_range(const media::VideoInfo& video_info, float start, float end) {
 	if (video_info.fps_num <= 0 || video_info.fps_den <= 0)
 		return { 0, 0 };
