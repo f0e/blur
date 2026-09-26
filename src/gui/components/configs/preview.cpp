@@ -377,7 +377,7 @@ void configs::config_preview(ui::Container& container) {
 
 		container.pop_element_gap();
 	}
-	else if (preview.loading) {
+	else if (!preview.failed) {
 		std::string loading_text =
 			preview.status.value_or(show_mask_preview ? "Loading mask preview..." : "Initialising config preview...");
 
