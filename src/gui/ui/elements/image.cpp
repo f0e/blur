@@ -1,6 +1,7 @@
 #include "../ui.h"
 #include "../helpers/video.h"
 #include "../../render/render.h"
+#include "../keys.h"
 
 struct ImageElementData {
 	std::filesystem::path image_path;
@@ -144,12 +145,33 @@ void ui::render_video_frame(const Container& container, const AnimatedElement& e
 	);
 }
 
+bool ui::update_video_frame(const Container& container, AnimatedElement& element) {
+	const auto& data = std::get<VideoFrameElementData>(element.element->data);
+	if (!data.on_click)
+		return false;
+
+	bool hovered = element.element->rect.contains(keys::mouse_pos) && set_hovered_element(element);
+	if (!hovered)
+		return false;
+
+	set_cursor(SDL_SYSTEM_CURSOR_POINTER);
+
+	if (!keys::is_mouse_down())
+		return false;
+
+	keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
+	(*data.on_click)();
+
+	return true;
+}
+
 std::optional<ui::AnimatedElement*> ui::add_video_frame(
 	const std::string& id,
 	Container& container,
 	std::shared_ptr<VideoPlayer> player,
 	const gfx::Size& max_size,
-	gfx::Color color
+	gfx::Color color,
+	std::optional<std::function<void()>> on_click
 ) {
 	if (!player || !player->is_video_ready())
 		return {};
@@ -167,8 +189,10 @@ std::optional<ui::AnimatedElement*> ui::add_video_frame(
 		VideoFrameElementData{
 			.player = std::move(player),
 			.color = color,
+			.on_click = std::move(on_click),
 		},
-		render_video_frame
+		render_video_frame,
+		update_video_frame
 	);
 
 	return add_element(container, std::move(element), container.element_gap);

@@ -14,6 +14,8 @@
 #include "../../ui/ui.h"
 
 namespace {
+	bool playback_seek_unsaved = false;
+
 	struct SaveMaskDialogState {
 		std::string name;
 		std::string error;
@@ -111,19 +113,6 @@ namespace {
 		);
 	}
 
-	std::optional<std::string> init_stage_text(rendering::RenderState::InitStage stage) {
-		switch (stage) {
-			case rendering::RenderState::InitStage::GENERATING_MASK:
-				return "Analysing video to generate a mask...";
-			case rendering::RenderState::InitStage::BUILDING_ENGINE:
-				return "Building TensorRT engine. This may take a few minutes...";
-			case rendering::RenderState::InitStage::NONE:
-				break;
-		}
-
-		return std::nullopt;
-	}
-
 	void confirm_clear_sample_video() {
 		ui::dialog::confirm_destructive("Remove sample video?", "", "Remove", [] {
 			gui::components::configs::clear_sample_video();
@@ -188,6 +177,9 @@ void configs::config_preview(ui::Container& container) {
 			.show_mask = show_mask_preview,
 		}
 	);
+
+	if (preview.playback_position)
+		app_settings.config_preview_seek = *preview.playback_position;
 
 	auto add_open_sample_video_prompt = [&](bool was_deleted) {
 		ui::add_text(
@@ -264,8 +256,7 @@ void configs::config_preview(ui::Container& container) {
 
 		container.pop_element_gap();
 
-		bool show_save_button =
-			show_mask_preview && !showing_hovered_mask && preview.frame && preview.frame->up_to_date;
+		bool show_save_button = show_mask_preview && !showing_hovered_mask && preview.frame && !preview.frame->faded;
 
 		if (show_save_button)
 			container.push_element_gap(6);
@@ -313,9 +304,20 @@ void configs::config_preview(ui::Container& container) {
 
 		bool seek_bar_dragging = ui::get_active_element() == seek_bar;
 
-		// save once the drag is over rather than writing the config on every frame it moves
-		if (app_settings.config_preview_seek != current_app_settings.config_preview_seek && !seek_bar_dragging) {
+		// save once the drag or playback is over rather than writing the config on every frame it moves. playback
+		// isn't an edit, so it's kept from showing up as an unsaved change meanwhile
+		if (preview.playing) {
+			if (app_settings.config_preview_seek != current_app_settings.config_preview_seek) {
+				current_app_settings.config_preview_seek = app_settings.config_preview_seek;
+				playback_seek_unsaved = true;
+			}
+		}
+		else if ((app_settings.config_preview_seek != current_app_settings.config_preview_seek ||
+		          playback_seek_unsaved) &&
+		         !seek_bar_dragging)
+		{
 			save_preview_app_settings();
+			playback_seek_unsaved = false;
 		}
 
 		ui::set_next_same_line(container);
@@ -356,14 +358,18 @@ void configs::config_preview(ui::Container& container) {
 			                          .has_value();
 		}
 		else {
-			// the source standing in for the blurred video is faded out
+			std::optional<std::function<void()>> on_click;
+			if (!show_mask_preview)
+				on_click = preview_frames::toggle_playback;
+
 			preview_image_id = "config preview video";
 			preview_image_added = ui::add_video_frame(
 									  preview_image_id,
 									  container,
 									  preview.frame->player,
 									  container.get_usable_rect().size(),
-									  gfx::Color::white(preview.frame->up_to_date ? 255 : 100)
+									  gfx::Color::white(preview.frame->faded ? 100 : 255),
+									  on_click
 			)
 			                          .has_value();
 		}
@@ -372,8 +378,7 @@ void configs::config_preview(ui::Container& container) {
 	}
 	else if (preview.loading) {
 		std::string loading_text =
-			init_stage_text(preview.init_stage)
-				.value_or(show_mask_preview ? "Loading mask preview..." : "Initialising config preview...");
+			preview.status.value_or(show_mask_preview ? "Loading mask preview..." : "Initialising config preview...");
 
 		container.push_element_gap(PREVIEW_IMAGE_GAP);
 
@@ -405,17 +410,15 @@ void configs::config_preview(ui::Container& container) {
 
 	add_seek_bar_row();
 
-	if (preview_image_added && preview.loading) {
-		if (auto stage_text = init_stage_text(preview.init_stage)) {
-			ui::add_text(
-				"preview init stage text",
-				container,
-				*stage_text,
-				gfx::Color::white(gui::renderer::MUTED_SHADE),
-				fonts::dejavu(fonts::size::SMALL),
-				FONT_CENTERED_X
-			);
-		}
+	if (preview_image_added && preview.status) {
+		ui::add_text(
+			"preview status text",
+			container,
+			*preview.status,
+			gfx::Color::white(gui::renderer::MUTED_SHADE),
+			fonts::dejavu(fonts::size::SMALL),
+			FONT_CENTERED_X
+		);
 	}
 
 	if (!preview.frame_timing_log.empty()) {

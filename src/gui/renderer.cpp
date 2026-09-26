@@ -19,6 +19,7 @@
 #include "components/update_notice.h"
 #include "components/test.h"
 #include "components/configs/configs.h"
+#include "components/configs/preview_frames.h"
 
 #define DEBUG_RENDER 0
 
@@ -234,6 +235,9 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		screen == Screens::MAIN && components::main::current_screen() == components::main::MainScreen::PENDING;
 	if (!queue_shown)
 		components::main::release_blur_preview();
+
+	if (screen != Screens::CONFIG)
+		components::configs::preview_frames::pause();
 
 	switch (screen) {
 		case Screens::TEST: {
