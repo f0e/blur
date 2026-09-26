@@ -1,68 +1,18 @@
 #include "preview_frames.h"
 
-#include "common/rendering/render.h"
-#include "common/rendering/render_state.h"
-
 #include "../notifications.h"
+#include "../../blur_preview.h"
 #include "../../ui/helpers/video.h"
 #include "common/media.h"
 
 namespace preview_frames = gui::components::configs::preview_frames;
 
 namespace {
-	// stops a held slider from starting a render every ui frame
-	constexpr auto DEBOUNCE_TIME = std::chrono::milliseconds(50);
+	std::unique_ptr<BlurPreview> blurred_preview;
+	std::unique_ptr<BlurPreview> mask_preview;
 
-	struct FrameKey {
-		float seek = 0.f;
-		BlurSettings settings;
-	};
-
-	struct RenderedFrame {
-		FrameKey key;
-		std::vector<uint8_t> jpeg;
-		std::string frame_timing_log;
-	};
-
-	struct LastRender {
-		FrameKey key;
-		std::chrono::steady_clock::time_point time;
-	};
-
-	struct Preview {
-		bool mask = false;
-
-		std::optional<RenderedFrame> pending; // guarded by render_mutex
-
-		std::optional<RenderedFrame> shown;
-		std::shared_ptr<render::Texture> texture;
-		std::string image_id;
-
-		std::optional<LastRender> last_render;
-
-		[[nodiscard]] bool same_frame(const FrameKey& a, const FrameKey& b) const {
-			// a mask is worked out from the whole video, so the seek doesn't matter
-			if (mask)
-				return config_blur::same_masking(a.settings, b.settings);
-
-			return a.seek == b.seek && a.settings == b.settings;
-		}
-	};
-
-	Preview blurred_preview{ .mask = false };
-	Preview mask_preview{ .mask = true };
-
-	// ui::add_image keeps its texture while the id matches, so an id can't be handed out twice
-	size_t image_count = 0;
-
-	struct ActiveRender {
-		std::shared_ptr<rendering::RenderState> state;
-		Preview* preview;
-	};
-
-	// only the newest render publishes, anything it replaced has been stopped
-	std::mutex render_mutex;
-	std::optional<ActiveRender> active_render;
+	// a mask is worked out from the whole video, so it only needs reloading when the masking settings change
+	std::optional<BlurSettings> mask_settings;
 
 	std::shared_ptr<VideoPlayer> source_player;
 	std::optional<float> source_timestamp;
@@ -84,124 +34,16 @@ namespace {
 		}).detach();
 	}
 
-	std::shared_ptr<rendering::RenderState> start_render(Preview& preview) {
-		std::lock_guard lock(render_mutex);
-
-		if (active_render) {
-			active_render->state->stop();
-
-			// so switching back to the other view starts its render again
-			if (active_render->preview != &preview)
-				active_render->preview->last_render.reset();
-		}
-
-		auto state = std::make_shared<rendering::RenderState>();
-		active_render = ActiveRender{ .state = state, .preview = &preview };
-		return state;
-	}
-
-	void stop_render() {
-		std::lock_guard lock(render_mutex);
-
-		if (active_render)
-			active_render->state->stop();
-
-		active_render.reset();
-	}
-
-	void request_render(const preview_frames::Request& request, Preview& preview, const FrameKey& key) {
-		// positions a drag passes through would be thrown away on the next mouse move
-		if (request.seeking)
+	// kept on the frame the blurred frame for this position is centred on, so nothing jumps when that arrives
+	void update_source_player(const preview_frames::Request& request, const media::VideoInfo& info, float position) {
+		if (info.fps_num <= 0 || info.fps_den <= 0)
 			return;
 
-		auto now = std::chrono::steady_clock::now();
-		const auto& last = preview.last_render;
+		double fps = static_cast<double>(info.fps_num) / info.fps_den;
+		double frame_time = std::round(BlurPreview::source_time(request.settings, info, position) * fps) / fps;
 
-		if (last && (preview.same_frame(last->key, key) || now - last->time < DEBOUNCE_TIME))
-			return;
-
-		u::log(preview.mask ? "generating mask preview" : "generating config preview");
-
-		auto state = start_render(preview);
-		preview.last_render = LastRender{ .key = key, .time = now };
-
-		std::thread([state, &preview, key, video_path = request.video_path, app_settings = request.app_settings] {
-			auto res = rendering::render_frame(video_path, key.settings, app_settings, state, key.seek, preview.mask);
-
-			std::lock_guard lock(render_mutex);
-
-			if (!active_render || active_render->state != state)
-				return;
-
-			if (res) {
-				preview.pending = RenderedFrame{
-					.key = key,
-					.jpeg = std::move(res->frame_jpeg),
-					.frame_timing_log = state->get_progress().frame_timing_log,
-				};
-				u::log(preview.mask ? "mask preview finished rendering" : "config preview finished rendering");
-			}
-			else {
-				gui::components::notifications::show_failure_notification(
-					preview.mask ? "Failed to generate mask preview." : "Failed to generate config preview.",
-					res.error(),
-					std::chrono::duration<float>(10.f)
-				);
-			}
-
-			active_render.reset();
-		}).detach();
-	}
-
-	// textures can only be created on the render thread
-	void upload(Preview& preview) {
-		std::optional<RenderedFrame> pending;
-		{
-			std::lock_guard lock(render_mutex);
-			pending = std::exchange(preview.pending, std::nullopt);
-		}
-
-		if (!pending)
-			return;
-
-		auto texture = render::texture_from_jpeg(pending->jpeg);
-		if (!texture)
-			return;
-
-		preview.texture = std::move(texture);
-		preview.shown = std::move(pending);
-		preview.image_id = std::format("config preview {}", ++image_count);
-	}
-
-	struct RenderStatus {
-		bool rendering = false;
-		rendering::RenderState::InitStage init_stage = rendering::RenderState::InitStage::NONE;
-	};
-
-	RenderStatus render_status(const Preview& preview) {
-		std::lock_guard lock(render_mutex);
-
-		if (!active_render || active_render->preview != &preview)
-			return {};
-
-		return {
-			.rendering = true,
-			.init_stage = active_render->state->get_progress().init_stage,
-		};
-	}
-
-	// kept on the frame the blurred preview will render for this seek, so nothing jumps when that arrives
-	void update_source_player(const preview_frames::Request& request, float seek) {
-		std::optional<float> timestamp;
-		{
-			std::lock_guard lock(video.mutex);
-
-			if (video.info.has_video_stream)
-				timestamp = rendering::get_preview_frame_timestamp(request.settings, video.info, seek);
-		}
-
-		if (!timestamp)
-			return;
+		// mpv's clock starts with the container, which can be before the video's first frame
+		auto timestamp = VideoPlayer::frame_seek_target(info.video_start_time - info.start_time + frame_time, fps);
 
 		if (!source_player) {
 			source_player = std::make_shared<VideoPlayer>(0.f, request.app_settings.preview_hardware_decoding);
@@ -214,8 +56,16 @@ namespace {
 
 		if (timestamp != source_timestamp) {
 			source_timestamp = timestamp;
-			source_player->seek(*timestamp, true);
+			source_player->seek(timestamp, true);
 		}
+	}
+
+	BlurPreview& get_preview(bool mask) {
+		auto& preview = mask ? mask_preview : blurred_preview;
+		if (!preview)
+			preview = std::make_unique<BlurPreview>();
+
+		return *preview;
 	}
 }
 
@@ -241,48 +91,70 @@ preview_frames::Result preview_frames::update(const Request& request) {
 	if (request.video_path.empty())
 		return {};
 
-	float seek = request.app_settings.config_preview_seek;
-	Preview& preview = request.show_mask ? mask_preview : blurred_preview;
-	FrameKey key{ .seek = request.show_mask ? 0.f : seek, .settings = request.settings };
-
-	upload(blurred_preview);
-	upload(mask_preview);
-
-	request_render(request, preview, key);
-	auto status = render_status(preview);
-
-	Result result{
-		.rendering = status.rendering,
-		.init_stage = status.init_stage,
-	};
-
+	media::VideoInfo info;
 	{
 		std::lock_guard lock(video.mutex);
-		result.video_duration = static_cast<float>(video.info.video_duration);
+		info = video.info;
 	}
 
-	if (preview.shown) {
-		result.frame_timing_log = preview.shown->frame_timing_log;
+	Result result{
+		.loading = true,
+		.video_duration = static_cast<float>(info.video_duration),
+	};
+
+	if (!info.has_video_stream)
+		return result;
+
+	float position = request.app_settings.config_preview_seek;
+
+	const BlurSettings* settings = &request.settings;
+	if (request.show_mask) {
+		if (!mask_settings || !config_blur::same_masking(*mask_settings, request.settings))
+			mask_settings = request.settings;
+
+		settings = &*mask_settings;
 	}
 
-	if (!request.show_mask) {
-		update_source_player(request, seek);
+	auto& preview = get_preview(request.show_mask);
 
-		bool at_seek = preview.shown && preview.shown->key.seek == seek;
-		bool source_drawable = source_player && source_player->has_frame() && source_player->get_video_dimensions();
-
-		if (!at_seek && source_drawable) {
-			result.frame = Frame{ .player = source_player };
-			return result;
+	preview.update(
+		{
+			.video_path = request.video_path,
+			.video_info = info,
+			.settings = *settings,
+			.app_settings = request.app_settings,
+			.position = position,
+			.mask = request.show_mask,
 		}
+	);
+
+	if (auto error = preview.take_error()) {
+		gui::components::notifications::show_failure_notification(
+			request.show_mask ? "Failed to generate mask preview." : "Failed to generate config preview.",
+			*error,
+			std::chrono::duration<float>(10.f)
+		);
 	}
 
-	if (preview.texture) {
-		result.frame = Frame{
-			.texture = preview.texture,
-			.image_id = preview.image_id,
-			.up_to_date = preview.same_frame(preview.shown->key, key) && !status.rendering,
-		};
+	auto status = preview.status();
+	result.init_stage = status.init_stage;
+	result.frame_timing_log = status.frame_timing_log;
+	result.failed = status.failed;
+
+	if (auto player = preview.ready_player()) {
+		result.frame = Frame{ .player = player, .up_to_date = true };
+		result.loading = false;
+		return result;
+	}
+
+	result.loading = !status.failed;
+
+	// the source stands in for the blurred video, but isn't anything like a mask
+	if (!request.show_mask) {
+		update_source_player(request, info, position);
+
+		if (source_player && source_player->has_frame() && source_player->get_video_dimensions())
+			result.frame = Frame{ .player = source_player };
 	}
 
 	return result;
@@ -291,18 +163,24 @@ preview_frames::Result preview_frames::update(const Request& request) {
 void preview_frames::handle_event(const SDL_Event& event, bool& to_render) {
 	if (source_player)
 		source_player->handle_mpv_event(event, to_render, true);
+
+	if (blurred_preview)
+		blurred_preview->handle_event(event, to_render);
+
+	if (mask_preview)
+		mask_preview->handle_event(event, to_render);
 }
 
-std::vector<uint8_t> preview_frames::current_mask_jpeg() {
-	return mask_preview.shown ? mask_preview.shown->jpeg : std::vector<uint8_t>{};
+bool preview_frames::save_mask(
+	const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
+) {
+	return mask_preview && mask_preview->save_frame(path, std::move(on_done));
 }
 
 void preview_frames::reset() {
-	// nothing can publish once this is done, so the previews are safe to clear without the lock
-	stop_render();
-
-	blurred_preview = Preview{ .mask = false };
-	mask_preview = Preview{ .mask = true };
+	blurred_preview.reset();
+	mask_preview.reset();
+	mask_settings.reset();
 
 	source_player.reset();
 	source_timestamp.reset();

@@ -344,7 +344,7 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 		vspipe_process->wait(wait_ec);
 
 		// if vspipe fails mid-render ffmpeg can still exit 0 with an empty video, so check vspipe too
-		bool vspipe_failed = !commands.ffmpeg_stops_early && vspipe_process->exit_code() != 0;
+		bool vspipe_failed = vspipe_process->exit_code() != 0;
 
 		if (vspipe_failed || ffmpeg_process->exit_code() != 0) {
 			return tl::unexpected(assemble_render_error(vspipe_errors.str(), ffmpeg_errors.str()));
