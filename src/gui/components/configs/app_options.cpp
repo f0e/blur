@@ -132,6 +132,14 @@ void configs::app_options(ui::Container& container) {
 
 	ui::add_checkbox("skip queue checkbox", container, "skip queue", app_settings.skip_queue, fonts::dejavu);
 
+	ui::add_checkbox(
+		"fully blur first frame checkbox",
+		container,
+		"fully blur first frame",
+		app_settings.fully_blur_first_frame,
+		fonts::dejavu
+	);
+
 	/*
 	    Notifications
 	*/

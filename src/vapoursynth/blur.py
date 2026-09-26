@@ -495,6 +495,10 @@ def main():
         # set exact fps
         video = blur.interpolate.change_fps(video, settings["blur_output_fps"])
 
+        skip_frames = int(globals().get("skip_frames", 0))
+        if skip_frames > 0:
+            video = video[min(skip_frames, video.num_frames - 1) :]
+
     # filters
     if settings["filters"]:
         brightness = float(settings["brightness"])

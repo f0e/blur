@@ -9,10 +9,15 @@ namespace {
 		const media::VideoInfo& video_info,
 		const BlurSettings& settings,
 		size_t start_frame,
-		size_t end_frame
+		size_t end_frame,
+		size_t skipped_frames
 	) {
 		if (video_info.audio_sample_rates.empty())
 			return;
+
+		float speed = settings.timescale ? settings.output_timescale / settings.input_timescale : 1.f;
+
+		double skipped_time = static_cast<double>(skipped_frames) / settings.blur_output_fps * speed;
 
 		std::string complex_filter;
 		for (size_t i = 0; i < video_info.audio_sample_rates.size(); i++) {
@@ -25,7 +30,8 @@ namespace {
 			double frame_duration = static_cast<double>(video_info.fps_den) / video_info.fps_num;
 
 			auto start_sample = static_cast<size_t>(std::llround(
-				(start_frame * frame_duration + video_info.video_start_time - audio_start_time) * sample_rate
+				(start_frame * frame_duration + skipped_time + video_info.video_start_time - audio_start_time) *
+				sample_rate
 			));
 			auto end_sample = static_cast<size_t>(std::llround(
 				(end_frame * frame_duration + video_info.video_start_time - audio_start_time) * sample_rate
@@ -34,8 +40,6 @@ namespace {
 			// build the middle part of the filter - everything between asetpts and the output label
 			std::string timescale_filter;
 			if (settings.timescale) {
-				float speed = settings.output_timescale / settings.input_timescale;
-
 				if (settings.output_timescale_audio_pitch) {
 					int shifted_rate = static_cast<int>(std::round(sample_rate * speed));
 					timescale_filter = std::format(",asetrate={},aresample={}", shifted_rate, sample_rate);
@@ -186,7 +190,8 @@ std::vector<std::string> rendering::detail::build_vspipe_video_args(
 	std::optional<size_t> start_frame,
 	std::optional<size_t> end_frame,
 	std::optional<std::pair<size_t, size_t>> mask_range,
-	bool preview_mask
+	bool preview_mask,
+	size_t skipped_frames
 ) {
 	auto args = build_vspipe_base_args(input_path, merged_settings);
 	args.insert(
@@ -216,6 +221,9 @@ std::vector<std::string> rendering::detail::build_vspipe_video_args(
 
 	if (preview_mask)
 		args.insert(args.end(), { "-a", "preview_mask=true" });
+
+	if (skipped_frames > 0)
+		args.insert(args.end(), { "-a", std::format("skip_frames={}", skipped_frames) });
 
 	return args;
 }
@@ -266,6 +274,20 @@ tl::expected<std::filesystem::path, std::string> rendering::detail::build_output
 	while (std::filesystem::exists(result));
 
 	return result;
+}
+
+size_t rendering::detail::get_skipped_frames(
+	const BlurSettings& settings, const GlobalAppSettings& app_settings, const media::VideoInfo& video_info
+) {
+	if (!app_settings.fully_blur_first_frame || !settings.blur || settings.blur_amount <= 0.f)
+		return 0;
+
+	// copied audio can't be trimmed to match
+	if (!video_info.audio_sample_rates.empty() && copies_audio(settings, app_settings))
+		return 0;
+
+	// each frame blends up to blur_amount / 2 frames either side of it, but the first frames have nothing before them
+	return static_cast<size_t>(std::ceil(settings.blur_amount / 2.f));
 }
 
 std::optional<std::string> rendering::detail::get_audio_copy_conflict(const BlurSettings& settings, bool trimming) {
@@ -322,7 +344,9 @@ tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffm
 		}
 	}
 	else {
-		append_audio_filter_args(args, video_info, settings, start_frame, end_frame);
+		append_audio_filter_args(
+			args, video_info, settings, start_frame, end_frame, get_skipped_frames(settings, app_settings, video_info)
+		);
 	}
 
 	append_colour_param_args(args, video_info);

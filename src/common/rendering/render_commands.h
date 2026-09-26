@@ -27,7 +27,8 @@ namespace rendering::detail {
 
 		// separate from start_frame so a preview's auto mask doesn't follow the seek bar
 		std::optional<std::pair<size_t, size_t>> mask_range = {},
-		bool preview_mask = false
+		bool preview_mask = false,
+		size_t skipped_frames = 0
 	);
 
 	bool copies_audio(const BlurSettings& settings, const GlobalAppSettings& app_settings);
@@ -37,6 +38,10 @@ namespace rendering::detail {
 
 	tl::expected<std::filesystem::path, std::string> build_output_filename(
 		const std::filesystem::path& input_path, const BlurSettings& settings, const GlobalAppSettings& app_settings
+	);
+
+	size_t get_skipped_frames(
+		const BlurSettings& settings, const GlobalAppSettings& app_settings, const media::VideoInfo& video_info
 	);
 
 	std::optional<std::string> get_audio_copy_conflict(const BlurSettings& settings, bool trimming);

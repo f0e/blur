@@ -207,6 +207,7 @@ Presets are grouped by encoder (`nvidia`, `amd`, `intel`, `mac`, `cpu`), each a 
 - dpi scale (0 = auto) - UI scale. 0 uses the OS scale
 - blur amount tied to fps - Scales blur amount with output FPS when output FPS is changed, keeping the same amount of blur
 - skip queue - Starts rendering videos as soon as they're added instead of queueing them up
+- fully blur first frame - Skips the first frame(s) of blurred renders, which would otherwise not be fully blurred
 
 ### Preview
 

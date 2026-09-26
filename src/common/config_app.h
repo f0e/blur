@@ -36,6 +36,7 @@ struct GlobalAppSettings {
 	std::string dismissed_update_version;
 
 	bool skip_queue = false;
+	bool fully_blur_first_frame = true;
 
 #ifdef __linux__
 	std::string vapoursynth_lib_path;

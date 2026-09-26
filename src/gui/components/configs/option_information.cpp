@@ -363,6 +363,12 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"fully blur first frame checkbox",
+			{
+				"Skips the first frame(s) of blurred renders, which would otherwise not be fully blurred",
+			},
+		},
+		{
 			"render success notifications checkbox",
 			{
 				"Sends a desktop notification when a render finishes",

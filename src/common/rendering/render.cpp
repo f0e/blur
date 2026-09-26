@@ -249,7 +249,9 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 			start_frame,
 			end_frame,
 			// untrimmed renders use the whole video like previews do, so they share a cached mask
-			trimmed ? std::optional{ std::pair{ start_frame, end_frame } } : std::nullopt
+			trimmed ? std::optional{ std::pair{ start_frame, end_frame } } : std::nullopt,
+			false,
+			detail::get_skipped_frames(settings, app_settings, video_info)
 		),
 		.ffmpeg = *ffmpeg_args,
 	};
