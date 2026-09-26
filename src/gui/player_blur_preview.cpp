@@ -9,23 +9,34 @@ PlayerBlurPreview::State PlayerBlurPreview::update(const Request& request) {
 	if (!m_preview)
 		m_preview = std::make_unique<BlurPreview>();
 
+	// a seek's target, so the blurred frame's rendered alongside the player seeking there
 	auto position = player_position(request.player, request.video_info);
-	if (position) {
-		m_preview->update(
-			{
-				.video_path = request.video_path,
-				.video_info = request.video_info,
-				.settings = request.settings,
-				.app_settings = request.app_settings,
-				.position = *position,
-			}
-		);
+	if (!position)
+		return { .status = m_preview->status() };
+
+	m_preview->update(
+		{
+			.video_path = request.video_path,
+			.video_info = request.video_info,
+			.settings = request.settings,
+			.app_settings = request.app_settings,
+			.position = *position,
+		}
+	);
+
+	State state{ .status = m_preview->status() };
+
+	if (auto ready = m_preview->ready_player()) {
+		m_player_frames_at_blur = request.player.frame_count();
+		state.overlay = ready;
+		return state;
 	}
 
-	return {
-		.overlay = position ? m_preview->ready_player() : nullptr,
-		.status = m_preview->status(),
-	};
+	// the last blurred frame stays up until the player has a newer frame to stand in with
+	if (request.player.frame_count() == m_player_frames_at_blur)
+		state.overlay = m_preview->previous_player();
+
+	return state;
 }
 
 std::optional<rendering::RenderError> PlayerBlurPreview::take_error() {
