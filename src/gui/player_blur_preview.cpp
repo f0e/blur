@@ -1,7 +1,7 @@
 #include "player_blur_preview.h"
 #include "ui/helpers/video.h"
 
-PlayerBlurPreview::State PlayerBlurPreview::update(const Request& request) {
+PreviewState PlayerBlurPreview::update(const Request& request) {
 	// the blurred preview's kept loaded while playing, so pausing again only has to seek
 	if (!request.player.is_paused())
 		return { .playing = true };
@@ -21,41 +21,17 @@ PlayerBlurPreview::State PlayerBlurPreview::update(const Request& request) {
 		}
 	);
 
-	State state{ .status = m_preview.status() };
+	PreviewState state{ .status = m_preview.status() };
 
 	if (auto ready = m_preview.ready_player()) {
 		m_player_frames_at_blur = request.player.frame_count();
 		state.overlay = ready;
-		return state;
 	}
-
-	// the last blurred frame stays up until the player has a newer frame to stand in with
-	if (request.player.frame_count() == m_player_frames_at_blur)
+	else if (request.player.frame_count() == m_player_frames_at_blur) {
 		state.overlay = m_preview.previous_player();
+	}
 
 	return state;
-}
-
-std::optional<std::string> PlayerBlurPreview::status_text(const State& state) {
-	if (state.playing)
-		return "pause to see it blurred";
-
-	if (state.overlay)
-		return std::nullopt;
-
-	if (state.status.failed)
-		return "couldn't generate the preview";
-
-	switch (state.status.init_stage) {
-		case rendering::RenderState::InitStage::GENERATING_MASK:
-			return "analysing video to generate a mask...";
-		case rendering::RenderState::InitStage::BUILDING_ENGINE:
-			return "building tensorrt engine, this may take a few minutes...";
-		case rendering::RenderState::InitStage::NONE:
-			break;
-	}
-
-	return std::nullopt;
 }
 
 std::optional<float> PlayerBlurPreview::player_position(const VideoPlayer& player, const media::VideoInfo& video_info) {

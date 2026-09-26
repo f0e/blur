@@ -113,3 +113,17 @@ private:
 	void read_log();
 	void fail(rendering::RenderError error);
 };
+
+// what a preview has to show at the moment
+struct PreviewState {
+	// the video's playing, which a blurred preview can't keep up with
+	bool playing = false;
+
+	// the preview's frame to show. while this is empty the video stands in faded
+	std::shared_ptr<VideoPlayer> overlay;
+
+	BlurPreview::Status status;
+
+	// what to tell the user while there's nothing to show. loading_text is for when it's just on its way
+	[[nodiscard]] std::optional<std::string> status_text(std::optional<std::string> loading_text = {}) const;
+};

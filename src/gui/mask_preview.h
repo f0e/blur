@@ -1,6 +1,6 @@
 #pragma once
 
-#include "player_blur_preview.h"
+#include "blur_preview.h"
 
 // the mask blur.py would apply to a video. main thread only
 class MaskPreview {
@@ -17,7 +17,7 @@ public:
 	// whether the settings mask anything
 	[[nodiscard]] static bool applies(const BlurSettings& settings);
 
-	PlayerBlurPreview::State update(const Request& request);
+	PreviewState update(const Request& request);
 
 	// why the mask couldn't be generated, once
 	std::optional<rendering::RenderError> take_error() {
