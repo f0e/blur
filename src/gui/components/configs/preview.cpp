@@ -14,9 +14,6 @@
 #include "../../ui/ui.h"
 
 namespace {
-	// left over from the last ui frame - the seek bar is added after the preview image it affects
-	bool seek_bar_dragging = false;
-
 	struct SaveMaskDialogState {
 		std::string name;
 		std::string error;
@@ -40,32 +37,7 @@ namespace {
 		return path;
 	}
 
-	tl::expected<std::filesystem::path, std::string> save_mask_preset(
-		const std::vector<uint8_t>& jpeg, const std::string& name
-	) {
-		auto path = get_mask_preset_path(name);
-		if (!path)
-			return tl::unexpected(path.error());
-
-		std::error_code ec;
-		std::filesystem::create_directories(path->parent_path(), ec);
-		if (ec)
-			return tl::unexpected(std::format("Could not create the masks folder: {}", ec.message()));
-
-		SDL_Surface* surface = render::jpeg_bytes_to_surface(jpeg.data(), jpeg.size());
-		if (!surface)
-			return tl::unexpected("Could not read the current mask preview.");
-
-		bool saved = IMG_SavePNG(surface, u::path_to_string(*path).c_str());
-		SDL_DestroySurface(surface);
-
-		if (!saved)
-			return tl::unexpected(std::format("Could not save the mask preset: {}", SDL_GetError()));
-
-		return *path;
-	}
-
-	void open_save_mask_dialog(std::vector<uint8_t> jpeg) {
+	void open_save_mask_dialog() {
 		auto state = std::make_shared<SaveMaskDialogState>();
 
 		ui::dialog::open(
@@ -99,18 +71,41 @@ namespace {
 				.close_on_confirm = false,
 				.confirm_text = "Save",
 				.on_confirm =
-					[state, jpeg = std::move(jpeg)] {
-						auto saved = save_mask_preset(jpeg, state->name);
-						if (!saved) {
-							state->error = saved.error();
+					[state] {
+						auto path = get_mask_preset_path(state->name);
+						if (!path) {
+							state->error = path.error();
+							return;
+						}
+
+						std::error_code ec;
+						std::filesystem::create_directories(path->parent_path(), ec);
+						if (ec) {
+							state->error = std::format("Could not create the masks folder: {}", ec.message());
+							return;
+						}
+
+						auto on_saved = [path = *path](std::optional<std::string> error) {
+							if (error) {
+								gui::components::notifications::add(
+									std::format("Could not save the mask preset: {}", *error),
+									ui::NotificationType::NOTIF_ERROR
+								);
+								return;
+							}
+
+							gui::components::notifications::add(
+								std::format("Saved mask preset '{}'", u::path_to_string(path.filename())),
+								ui::NotificationType::SUCCESS
+							);
+						};
+
+						if (!gui::components::configs::preview_frames::save_mask(*path, on_saved)) {
+							state->error = "The mask preview changed, wait for it to finish loading.";
 							return;
 						}
 
 						ui::dialog::close();
-						gui::components::notifications::add(
-							std::format("Saved mask preset '{}'", u::path_to_string(saved->filename())),
-							ui::NotificationType::SUCCESS
-						);
 					},
 			}
 		);
@@ -140,8 +135,6 @@ namespace configs = gui::components::configs;
 
 void configs::reset_config_preview() {
 	preview_frames::reset();
-
-	seek_bar_dragging = false;
 }
 
 bool configs::has_sample_video() {
@@ -174,11 +167,6 @@ void configs::save_preview_app_settings() {
 }
 
 void configs::config_preview(ui::Container& container) {
-	// from the last ui frame since the seek bar is added further down. cleared here in case the seek bar stops being
-	// drawn mid-drag
-	bool dragging_seek_bar = seek_bar_dragging;
-	seek_bar_dragging = false;
-
 	auto sample_video_path = u::string_to_path(app_settings.sample_video_path);
 	bool sample_video_set = !app_settings.sample_video_path.empty();
 	bool sample_video_exists = sample_video_set && std::filesystem::exists(sample_video_path);
@@ -197,7 +185,6 @@ void configs::config_preview(ui::Container& container) {
 			.video_path = preview_video_path,
 			.settings = settings,
 			.app_settings = app_settings,
-			.seeking = dragging_seek_bar,
 			.show_mask = show_mask_preview,
 		}
 	);
@@ -301,7 +288,7 @@ void configs::config_preview(ui::Container& container) {
 				gfx::Color::white(190),
 				gfx::Color::white(),
 				[] {
-					open_save_mask_dialog(preview_frames::current_mask_jpeg());
+					open_save_mask_dialog();
 				},
 				"Save mask as preset"
 			);
@@ -324,7 +311,7 @@ void configs::config_preview(ui::Container& container) {
 			container.get_usable_rect().w - seek_bar_height - DELETE_ICON_GAP
 		);
 
-		seek_bar_dragging = ui::get_active_element() == seek_bar;
+		bool seek_bar_dragging = ui::get_active_element() == seek_bar;
 
 		// save once the drag is over rather than writing the config on every frame it moves
 		if (app_settings.config_preview_seek != current_app_settings.config_preview_seek && !seek_bar_dragging) {
@@ -368,25 +355,14 @@ void configs::config_preview(ui::Container& container) {
 			)
 			                          .has_value();
 		}
-		else if (preview.frame->player) {
+		else {
+			// the source standing in for the blurred video is faded out
 			preview_image_id = "config preview video";
 			preview_image_added = ui::add_video_frame(
 									  preview_image_id,
 									  container,
 									  preview.frame->player,
 									  container.get_usable_rect().size(),
-									  gfx::Color::white(100)
-			)
-			                          .has_value();
-		}
-		else {
-			// anything that isn't the finished blurred frame for the current settings is faded out
-			preview_image_added = ui::add_image(
-									  "config preview image",
-									  container,
-									  preview.frame->texture,
-									  container.get_usable_rect().size(),
-									  preview.frame->image_id,
 									  gfx::Color::white(preview.frame->up_to_date ? 255 : 100)
 			)
 			                          .has_value();
@@ -394,7 +370,7 @@ void configs::config_preview(ui::Container& container) {
 
 		container.pop_element_gap();
 	}
-	else if (preview.rendering) {
+	else if (preview.loading) {
 		std::string loading_text =
 			init_stage_text(preview.init_stage)
 				.value_or(show_mask_preview ? "Loading mask preview..." : "Initialising config preview...");
@@ -429,7 +405,7 @@ void configs::config_preview(ui::Container& container) {
 
 	add_seek_bar_row();
 
-	if (preview_image_added && preview.rendering) {
+	if (preview_image_added && preview.loading) {
 		if (auto stage_text = init_stage_text(preview.init_stage)) {
 			ui::add_text(
 				"preview init stage text",

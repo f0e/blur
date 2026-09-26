@@ -9,22 +9,6 @@
 
 // turn settings into commands, run the pipeline, and handle the output file
 namespace rendering {
-	struct FrameRenderResult {
-		std::vector<uint8_t> frame_jpeg;
-		bool stopped = false;
-	};
-
-	tl::expected<FrameRenderResult, std::variant<std::string, RenderError>> render_frame(
-		const std::filesystem::path& input_path,
-		const BlurSettings& settings,
-		const GlobalAppSettings& app_settings = config_app::get_app_config(),
-		const std::shared_ptr<RenderState>& state = std::make_shared<RenderState>(),
-		float seek = 0.f,
-		bool preview_mask = false
-	);
-
-	float get_preview_frame_timestamp(const BlurSettings& settings, const media::VideoInfo& video_info, float seek);
-
 	// a .vpy that runs blur.py with the globals vspipe would give it, so it can be opened in-process (e.g. by mpv).
 	// what blur.py prints while the script's being evaluated, like status lines, goes to log_path
 	tl::expected<std::string, std::string> build_preview_script(

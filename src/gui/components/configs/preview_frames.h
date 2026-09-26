@@ -3,7 +3,6 @@
 #include "common/config_app.h"
 #include "common/config_blur.h"
 #include "common/rendering/render_state.h"
-#include "../../render/render.h"
 
 class VideoPlayer;
 
@@ -14,20 +13,20 @@ namespace gui::components::configs::preview_frames {
 		const BlurSettings& settings;
 		const GlobalAppSettings& app_settings;
 		// NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
-		bool seeking = false;
 		bool show_mask = false;
 	};
 
 	struct Frame {
-		std::shared_ptr<render::Texture> texture;
-		std::string image_id;
 		std::shared_ptr<VideoPlayer> player;
+
+		// false when it's the source video standing in until the blurred frame's ready
 		bool up_to_date = false;
 	};
 
 	struct Result {
 		std::optional<Frame> frame;
-		bool rendering = false;
+		bool loading = false;
+		bool failed = false;
 		float video_duration = 0.f;
 		rendering::RenderState::InitStage init_stage = rendering::RenderState::InitStage::NONE;
 		std::string frame_timing_log;
@@ -37,7 +36,8 @@ namespace gui::components::configs::preview_frames {
 
 	void handle_event(const SDL_Event& event, bool& to_render);
 
-	std::vector<uint8_t> current_mask_jpeg();
+	// false if the mask preview isn't showing an up to date mask
+	bool save_mask(const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done);
 
 	void reset();
 }
