@@ -85,7 +85,6 @@ private:
 
 	struct PendingScript {
 		Key key;
-		media::VideoInfo video_info;
 		std::future<tl::expected<std::string, std::string>> script;
 	};
 
@@ -96,13 +95,13 @@ private:
 	std::streamoff m_log_offset = 0;
 
 	std::optional<Key> m_requested;
-	float m_requested_position = 0.f;
+	float m_requested_target = 0.f;
 
 	std::optional<PendingScript> m_pending;
 	std::chrono::steady_clock::time_point m_last_build;
 
 	std::optional<Key> m_loaded;
-	std::optional<float> m_position;
+	std::optional<float> m_target;
 
 	std::unique_ptr<rendering::RenderState> m_state = std::make_unique<rendering::RenderState>();
 	std::optional<rendering::RenderError> m_error;
