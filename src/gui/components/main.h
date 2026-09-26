@@ -30,6 +30,11 @@ namespace gui::components::main {
 
 	void invalidate_trim_support();
 
+	// frees the queue's blur preview, for when the queue isn't shown
+	void release_blur_preview();
+
+	void handle_event(const SDL_Event& event, bool& to_render);
+
 	// which subscreen was last drawn, if the main screen is up
 	[[nodiscard]] std::optional<MainScreen> current_screen();
 

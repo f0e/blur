@@ -56,8 +56,15 @@ void ui::render_video(const Container& container, const AnimatedElement& element
 		);
 	}
 	else if (data.video.video_info) {
-		bool player_drawn = videos::player && videos::player->is_video_ready() && videos::is_loaded(data.video.path) &&
-		                    videos::player->draw(rect.shrink(1), gfx::Color::white(video_alpha));
+		bool overlay_drawn = data.overlay && data.overlay->player &&
+		                     data.overlay->player->draw(rect.shrink(1), gfx::Color::white(video_alpha));
+
+		// the video stands in faded while the overlay's on its way
+		float player_alpha = data.overlay ? video_alpha * 0.4f : video_alpha;
+
+		bool player_drawn = overlay_drawn ||
+		                    (videos::player && videos::player->is_video_ready() && videos::is_loaded(data.video.path) &&
+		                     videos::player->draw(rect.shrink(1), gfx::Color::white(player_alpha)));
 
 		if (!player_drawn && data.thumbnail && data.thumbnail->texture) {
 			render::image(rect, *data.thumbnail->texture, gfx::Color::white(video_alpha * 0.7f));

@@ -109,7 +109,8 @@ void ui::add_videos(
 	float& volume,
 	bool hardware_decoding,
 	bool trim_disabled,
-	const std::function<void(size_t video_id)>& on_remove
+	const std::function<void(size_t video_id)>& on_remove,
+	const std::optional<VideoOverlay>& active_overlay
 ) {
 	if (ui_videos.empty() || index >= ui_videos.size())
 		return;
@@ -196,6 +197,7 @@ void ui::add_videos(
 			VideoElementData{
 				.video = ui_video,
 				.thumbnail = previewable ? thumbnails::get(ui_video.path) : std::nullopt,
+				.overlay = active ? active_overlay : std::nullopt,
 				.active = active,
 				.fade = fade,
 				.index = &index,

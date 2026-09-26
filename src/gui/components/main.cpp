@@ -7,6 +7,9 @@
 #include "../gui.h"
 
 #include "../ui/ui.h"
+#include "../ui/elements/videos/videos.h"
+#include "../blur_preview.h"
+#include "notifications.h"
 #include "common/masks.h"
 #include "../render/render.h"
 #include <SDL3/SDL_dialog.h>
@@ -49,6 +52,116 @@ namespace {
 		return disabled;
 	}
 
+	bool blur_preview_enabled = false;
+	std::unique_ptr<BlurPreview> blur_preview;
+
+	// configs are read from disk, so the last one's kept until its file changes
+	struct {
+		std::string name;
+		std::filesystem::file_time_type write_time;
+		BlurSettings settings;
+	} preview_config;
+
+	// what the video would be rendered with
+	BlurSettings get_render_settings(const tasks::PendingVideo& pending_video) {
+		std::error_code ec;
+		auto write_time = std::filesystem::last_write_time(config_blur::get_config_path(pending_video.config_name), ec);
+
+		if (pending_video.config_name != preview_config.name || write_time != preview_config.write_time) {
+			preview_config.name = pending_video.config_name;
+			preview_config.write_time = write_time;
+			preview_config.settings = config_blur::get_config(pending_video.config_name);
+		}
+
+		auto settings = preview_config.settings;
+		settings.mask = pending_video.mask;
+		settings.auto_mask = pending_video.auto_mask;
+		return settings;
+	}
+
+	std::string init_stage_text(rendering::RenderState::InitStage stage) {
+		switch (stage) {
+			case rendering::RenderState::InitStage::GENERATING_MASK:
+				return "analysing video to generate a mask...";
+			case rendering::RenderState::InitStage::BUILDING_ENGINE:
+				return "building tensorrt engine, this may take a few minutes...";
+			case rendering::RenderState::InitStage::NONE:
+				break;
+		}
+
+		return "rendering preview...";
+	}
+
+	struct BlurPreviewState {
+		std::optional<ui::VideoOverlay> overlay;
+		std::optional<std::string> status;
+	};
+
+	// the config's output is shown over the video while it's paused, it can't keep up with playback
+	BlurPreviewState update_blur_preview(
+		const tasks::PendingVideo& pending_video, const GlobalAppSettings& app_config
+	) {
+		if (!blur_preview_enabled) {
+			blur_preview.reset();
+			return {};
+		}
+
+		if (!pending_video.video_info || !pending_video.video_info->ffmpeg_can_decode_video)
+			return {};
+
+		if (pending_video.config_name.empty())
+			return { .status = "select a config to preview it" };
+
+		const auto& player = ui::videos::player;
+		if (!player || !ui::videos::is_loaded(pending_video.video_path))
+			return {};
+
+		if (!player->is_paused())
+			return { .status = "pause to see it" };
+
+		auto time = player->get_time_pos();
+		const auto& info = *pending_video.video_info;
+		if (!time || info.video_duration <= 0.0)
+			return {};
+
+		// mpv's clock starts with the container, which can be before the video's first frame
+		double video_time = *time - (info.video_start_time - info.start_time);
+		auto position = static_cast<float>(std::clamp(video_time / info.video_duration, 0.0, 1.0));
+
+		if (!blur_preview)
+			blur_preview = std::make_unique<BlurPreview>();
+
+		auto settings = get_render_settings(pending_video);
+
+		blur_preview->update(
+			{
+				.video_path = pending_video.video_path,
+				.video_info = info,
+				.settings = settings,
+				.app_settings = app_config,
+				.position = position,
+			}
+		);
+
+		if (auto error = blur_preview->take_error()) {
+			gui::components::notifications::show_failure_notification(
+				"Failed to generate blur preview.", *error, std::chrono::duration<float>(10.f)
+			);
+		}
+
+		auto ready_player = blur_preview->ready_player();
+		auto status = blur_preview->status();
+
+		BlurPreviewState state{ .overlay = ui::VideoOverlay{ .player = ready_player } };
+
+		if (status.failed)
+			state.status = "couldn't generate the preview";
+		else if (!ready_player)
+			state.status = init_stage_text(status.init_stage);
+
+		return state;
+	}
+
 	// with skip_queue on, the queue screen is only needed when a config or trim needs sorting out
 	bool wants_queue_screen(const std::vector<std::shared_ptr<tasks::PendingVideo>>& pending) {
 		if (pending.empty())
@@ -86,6 +199,15 @@ std::optional<main::MainScreen> main::get_screen_switch_target() {
 
 void main::show_screen(MainScreen main_screen) {
 	prefer_render_screen = main_screen == MainScreen::PROGRESS;
+}
+
+void main::release_blur_preview() {
+	blur_preview.reset();
+}
+
+void main::handle_event(const SDL_Event& event, bool& to_render) {
+	if (blur_preview)
+		blur_preview->handle_event(event, to_render);
 }
 
 void main::invalidate_trim_support() {
@@ -360,6 +482,8 @@ void main::render_pending(
 
 	bool trim_disabled = is_trim_disabled(*pending_video);
 
+	auto preview_state = update_blur_preview(*pending_video, app_config);
+
 	ui::add_videos(
 		"test video",
 		queue_container,
@@ -372,7 +496,8 @@ void main::render_pending(
 		trim_disabled,
 		[&](size_t removed_video_id) {
 			tasks::cancel_pending(removed_video_id);
-		}
+		},
+		preview_state.overlay
 	);
 
 	{
@@ -474,6 +599,20 @@ void main::render_pending(
 			},
 			true
 		);
+
+		ui::add_checkbox(
+			"preview blur checkbox", config_container, "preview blur", blur_preview_enabled, fonts::dejavu
+		);
+
+		if (preview_state.status) {
+			ui::add_text(
+				"preview blur status",
+				config_container,
+				*preview_state.status,
+				gfx::Color::white(renderer::MUTED_SHADE),
+				fonts::dejavu(fonts::size::SMALL)
+			);
+		}
 	}
 
 	if (trim_disabled) {

@@ -229,6 +229,12 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	// built first so it gets escape before the screens do
 	ui::dialog::build(sdl::window, rect);
 
+	// its vapoursynth core and any gpu memory aren't worth keeping while the queue's not up
+	bool queue_shown =
+		screen == Screens::MAIN && components::main::current_screen() == components::main::MainScreen::PENDING;
+	if (!queue_shown)
+		components::main::release_blur_preview();
+
 	switch (screen) {
 		case Screens::TEST: {
 			components::test::screen(main_container, delta_time);
