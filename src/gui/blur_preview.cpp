@@ -240,6 +240,13 @@ std::shared_ptr<VideoPlayer> BlurPreview::ready_player() const {
 	return m_player;
 }
 
+std::shared_ptr<VideoPlayer> BlurPreview::previous_player() const {
+	if (!m_player || m_failed || !m_player->has_frame() || !m_player->get_video_dimensions())
+		return nullptr;
+
+	return m_player;
+}
+
 BlurPreview::Status BlurPreview::status() const {
 	auto progress = m_state->get_progress();
 

@@ -48,6 +48,9 @@ public:
 	// the player to draw, once it's showing the frame for the latest request
 	[[nodiscard]] std::shared_ptr<VideoPlayer> ready_player() const;
 
+	// the frame it showed last, while it's on its way to a new position. nothing once it's reloading
+	[[nodiscard]] std::shared_ptr<VideoPlayer> previous_player() const;
+
 	[[nodiscard]] Status status() const;
 
 	// why the latest settings couldn't be loaded, once

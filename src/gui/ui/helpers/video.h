@@ -108,6 +108,11 @@ public:
 		return is_video_ready() && m_has_frame;
 	}
 
+	// new frames it's been given to show, not counting redraws of the same one
+	[[nodiscard]] uint64_t frame_count() const {
+		return m_frame_count;
+	}
+
 	// an exact seek shows the first frame at or after the target minus 5ms, which at high fps can be the frame before
 	// the one meant. this aims half a frame into it instead
 	// https://github.com/mpv-player/mpv/blob/v0.41.0/player/video.c#L471
@@ -223,6 +228,7 @@ private:
 	std::optional<Seek> m_queued_seek;
 	bool m_is_seeking = false;
 	bool m_awaiting_seek_frame = false;
+	uint64_t m_frame_count = 0;
 
 	std::string m_file_errors;
 	std::optional<std::string> m_load_error;
