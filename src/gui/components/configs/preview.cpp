@@ -163,6 +163,10 @@ void configs::config_preview(ui::Container& container) {
 
 	// an unusable video goes in as an empty path, which tears the preview down
 	auto preview_video_path = sample_video_exists ? sample_video_path : std::filesystem::path{};
+	if (queue_video_preview)
+		preview_video_path = queue_video_preview->path;
+
+	float& seek = queue_video_preview ? queue_video_preview->seek : app_settings.config_preview_seek;
 
 	bool masking = MaskPreview::applies(settings);
 	if (!masking)
@@ -175,12 +179,13 @@ void configs::config_preview(ui::Container& container) {
 			.video_path = preview_video_path,
 			.settings = settings,
 			.app_settings = app_settings,
+			.position = seek,
 			.show_mask = show_mask_preview,
 		}
 	);
 
 	if (preview.playback_position)
-		app_settings.config_preview_seek = *preview.playback_position;
+		seek = *preview.playback_position;
 
 	auto add_open_sample_video_prompt = [&](bool was_deleted) {
 		ui::add_text(
@@ -212,7 +217,7 @@ void configs::config_preview(ui::Container& container) {
 		});
 	};
 
-	if (!sample_video_set) {
+	if (!queue_video_preview && !sample_video_set) {
 		ui::add_text(
 			"no sample video text",
 			container,
@@ -226,7 +231,7 @@ void configs::config_preview(ui::Container& container) {
 		return;
 	}
 
-	if (!sample_video_exists) {
+	if (!queue_video_preview && !sample_video_exists) {
 		ui::add_text(
 			"missing sample video text",
 			container,
@@ -297,7 +302,7 @@ void configs::config_preview(ui::Container& container) {
 		auto* seek_bar = ui::add_seek_bar(
 			"config preview seek bar",
 			container,
-			app_settings.config_preview_seek,
+			seek,
 			fonts::dejavu(fonts::size::SMALL),
 			preview.video_duration,
 			container.get_usable_rect().w - seek_bar_height - DELETE_ICON_GAP
@@ -307,25 +312,27 @@ void configs::config_preview(ui::Container& container) {
 
 		// save once the drag or playback is over rather than writing the config on every frame it moves. playback
 		// isn't an edit, so it's kept from showing up as an unsaved change meanwhile
-		if (preview.playing) {
-			if (app_settings.config_preview_seek != current_app_settings.config_preview_seek) {
-				current_app_settings.config_preview_seek = app_settings.config_preview_seek;
-				playback_seek_unsaved = true;
+		if (!queue_video_preview) {
+			if (preview.playing) {
+				if (app_settings.config_preview_seek != current_app_settings.config_preview_seek) {
+					current_app_settings.config_preview_seek = app_settings.config_preview_seek;
+					playback_seek_unsaved = true;
+				}
 			}
-		}
-		else if ((app_settings.config_preview_seek != current_app_settings.config_preview_seek ||
-		          playback_seek_unsaved) &&
-		         !seek_bar_dragging)
-		{
-			save_preview_app_settings();
-			playback_seek_unsaved = false;
+			else if ((app_settings.config_preview_seek != current_app_settings.config_preview_seek ||
+			          playback_seek_unsaved) &&
+			         !seek_bar_dragging)
+			{
+				save_preview_app_settings();
+				playback_seek_unsaved = false;
+			}
 		}
 
 		ui::set_next_same_line(container);
 		container.pop_element_gap();
 
 		ui::add_icon_button(
-			"remove sample video button",
+			queue_video_preview ? "stop previewing queue video button" : "remove sample video button",
 			container,
 			icons::CLOSE,
 			fonts::icons,
@@ -333,9 +340,12 @@ void configs::config_preview(ui::Container& container) {
 			DELETE_ICON_COLOR,
 			DELETE_ICON_HOVER_COLOR,
 			[] {
-				confirm_clear_sample_video();
+				if (queue_video_preview)
+					queue_video_preview.reset();
+				else
+					confirm_clear_sample_video();
 			},
-			"Remove sample video"
+			queue_video_preview ? "Preview the sample video instead" : "Remove sample video"
 		);
 
 		container.pop_element_gap();

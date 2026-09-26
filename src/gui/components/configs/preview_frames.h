@@ -12,6 +12,7 @@ namespace gui::components::configs::preview_frames {
 		const BlurSettings& settings;
 		const GlobalAppSettings& app_settings;
 		// NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
+		float position = 0.f; // through the video, 0-1
 		bool show_mask = false;
 	};
 
