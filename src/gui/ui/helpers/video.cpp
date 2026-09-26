@@ -2,7 +2,6 @@
 #include "../../render/render.h"
 
 const int SEEK_SECS = 3;
-const uint64_t SEEK_REPLY_ID = 1;
 const uint64_t DIMENSIONS_OBSERVE_ID = 1;
 
 VideoPlayer::~VideoPlayer() {
