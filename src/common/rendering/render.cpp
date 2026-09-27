@@ -49,11 +49,11 @@ tl::expected<std::string, std::string> rendering::build_preview_script(
 
 	// vspipe hands every -a over as a string, so these stay strings too
 	nlohmann::json script_args = nlohmann::json::object();
-	for (size_t i = 0; i + 1 < vspipe_args.size(); i++) {
-		if (vspipe_args[i] != "-a")
+	for (size_t i = 1; i < vspipe_args.size(); i++) {
+		if (vspipe_args[i - 1] != "-a")
 			continue;
 
-		const auto& arg = vspipe_args[++i];
+		const auto& arg = vspipe_args[i];
 		auto split = arg.find('=');
 		if (split != std::string::npos)
 			script_args[arg.substr(0, split)] = arg.substr(split + 1);
