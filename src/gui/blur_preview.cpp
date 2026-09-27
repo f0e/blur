@@ -101,17 +101,17 @@ namespace {
 	std::filesystem::path temp_folder() {
 		return std::filesystem::temp_directory_path() / std::format("{}{}", TEMP_PREFIX, current_pid());
 	}
+}
 
-	std::filesystem::path temp_file_path(const std::string& extension) {
-		static std::atomic<int> count = 0;
+std::filesystem::path BlurPreview::temp_file_path(const std::string& extension) {
+	static std::atomic<int> count = 0;
 
-		auto folder = temp_folder();
+	auto folder = temp_folder();
 
-		std::error_code ec;
-		std::filesystem::create_directories(folder, ec);
+	std::error_code ec;
+	std::filesystem::create_directories(folder, ec);
 
-		return folder / std::format("{}.{}", ++count, extension);
-	}
+	return folder / std::format("{}.{}", ++count, extension);
 }
 
 void BlurPreview::remove_stale_temp_files() {
