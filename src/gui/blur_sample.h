@@ -17,6 +17,10 @@ namespace render {
 // thread only
 class BlurSample {
 public:
+	// how long settings have to stay the same before a sample's rendered for them, so dragging a slider doesn't start
+	// a render every frame
+	static constexpr auto SETTLE_TIME = std::chrono::milliseconds(500);
+
 	struct Request {
 		// NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members) only lives for the call it's made for
 		const std::filesystem::path& video_path;
@@ -65,6 +69,9 @@ public:
 		return m_frame_id;
 	}
 
+	// the source frame after the last one it looped, once it's looping. it can stop short of the end it was given
+	[[nodiscard]] std::optional<size_t> looped_end_frame() const;
+
 	[[nodiscard]] rendering::RenderState::Progress progress() const {
 		return m_state->get_progress();
 	}
@@ -82,6 +89,12 @@ private:
 
 	float m_volume;
 	bool m_hardware_decoding;
+
+	size_t m_start_frame;
+	size_t m_end_frame;
+	double m_fps;
+
+	double m_speed = 1.0;
 
 	std::shared_ptr<render::Texture> m_frame;
 	size_t m_frame_id = 0;

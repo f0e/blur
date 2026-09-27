@@ -26,7 +26,13 @@ namespace {
 
 BlurSample::BlurSample(const Request& request)
 	: m_path(BlurPreview::temp_file_path("mkv")), m_volume(request.volume),
-	  m_hardware_decoding(request.app_settings.preview_hardware_decoding) {
+	  m_hardware_decoding(request.app_settings.preview_hardware_decoding), m_start_frame(request.start_frame),
+	  m_end_frame(request.end_frame),
+	  m_fps(static_cast<double>(request.video_info.fps_num) / request.video_info.fps_den) {
+	const auto& settings = request.settings;
+
+	m_speed = settings.timescale ? static_cast<double>(settings.output_timescale) / settings.input_timescale : 1.0;
+
 	std::promise<tl::expected<rendering::RenderResult, rendering::RenderError>> promise;
 	m_render = promise.get_future();
 
@@ -108,6 +114,19 @@ bool BlurSample::finish() {
 
 bool BlurSample::finishing() const {
 	return m_state->wants_finish() || (m_player && !player());
+}
+
+std::optional<size_t> BlurSample::looped_end_frame() const {
+	auto looping = player();
+	if (!looping)
+		return {};
+
+	auto duration = looping->get_duration();
+	if (!duration)
+		return {};
+
+	auto frames = static_cast<size_t>(std::llround(*duration * m_speed * m_fps));
+	return std::min(m_start_frame + frames, m_end_frame);
 }
 
 std::shared_ptr<VideoPlayer> BlurSample::player() const {
