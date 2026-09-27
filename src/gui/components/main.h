@@ -34,6 +34,10 @@ namespace gui::components::main {
 
 	void handle_event(const SDL_Event& event, bool& to_render);
 
+	// shift+space starts a sample on the queue preview, space moves it on. false if the video player should have the
+	// key
+	bool handle_key_press(SDL_Keycode key, SDL_Keymod mod);
+
 	// which subscreen was last drawn, if the main screen is up
 	[[nodiscard]] std::optional<MainScreen> current_screen();
 

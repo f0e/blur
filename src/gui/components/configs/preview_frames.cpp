@@ -76,8 +76,7 @@ namespace {
 	}
 
 	preview_frames::Result update_mask(const preview_frames::Request& request, const media::VideoInfo& info) {
-		if (source_player && !source_player->is_paused())
-			source_player->set_paused(true);
+		preview_frames::pause();
 
 		if (!mask_preview)
 			mask_preview = std::make_unique<MaskPreview>();
@@ -145,7 +144,9 @@ namespace {
 			result.playback_position = playback_position;
 		}
 
-		if (state.overlay)
+		if (state.sample_frame)
+			result.frame = preview_frames::Frame{ .texture = state.sample_frame, .texture_id = state.sample_frame_id };
+		else if (state.overlay)
 			result.frame = preview_frames::Frame{ .player = state.overlay };
 		else if (source_player->has_frame() && source_player->get_video_dimensions())
 			result.frame = preview_frames::Frame{ .player = source_player, .faded = !state.playing };
@@ -193,17 +194,38 @@ preview_frames::Result preview_frames::update(const Request& request) {
 	return update_blurred(request, info);
 }
 
-void preview_frames::handle_key_press(SDL_Keycode key) {
-	if (source_player && !showing_mask)
-		source_player->handle_key_press(key);
+void preview_frames::handle_key_press(SDL_Keycode key, SDL_Keymod mod) {
+	if (!source_player || showing_mask)
+		return;
+
+	if (key == SDLK_SPACE && blurred_preview) {
+		if (blurred_preview->continue_sample())
+			return;
+
+		if (mod & SDL_KMOD_SHIFT) {
+			source_player->set_paused(true);
+			blurred_preview->start_sample();
+			return;
+		}
+	}
+
+	source_player->handle_key_press(key);
 }
 
 void preview_frames::toggle_playback() {
-	if (source_player && !showing_mask)
-		source_player->cycle_paused();
+	if (!source_player || showing_mask)
+		return;
+
+	if (blurred_preview && blurred_preview->continue_sample())
+		return;
+
+	source_player->cycle_paused();
 }
 
 void preview_frames::pause() {
+	if (blurred_preview)
+		blurred_preview->cancel_sample();
+
 	if (source_player && !source_player->is_paused())
 		source_player->set_paused(true);
 }
