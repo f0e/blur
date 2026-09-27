@@ -26,7 +26,7 @@ public:
 	PreviewState update(const Request& request);
 
 	// renders the output from where the player is once it's paused, showing frames as they're made. it loops once
-	// it's done, or once it's continued. moving or playing the player ends it
+	// it's done, or once it's continued. moving or playing the player ends it, changing the settings renders it again
 	void start_sample();
 
 	// a rendering sample loops what it's rendered so far, a looping one ends, leaving the player where it started.
@@ -52,6 +52,13 @@ private:
 		// the player's time when it started
 		double player_time = 0.0;
 
+		size_t start_frame = 0;
+		size_t end_frame = 0;
+
+		// settings it's waiting on to settle before it's rendered again
+		std::optional<BlurSettings> new_settings;
+		std::chrono::steady_clock::time_point new_settings_since;
+
 		std::unique_ptr<BlurSample> sample;
 	};
 
@@ -65,5 +72,6 @@ private:
 
 	PreviewState update_preview(const Request& request);
 	void begin_sample(const Request& request);
+	void rerender_sample(const Request& request);
 	void update_sample(PreviewState& state);
 };

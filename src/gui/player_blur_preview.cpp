@@ -4,10 +4,13 @@
 PreviewState PlayerBlurPreview::update(const Request& request) {
 	if (m_sample) {
 		bool moved = !request.player.is_paused() || request.player.get_time_pos() != m_sample->player_time;
-		bool changed = request.video_path != m_sample->video_path || request.settings != m_sample->settings;
 
-		if (moved || changed)
+		if (moved || request.video_path != m_sample->video_path)
 			cancel_sample();
+		else if (request.settings != m_sample->settings)
+			rerender_sample(request);
+		else
+			m_sample->new_settings.reset();
 	}
 
 	if (m_sample_requested && request.player.is_paused() && request.player.seek_settled()) {
@@ -79,6 +82,8 @@ void PlayerBlurPreview::begin_sample(const Request& request) {
 		.video_path = request.video_path,
 		.settings = request.settings,
 		.player_time = *time,
+		.start_frame = start_frame,
+		.end_frame = end_frame,
 		.sample = std::make_unique<BlurSample>(BlurSample::Request{
 			.video_path = request.video_path,
 			.video_info = info,
@@ -89,6 +94,35 @@ void PlayerBlurPreview::begin_sample(const Request& request) {
 			.volume = request.volume,
 		}),
 	};
+}
+
+void PlayerBlurPreview::rerender_sample(const Request& request) {
+	auto& sample = *m_sample;
+	auto now = std::chrono::steady_clock::now();
+
+	if (request.settings != sample.new_settings) {
+		sample.new_settings = request.settings;
+		sample.new_settings_since = now;
+		return;
+	}
+
+	if (now - sample.new_settings_since < BlurSample::SETTLE_TIME)
+		return;
+
+	// a looping one's rendered again for as far as it got
+	auto end_frame = sample.sample->looped_end_frame().value_or(sample.end_frame);
+
+	sample.settings = request.settings;
+	sample.new_settings.reset();
+	sample.sample = std::make_unique<BlurSample>(BlurSample::Request{
+		.video_path = request.video_path,
+		.video_info = request.video_info,
+		.settings = request.settings,
+		.app_settings = request.app_settings,
+		.start_frame = sample.start_frame,
+		.end_frame = end_frame,
+		.volume = request.volume,
+	});
 }
 
 void PlayerBlurPreview::update_sample(PreviewState& state) {
