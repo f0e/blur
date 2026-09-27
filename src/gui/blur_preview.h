@@ -69,15 +69,6 @@ public:
 		const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
 	) const;
 
-	// in a temp folder for this run
-	static std::filesystem::path temp_file_path(const std::string& extension);
-
-	// for shutdown, once nothing has the files open
-	static void remove_temp_files();
-
-	// ones left by runs that didn't get to shut down
-	static void remove_stale_temp_files();
-
 private:
 	struct Key {
 		std::filesystem::path video_path;

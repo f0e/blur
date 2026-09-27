@@ -10,7 +10,7 @@
 #include "components/main.h"
 #include "components/queue_preview.h"
 #include "os/taskbar.h"
-#include "blur_preview.h"
+#include "preview_files.h"
 #include "blur_sample.h"
 #include "ui/elements/videos/videos.h"
 
@@ -65,7 +65,7 @@ namespace {
 		ui::videos::player.reset();
 
 		BlurSample::wait_for_renders(std::chrono::seconds(5));
-		BlurPreview::remove_temp_files();
+		preview_files::remove_all();
 
 		sdl::cleanup();
 	}
@@ -79,7 +79,7 @@ int gui::run() {
 		return 1;
 	}
 
-	BlurPreview::remove_stale_temp_files();
+	preview_files::remove_stale();
 
 	SDL_Event event;
 

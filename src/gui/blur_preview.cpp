@@ -1,4 +1,5 @@
 #include "blur_preview.h"
+#include "preview_files.h"
 #include "ui/helpers/video.h"
 
 #include "common/rendering/render.h"
@@ -70,75 +71,6 @@ namespace {
 			{ "start", std::to_string(start) },
 		};
 	}
-
-	constexpr std::string_view TEMP_PREFIX = "blur-preview-";
-
-	unsigned long current_pid() {
-#ifdef _WIN32
-		return GetCurrentProcessId();
-#else
-		return getpid();
-#endif
-	}
-
-	bool process_running(unsigned long pid) {
-#ifdef _WIN32
-		HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-
-		// it's there, it just isn't ours to look at
-		if (!process)
-			return GetLastError() == ERROR_ACCESS_DENIED;
-
-		DWORD exit_code = 0;
-		bool running = GetExitCodeProcess(process, &exit_code) != 0 && exit_code == STILL_ACTIVE;
-		CloseHandle(process);
-		return running;
-#else
-		return kill(static_cast<pid_t>(pid), 0) == 0 || errno == EPERM;
-#endif
-	}
-
-	std::filesystem::path temp_folder() {
-		return std::filesystem::temp_directory_path() / std::format("{}{}", TEMP_PREFIX, current_pid());
-	}
-}
-
-std::filesystem::path BlurPreview::temp_file_path(const std::string& extension) {
-	static std::atomic<int> count = 0;
-
-	auto folder = temp_folder();
-
-	std::error_code ec;
-	std::filesystem::create_directories(folder, ec);
-
-	return folder / std::format("{}.{}", ++count, extension);
-}
-
-void BlurPreview::remove_stale_temp_files() {
-	std::error_code ec;
-	for (const auto& entry : std::filesystem::directory_iterator(std::filesystem::temp_directory_path(), ec)) {
-		auto name = u::path_to_string(entry.path().filename());
-		if (!name.starts_with(TEMP_PREFIX))
-			continue;
-
-		// folders are named for the process they're from. older versions left loose files, named the same way
-		unsigned long pid = 0;
-		auto digits = std::string_view(name).substr(TEMP_PREFIX.size());
-		auto parsed = std::from_chars(digits.data(), digits.data() + digits.size(), pid);
-		if (parsed.ec != std::errc() || pid == current_pid() || process_running(pid))
-			continue;
-
-		std::error_code remove_error;
-		std::filesystem::remove_all(entry.path(), remove_error);
-	}
-}
-
-void BlurPreview::remove_temp_files() {
-	std::error_code ec;
-	std::filesystem::remove_all(temp_folder(), ec);
-
-	if (ec)
-		u::log_error("failed to remove preview files: {}", ec.message());
 }
 
 BlurPreview::~BlurPreview() {
@@ -157,8 +89,8 @@ void BlurPreview::update(const Request& request) {
 		load_vsscript();
 
 		m_player = std::make_shared<VideoPlayer>(0.f, false);
-		m_script_path = temp_file_path("vpy");
-		m_log_path = temp_file_path("log");
+		m_script_path = preview_files::new_path("vpy");
+		m_log_path = preview_files::new_path("log");
 	}
 
 	Key key{

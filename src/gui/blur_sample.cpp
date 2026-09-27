@@ -1,5 +1,6 @@
 #include "blur_sample.h"
 #include "blur_preview.h"
+#include "preview_files.h"
 #include "ui/helpers/video.h"
 #include "render/render.h"
 
@@ -28,7 +29,7 @@ namespace {
 
 BlurSample::BlurSample(const Request& request)
 	: m_path(
-		  BlurPreview::temp_file_path(
+		  preview_files::new_path(
 			  request.app_settings.pre_render_output_encoding ? request.settings.advanced.video_container : "mkv"
 		  )
 	  ),
