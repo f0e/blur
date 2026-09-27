@@ -10,7 +10,7 @@
 #include "../ui/elements/videos/videos.h"
 #include "../mask_preview.h"
 #include "../player_blur_preview.h"
-#include "notifications.h"
+#include "queue_preview.h"
 #include "configs/configs.h"
 #include "../fonts/icons.h"
 #include "common/masks.h"
@@ -57,120 +57,6 @@ namespace {
 		return disabled;
 	}
 
-	bool blur_preview_enabled = false;
-	bool mask_preview_enabled = false;
-
-	std::unique_ptr<PlayerBlurPreview> blur_preview;
-	std::unique_ptr<MaskPreview> mask_preview;
-
-	// configs are read from disk, so the last one's kept until its file changes
-	struct {
-		std::string name;
-		std::filesystem::file_time_type write_time;
-		BlurSettings settings;
-	} preview_config;
-
-	BlurSettings get_render_settings(const tasks::PendingVideo& pending_video) {
-		std::error_code ec;
-		auto write_time = std::filesystem::last_write_time(config_blur::get_config_path(pending_video.config_name), ec);
-
-		if (pending_video.config_name != preview_config.name || write_time != preview_config.write_time) {
-			preview_config.name = pending_video.config_name;
-			preview_config.write_time = write_time;
-			preview_config.settings = config_blur::get_config(pending_video.config_name);
-		}
-
-		auto settings = preview_config.settings;
-		settings.mask = pending_video.mask;
-		settings.auto_mask = pending_video.auto_mask;
-		return settings;
-	}
-
-	struct QueuePreviewState {
-		std::optional<ui::VideoOverlay> overlay;
-		std::optional<std::string> status;
-	};
-
-	void show_preview_error(const std::string& header, const std::optional<rendering::RenderError>& error) {
-		if (error)
-			gui::components::notifications::show_failure_notification(
-				header, *error, std::chrono::duration<float>(10.f)
-			);
-	}
-
-	QueuePreviewState update_preview(const tasks::PendingVideo& pending_video, const GlobalAppSettings& app_config) {
-		if (!blur_preview_enabled)
-			blur_preview.reset();
-
-		if (!mask_preview_enabled)
-			mask_preview.reset();
-
-		if (!blur_preview_enabled && !mask_preview_enabled)
-			return {};
-
-		if (!pending_video.video_info || !pending_video.video_info->ffmpeg_can_decode_video)
-			return {};
-
-		if (pending_video.config_name.empty())
-			return { .status = "select a config to preview it" };
-
-		const auto& player = ui::videos::player;
-		if (!player || !ui::videos::is_loaded(pending_video.video_path))
-			return {};
-
-		auto settings = get_render_settings(pending_video);
-
-		if (mask_preview_enabled) {
-			if (!mask_preview)
-				mask_preview = std::make_unique<MaskPreview>();
-
-			// the mask's a still image
-			if (!player->is_paused())
-				player->set_paused(true);
-
-			auto state = mask_preview->update(
-				{
-					.video_path = pending_video.video_path,
-					.video_info = *pending_video.video_info,
-					.settings = settings,
-					.app_settings = app_config,
-				}
-			);
-
-			show_preview_error("Failed to generate mask preview.", mask_preview->take_error());
-
-			return {
-				.overlay = ui::VideoOverlay{ .frame = state.frame },
-				.status = state.status_text("loading mask..."),
-			};
-		}
-
-		if (!blur_preview)
-			blur_preview = std::make_unique<PlayerBlurPreview>();
-
-		auto state = blur_preview->update(
-			{
-				.player = *player,
-				.video_path = pending_video.video_path,
-				.video_info = *pending_video.video_info,
-				.settings = settings,
-				.app_settings = app_config,
-				.volume = static_cast<float>(app_config.preview_volume),
-			}
-		);
-
-		show_preview_error("Failed to generate blur preview.", blur_preview->take_error());
-
-		QueuePreviewState result{ .status = state.status_text("rendering preview...") };
-		if (!state.playing)
-			result.overlay = ui::VideoOverlay{
-				.frame = state.frame,
-				.range = state.sample_range,
-			};
-
-		return result;
-	}
-
 	// with skip_queue on, the queue screen is only needed when a config or trim needs sorting out
 	bool wants_queue_screen(const std::vector<std::shared_ptr<tasks::PendingVideo>>& pending) {
 		if (pending.empty())
@@ -210,33 +96,8 @@ void main::show_screen(MainScreen main_screen) {
 	prefer_render_screen = main_screen == MainScreen::PROGRESS;
 }
 
-void main::release_previews() {
-	blur_preview.reset();
-	mask_preview.reset();
-}
-
-void main::handle_event(const SDL_Event& event, bool& to_render) {
-	if (blur_preview)
-		blur_preview->handle_event(event, to_render);
-
-	if (mask_preview)
-		mask_preview->handle_event(event, to_render);
-}
-
 bool main::handle_key_press(SDL_Keycode key, SDL_Keymod mod) {
-	const auto& player = ui::videos::player;
-	if (key != SDLK_SPACE || !blur_preview || !player || current_screen() != MainScreen::PENDING)
-		return false;
-
-	if (blur_preview->continue_sample())
-		return true;
-
-	if (!(mod & SDL_KMOD_SHIFT))
-		return false;
-
-	player->set_paused(true);
-	blur_preview->start_sample();
-	return true;
+	return current_screen() == MainScreen::PENDING && queue_preview::handle_key_press(key, mod);
 }
 
 void main::invalidate_trim_support() {
@@ -512,11 +373,11 @@ void main::render_pending(
 	bool trim_disabled = is_trim_disabled(*pending_video);
 
 	// the mask option only shows when there's a mask, so it can't stay on without one
-	bool masking = !pending_video->config_name.empty() && MaskPreview::applies(get_render_settings(*pending_video));
+	bool masking = !pending_video->config_name.empty() && MaskPreview::applies(queue_preview::settings(*pending_video));
 	if (!masking)
-		mask_preview_enabled = false;
+		queue_preview::mask_enabled = false;
 
-	auto preview_state = update_preview(*pending_video, app_config);
+	auto preview_state = queue_preview::update(*pending_video, app_config);
 
 	ui::add_videos(
 		"test video",
@@ -687,11 +548,11 @@ void main::render_pending(
 			"preview blur checkbox",
 			config_container,
 			"preview blur",
-			blur_preview_enabled,
+			queue_preview::blur_enabled,
 			fonts::dejavu,
 			[](bool enabled) {
 				if (enabled)
-					mask_preview_enabled = false;
+					queue_preview::mask_enabled = false;
 			}
 		);
 
@@ -700,11 +561,11 @@ void main::render_pending(
 				"preview mask checkbox",
 				config_container,
 				"preview mask",
-				mask_preview_enabled,
+				queue_preview::mask_enabled,
 				fonts::dejavu,
 				[](bool enabled) {
 					if (enabled)
-						blur_preview_enabled = false;
+						queue_preview::blur_enabled = false;
 				}
 			);
 		}

@@ -14,6 +14,7 @@
 #include "os/desktop_notification.h"
 
 #include "components/main.h"
+#include "components/queue_preview.h"
 #include "components/notifications.h"
 #include "components/render_history.h"
 #include "components/update_notice.h"
@@ -230,11 +231,10 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	// built first so it gets escape before the screens do
 	ui::dialog::build(sdl::window, rect);
 
-	// its vapoursynth core and any gpu memory aren't worth keeping while the queue's not up
 	bool queue_shown =
 		screen == Screens::MAIN && components::main::current_screen() == components::main::MainScreen::PENDING;
 	if (!queue_shown)
-		components::main::release_previews();
+		components::queue_preview::release();
 
 	if (screen != Screens::CONFIG)
 		components::configs::preview_frames::pause();

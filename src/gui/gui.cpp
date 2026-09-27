@@ -8,6 +8,7 @@
 #include "components/configs/configs.h"
 #include "components/configs/preview_frames.h"
 #include "components/main.h"
+#include "components/queue_preview.h"
 #include "os/taskbar.h"
 #include "blur_preview.h"
 #include "blur_sample.h"
@@ -60,7 +61,7 @@ namespace {
 	void shutdown() {
 		ui::clear_containers();
 		gui::components::configs::preview_frames::reset();
-		gui::components::main::release_previews();
+		gui::components::queue_preview::release();
 		ui::videos::player.reset();
 
 		BlurSample::wait_for_renders(std::chrono::seconds(5));
@@ -167,7 +168,7 @@ int gui::run() {
 			}
 
 			gui::components::configs::preview_frames::handle_event(event, to_render);
-			gui::components::main::handle_event(event, to_render);
+			gui::components::queue_preview::handle_event(event, to_render);
 
 			if (keys::process_event(event)) {
 				ui::on_update_input_start();
