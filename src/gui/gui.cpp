@@ -155,8 +155,8 @@ int gui::run() {
 				// playback keys go to whichever screen's video is up, and not while typing
 				if (!SDL_TextInputActive(sdl::window)) {
 					if (gui::renderer::screen == gui::renderer::Screens::CONFIG)
-						gui::components::configs::preview_frames::handle_key_press(event.key.key);
-					else
+						gui::components::configs::preview_frames::handle_key_press(event.key.key, event.key.mod);
+					else if (!gui::components::main::handle_key_press(event.key.key, event.key.mod))
 						ui::handle_videos_event(event, to_render);
 				}
 			}

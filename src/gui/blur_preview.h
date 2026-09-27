@@ -8,6 +8,10 @@
 
 class VideoPlayer;
 
+namespace render {
+	class Texture;
+}
+
 // plays blur.py's output for a video in mpv, running vapoursynth in this process, so it can be seeked around
 // without rendering each frame from scratch
 class BlurPreview {
@@ -121,6 +125,13 @@ struct PreviewState {
 	std::shared_ptr<VideoPlayer> overlay;
 
 	BlurPreview::Status status;
+
+	// the latest frame of a sample that's rendering, shown over everything else. the id changes with the frame
+	std::shared_ptr<render::Texture> sample_frame;
+	size_t sample_frame_id = 0;
+
+	// replaces the status while a sample's rendering or playing
+	std::optional<std::string> sample_status;
 
 	[[nodiscard]] std::optional<std::string> status_text(std::optional<std::string> loading_text = {}) const;
 };

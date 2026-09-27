@@ -6,6 +6,10 @@
 
 class VideoPlayer;
 
+namespace render {
+	class Texture;
+}
+
 namespace gui::components::configs::preview_frames {
 	struct Request {
 		// NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members) only lives for the ui frame it's built in
@@ -19,6 +23,11 @@ namespace gui::components::configs::preview_frames {
 
 	struct Frame {
 		std::shared_ptr<VideoPlayer> player;
+
+		// shown instead of the player when it's set. the id changes with the texture
+		std::shared_ptr<render::Texture> texture;
+		size_t texture_id = 0;
+
 		bool faded = false;
 	};
 
@@ -41,7 +50,8 @@ namespace gui::components::configs::preview_frames {
 
 	void handle_event(const SDL_Event& event, bool& to_render);
 
-	void handle_key_press(SDL_Keycode key);
+	// shift+space starts a sample, space moves it on
+	void handle_key_press(SDL_Keycode key, SDL_Keymod mod);
 
 	void toggle_playback();
 

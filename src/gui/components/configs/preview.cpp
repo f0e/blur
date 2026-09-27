@@ -393,6 +393,17 @@ void configs::config_preview(ui::Container& container) {
 			)
 			                          .has_value();
 		}
+		else if (preview.frame->texture) {
+			preview_image_id = "config preview sample frame";
+			preview_image_added = ui::add_image(
+									  preview_image_id,
+									  container,
+									  preview.frame->texture,
+									  container.get_usable_rect().size(),
+									  std::to_string(preview.frame->texture_id)
+			)
+			                          .has_value();
+		}
 		else {
 			std::optional<std::function<void()>> on_click;
 			if (!show_mask_preview)

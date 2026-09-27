@@ -155,6 +155,7 @@ namespace {
 				.video_info = *pending_video.video_info,
 				.settings = settings,
 				.app_settings = app_config,
+				.volume = static_cast<float>(app_config.preview_volume),
 			}
 		);
 
@@ -162,7 +163,7 @@ namespace {
 
 		QueuePreviewState result{ .status = state.status_text("rendering preview...") };
 		if (!state.playing)
-			result.overlay = ui::VideoOverlay{ .player = state.overlay };
+			result.overlay = ui::VideoOverlay{ .player = state.overlay, .texture = state.sample_frame };
 
 		return result;
 	}
@@ -217,6 +218,22 @@ void main::handle_event(const SDL_Event& event, bool& to_render) {
 
 	if (mask_preview)
 		mask_preview->handle_event(event, to_render);
+}
+
+bool main::handle_key_press(SDL_Keycode key, SDL_Keymod mod) {
+	const auto& player = ui::videos::player;
+	if (key != SDLK_SPACE || !blur_preview || !player || current_screen() != MainScreen::PENDING)
+		return false;
+
+	if (blur_preview->continue_sample())
+		return true;
+
+	if (!(mod & SDL_KMOD_SHIFT))
+		return false;
+
+	player->set_paused(true);
+	blur_preview->start_sample();
+	return true;
 }
 
 void main::invalidate_trim_support() {

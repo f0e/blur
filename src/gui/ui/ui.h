@@ -187,6 +187,9 @@ namespace ui {
 		// null until it's ready, the video's shown faded meanwhile
 		std::shared_ptr<VideoPlayer> player;
 
+		// shown instead of the player when it's set
+		std::shared_ptr<render::Texture> texture;
+
 		bool operator==(const VideoOverlay& other) const = default;
 	};
 
