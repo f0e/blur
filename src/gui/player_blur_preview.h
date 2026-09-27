@@ -5,7 +5,7 @@
 class VideoPlayer;
 
 // shows a config's output over a video player while it's paused. the blur can't keep up with playback, so the video
-// plays as it is. main thread only
+// plays as it is
 class PlayerBlurPreview {
 public:
 	struct Request {
@@ -37,6 +37,5 @@ public:
 private:
 	BlurPreview m_preview;
 
-	// the player's frame count when a blurred frame was last up to date
 	std::optional<uint64_t> m_player_frames_at_blur;
 };

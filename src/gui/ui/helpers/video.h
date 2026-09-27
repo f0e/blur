@@ -36,7 +36,7 @@ public:
 
 	void handle_key_press(SDL_Keycode key);
 
-	// options are mpv's per-file ones, e.g. { "demuxer-lavf-format", "vapoursynth" }
+	// options are mpv's per-file ones
 	void load_file(
 		const std::filesystem::path& file_path,
 		std::optional<float> start_time = {},
@@ -196,13 +196,11 @@ public:
 		return m_current_file_path;
 	}
 
-	// the error lines mpv logged for the last file that failed to load, once
 	std::optional<std::string> take_load_error() {
 		return std::exchange(m_load_error, std::nullopt);
 	}
 
-	// saves the current frame at the video's own size, in the format the extension names. on_done gets an error, if
-	// there was one
+	// saves at the video's own size, not the size it's drawn at
 	void screenshot_to_file(
 		const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
 	);

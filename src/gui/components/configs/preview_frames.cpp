@@ -16,7 +16,7 @@ namespace {
 	std::shared_ptr<VideoPlayer> source_player;
 	std::optional<float> source_timestamp;
 
-	// the seek bar follows playback, which isn't a seek
+	// where playback last moved the seek bar, so it isn't mistaken for a seek
 	std::optional<float> playback_position;
 
 	struct {
@@ -133,8 +133,7 @@ namespace {
 		result.frame_timing_log = state.status.frame_timing_log;
 		result.status = state.status_text();
 
-		// the seek bar follows playback and frame stepping. a seek that's on its way would put it back where it came
-		// from
+		// a seek that's on its way would put the seek bar back where it came from
 		if (source_player->seek_settled()) {
 			playback_position = PlayerBlurPreview::player_position(*source_player, info);
 			result.playback_position = playback_position;

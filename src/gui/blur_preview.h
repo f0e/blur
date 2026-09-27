@@ -9,7 +9,7 @@
 class VideoPlayer;
 
 // plays blur.py's output for a video in mpv, running vapoursynth in this process, so it can be seeked around
-// without rendering each frame from scratch. main thread only
+// without rendering each frame from scratch
 class BlurPreview {
 public:
 	struct Request {
@@ -21,8 +21,6 @@ public:
 		// NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 
 		float position = 0.f; // through the video, 0-1
-
-		// the mask blur.py would apply, rather than the blurred video
 		bool mask = false;
 	};
 
@@ -30,7 +28,7 @@ public:
 		rendering::RenderState::InitStage init_stage = rendering::RenderState::InitStage::NONE;
 		std::string frame_timing_log;
 
-		// the latest settings couldn't be loaded. cleared when different ones are requested
+		// cleared when different settings are requested
 		bool failed = false;
 	};
 
@@ -45,7 +43,6 @@ public:
 	// call every ui frame it's shown. changing anything but the position reloads blur.py
 	void update(const Request& request);
 
-	// the player to draw, once it's showing the frame for the latest request
 	[[nodiscard]] std::shared_ptr<VideoPlayer> ready_player() const;
 
 	// the frame it showed last, while it's on its way to a new position. nothing once it's reloading
@@ -53,7 +50,6 @@ public:
 
 	[[nodiscard]] Status status() const;
 
-	// why the latest settings couldn't be loaded, once
 	std::optional<rendering::RenderError> take_error();
 
 	void handle_event(const SDL_Event& event, bool& to_render);
@@ -64,14 +60,11 @@ public:
 		const BlurSettings& settings, const media::VideoInfo& video_info, float position
 	);
 
-	// saves the frame for the latest request at the video's size. false if it isn't ready
 	bool save_frame(
 		const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
 	) const;
 
 private:
-	// what changes blur.py's output. the app settings are narrowed to what it's given, most (like the config
-	// preview's seek) don't affect it
 	struct Key {
 		std::filesystem::path video_path;
 		BlurSettings settings;
@@ -113,15 +106,12 @@ private:
 	void fail(rendering::RenderError error);
 };
 
-// what a preview has to show at the moment
 struct PreviewState {
 	bool playing = false;
 
-	// the preview's frame to show. while this is empty the video stands in faded
 	std::shared_ptr<VideoPlayer> overlay;
 
 	BlurPreview::Status status;
 
-	// what to tell the user while there's nothing to show. loading_text is for when it's just on its way
 	[[nodiscard]] std::optional<std::string> status_text(std::optional<std::string> loading_text = {}) const;
 };

@@ -53,7 +53,6 @@ namespace {
 		return disabled;
 	}
 
-	// only one of these shows at a time
 	bool blur_preview_enabled = false;
 	bool mask_preview_enabled = false;
 
@@ -67,7 +66,6 @@ namespace {
 		BlurSettings settings;
 	} preview_config;
 
-	// what the video would be rendered with
 	BlurSettings get_render_settings(const tasks::PendingVideo& pending_video) {
 		std::error_code ec;
 		auto write_time = std::filesystem::last_write_time(config_blur::get_config_path(pending_video.config_name), ec);

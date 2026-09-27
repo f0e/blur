@@ -2,7 +2,6 @@
 
 #include "blur_preview.h"
 
-// the mask blur.py would apply to a video. main thread only
 class MaskPreview {
 public:
 	struct Request {
@@ -14,7 +13,6 @@ public:
 		// NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 	};
 
-	// whether the settings mask anything
 	[[nodiscard]] static bool applies(const BlurSettings& settings);
 
 	PreviewState update(const Request& request);
@@ -27,7 +25,6 @@ public:
 		m_preview.handle_event(event, to_render);
 	}
 
-	// false if it isn't showing an up to date mask
 	bool save(const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done) const {
 		return m_preview.save_frame(path, std::move(on_done));
 	}
