@@ -190,6 +190,9 @@ namespace ui {
 		// shown instead of the player when it's set
 		std::shared_ptr<render::Texture> texture;
 
+		// the stretch of the video it covers, marked on the timeline. as fractions of the container's duration
+		std::optional<std::pair<float, float>> range;
+
 		bool operator==(const VideoOverlay& other) const = default;
 	};
 
@@ -216,13 +219,18 @@ namespace ui {
 		UIVideo video;
 		std::shared_ptr<VideoPlayer> player;
 		VideoWaveform* waveform = nullptr;
+
+		// a stretch to mark, like what a sample covers. as fractions of the duration
+		std::optional<std::pair<float, float>> highlight;
+
 		bool active = false;
 		float fade = 0.f;
 		bool interactive = false;
 
 		bool operator==(const TimelineElementData& other) const {
 			return video == other.video && player == other.player && waveform == other.waveform &&
-			       active == other.active && fade == other.fade && interactive == other.interactive;
+			       highlight == other.highlight && active == other.active && fade == other.fade &&
+			       interactive == other.interactive;
 		}
 	};
 

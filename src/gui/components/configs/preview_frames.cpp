@@ -137,6 +137,7 @@ namespace {
 		result.failed = state.status.failed;
 		result.frame_timing_log = state.status.frame_timing_log;
 		result.status = state.status_text();
+		result.sample_range = state.sample_range;
 
 		// a seek that's on its way would put the seek bar back where it came from
 		if (source_player->seek_settled()) {

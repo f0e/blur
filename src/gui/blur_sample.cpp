@@ -28,7 +28,8 @@ BlurSample::BlurSample(const Request& request)
 	: m_path(BlurPreview::temp_file_path("mkv")), m_volume(request.volume),
 	  m_hardware_decoding(request.app_settings.preview_hardware_decoding), m_start_frame(request.start_frame),
 	  m_end_frame(request.end_frame),
-	  m_fps(static_cast<double>(request.video_info.fps_num) / request.video_info.fps_den) {
+	  m_fps(static_cast<double>(request.video_info.fps_num) / request.video_info.fps_den),
+	  m_clock_offset(request.video_info.video_start_time - request.video_info.start_time) {
 	const auto& settings = request.settings;
 
 	m_speed = settings.timescale ? static_cast<double>(settings.output_timescale) / settings.input_timescale : 1.0;
@@ -127,6 +128,24 @@ std::optional<size_t> BlurSample::looped_end_frame() const {
 
 	auto frames = static_cast<size_t>(std::llround(*duration * m_speed * m_fps));
 	return std::min(m_start_frame + frames, m_end_frame);
+}
+
+std::pair<double, double> BlurSample::source_range() const {
+	auto end_frame = looped_end_frame();
+
+	if (!end_frame) {
+		auto progress = m_state->get_progress();
+		double rendered =
+			progress.total_frames > 0 ? static_cast<double>(progress.current_frame) / progress.total_frames : 0.0;
+
+		end_frame = m_start_frame + static_cast<size_t>(std::llround((m_end_frame - m_start_frame) * rendered));
+	}
+
+	auto seconds = [&](size_t frame) {
+		return m_clock_offset + (static_cast<double>(frame) / m_fps);
+	};
+
+	return { seconds(m_start_frame), seconds(*end_frame) };
 }
 
 std::shared_ptr<VideoPlayer> BlurSample::player() const {

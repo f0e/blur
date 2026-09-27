@@ -238,6 +238,7 @@ void ui::add_videos(
 				.video = ui_video,
 				.player = videos::player,
 				.waveform = ui_video.video_info ? videos::get_waveform(ui_video.path, duration) : nullptr,
+				.highlight = active && active_overlay ? active_overlay->range : std::nullopt,
 				.active = active,
 				.fade = fade,
 				.interactive = active && video_elem->animations.at(hasher("offset")).complete,

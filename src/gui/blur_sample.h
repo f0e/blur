@@ -72,6 +72,9 @@ public:
 	// the source frame after the last one it looped, once it's looping. it can stop short of the end it was given
 	[[nodiscard]] std::optional<size_t> looped_end_frame() const;
 
+	// how much of the source it's rendered or is looping, in seconds on mpv's clock
+	[[nodiscard]] std::pair<double, double> source_range() const;
+
 	[[nodiscard]] rendering::RenderState::Progress progress() const {
 		return m_state->get_progress();
 	}
@@ -93,6 +96,7 @@ private:
 	size_t m_start_frame;
 	size_t m_end_frame;
 	double m_fps;
+	double m_clock_offset;
 
 	double m_speed = 1.0;
 
