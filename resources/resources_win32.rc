@@ -1,2 +1,43 @@
-// laf https://github.com/aseprite/laf/blob/a1c113aaa63ccf1e83024e283988e14da3ffba4d/os/win/window.cpp#L2523
+#include <winver.h>
+
+#include "blur_version.h"
+
+// each target passes its own name, see setup_target in CMakeLists.txt
+#ifndef BLUR_RC_FILE_NAME
+#	define BLUR_RC_FILE_NAME "blur-gui.exe"
+#endif
+
 0 ICON blur.ico
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION BLUR_VERSION_MAJOR, BLUR_VERSION_MINOR, BLUR_VERSION_PATCH, 0
+PRODUCTVERSION BLUR_VERSION_MAJOR, BLUR_VERSION_MINOR, BLUR_VERSION_PATCH, 0
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+FILEFLAGS VS_FF_DEBUG
+#else
+FILEFLAGS 0
+#endif
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "tekno"
+            VALUE "FileDescription", "blur"
+            VALUE "FileVersion", BLUR_VERSION_STRING
+            VALUE "InternalName", "blur"
+            VALUE "LegalCopyright", "blur contributors"
+            VALUE "OriginalFilename", BLUR_RC_FILE_NAME
+            VALUE "ProductName", "blur"
+            VALUE "ProductVersion", BLUR_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

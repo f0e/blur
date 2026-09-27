@@ -1,27 +1,76 @@
-import vapoursynth as vs
-from vapoursynth import core
-
-from pathlib import Path
+import json
+import math
+import os
+import sys
+import traceback
+from dataclasses import dataclass
 from fractions import Fraction
+from pathlib import Path
+
+import vapoursynth as vs
+from blur import log
+from vapoursynth import core
 
 
 class BlurException(Exception):
-    pass
+    def __init__(
+        self,
+        user_error: str,
+        original_exception: Exception | None = None,
+    ):
+        self.user_error = user_error
+        self.original_exception = original_exception
+
+        tech_parts = []
+        if original_exception:
+            tech_parts.append(f"Original error: {type(original_exception).__name__}: {original_exception!s}")
+            tech_parts.append(f"Traceback:\n{''.join(traceback.format_tb(original_exception.__traceback__))}")
+
+        self.full_technical_details = "\n".join(tech_parts)
+
+        super().__init__(user_error)
+
+    def to_json(self) -> str:
+        return json.dumps(
+            {
+                "error_type": "BlurException",
+                "user_message": self.user_error,
+                "technical_details": self.full_technical_details,
+            },
+            indent=2,
+        )
+
+
+def handle_blur_exception(e: BlurException):
+    """os._exit since vapoursynth turns sys.exit inside a frame callback into a failed frame"""
+    print(e.to_json(), file=sys.stderr, flush=True)
+    os._exit(1)
+
+
+def handle_unexpected_exception(e: Exception):
+    blur_ex = BlurException(
+        user_error="An unexpected error occurred during VapourSynth processing.",
+        original_exception=e,
+    )
+    handle_blur_exception(blur_ex)
+
+
+@dataclass
+class VideoInfo:
+    is_full_color_range: bool
+    orig_width: int
+    orig_height: int
 
 
 def load_plugins(extension: str):
     plugin_dir = Path("../vapoursynth-plugins")
-    ignored = {
-        f"libbestsource{extension}",
-    }
 
     for plugin in plugin_dir.glob(f"*{extension}"):
-        if plugin.name not in ignored:
-            print("Loading", plugin.name)
-            try:
-                core.std.LoadPlugin(path=str(plugin))
-            except Exception as e:
-                print(f"Failed to load plugin {plugin.name}: {e}")
+        log.info("Loading", plugin.name)
+        try:
+            core.std.LoadPlugin(path=str(plugin))
+        except Exception as e:  # noqa: BLE001 - a broken plugin shouldn't stop the others loading
+            log.info(f"Failed to load plugin {plugin.name}: {e}")
 
 
 def safe_int(value):
@@ -46,41 +95,235 @@ def assume_scaled_fps(clip, timescale):
     new_fps = clip.fps * timescale
     fps_frac = Fraction(new_fps).limit_denominator()
 
-    return core.std.AssumeFPS(
-        clip, fpsnum=fps_frac.numerator, fpsden=fps_frac.denominator
-    )
+    return core.std.AssumeFPS(clip, fpsnum=fps_frac.numerator, fpsden=fps_frac.denominator)
 
 
-def with_format(
-    video: vs.VideoNode, is_full_color_range: bool, target_format, process_func
+def scale_luminance(video: vs.VideoNode, upscale: bool, y_scale_w: int, y_scale_h: int):
+    if y_scale_w == 1 and y_scale_h == 1:
+        return video
+
+    y = core.std.ShufflePlanes(video, planes=0, colorfamily=vs.GRAY)
+    u = core.std.ShufflePlanes(video, planes=1, colorfamily=vs.GRAY)
+    v = core.std.ShufflePlanes(video, planes=2, colorfamily=vs.GRAY)
+
+    if upscale:
+        y = core.resize.Point(y, width=y.width * y_scale_w, height=y.height * y_scale_h)
+    else:  # downscale
+        y = core.resize.Point(y, width=y.width / y_scale_w, height=y.height / y_scale_h)
+
+    video = core.std.ShufflePlanes(clips=[y, u, v], planes=[0, 0, 0], colorfamily=vs.YUV)
+
+    return video
+
+
+def with_scaled_luminance(
+    video: vs.VideoNode,
+    target_format,
+    process_func,
 ):
-    orig_format = video.format
-    needs_conversion = orig_format.id != target_format
+    in_format_info = core.get_video_format(video.format)
+    target_format_info = core.get_video_format(target_format)
 
-    if needs_conversion:
-        convert_kwargs = {
-            "format": target_format,
-            "range_in": is_full_color_range,
-            "range": is_full_color_range,
-        }
+    scale_w = 1
+    scale_h = 1
 
-        if target_format == vs.RGBS and orig_format.color_family == vs.YUV:
-            convert_kwargs["matrix_in_s"] = "709"
+    if video.format.color_family == vs.ColorFamily.YUV:
+        subsampling_diff_w = target_format_info.subsampling_w - in_format_info.subsampling_w
+        subsampling_diff_h = target_format_info.subsampling_h - in_format_info.subsampling_h
 
-        video = core.resize.Point(video, **convert_kwargs)
+        scale_w = (
+            # for each increase in subsampling level, chroma resolution halves
+            # subsampling=0 -> full res, subsampling=1 -> half res, subsampling=2 -> quarter res
+            2**subsampling_diff_w
+        )
+        scale_h = 2**subsampling_diff_h
+
+        video = scale_luminance(video, True, scale_w, scale_h)
 
     video = process_func(video)
 
-    if needs_conversion:
-        convert_back_kwargs = {
-            "format": orig_format.id,
-            "range_in": is_full_color_range,
-            "range": is_full_color_range,
-        }
+    if scale_w != 1 or scale_h != 1:
+        video = scale_luminance(video, False, scale_w, scale_h)
 
-        if target_format == vs.RGBS and orig_format.color_family == vs.YUV:
-            convert_back_kwargs["matrix_s"] = "709"
+    return video
 
-        video = core.resize.Point(video, **convert_back_kwargs)
+
+def guess_matrix(width: int, height: int) -> int:
+    if height >= 720 or width >= 1280:
+        return vs.MATRIX_BT709
+    else:
+        return vs.MATRIX_ST170_M  # BT601, standard for SD
+
+
+def guess_transfer(width: int, height: int) -> int:
+    if height >= 720 or width >= 1280:
+        return vs.TRANSFER_BT709
+    else:
+        return vs.TRANSFER_BT601
+
+
+def guess_primaries(width: int, height: int) -> int:
+    if height >= 720 or width >= 1280:
+        return vs.PRIMARIES_BT709
+    else:
+        return vs.PRIMARIES_ST170_M  # BT601
+
+
+def with_format(
+    video: vs.VideoNode,
+    video_info: VideoInfo,
+    target_format,
+    process_func,
+    expand_range: bool = True,
+):
+    try:
+        orig_format = video.format
+        needs_conversion = orig_format.id != target_format
+
+        # rgb made from yuv is full range, float or not, so everything working in rgb can assume it
+        yuv_to_rgb = core.get_video_format(target_format).color_family == vs.RGB and orig_format.color_family == vs.YUV
+
+        # unless the caller wants the source's range, since expanding clips superwhite which the gamma blend needs
+        rgb_range = True if expand_range else video_info.is_full_color_range
+
+        source_matrix = None
+        source_chromaloc = None
+
+        if needs_conversion:
+            convert_kwargs = {
+                "format": target_format,
+                "range_in": video_info.is_full_color_range,
+                "range": rgb_range if yuv_to_rgb else video_info.is_full_color_range,
+            }
+
+            if yuv_to_rgb:
+                # @HACK - some videos (adobe -_-) dont set the color transfer & primaries for example which means resizing fails cause it doesnt have the required information
+                # here im just making educated guesses as to what they are but this is so dumb
+                props = dict(video.get_frame(0).props)
+
+                log.info("guessing video props. original props:", props)
+
+                set_props = {}
+
+                if props.get("_Matrix", 0) in {0, vs.MATRIX_UNSPECIFIED}:
+                    set_props["_Matrix"] = guess_matrix(video.width, video.height)
+
+                if props.get("_Transfer", 0) in {0, vs.TRANSFER_UNSPECIFIED}:
+                    set_props["_Transfer"] = guess_transfer(video.width, video.height)
+
+                if props.get("_Primaries", 0) in {0, vs.PRIMARIES_UNSPECIFIED}:
+                    set_props["_Primaries"] = guess_primaries(video.width, video.height)
+
+                if set_props:
+                    video = core.std.SetFrameProps(video, **set_props)
+
+                source_matrix = set_props.get("_Matrix", props.get("_Matrix"))
+                source_chromaloc = props.get("_ChromaLocation")
+
+            log.info("conversion kwargs", convert_kwargs)
+
+            video = core.resize.Point(video, **convert_kwargs)
+    except BlurException:
+        raise
+    except Exception as e:
+        raise BlurException(
+            "Failed to convert video format. You may need to convert your input video's colorspace manually.",
+            e,
+        ) from e
+
+    video = process_func(video)
+
+    try:
+        if needs_conversion:
+            convert_back_kwargs = {
+                "format": orig_format.id,
+                "range_in": rgb_range if yuv_to_rgb else video_info.is_full_color_range,
+                "range": video_info.is_full_color_range,
+            }
+
+            if yuv_to_rgb:
+                convert_back_kwargs["matrix"] = source_matrix
+
+                if source_chromaloc is not None:
+                    convert_back_kwargs["chromaloc"] = source_chromaloc
+
+            # @AI: dropping back to 8 bit rounds every pixel in a smooth gradient the same direction, and a
+            # whole area wrong by the same amount is what a visible band is. dithering varies which way
+            # each pixel rounds so the error cancels out instead. does nothing if the depth did not drop
+            convert_back_kwargs["dither_type"] = "error_diffusion"
+
+            log.info("conversion back kwargs", convert_back_kwargs)
+
+            video = core.resize.Point(video, **convert_back_kwargs)
+
+        return video
+    except BlurException:
+        raise
+    except Exception as e:
+        raise BlurException(
+            "Failed to convert video format back after processing. Please copy the extended log and report this to GitHub issues or the Discord.",
+            e,
+        ) from e
+
+
+def grade(
+    video: vs.VideoNode,
+    video_info: VideoInfo,
+    brightness: float,
+    contrast: float,
+    saturation: float,
+) -> vs.VideoNode:
+    if video.format.color_family not in (vs.YUV, vs.GRAY):
+        return with_format(
+            video,
+            video_info,
+            vs.YUV444PS,
+            lambda v: grade(v, video_info, brightness, contrast, saturation),
+        )
+
+    fmt = video.format
+    full = video_info.is_full_color_range
+
+    if fmt.sample_type == vs.FLOAT:
+        black, luma_scale = (0.0, 1.0) if full else (16 / 255, 219 / 255)
+        neutral = 0.0
+    else:
+        step = 1 << (fmt.bits_per_sample - 8)
+        black, luma_scale = (0, (1 << fmt.bits_per_sample) - 1) if full else (16 * step, 219 * step)
+        neutral = 128 * step
+
+    mid = black + luma_scale / 2
+
+    # (y - black) * brightness, then (y - mid) * contrast + mid, folded into one multiply and add
+    gain = brightness * contrast
+    offset = black * contrast * (1 - brightness) + mid * (1 - contrast)
+
+    luma = "" if brightness == 1 and contrast == 1 else f"x {gain} * {offset} +"
+    chroma = "" if saturation == 1 else f"x {saturation} * {neutral * (1 - saturation)} +"
+
+    if fmt.color_family == vs.GRAY:
+        return core.std.Expr(video, [luma])
+
+    return core.std.Expr(video, [luma, chroma, chroma])
+
+
+def with_padding(
+    video: vs.VideoNode,
+    multiple: int | None,
+    process_func,
+):
+    if multiple is not None:
+        w, h = video.width, video.height
+        pad_w = math.ceil(w / multiple) * multiple
+        pad_h = math.ceil(h / multiple) * multiple
+        needs_padding = pad_w != w or pad_h != h
+
+        if needs_padding:
+            video = video.std.AddBorders(right=pad_w - w, bottom=pad_h - h)
+
+    video = process_func(video)
+
+    if multiple is not None and needs_padding:
+        video = video.std.Crop(right=pad_w - w, bottom=pad_h - h)
 
     return video

@@ -1,15 +1,22 @@
 #pragma once
 
 #include "updates.h"
-#include "config_blur.h"
+
+#include "blur_version.h"
 
 const std::string APPLICATION_NAME = "blur";
-const std::string BLUR_VERSION = "2.45";
+const std::string BLUR_VERSION = BLUR_VERSION_STRING;
+
+#ifdef WIN32
+#	define TENSORRT
+#endif
+
+#define BLUR_COLOR_THEMES
 
 class Blur { // todo: switch all the classes which could be namespaces into namespaces
 public:
 	bool initialised = false;
-	bool exiting = false;
+	std::atomic<bool> exiting = false;
 	std::atomic<bool> cleanup_performed;
 	bool in_atexit = false;
 
@@ -30,25 +37,14 @@ public:
 
 	void cleanup();
 
-	void initialise_base_temp_path();
-
-	[[nodiscard]] std::optional<std::filesystem::path> create_temp_path(const std::string& folder_name) const;
-	static bool remove_temp_path(const std::filesystem::path& temp_path);
-
 	static tl::expected<updates::UpdateCheckRes, std::string> check_updates();
-	static void update(
+	static bool update(
 		const std::string& tag,
-		const std::optional<std::function<void(const std::string& text, bool done)>>& progress_callback = {}
+		const std::optional<updates::ProgressCallback>& progress_callback = {},
+		const std::optional<updates::CancelCallback>& cancel_callback = {}
 	);
 
-	std::map<int, std::string> rife_gpus;
-	std::vector<std::string> rife_gpu_names;
-	bool initialised_rife_gpus = false;
-
-	void initialise_rife_gpus();
-	void pick_fastest_rife_gpu(BlurSettings& settings);
-
-	void setup_signal_handlers();
+	static void setup_signal_handlers();
 };
 
 inline Blur blur;

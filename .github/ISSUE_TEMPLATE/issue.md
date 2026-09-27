@@ -11,7 +11,7 @@ assignees: ''
 A description of the issue.
 
 **system**
-Blur version (e.g. 1.8): 
+Blur version (e.g. 1.8):
 OS (e.g. Windows 11):
 
 **steps (optional)**

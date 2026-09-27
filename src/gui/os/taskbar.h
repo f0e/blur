@@ -1,0 +1,22 @@
+#pragma once
+
+#include <cstdint>
+
+struct SDL_Window;
+
+namespace os::taskbar {
+	enum class ProgressState : std::uint8_t {
+		NONE,          // nothing drawn on the icon
+		INDETERMINATE, // busy, but we don't know how far along yet
+		NORMAL,
+		PAUSED,
+		ERRORED, // not ERROR - that's a windows macro
+	};
+
+	// no-op on platforms without a taskbar
+	void initialise(SDL_Window* window);
+	void cleanup();
+
+	// progress is 0-1 and only used for NORMAL/PAUSED/ERRORED. calls that wouldn't change anything are dropped
+	void set_progress(ProgressState state, float progress = 0.f);
+}

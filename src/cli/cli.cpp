@@ -1,5 +1,8 @@
 #include "cli.h"
 #include "common/rendering.h"
+#include "common/config_rules.h"
+#include "common/masks.h"
+#include "common/media.h"
 
 bool cli::run(
 	std::vector<std::filesystem::path> inputs,
@@ -7,7 +10,10 @@ bool cli::run(
 	std::vector<std::filesystem::path> config_paths,
 	bool preview,
 	bool verbose,
-	bool disable_update_check
+	bool disable_update_check,
+	const std::string& mask,
+	const std::optional<bool>& auto_mask,
+	const std::vector<std::string>& config_names
 ) {
 	auto init_res = blur.initialise(verbose, preview);
 	if (!init_res) { // todo: preview in cli
@@ -49,28 +55,68 @@ bool cli::run(
 		}
 	}
 
+	bool manual_config_names = !config_names.empty();
+	if (manual_config_names && inputs.size() != config_names.size()) {
+		u::log(
+			"Input filename/config name count mismatch ({} inputs, {} config names).",
+			inputs.size(),
+			config_names.size()
+		);
+		return false;
+	}
+
+	// check up front so a typo doesn't fail halfway through the batch
+	if (manual_config_names) {
+		auto available = config_blur::list();
+
+		for (const auto& name : config_names) {
+			if (!u::contains(available, name)) {
+				u::log("Config '{}' not found. Available configs: {}", name, u::join(available, ", "));
+				return false;
+			}
+		}
+	}
+
+	if (!manual_config_names && !manual_config_files && config_blur::get_default_name().empty() &&
+	    !config_rules::any_usable(config_rules::get_config(), config_blur::list()))
+	{
+		u::log(
+			"No config to render with. Pass --config-name, or set a default config or rule in the app. Available configs: {}",
+			u::join(config_blur::list(), ", ")
+		);
+		return false;
+	}
+
+	bool any_failed = false;
+
 	for (size_t i = 0; i < inputs.size(); ++i) {
 		std::filesystem::path input_path = inputs[i];
 
 		if (!std::filesystem::exists(input_path)) {
 			// TODO: test with unicode
 			u::log("Video '{}' was not found (wrong path?)", input_path);
+			any_failed = true;
 			continue;
 		}
 
 		input_path = std::filesystem::canonical(input_path);
 
-		auto video_info = u::get_video_info(input_path);
+		auto video_info = media::get_video_info(input_path);
 		if (!video_info.has_video_stream) {
 			u::log("Video '{}' is not a valid video or is unreadable", input_path);
+			any_failed = true;
 			continue;
 		}
 
 		std::optional<std::filesystem::path> output_path;
 		std::optional<std::filesystem::path> config_path;
+		std::optional<std::string> config_name;
 
 		if (manual_config_files)
 			config_path = config_paths[i];
+
+		if (manual_config_names)
+			config_name = config_names[i];
 
 		if (manual_output_files) {
 			output_path = outputs[i];
@@ -81,21 +127,55 @@ bool cli::run(
 				std::filesystem::create_directories(parent);
 		}
 
-		// set up render
-		auto render = rendering.queue_render(Render(input_path, video_info, output_path, config_path));
+		std::optional<std::string> mask_override;
+		if (!mask.empty()) // "none" turns off the config's mask
+			mask_override = mask == masks::NONE_OPTION ? "" : mask;
 
-		if (blur.verbose) {
-			u::log(
-				"Queued '{}' for render, outputting to '{}'", render.get_video_name(), render.get_output_video_path()
-			);
+		auto add_res = rendering::video_render_queue.add(
+			input_path,
+			video_info,
+			config_path,
+			config_app::get_app_config(),
+			output_path,
+			0.f,
+			1.f,
+			{},
+			[&any_failed](const rendering::VideoRenderDetails& render, const auto& result) {
+				if (result)
+					return;
+
+				any_failed = true;
+
+				const auto& error = result.error();
+				u::log(
+					"Failed to render '{}': {}",
+					render.input_path.stem(),
+					std::holds_alternative<rendering::RenderError>(error)
+						? std::get<rendering::RenderError>(error).to_string()
+						: std::get<std::string>(error)
+				);
+			},
+			config_name,
+			mask_override,
+			auto_mask
+		);
+
+		if (add_res.error) {
+			u::log("Failed to queue '{}' for render: {}", input_path.stem(), *add_res.error);
+			any_failed = true;
+		}
+		else {
+			if (blur.verbose) {
+				u::log("Queued '{}' for render", input_path.stem());
+			}
 		}
 	}
 
 	// render videos
-	while (!blur.exiting && rendering.render_next_video())
+	while (!blur.exiting && rendering::video_render_queue.process_next())
 		;
 
 	u::log("Finished rendering");
 
-	return true;
+	return !any_failed;
 }

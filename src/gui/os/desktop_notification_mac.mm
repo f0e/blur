@@ -6,9 +6,11 @@
 #import <Foundation/Foundation.h>
 #import <UserNotifications/UserNotifications.h>
 
-static desktop_notification::ClickCallback g_click_callback;
-static bool g_has_permission = false;
-static bool g_tried_initialise = false;
+namespace {
+desktop_notification::ClickCallback g_click_callback;
+bool g_has_permission = false;
+bool g_tried_initialise = false;
+} // namespace
 
 @interface NotificationDelegate : NSObject <UNUserNotificationCenterDelegate>
 @end
@@ -17,22 +19,24 @@ static bool g_tried_initialise = false;
 
 - (void)userNotificationCenter:(UNUserNotificationCenter*)center
 	didReceiveNotificationResponse:(UNNotificationResponse*)response
-			 withCompletionHandler:(void (^)(void))completionHandler {
+			 withCompletionHandler:(void (^)(void))completion_handler {
 	if (g_click_callback) {
 		g_click_callback();
 	}
-	completionHandler();
+	completion_handler();
 }
 
 - (void)userNotificationCenter:(UNUserNotificationCenter*)center
 	   willPresentNotification:(UNNotification*)notification
-		 withCompletionHandler:(void (^)(UNNotificationPresentationOptions options))completionHandler {
-	completionHandler(UNNotificationPresentationOptionBanner | UNNotificationPresentationOptionSound);
+		 withCompletionHandler:(void (^)(UNNotificationPresentationOptions options))completion_handler {
+	completion_handler(UNNotificationPresentationOptionBanner | UNNotificationPresentationOptionSound);
 }
 
 @end
 
-static NotificationDelegate* g_delegate = nil;
+namespace {
+NotificationDelegate* g_delegate = nil;
+}
 
 namespace desktop_notification {
 
@@ -75,7 +79,7 @@ bool show(const std::string& title, const std::string& message, ClickCallback on
 		return false;
 	}
 
-	g_click_callback = on_click;
+	g_click_callback = std::move(on_click);
 
 	@autoreleasepool {
 		UNMutableNotificationContent* content = [[UNMutableNotificationContent alloc] init];

@@ -3,8 +3,10 @@
 
 #include "../keys.h"
 
-const gfx::Size TAB_PADDING = { 10, 7 };
+const int TAB_PADDING_X = 10;
 const float TAB_ROUNDING = 5.f;
+
+const int TAB_STROKE_SHADE = 100;
 
 namespace {
 	void update_background(ui::AnimatedElement& element) {
@@ -41,7 +43,7 @@ void ui::render_tabs(const Container& container, const AnimatedElement& element)
 			option_rect.center(),
 			gfx::Color(100, 100, 100, anim * 255),
 			option,
-			*tabs_data.font,
+			tabs_data.font,
 			FONT_CENTERED_X | FONT_CENTERED_Y
 		);
 	}
@@ -61,14 +63,18 @@ void ui::render_tabs(const Container& container, const AnimatedElement& element)
 			option_rect.center(),
 			gfx::Color::black(anim * 255),
 			option,
-			*tabs_data.font,
+			tabs_data.font,
 			FONT_CENTERED_X | FONT_CENTERED_Y
 		);
 	}
 
 	render::pop_clip_rect();
 
-	render::rounded_rect_stroke(element.element->rect, gfx::Color(100, 100, 100, anim * 255), TAB_ROUNDING);
+	render::rounded_rect_stroke(
+		element.element->rect,
+		gfx::Color(TAB_STROKE_SHADE, TAB_STROKE_SHADE, TAB_STROKE_SHADE, anim * 255),
+		TAB_ROUNDING
+	);
 }
 
 bool ui::update_tabs(const Container& container, AnimatedElement& element) {
@@ -91,7 +97,7 @@ bool ui::update_tabs(const Container& container, AnimatedElement& element) {
 					if (tabs_data.on_select)
 						(*tabs_data.on_select)();
 
-					// keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
+					keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
 					return true;
 				}
 			}
@@ -103,6 +109,10 @@ bool ui::update_tabs(const Container& container, AnimatedElement& element) {
 	return false;
 }
 
+int ui::tabs_height(const render::Font& font) {
+	return button_height(font);
+}
+
 ui::AnimatedElement* ui::add_tabs(
 	const std::string& id,
 	Container& container,
@@ -111,7 +121,7 @@ ui::AnimatedElement* ui::add_tabs(
 	const render::Font& font,
 	std::optional<std::function<void()>> on_select
 ) {
-	gfx::Rect rect(container.current_position, gfx::Size(0, font.height() + (TAB_PADDING.h * 2)));
+	gfx::Rect rect(container.current_position, gfx::Size(0, tabs_height(font)));
 	std::vector<gfx::Rect> option_offset_rects;
 
 	gfx::Rect selected_offset_rect;
@@ -121,7 +131,7 @@ ui::AnimatedElement* ui::add_tabs(
 
 		gfx::Size text_size = font.calc_size(option);
 
-		gfx::Rect option_rect = { 0, 0, text_size.w + (TAB_PADDING.w * 2), rect.h };
+		gfx::Rect option_rect = { 0, 0, text_size.w + (TAB_PADDING_X * 2), rect.h };
 		if (i > 0)
 			option_rect.x = option_offset_rects.back().x2();
 
@@ -140,7 +150,7 @@ ui::AnimatedElement* ui::add_tabs(
 		TabsElementData{
 			.options = options,
 			.selected = &selected,
-			.font = &font,
+			.font = font,
 			.on_select = std::move(on_select),
 			.option_offset_rects = std::move(option_offset_rects),
 		},

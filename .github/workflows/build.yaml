@@ -1,164 +1,221 @@
 name: Build
 
-on: [push]
+on:
+  push:
+    paths-ignore:
+      - "**.md"
+      - LICENSE
+      - .github/ISSUE_TEMPLATE/**
+      - .github/FUNDING.yml
+      - .github/dependabot.yml
+
+# cancel superseded runs, but never a tag build mid-release
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  MPV_VERSION: "20260118-git-468d34c"
+  MPV_SHA256: "0a538daa4fb6e6550ead2c345165ebc4696822dcb648ef9b80e9f5185a9e63e6"
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
+  check-version:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check version matches tag
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          # join project()'s lines so VERSION is found wherever it's wrapped
+          version=$(awk '/^project\(/,/\)/' CMakeLists.txt | tr '\n' ' ' | sed -nE 's/.*[[:space:](]VERSION[[:space:]]+([^[:space:])]+).*/\1/p')
+
+          if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "project version '$version' isn't semver (MAJOR.MINOR.PATCH)" >&2
+            exit 1
+          fi
+
+          if [[ "v$version" != "$TAG" ]]; then
+            echo "project version '$version' doesn't match tag '$TAG'" >&2
+            exit 1
+          fi
+
   build:
+    needs: check-version
     runs-on: ${{ matrix.os }}
+    # linux builds in the oldest distro still supported, so the release runs on as many as possible
+    container: ${{ matrix.container }}
+    # generous enough for a cold vcpkg cache (angle builds from source)
+    timeout-minutes: 180
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14, windows-2022]
+        os: [ubuntu-24.04, macos-15, windows-2022]
         build-type: [Release]
+        include:
+          - os: ubuntu-24.04
+            container: ubuntu:22.04
+            install-deps-script: linux/install-build-deps.sh
+            deps-script: linux/build-dependencies.sh
+          - os: macos-15
+            install-deps-script: macos/install-build-deps.sh
+            deps-script: macos/build-dependencies.sh
+          - os: windows-2022
+            deps-script: windows/build-dependencies.ps1
 
     steps:
+      # checkout needs git to fetch submodules
+      - name: Install git (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates
+
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           submodules: recursive
+          persist-credentials: false
 
-      # ── ccache ────────────────────────────────────────────────────────────
-      - name: Install ccache (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get install -y ccache
+      # # ── ccache ────────────────────────────────────────────────────────────
+      # - name: Install ccache (Linux)
+      #   if: runner.os == 'Linux'
+      #   run: sudo apt-get install -y ccache
 
-      - name: Install ccache (macOS)
-        if: runner.os == 'macOS'
-        run: brew install ccache
+      # - name: Install ccache (macOS)
+      #   if: runner.os == 'macOS'
+      #   run: brew install ccache
 
-      - name: Install ccache (Windows)
-        if: runner.os == 'Windows'
-        run: choco install ccache --no-progress
+      # - name: Install ccache (Windows)
+      #   if: runner.os == 'Windows'
+      #   run: choco install ccache --no-progress
 
-      - name: Cache ccache
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.ccache
-            ~/AppData/Local/ccache
-          key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ github.sha }}
-          restore-keys: |
-            ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-
+      # - name: Cache ccache
+      #   uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      #   with:
+      #     path: |
+      #       ~/.ccache
+      #       ~/AppData/Local/ccache
+      #     key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ github.sha }}
+      #     restore-keys: |
+      #       ccache-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-
 
-      - name: Configure ccache
-        shell: bash
-        run: |
-          ccache --set-config=max_size=500M
-          ccache --set-config=compression=true
-          ccache -z  # zero stats so we can see hit rate in logs
+      # - name: Configure ccache
+      #   run: |
+      #     ccache --set-config=max_size=500M
+      #     ccache --set-config=compression=true
+      #     ccache -z  # zero stats so we can see hit rate in logs
 
-      # ── Linux setup ───────────────────────────────────────────────────────
-      - name: Cache apt packages
-        if: runner.os == 'Linux'
-        uses: actions/cache@v5
-        with:
-          path: /var/cache/apt/archives
-          key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml') }}
-          restore-keys: apt-${{ runner.os }}-
-
-      - name: Add GCC repository
-        if: runner.os == 'Linux'
-        run: |
-          for i in {1..5}; do
-            sudo apt-get update && sudo apt-get install -y software-properties-common && break || sleep 10
-          done
-          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libx11-dev \
-            libxcursor-dev \
-            libxinerama-dev \
-            libxi-dev \
-            libxrandr-dev \
-            libgl1-mesa-dev \
-            libncurses6 \
-            gcc-13 g++-13 \
-            libfontconfig1-dev \
-            autoconf automake libtool pkg-config libltdl-dev \
-            libnotify-dev \
-            ninja-build \
-            gperf
-
-      - name: Install GCC
-        if: runner.os == 'Linux'
-        run: |
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 --slave /usr/bin/g++ g++ /usr/bin/g++-13 --slave /usr/bin/gcov gcov /usr/bin/gcov-13
-          sudo update-alternatives --set gcc /usr/bin/gcc-13
+      # ── System dependencies ───────────────────────────────────────────────
+      - name: Install system dependencies
+        if: matrix.install-deps-script
+        env:
+          SCRIPT: ${{ matrix.install-deps-script }}
+        run: bash "ci/$SCRIPT"
 
       # ── Project dependencies ──────────────────────────────────────────────
-      - name: Cache build dependencies (macOS)
-        if: runner.os == 'macOS'
-        uses: actions/cache@v5
+      - name: Restore build dependencies
+        id: deps-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ci/out
-          key: deps-macos-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-macos.sh') }}
+          path: |
+            ci/out
+            ci/download/mpv-prefix
+          key: deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('ci/{0}', matrix.deps-script)) }}
 
-      - name: Cache build dependencies (Linux)
-        if: runner.os == 'Linux'
-        uses: actions/cache@v5
+      - name: Collect dependencies
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        working-directory: ci
+        env:
+          SCRIPT: ${{ matrix.deps-script }}
+        run: |
+          if [[ "$SCRIPT" == *.ps1 ]]; then
+            pwsh "$SCRIPT"
+          else
+            bash "$SCRIPT"
+          fi
+
+      - name: Save build dependencies
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ci/out
-          key: deps-linux-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-linux.sh') }}
+          path: |
+            ci/out
+            ci/download/mpv-prefix
+          key: ${{ steps.deps-cache.outputs.cache-primary-key }}
 
-      - name: Cache build dependencies (Windows)
+      - name: Restore libmpv (Windows)
+        id: libmpv-cache
         if: runner.os == 'Windows'
-        uses: actions/cache@v5
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ci/out
-          key: deps-windows-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-windows.ps1') }}
+          path: mpv
+          key: libmpv-${{ runner.os }}-${{ env.MPV_VERSION }}-${{ env.MPV_SHA256 }}
 
-      - name: Collect dependencies (macOS)
-        if: runner.os == 'macOS'
+      - name: Download libmpv (Windows)
+        if: runner.os == 'Windows' && steps.libmpv-cache.outputs.cache-hit != 'true'
         run: |
-          brew install ffmpeg libass zimg imagemagick autoconf automake libtool gcc ffmpeg llvm@20 meson xxhash vapoursynth fftw dylibbundler vulkan-loader molten-vk
-          cd ci
-          bash build-dependencies-macos.sh
+          curl -L https://sourceforge.net/projects/mpv-player-windows/files/libmpv/mpv-dev-x86_64-v3-${{ env.MPV_VERSION }}.7z/download > mpv.7z
+          echo "${{ env.MPV_SHA256 }}  mpv.7z" | sha256sum -c
+          7z x mpv.7z
+          mkdir mpv
+          mv include mpv
+          gendef libmpv-2.dll
+          mv libmpv-2.dll mpv/libmpv-2.dll
+          mv libmpv-2.def mpv.def
+          mv mpv.def libmpv.dll.a mpv/
 
-      - name: Collect dependencies (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          cd ci
-          pwsh build-dependencies-windows.ps1
-
-      - name: Collect dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          cd ci
-          bash build-dependencies-linux.sh
+      - name: Save libmpv (Windows)
+        if: runner.os == 'Windows' && steps.libmpv-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: mpv
+          key: ${{ steps.libmpv-cache.outputs.cache-primary-key }}
 
       # ── vcpkg ─────────────────────────────────────────────────────────────
       - name: Set up vcpkg
-        shell: bash
         run: |
-          git clone https://github.com/microsoft/vcpkg.git
-          cd vcpkg
-          ./bootstrap-vcpkg.sh
+          # check out the same commit as the manifest's baseline so the cache key stays stable
+          baseline="$(jq -r '."vcpkg-configuration"."default-registry".baseline' vcpkg.json)"
+          git init vcpkg
+          git -C vcpkg fetch --depth 1 https://github.com/microsoft/vcpkg.git "$baseline"
+          git -C vcpkg checkout FETCH_HEAD
+          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
-      - name: Get vcpkg commit hash
-        id: vcpkg-commit
-        shell: bash
-        run: echo "hash=$(git -C vcpkg rev-parse HEAD)" >> $GITHUB_OUTPUT
+          # github.workspace is the host's path inside containers, this is right in both
+          echo "VCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg" >> "$GITHUB_ENV"
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            echo "PKG_CONFIG_PATH=$GITHUB_WORKSPACE/ci/download/mpv-prefix/lib/pkgconfig" >> "$GITHUB_ENV"
+          fi
 
-      - name: Cache vcpkg packages
-        uses: actions/cache@v5
+      - name: Restore vcpkg packages
+        id: vcpkg-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
-            vcpkg_installed/
+            out/build/*/vcpkg_installed/
             vcpkg/downloads/
-            vcpkg/packages/
-          key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ steps.vcpkg-commit.outputs.hash }}-${{ hashFiles('vcpkg.json') }}
+          key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/*.cmake') }}
           restore-keys: |
-            vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-${{ steps.vcpkg-commit.outputs.hash }}-
             vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ matrix.build-type }}-
 
       # ── Build ─────────────────────────────────────────────────────────────
       - name: Determine CMake Preset
         id: select-preset
-        shell: bash
         run: |
           if [ "${{ runner.os }}" == "Windows" ]; then
             prefix="win"
@@ -168,37 +225,60 @@ jobs:
             prefix="mac"
           fi
           preset="${prefix}-$(echo "${{ matrix.build-type }}" | tr '[:upper:]' '[:lower:]')"
-          echo "preset=$preset" >> $GITHUB_OUTPUT
+          echo "preset=$preset" >> "$GITHUB_OUTPUT"
 
       - name: Use Developer Command Prompt for Microsoft Visual C++
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
       - name: Configure CMake
-        run: cmake --preset ${{ steps.select-preset.outputs.preset }}
+        run: cmake --preset "$PRESET"
         env:
-          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-          CMAKE_C_COMPILER_LAUNCHER: ccache
-          CMAKE_CXX_COMPILER_LAUNCHER: ccache
+          PRESET: ${{ steps.select-preset.outputs.preset }}
+          # CMAKE_C_COMPILER_LAUNCHER: ccache
+          # CMAKE_CXX_COMPILER_LAUNCHER: ccache
+
+      - name: Save vcpkg packages
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            out/build/*/vcpkg_installed/
+            vcpkg/downloads/
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Build
-        run: cmake --build . --preset ${{ steps.select-preset.outputs.preset }}
+        run: cmake --build --preset "$PRESET"
         env:
-          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+          PRESET: ${{ steps.select-preset.outputs.preset }}
 
-      - name: Print ccache stats
-        shell: bash
-        run: ccache -s
+      # - name: Print ccache stats
+      #   run: ccache -s
 
       # ── Package ───────────────────────────────────────────────────────────
+      # the runner image only has inno setup 6
+      - name: Install Inno Setup 7 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = "$env:RUNNER_TEMP\innosetup.exe"
+          $dir = "$env:RUNNER_TEMP\innosetup"
+          Invoke-WebRequest https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe -OutFile $installer
+          if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne "0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f") {
+            throw "Inno Setup download doesn't match its hash"
+          }
+          Start-Process $installer -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/DIR=$dir" -Wait
+          & "$dir\ISCC.exe" --version
+          $dir | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+
       - name: Prepare Binaries
         id: prep
-        shell: bash
         run: |
           # Set up variables
           build_dir="bin/${{ matrix.build-type }}"
           config="${{ runner.os }}-${{ matrix.build-type }}-$(echo "${{ runner.arch }}" | tr '[:upper:]' '[:lower:]')"
           bundle_dir="$PWD/bundle"
+          tarball_dir="$PWD/tarball"
 
           # Create bundle directory for all outputs
           mkdir -p "$bundle_dir"
@@ -206,32 +286,15 @@ jobs:
 
           case "${{ runner.os }}" in
             "Windows")
-              # Rename binaries
-              mv blur-cli.exe "blur-cli-$config.exe"
-              mv blur-gui.exe "blur-$config.exe"
+              iscc ../../installer/setup.iss
 
-              # Build installer
-              cd ../../
-              cp -r ci/out/* installer/dependencies/lib
-              curl -L https://aka.ms/vs/17/release/vc_redist.x64.exe -o installer/redist/vc_redist.x64.exe
-              cp "$build_dir/blur-cli-$config.exe" installer/resources/blur-cli.exe
-              cp "$build_dir/blur-$config.exe" installer/resources/blur-gui.exe
-              iscc installer/setup.iss
-
-              # Copy everything to bundle
-              cp "$build_dir/blur-cli-$config.exe" "$bundle_dir/"
-              cp "$build_dir/blur-$config.exe" "$bundle_dir/"
-              cp installer/output/blur-installer.exe "$bundle_dir/blur-Windows-Installer-x64.exe"
+              cp blur-cli.exe "$bundle_dir/blur-cli-$config.exe"
+              cp blur-gui.exe "$bundle_dir/blur-$config.exe"
+              cp ../../installer/output/blur-installer.exe "$bundle_dir/blur-Windows-Installer-x64.exe"
               ;;
 
             "Linux")
-              # Package everything
-              mkdir -p package
-              mv blur-cli "package/blur-cli-$config"
-              mv blur "package/blur-$config"
-              mv lib/ package/
-              cp -r ../../ci/out/* package/
-              tar -czf "$bundle_dir/blur-$config.tar.gz" -C package .
+              ../../ci/linux/appimage/package.sh . "$bundle_dir/blur-Linux-x64.AppImage" "$tarball_dir/blur-Linux-x64.tar.gz"
               ;;
 
             "macOS")
@@ -240,7 +303,6 @@ jobs:
               tar -czf "$bundle_dir/blur-cli-$config.tar.gz" "blur-cli-$config"
 
               # Create DMG
-              brew install create-dmg
               mkdir source_folder && mv blur.app source_folder/
               create-dmg \
                 --volname "Blur Installer" \
@@ -255,16 +317,93 @@ jobs:
           esac
 
           # Set outputs
-          echo "config=$config" >> $GITHUB_OUTPUT
+          echo "config=$config" >> "$GITHUB_OUTPUT"
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: Blur-${{ steps.prep.outputs.config }}
           path: bundle/
 
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+      - name: Upload Tarball Artifact (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          files: bundle/*
+          name: Blur-${{ steps.prep.outputs.config }}-tarball
+          path: tarball/
+
+  test-linux:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download AppImage
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: Blur-Linux-Release-x64
+          path: bundle/
+
+      - name: Download tarball
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: Blur-Linux-Release-x64-tarball
+          path: bundle/
+
+      - name: Test on clean distros
+        run: |
+          chmod +x bundle/blur-Linux-x64.AppImage
+          ci/linux/test/distros.sh bundle/blur-Linux-x64.AppImage bundle/blur-Linux-x64.tar.gz
+
+  release:
+    needs: [build, test-linux]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write # for attestations
+      attestations: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: Blur-*
+          path: bundle/
+          merge-multiple: true
+
+      - name: Generate checksums
+        working-directory: bundle
+        run: sha256sum -- * > SHA256SUMS
+
+      # verify a download with `gh attestation verify <file> --repo <owner>/<repo>`
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: bundle/SHA256SUMS
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # create it as a draft so it isn't public until every asset is uploaded
+          created=false
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --draft --title "$TAG" --notes ""
+            created=true
+          fi
+
+          gh release upload "$TAG" bundle/* --clobber
+
+          # leave releases made by hand as they were
+          if [[ "$created" == true ]]; then
+            gh release edit "$TAG" --draft=false
+          fi

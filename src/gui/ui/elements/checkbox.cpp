@@ -20,7 +20,7 @@ void ui::render_checkbox(const Container& container, const AnimatedElement& elem
 
 	// Checkbox border and check mark colors
 	gfx::Color border_color = gfx::Color(100, 100, 100, anim * 255);
-	gfx::Color check_color = HIGHLIGHT_COLOR.adjust_alpha(anim * check_anim);
+	gfx::Color check_color = highlight_color.adjust_alpha(anim * check_anim);
 
 	// render::rect_stroke(element.element->rect, gfx::Color(255, 0, 0, 255));
 
@@ -42,7 +42,7 @@ void ui::render_checkbox(const Container& container, const AnimatedElement& elem
 	text_pos.x += CHECKBOX_SIZE + LABEL_GAP;
 	text_pos.y = element.element->rect.center().y;
 
-	render::text(text_pos, gfx::Color::white(anim * 255), checkbox_data.label, *checkbox_data.font, FONT_CENTERED_Y);
+	render::text(text_pos, gfx::Color::white(anim * 255), checkbox_data.label, checkbox_data.font, FONT_CENTERED_Y);
 }
 
 bool ui::update_checkbox(const Container& container, AnimatedElement& element) {
@@ -80,9 +80,11 @@ ui::AnimatedElement* ui::add_checkbox(
 	const std::string& label,
 	bool& checked,
 	const render::Font& font,
-	std::optional<std::function<void(bool)>> on_change
+	std::optional<std::function<void(bool)>> on_change,
+	bool inline_element
 ) {
-	gfx::Size total_size(200, std::max(CHECKBOX_SIZE, font.height()));
+	int width = inline_element ? CHECKBOX_SIZE + LABEL_GAP + font.calc_size(label).w : 200;
+	gfx::Size total_size(width, std::max(CHECKBOX_SIZE, font.height()));
 
 	Element element(
 		id,
@@ -91,7 +93,7 @@ ui::AnimatedElement* ui::add_checkbox(
 		CheckboxElementData{
 			.label = label,
 			.checked = &checked,
-			.font = &font,
+			.font = font,
 			.on_change = std::move(on_change),
 		},
 		render_checkbox,

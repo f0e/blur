@@ -7,94 +7,70 @@
 #include "gui/renderer.h"
 #include "gui/ui/ui.h"
 
-#include "components/main.h"
 #include "components/notifications.h"
+#include "components/update_notice.h"
 #include "components/configs/configs.h"
+#include "common/encoding.h"
 
 namespace {
-	std::vector<std::filesystem::path> pending_video_paths;
-	std::mutex pending_video_paths_mutex;
+	size_t pending_index = 0;
+	std::vector<std::shared_ptr<tasks::PendingVideo>> pending_videos;
+	std::mutex pending_videos_mutex;
+
+	bool trim_leaves_no_frames(const tasks::PendingVideo& pending_video) {
+		if (!pending_video.video_info)
+			return false;
+
+		return !rendering::has_enough_frames_to_render(
+			*pending_video.video_info, pending_video.start, pending_video.end
+		);
+	}
+
+	void queue_render(const std::shared_ptr<tasks::PendingVideo>& pending_video) {
+		auto app_config = config_app::get_app_config();
+
+		auto queue_config_res = rendering::video_render_queue.add(
+			pending_video->video_path,
+			*pending_video->video_info,
+			{},
+			app_config,
+			{},
+			pending_video->start,
+			pending_video->end,
+			{},
+			[](const rendering::VideoRenderDetails& render,
+		       const tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>>& result) {
+				gui::renderer::on_render_finished(render, result);
+			},
+			pending_video->config_name,
+			pending_video->mask,
+			pending_video->auto_mask
+		);
+
+		if (queue_config_res.error) {
+			gui::components::notifications::add(
+				std::format(
+					"Failed to queue '{}' for render: {}", pending_video->video_path.stem(), *queue_config_res.error
+				),
+				ui::NotificationType::NOTIF_ERROR,
+				{},
+				std::chrono::duration<float>(6.f)
+			);
+		}
+	}
 }
 
 void tasks::run(const std::vector<std::string>& arguments) {
 	gui::initialisation_res = blur.initialise(false, true);
 
-	rendering.set_progress_callback([] {
-		std::optional<Render*> current_render_opt = rendering.get_current_render();
-		if (current_render_opt) {
-			Render& current_render = **current_render_opt;
-
-			RenderStatus status = current_render.get_status();
-			if (status.finished) {
-				u::log("current render is finished, copying it so its final state can be displayed once by gui");
-
-				// its about to be deleted, store a copy to be rendered at least once
-				gui::components::main::current_render_copy = current_render;
-				gui::to_render = true;
-			}
-		}
-
-		// idk what you're supposed to do to trigger a redraw in a separate thread!!! I dont do gui!!! this works
-		// tho :  ) todo: revisit this
-		// TODO PORT:
-		// ^ actually might not be needed since progress will update anyway
-	});
-
-	rendering.set_render_finished_callback([](Render* render, const tl::expected<RenderResult, std::string>& result) {
-		gui::renderer::on_render_finished(render, result);
-	});
+	// each of these spawns ffmpeg, which would otherwise hold up the first config parse
+	std::thread probe_thread;
+	if (gui::initialisation_res)
+		probe_thread = std::thread(encoding::probe_support);
 
 	auto update_res = Blur::check_updates();
-	if (update_res && !update_res->is_latest) {
-		static const auto update_notification_duration = std::chrono::duration<float>(15.f);
-
-#if defined(WIN32) || defined(__APPLE__)
-		gui::components::notifications::add(
-			std::format("There's a newer version ({}) available! Click to run the installer.", update_res->latest_tag),
-			ui::NotificationType::INFO,
-			[&](const std::string& id) {
-				gui::components::notifications::close(id);
-
-				const static std::string update_notification_id = "update progress notification";
-
-				gui::components::notifications::add(
-					update_notification_id,
-					"Downloading update...",
-					ui::NotificationType::INFO,
-					{},
-					std::chrono::duration<float>(gui::components::notifications::NOTIFICATION_LENGTH),
-					false
-				);
-
-				std::thread([update_res] {
-					Blur::update(update_res->latest_tag, [](const std::string& text, bool done) {
-						gui::components::notifications::add(
-							update_notification_id,
-							text,
-							ui::NotificationType::INFO,
-							{},
-							std::chrono::duration<float>(gui::components::notifications::NOTIFICATION_LENGTH),
-							done
-						);
-					});
-
-					blur.exiting = true;
-				}).detach();
-			},
-			update_notification_duration
-		);
-#else
-		gui::components::notifications::add(
-			std::format(
-				"There's a newer version ({}) available! Click to go to the download page.", update_res->latest_tag
-			),
-			ui::NotificationType::INFO,
-			[&](const std::string& id) {
-				SDL_OpenURL(update_res->latest_tag_url.c_str());
-			},
-			update_notification_duration
-		);
-#endif
+	if (update_res) {
+		gui::components::update_notice::set_available(*update_res);
 	}
 
 	std::vector<std::filesystem::path> paths;
@@ -105,16 +81,16 @@ void tasks::run(const std::vector<std::string>& arguments) {
 
 	add_files(paths); // todo: mac packaged app support (& linux? does it work?)
 
-	std::thread([] {
+	std::thread video_info_thread([] {
 		while (!blur.exiting) {
 			process_pending_files();
 
 			std::this_thread::sleep_for(std::chrono::milliseconds(50));
 		}
-	}).detach();
+	});
 
 	while (!blur.exiting) {
-		if (!rendering.render_next_video()) {
+		if (!rendering::video_render_queue.process_next()) {
 			finished_renders = 0;
 			std::this_thread::sleep_for(std::chrono::milliseconds(50));
 		}
@@ -122,10 +98,15 @@ void tasks::run(const std::vector<std::string>& arguments) {
 			finished_renders++;
 		}
 	}
+
+	video_info_thread.join();
+
+	if (probe_thread.joinable())
+		probe_thread.join();
 }
 
 void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
-	std::lock_guard<std::mutex> lock(pending_video_paths_mutex);
+	std::lock_guard<std::mutex> lock(pending_videos_mutex);
 
 	for (const auto& path_str : path_strs) {
 		std::filesystem::path path = std::filesystem::canonical(path_str);
@@ -134,51 +115,91 @@ void tasks::add_files(const std::vector<std::filesystem::path>& path_strs) {
 
 		u::log("queueing {}", path);
 
+		bool video_already_queued = false;
+		for (const auto& pending_video : pending_videos) {
+			if (path != pending_video->video_path)
+				continue;
+
+			video_already_queued = true;
+			break;
+		}
+
+		if (video_already_queued) {
+			gui::components::notifications::add(
+				std::format("Video '{}' is already queued for rendering", path.filename()), ui::NotificationType::INFO
+			);
+			continue;
+		}
+
 		if (gui::renderer::screen != gui::renderer::Screens::MAIN) {
 			gui::components::notifications::add(
 				std::format("Queued '{}' for rendering", path.filename()), ui::NotificationType::INFO
 			);
 		}
 
-		pending_video_paths.push_back(path);
+		static size_t next_video_id = 0;
+
+		auto resolved = config_blur::resolve_config(path, {});
+
+		auto pending_video = std::make_shared<PendingVideo>(PendingVideo{
+			.video_id = next_video_id++,
+			.video_path = path,
+			.config_name = resolved.name,
+			.config_source = resolved.source,
+			.config_rule_pattern = resolved.rule_pattern,
+		});
+
+		if (!resolved.name.empty()) {
+			auto config = config_blur::get_config(resolved.name);
+			pending_video->mask = config.mask;
+			pending_video->auto_mask = config.auto_mask;
+		}
+
+		pending_videos.push_back(std::move(pending_video));
 	}
 }
 
 void tasks::process_pending_files() {
-	std::vector<std::filesystem::path> video_paths_to_process;
+	std::unique_lock<std::mutex> lock(pending_videos_mutex);
 
-	{
-		std::lock_guard<std::mutex> lock(pending_video_paths_mutex);
-		if (pending_video_paths.empty())
-			return;
+	auto it = std::ranges::find_if(pending_videos, [](const auto& pv) {
+		return !pv->video_info.has_value();
+	});
 
-		video_paths_to_process = std::move(pending_video_paths);
-		pending_video_paths.clear();
+	if (it == pending_videos.end()) {
+		return;
 	}
 
-	auto app_config = config_app::get_app_config();
+	auto video_path = (*it)->video_path;
+	auto index = std::ranges::distance(pending_videos.begin(), it);
 
-	for (auto& video_path : video_paths_to_process) {
-		auto video_info = u::get_video_info(video_path);
+	auto video_info = media::get_video_info(video_path);
 
-		Render render(video_path, video_info);
-
+	if (index < pending_videos.size() && pending_videos[index]->video_path == video_path) {
 		if (!video_info.has_video_stream) {
 			gui::components::notifications::add(
-				std::format("File is not a valid video or is unreadable: {}", render.get_input_video_path()),
+				std::format("File is not a valid video or is unreadable: {}", video_path.filename()),
 				ui::NotificationType::NOTIF_ERROR
 			);
-			continue;
+			pending_videos.erase(pending_videos.begin() + index);
 		}
+		else {
+			pending_videos[index]->video_info = video_info;
 
-		if (app_config.notify_about_config_override) {
-			if (!render.is_global_config())
-				gui::components::notifications::add(
-					"Using override config from video folder", ui::NotificationType::INFO
-				);
+			bool can_start = !pending_videos[index]->config_name.empty();
+
+			if (can_start && (config_app::get_app_config().skip_queue || pending_videos[index]->start_immediately)) {
+				auto pending_video = pending_videos[index];
+
+				if (trim_leaves_no_frames(*pending_video)) {
+					pending_video->trim_range_warning = true;
+				}
+				else {
+					pending_videos.erase(pending_videos.begin() + index);
+					queue_render(pending_video);
+				}
+			}
 		}
-
-		rendering.queue_render(std::move(render));
 	}
 }
 
@@ -187,7 +208,7 @@ void tasks::add_sample_video(const std::filesystem::path& path_str) {
 	if (path.empty() || !std::filesystem::exists(path))
 		return;
 
-	const auto video_info = u::get_video_info(path);
+	const auto video_info = media::get_video_info(path);
 	if (!video_info.has_video_stream) {
 		gui::components::notifications::add(
 			std::format("File is not a valid video or is unreadable: {}", path.filename()),
@@ -196,12 +217,71 @@ void tasks::add_sample_video(const std::filesystem::path& path_str) {
 		return;
 	}
 
-	auto sample_video_path = blur.settings_path / "sample_video.mp4";
-
-	// todo: reencode?
-	std::filesystem::copy(path, sample_video_path);
+	gui::components::configs::set_sample_video(path);
 
 	gui::components::notifications::add("Added sample video", ui::NotificationType::SUCCESS);
+}
 
-	gui::components::configs::just_added_sample_video = true;
+void tasks::cancel_all_pending() {
+	std::lock_guard<std::mutex> lock(pending_videos_mutex);
+	pending_videos.clear();
+}
+
+void tasks::cancel_pending(size_t video_id) {
+	std::lock_guard<std::mutex> lock(pending_videos_mutex);
+	std::erase_if(pending_videos, [video_id](const std::shared_ptr<PendingVideo>& pv) {
+		return pv->video_id == video_id;
+	});
+}
+
+void tasks::start_pending_videos() {
+	std::lock_guard<std::mutex> lock(pending_videos_mutex);
+
+	size_t missing_config = 0;
+	size_t invalid_trim = 0;
+
+	std::erase_if(pending_videos, [&missing_config, &invalid_trim](const std::shared_ptr<PendingVideo>& pending_video) {
+		if (pending_video->config_name.empty()) {
+			missing_config++;
+			pending_video->config_missing_warning = true;
+			return false;
+		}
+
+		if (!pending_video->video_info) {
+			// not parsed yet, flag it to be started immediately when parsing finishes & don't erase
+			pending_video->start_immediately = true;
+			return false;
+		}
+
+		if (trim_leaves_no_frames(*pending_video)) {
+			invalid_trim++;
+			pending_video->trim_range_warning = true;
+			return false;
+		}
+
+		queue_render(pending_video);
+		return true;
+	});
+
+	if (missing_config > 0) {
+		gui::components::notifications::add(
+			"missing config",
+			missing_config == 1 ? "1 video still needs a config before it can render"
+								: std::format("{} videos still need a config before they can render", missing_config),
+			ui::NotificationType::NOTIF_ERROR
+		);
+	}
+
+	if (invalid_trim > 0) {
+		gui::components::notifications::add(
+			"invalid trim range",
+			invalid_trim == 1 ? "1 video has invalid trim points"
+							  : std::format("{} videos have invalid trim points", invalid_trim),
+			ui::NotificationType::NOTIF_ERROR
+		);
+	}
+}
+
+std::vector<std::shared_ptr<tasks::PendingVideo>> tasks::get_pending_copy() {
+	return pending_videos;
 }

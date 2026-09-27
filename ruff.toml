@@ -1,0 +1,2 @@
+line-length = 120
+extend-exclude = ["dependencies", "src/vapoursynth/external"]

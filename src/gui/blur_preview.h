@@ -1,0 +1,117 @@
+#pragma once
+
+#include "common/config_app.h"
+#include "common/config_blur.h"
+#include "common/media.h"
+#include "common/rendering/render_errors.h"
+#include "common/rendering/render_state.h"
+
+class VideoPlayer;
+
+// plays blur.py's output for a video in mpv, running vapoursynth in this process, so it can be seeked around
+// without rendering each frame from scratch
+class BlurPreview {
+public:
+	struct Request {
+		// NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members) only lives for the call it's made for
+		const std::filesystem::path& video_path;
+		const media::VideoInfo& video_info;
+		const BlurSettings& settings;
+		const GlobalAppSettings& app_settings;
+		// NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
+
+		float position = 0.f; // through the video, 0-1
+		bool mask = false;
+	};
+
+	struct Status {
+		rendering::RenderState::InitStage init_stage = rendering::RenderState::InitStage::NONE;
+		std::string frame_timing_log;
+
+		// cleared when different settings are requested
+		bool failed = false;
+	};
+
+	BlurPreview() = default;
+	~BlurPreview();
+
+	BlurPreview(const BlurPreview&) = delete;
+	BlurPreview(BlurPreview&&) = delete;
+	BlurPreview& operator=(const BlurPreview&) = delete;
+	BlurPreview& operator=(BlurPreview&&) = delete;
+
+	// call every ui frame it's shown. changing anything but the position reloads blur.py
+	void update(const Request& request);
+
+	[[nodiscard]] std::shared_ptr<VideoPlayer> ready_player() const;
+
+	// the frame it showed last, while it's on its way to a new position. nothing once it's reloading
+	[[nodiscard]] std::shared_ptr<VideoPlayer> previous_player() const;
+
+	[[nodiscard]] Status status() const;
+
+	std::optional<rendering::RenderError> take_error();
+
+	void handle_event(const SDL_Event& event, bool& to_render);
+
+	// how far into the source (from its first frame) the output frame shown for a position is centred, so the source
+	// can be shown at the same point
+	[[nodiscard]] static double source_time(
+		const BlurSettings& settings, const media::VideoInfo& video_info, float position
+	);
+
+	bool save_frame(
+		const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
+	) const;
+
+private:
+	struct Key {
+		std::filesystem::path video_path;
+		BlurSettings settings;
+		std::string gpu_type;
+		std::string rife_device;
+		std::string tensorrt_device;
+		bool mask = false;
+
+		bool operator==(const Key& other) const = default;
+	};
+
+	struct PendingScript {
+		Key key;
+		std::future<tl::expected<std::string, std::string>> script;
+	};
+
+	std::shared_ptr<VideoPlayer> m_player;
+
+	std::filesystem::path m_script_path;
+	std::filesystem::path m_log_path;
+	std::streamoff m_log_offset = 0;
+
+	std::optional<Key> m_requested;
+	float m_requested_target = 0.f;
+
+	std::optional<PendingScript> m_pending;
+	std::chrono::steady_clock::time_point m_last_build;
+
+	std::optional<Key> m_loaded;
+	std::optional<float> m_target;
+
+	std::unique_ptr<rendering::RenderState> m_state = std::make_unique<rendering::RenderState>();
+	std::optional<rendering::RenderError> m_error;
+	bool m_failed = false;
+
+	void start_build(const Request& request);
+	void finish_build();
+	void read_log();
+	void fail(rendering::RenderError error);
+};
+
+struct PreviewState {
+	bool playing = false;
+
+	std::shared_ptr<VideoPlayer> overlay;
+
+	BlurPreview::Status status;
+
+	[[nodiscard]] std::optional<std::string> status_text(std::optional<std::string> loading_text = {}) const;
+};

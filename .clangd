@@ -3,3 +3,12 @@ If:
 Diagnostics:
   Suppress:
     - "unused-includes"
+
+---
+# clangd checks a header using a nearby .cpp's compile command, which force-includes the gui
+# precompiled header. that pch already contains these headers, so they'd get parsed twice and
+# every class would be a redefinition. strip the pch flags so they're checked on their own
+If:
+  PathMatch: src/gui/render/primitives/.*\.h
+CompileFlags:
+  Remove: [-Xclang, -include-pch, -include]

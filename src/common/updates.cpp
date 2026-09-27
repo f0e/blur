@@ -6,54 +6,35 @@ namespace bp = boost::process;
 const std::string WINDOWS_INSTALLER_NAME = "blur-Windows-Installer-x64.exe";
 const std::vector<std::string> WINDOWS_INSTALLER_ARGS = { "/UPDATE" };
 const std::string MACOS_INSTALLER_NAME = "blur-macOS-Release-arm64.dmg";
+const std::string LINUX_APPIMAGE_NAME = "blur-Linux-x64.AppImage";
 
 namespace {
-	bool is_version_newer(std::string current, std::string latest) {
-		// Remove leading 'v' if present
-		if (!current.empty() && current[0] == 'v') {
-			current = current.substr(1);
+	// semver
+	std::optional<std::vector<int>> parse_version(std::string_view version) {
+		if (version.starts_with('v'))
+			version.remove_prefix(1);
+
+		std::vector<int> parts;
+
+		try {
+			for (const auto& part : u::split_string(std::string(version), "."))
+				parts.push_back(std::stoi(part));
 		}
-		if (!latest.empty() && latest[0] == 'v') {
-			latest = latest.substr(1);
-		}
-
-		auto current_split = u::split_string(current, ".");
-		auto latest_split = u::split_string(latest, ".");
-
-		// Extract major version numbers
-		int current_major = std::stoi(current_split[0]);
-		int latest_major = std::stoi(latest_split[0]);
-
-		// compare major versions
-		if (current_major < latest_major)
-			return true; // latest major version is newer. e.g. v2.x vs v1.x
-		if (current_major > latest_major)
-			return false; // ..
-
-		// compare subversions
-		if (current_split.size() == 1 && latest_split.size() > 1)
-			return true; // latest version has a subversion where current does not. e.g. v2.1 vs v2
-		if (latest_split.size() == 1 && current_split.size() > 1)
-			return false; // ..
-
-		size_t current_subversions = current_split[1].size();
-		size_t latest_subversions = latest_split[1].size();
-		size_t min_subversions = std::min(current_subversions, latest_subversions);
-		for (size_t i = 0; i < min_subversions; i++) {
-			char current_sub = current_split[1][i] - '0';
-			char latest_sub = latest_split[1][i] - '0';
-
-			if (current_sub < latest_sub)
-				return true; // latest subversion is newer. e.g. v2.1 vs v2.2 or v2.1111 vs v2.1112
-			if (current_sub > latest_sub)
-				return false; // ..
+		catch (const std::exception&) {
+			return {};
 		}
 
-		// they're the same up to the point where one has more subversions
-		return latest_subversions >
-		       current_subversions; // latest is newer if more subversions. e.g. 2.111 > 2.11. note: yes, this will
-		                            // happen for v2.0 vs v2 or v2.10 vs v2.1, but edge case, idc. will never happen.
+		return parts;
 	}
+}
+
+bool updates::is_version_newer(std::string_view current, std::string_view latest) {
+	auto current_version = parse_version(current);
+	auto latest_version = parse_version(latest);
+	if (!current_version || !latest_version)
+		return false;
+
+	return *current_version < *latest_version;
 }
 
 tl::expected<updates::UpdateCheckRes, std::string> updates::is_latest_version(bool include_beta) {
@@ -89,8 +70,7 @@ tl::expected<updates::UpdateCheckRes, std::string> updates::is_latest_version(bo
 #if defined(_WIN32)
 				if (asset["name"] == WINDOWS_INSTALLER_NAME) {
 #elif defined(__linux__)
-				// todo when there's an installer
-				{
+				if (asset["name"] == LINUX_APPIMAGE_NAME) {
 #elif defined(__APPLE__)
 				if (asset["name"] == MACOS_INSTALLER_NAME) {
 #endif
@@ -120,7 +100,7 @@ tl::expected<updates::UpdateCheckRes, std::string> updates::is_latest_version(bo
 		return updates::UpdateCheckRes{
 			.is_latest = is_latest,
 			.latest_tag = latest_tag,
-			.latest_tag_url = "https://github.com/f0e/blur/releases/" + latest_tag,
+			.latest_tag_url = "https://github.com/f0e/blur/releases/tag/" + latest_tag,
 		};
 	}
 	catch (const std::exception& e) {
@@ -131,7 +111,8 @@ tl::expected<updates::UpdateCheckRes, std::string> updates::is_latest_version(bo
 
 bool updates::update_to_tag(
 	const std::string& tag,
-	const std::optional<std::function<void(const std::string& text, bool done)>>& progress_callback
+	const std::optional<ProgressCallback>& progress_callback,
+	const std::optional<CancelCallback>& cancel_callback
 ) {
 	try {
 		u::log("Beginning update to tag: {}", tag);
@@ -177,26 +158,42 @@ bool updates::update_to_tag(
 		}
 
 		// Setup download session
+		bool cancelled = false;
+
 		cpr::Session session;
 		session.SetUrl(cpr::Url{ download_url });
-		if (progress_callback) {
-			session.SetWriteCallback(cpr::WriteCallback([&](const std::string_view& data, intptr_t userdata) -> bool {
-				downloaded_bytes += data.size();
-				installer_file.write(data.data(), data.size());
+		session.SetWriteCallback(cpr::WriteCallback([&](const std::string_view& data, intptr_t userdata) -> bool {
+			if (cancel_callback && (*cancel_callback)()) {
+				cancelled = true;
+				return false; // returning false aborts the transfer
+			}
 
+			downloaded_bytes += data.size();
+			installer_file.write(data.data(), data.size());
+
+			if (progress_callback) {
 				float progress = static_cast<float>(downloaded_bytes) / static_cast<float>(total_bytes);
 				if (progress - last_reported_progress >= 0.01f) {
-					(*progress_callback)(std::format("Downloading update: {:.1f}%", progress * 100.f), false);
+					(*progress_callback)(std::format("Downloading update: {:.1f}%", progress * 100.f), progress, false);
 					last_reported_progress = progress;
 				}
+			}
 
-				return true;
-			}));
-		}
+			return true;
+		}));
 
 		// Execute download
 		auto response = session.Get();
 		installer_file.close();
+
+		if (cancelled) {
+			u::log("Update download cancelled");
+
+			std::error_code ec;
+			std::filesystem::remove(installer_path, ec); // don't leave the half-downloaded installer lying around
+
+			return false;
+		}
 
 		if (response.status_code != 200) {
 			u::log("Download failed with status code: {}", response.status_code);
@@ -205,7 +202,7 @@ bool updates::update_to_tag(
 
 		// Complete progress
 		if (progress_callback)
-			(*progress_callback)("Update download complete", true);
+			(*progress_callback)("Update download complete", 1.f, true);
 
 		u::log("Download complete, launching installer");
 
@@ -224,12 +221,14 @@ bool updates::update_to_tag(
 }
 
 bool updates::update_to_latest(
-	bool include_beta, const std::optional<std::function<void(const std::string& text, bool done)>>& progress_callback
+	bool include_beta,
+	const std::optional<ProgressCallback>& progress_callback,
+	const std::optional<CancelCallback>& cancel_callback
 ) {
 	auto check_result = is_latest_version(include_beta);
 	if (!check_result || check_result->is_latest) {
 		return false;
 	}
 
-	return update_to_tag(check_result->latest_tag, progress_callback);
+	return update_to_tag(check_result->latest_tag, progress_callback, cancel_callback);
 }

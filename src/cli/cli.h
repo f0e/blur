@@ -7,6 +7,13 @@ namespace cli {
 		std::vector<std::filesystem::path> config_paths,
 		bool preview,
 		bool verbose,
-		bool disable_update_check = false
+		bool disable_update_check = false,
+
+		// unset to use each config's own masks
+		const std::string& mask = "",
+		const std::optional<bool>& auto_mask = {},
+
+		// one per input, like config_paths
+		const std::vector<std::string>& config_names = {}
 	);
 }

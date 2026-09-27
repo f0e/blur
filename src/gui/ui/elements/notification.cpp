@@ -1,7 +1,9 @@
 #include "../ui.h"
 #include "../../render/render.h"
+#include "../../fonts/icons.h"
 #include "../keys.h"
 
+const gfx::Size NOTIFICATION_DEFAULT_SIZE = { ui::NOTIFICATION_DEFAULT_W, 100 }; // height is a maximum to start with
 const gfx::Size NOTIFICATION_TEXT_PADDING = { 10, 7 };
 static const float NOTIFICATION_ROUNDING = 7.f;
 static const int CLOSE_BUTTON_SIZE = 16;
@@ -69,16 +71,12 @@ void ui::render_notification(const Container& container, const AnimatedElement& 
 		close_button_color = close_button_color.adjust_alpha(0.7f + (close_hover_anim * 0.3f));
 
 		// close x
-		float x_padding = 4;
-		render::line(
-			gfx::Point(close_button_rect.x + x_padding, close_button_rect.y + x_padding),
-			gfx::Point(close_button_rect.x2() - x_padding, close_button_rect.y2() - x_padding),
-			close_button_color
-		);
-		render::line(
-			gfx::Point(close_button_rect.x + x_padding, close_button_rect.y2() - x_padding),
-			gfx::Point(close_button_rect.x2() - x_padding, close_button_rect.y + x_padding),
-			close_button_color
+		render::text(
+			close_button_rect.center(),
+			close_button_color,
+			icons::CLOSE,
+			fonts::icons,
+			FONT_CENTERED_X | FONT_CENTERED_Y
 		);
 	}
 
@@ -87,7 +85,7 @@ void ui::render_notification(const Container& container, const AnimatedElement& 
 	text_pos.y += NOTIFICATION_TEXT_PADDING.h;
 
 	for (const auto& line : notification_data.lines) {
-		render::text(text_pos, text_color, line, *notification_data.font); // TODO: align properly
+		render::text(text_pos, text_color, line, notification_data.font); // TODO: align properly
 		text_pos.y += notification_data.line_height;
 	}
 }
@@ -145,7 +143,7 @@ ui::AnimatedElement* ui::add_notification(
 	std::optional<std::function<void(const std::string& id)>> on_click,
 	std::optional<std::function<void(const std::string& id)>> on_close
 ) {
-	gfx::Size notification_size = { 230, 100 }; // height is a maximum to start with
+	gfx::Size notification_size = NOTIFICATION_DEFAULT_SIZE;
 
 	const int line_height = font.height() + 5;
 
@@ -168,7 +166,7 @@ ui::AnimatedElement* ui::add_notification(
 		NotificationElementData{
 			.lines = lines,
 			.type = type,
-			.font = &font,
+			.font = font,
 			.line_height = line_height,
 			.on_click = std::move(on_click),
 			.on_close = std::move(on_close),

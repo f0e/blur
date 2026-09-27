@@ -1,0 +1,14 @@
+#!/bin/sh
+# runs the gui, or the cli when the appimage is called as blur-cli (e.g. through a symlink) or with `cli` first
+here="$(dirname "$(readlink -f "$0")")"
+
+case "$(basename "${ARGV0:-$0}")" in
+blur-cli*) exec "$here/blur-cli" "$@" ;;
+esac
+
+if [ "$1" = "cli" ]; then
+	shift
+	exec "$here/blur-cli" "$@"
+fi
+
+exec "$here/blur" "$@"

@@ -12,3 +12,5 @@ updates:
       interval: "weekly"
     assignees:
       - "f0e"
+    cooldown:
+      default-days: 7

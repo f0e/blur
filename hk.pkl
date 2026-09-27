@@ -1,0 +1,78 @@
+amends "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Builtins.pkl"
+
+exclude = List("dependencies/**", "src/vapoursynth/external/**")
+
+fail_fast = false
+
+local cppGlob = List("src/**/*.{c,h,cpp,hpp,cc,cxx,mm}")
+
+steps {
+    // c++
+    ["clang-format"] = (Builtins.clang_format) { glob = cppGlob }
+    ["clangd-tidy"] {
+        glob = cppGlob
+        env {
+            ["CLANGD_FLAGS"] = "--background-index=false" // background indexing is wasted work for a one-off lint run
+            ["PYTHONUTF8"] = "1" // clangd-tidy reads sources with the locale encoding otherwise
+        }
+        // uses the root compile_commands.json that cmake tools copies from the active preset.
+        // more jobs than this runs clangd out of memory on the windows.h-heavy files
+        check = "clangd-tidy --color=always -j 4 --allow-extensions c,h,cpp,hpp,cc,cxx,mm {{files}}"
+    }
+
+    // cmake, mirrors https://github.com/BlankSpruce/gersemi-pre-commit
+    ["gersemi"] {
+        glob = List("**/CMakeLists.txt", "**/CMakeLists.txt.in", "**/*.cmake", "**/*.cmake.in")
+        check = "gersemi --check {{files}}"
+        fix = "gersemi -i {{files}}"
+    }
+
+    // python
+    ["ruff"] = (Builtins.ruff) {
+        env { ["FORCE_COLOR"] = "1" } // no colour, hk applies this step's diff output with git apply
+    }
+    ["ruff-format"] = Builtins.ruff_format
+
+    // shell
+    ["shellcheck"] = (Builtins.shellcheck) { check = "shellcheck --color=always {{files}}" }
+    // indentation comes from .editorconfig
+    ["shfmt"] = Builtins.shfmt
+
+    // github actions
+    ["actionlint"] = (Builtins.actionlint) { check = "actionlint -color {{files}}" }
+    ["zizmor"] = (Builtins.zizmor) {
+        check = "zizmor --no-progress --color=always {{files}}"
+        fix = "zizmor --no-progress --color=always --fix {{files}}"
+    }
+
+    ["hk-validate"] {
+        glob = "hk.pkl"
+        check = "hk validate"
+    }
+
+    // general
+    ["newlines"] = Builtins.newlines
+    ["trailing-whitespace"] = Builtins.trailing_whitespace
+    ["mixed-line-ending"] = Builtins.mixed_line_ending
+    ["check-merge-conflict"] = Builtins.check_merge_conflict
+    ["check-case-conflict"] = Builtins.check_case_conflict
+    ["detect-private-key"] = Builtins.detect_private_key
+    ["check-added-large-files"] = (Builtins.check_added_large_files) {
+        check = "hk util check-added-large-files --maxkb 1000 {{files}}"
+        exclude = List("src/gui/fonts/*.h")
+    }
+}
+
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+    }
+
+    ["commit-msg"] {
+        steps {
+            ["check-conventional-commit"] = Builtins.check_conventional_commit
+        }
+    }
+}

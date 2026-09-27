@@ -8,9 +8,25 @@ namespace keys {
 	inline std::unordered_set<std::uint8_t> handled_keys;
 
 	inline float scroll_delta = 0.f;
-	inline float scroll_delta_precise = 0.f;
+	inline float scroll_x_delta = 0.f;
+	inline bool scroll_is_horizontal = false;
+
+	inline bool mouse_captured = false; // something's being dragged, keep tracking the mouse outside the window
+
+	// consecutive click count (2 = double click, 3 = triple, ...). only meaningful while the button is down
+	inline std::unordered_map<std::uint8_t, int> mouse_click_counts;
+	// increasing press ids, so a control can tell whether it handled the previous press
+	inline std::unordered_map<std::uint8_t, std::uint64_t> mouse_press_ids;
 
 	bool process_event(const SDL_Event& event);
+
+	int get_click_count(std::uint8_t button = SDL_BUTTON_LEFT);
+	std::uint64_t get_mouse_press_id(std::uint8_t button = SDL_BUTTON_LEFT);
+
+	void set_mouse_capture(bool capture);
+
+	// for when something else (like a native file drag) swallowed the release
+	void forget_mouse_buttons();
 
 	void on_frame_start();
 

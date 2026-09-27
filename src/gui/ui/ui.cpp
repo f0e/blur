@@ -4,7 +4,10 @@
 #include "../sdl.h"
 
 const int SCROLLBAR_WIDTH = 3;
+const int SCROLLBAR_HOVERED_WIDTH = 6;
 const int SCROLLBAR_GAP = 2;
+const int SCROLLBAR_MIN_HEIGHT = 20;
+const int SCROLLBAR_GRAB_PADDING = 6; // extra space to the left of the bar that can still grab it
 
 namespace {
 	SDL_SystemCursor desired_cursor = SDL_SYSTEM_CURSOR_DEFAULT;
@@ -14,6 +17,15 @@ namespace {
 
 	ui::AnimatedElement* hovered_element_internal = nullptr;
 	std::string hovered_id;
+	bool hover_blocked = false;
+
+	struct ScrollbarDrag {
+		const void* owner = nullptr;
+		const ui::Container* container = nullptr; // where the owner gets its input
+		float grab_offset = 0.f;                  // where in the thumb the mouse grabbed it
+	};
+
+	ScrollbarDrag scrollbar_drag;
 
 	int get_content_height(const ui::Container& container) {
 		int total_height = container.current_position.y - container.get_usable_rect().y;
@@ -33,29 +45,132 @@ namespace {
 		return std::max(get_content_height(container) - container.get_usable_rect().h, 0);
 	}
 
-	void render_scrollbar(const ui::Container& container) {
-		if (!can_scroll(container))
-			return;
-
-		// Calculate total content height
-		float total_content_height = get_content_height(container);
-
-		float visible_height = container.get_usable_rect().h;
-		float scrollbar_height = (visible_height / total_content_height) * visible_height;
-
-		// Calculate scrollbar vertical position
-		float scrollbar_y =
-			container.get_usable_rect().y + ((container.scroll_y / total_content_height) * visible_height);
-
-		gfx::Rect scrollbar_rect(
-			container.rect.x + container.rect.w - SCROLLBAR_GAP - SCROLLBAR_WIDTH,
-			scrollbar_y,
-			SCROLLBAR_WIDTH,
-			scrollbar_height
-		);
-
-		render::rounded_rect_filled(scrollbar_rect, gfx::Color(255, 255, 255, 50), FLT_MAX);
+	void end_scrollbar_drag() {
+		scrollbar_drag = {};
+		keys::set_mouse_capture(false);
 	}
+
+	std::optional<ui::ScrollbarGeometry> get_container_scrollbar_geometry(const ui::Container& container) {
+		auto usable_rect = container.get_usable_rect();
+		gfx::Rect bounds(usable_rect.x, usable_rect.y, container.rect.x2() - usable_rect.x, usable_rect.h);
+
+		return ui::get_scrollbar_geometry(
+			bounds, (float)usable_rect.h, (float)get_content_height(container), container.scroll_y
+		);
+	}
+}
+
+std::optional<ui::ScrollbarGeometry> ui::get_scrollbar_geometry(
+	const gfx::Rect& bounds, float visible_height, float content_height, float scroll
+) {
+	if (content_height <= visible_height)
+		return {};
+
+	float track_height = bounds.h;
+
+	float thumb_height = std::clamp(
+		(visible_height / content_height) * track_height,
+		std::min((float)SCROLLBAR_MIN_HEIGHT, track_height),
+		track_height
+	);
+
+	float max_scroll = content_height - visible_height;
+	float thumb_travel = track_height - thumb_height;
+
+	// note: unclamped so the thumb follows the overscroll bounce
+	float progress = scroll / max_scroll;
+
+	gfx::Rect track_rect(bounds.x2() - SCROLLBAR_GAP - SCROLLBAR_WIDTH, bounds.y, SCROLLBAR_WIDTH, bounds.h);
+
+	gfx::Rect thumb_rect(track_rect.x, track_rect.y + (progress * thumb_travel), track_rect.w, thumb_height);
+
+	gfx::Rect grab_rect = track_rect;
+	grab_rect.x = bounds.x2() - SCROLLBAR_GAP - SCROLLBAR_HOVERED_WIDTH - SCROLLBAR_GRAB_PADDING;
+	grab_rect.w = bounds.x2() - grab_rect.x;
+
+	return ScrollbarGeometry{
+		.track_rect = track_rect,
+		.thumb_rect = thumb_rect,
+		.grab_rect = grab_rect,
+		.thumb_travel = thumb_travel,
+		.max_scroll = max_scroll,
+	};
+}
+
+void ui::render_scrollbar(const ScrollbarGeometry& geometry, float hover_anim, float alpha) {
+	gfx::Rect thumb_rect = geometry.thumb_rect;
+
+	// grow leftwards so the outer edge stays put
+	int extra_width = std::lround((SCROLLBAR_HOVERED_WIDTH - SCROLLBAR_WIDTH) * hover_anim);
+	thumb_rect.x -= extra_width;
+	thumb_rect.w += extra_width;
+
+	gfx::Color color(255, 255, 255, std::lerp(50.f, 130.f, hover_anim) * alpha);
+
+	render::rounded_rect_filled(thumb_rect, color, FLT_MAX);
+}
+
+bool ui::update_scrollbar(
+	const Container& container,
+	const void* owner,
+	const std::optional<ScrollbarGeometry>& geometry,
+	float& scroll,
+	AnimationState& hover_anim,
+	bool can_hover,
+	bool can_grab
+) {
+	bool dragging = is_dragging_scrollbar(owner);
+
+	if (!geometry) {
+		if (dragging)
+			end_scrollbar_drag();
+
+		hover_anim.set_goal(0.f);
+		return false;
+	}
+
+	bool hovered = can_hover && geometry->grab_rect.contains(keys::mouse_pos);
+
+	// start dragging
+	if (!dragging && hovered && can_grab && keys::is_mouse_down()) {
+		keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
+
+		bool on_thumb = keys::mouse_pos.y >= geometry->thumb_rect.y && keys::mouse_pos.y < geometry->thumb_rect.y2();
+
+		scrollbar_drag = {
+			.owner = owner,
+			.container = &container,
+			// grabbed the thumb: keep it where it was grabbed. clicked the track: jump the thumb to the cursor
+			.grab_offset = on_thumb ? keys::mouse_pos.y - geometry->thumb_rect.y : geometry->thumb_rect.h / 2.f,
+		};
+		dragging = true;
+
+		// keep following the mouse even if it leaves the window
+		keys::set_mouse_capture(true);
+	}
+
+	if (dragging) {
+		if (!keys::is_mouse_dragging()) {
+			end_scrollbar_drag();
+			dragging = false;
+		}
+		else {
+			float thumb_y = keys::mouse_pos.y - scrollbar_drag.grab_offset;
+
+			float progress =
+				geometry->thumb_travel > 0.f ? (thumb_y - geometry->track_rect.y) / geometry->thumb_travel : 0.f;
+
+			scroll = std::clamp(progress, 0.f, 1.f) * geometry->max_scroll;
+		}
+	}
+
+	hover_anim.set_goal(hovered || dragging ? 1.f : 0.f);
+
+	return hovered || dragging;
+}
+
+bool ui::is_dragging_scrollbar(const void* owner) {
+	return owner != nullptr && scrollbar_drag.owner == owner;
 }
 
 void ui::reset_container(
@@ -85,6 +200,8 @@ void ui::reset_container(
 	container.current_element_ids = {};
 	container.updated = false;
 	container.last_margin_bottom = 0;
+	container.next_same_line = false;
+	container.same_line_bottom = 0;
 }
 
 ui::AnimatedElement* ui::add_element(
@@ -93,8 +210,11 @@ ui::AnimatedElement* ui::add_element(
 	int margin_bottom,
 	const std::unordered_map<size_t, AnimationState>& animations
 ) {
-	// pad when switching element type
-	if (container.current_element_ids.size() > 0) {
+	bool same_line = container.next_same_line;
+	container.next_same_line = false;
+
+	// pad when switching element type (not when sharing a line, that would knock the element out of line)
+	if (!same_line && container.current_element_ids.size() > 0) {
 		auto& last_element_id = container.current_element_ids.back();
 		auto& last_element = container.elements[last_element_id];
 
@@ -114,6 +234,11 @@ ui::AnimatedElement* ui::add_element(
 	container.current_position.x = container.get_usable_rect().x;
 
 	container.current_position.y += animated_element->element->rect.h + margin_bottom;
+
+	// don't let a short element on a shared line pull the next one up over its taller neighbour
+	if (same_line)
+		container.current_position.y = std::max(container.current_position.y, container.same_line_bottom);
+
 	container.last_margin_bottom = margin_bottom;
 
 	return animated_element;
@@ -127,6 +252,11 @@ ui::AnimatedElement* ui::add_element(
 	_element.orig_rect = _element.rect;
 
 	if (animated_element.element) {
+		// add new animations
+		for (const auto& [animation_key, animation] : animations) {
+			animated_element.animations.emplace(animation_key, animation);
+		}
+
 		if (animated_element.element->update(_element)) {
 			container.updated = true;
 		}
@@ -149,6 +279,32 @@ void ui::add_spacing(Container& container, int spacing) {
 	container.current_position.y += spacing;
 }
 
+void ui::add_with_message(
+	Container& container,
+	const std::string& message_id,
+	const std::optional<std::string>& message,
+	const gfx::Color& color,
+	const std::function<void()>& add_element,
+	unsigned int message_flags
+) {
+	if (message)
+		container.push_element_gap(2);
+
+	add_element();
+
+	if (message) {
+		container.pop_element_gap();
+
+		ui::add_text(message_id, container, *message, color, fonts::dejavu, message_flags);
+	}
+}
+
+void ui::reserve_space(Container& container, int height) {
+	container.current_position.x = container.get_usable_rect().x;
+	container.current_position.y += height + container.element_gap;
+	container.last_margin_bottom = container.element_gap;
+}
+
 void ui::set_next_same_line(Container& container) {
 	if (container.current_element_ids.empty())
 		return;
@@ -158,6 +314,9 @@ void ui::set_next_same_line(Container& container) {
 
 	container.current_position.x = last_element->rect.x2() + container.last_margin_bottom;
 	container.current_position.y = last_element->rect.y;
+
+	container.next_same_line = true;
+	container.same_line_bottom = last_element->rect.y2() + container.last_margin_bottom;
 }
 
 // todo: refactor
@@ -197,11 +356,15 @@ void ui::center_elements_in_container(Container& container, bool horizontal, boo
 			}
 
 			// Center horizontally if requested
-			if (horizontal) {
+			if (horizontal && element->auto_center_horizontal) {
 				element->rect.x = container.get_usable_rect().center().x - element->rect.w / 2;
 			}
 			continue;
 		}
+
+		bool center_group = std::ranges::all_of(group_elements, [](const Element* element) {
+			return element->auto_center_horizontal;
+		});
 
 		// Calculate total width and spacing of group
 		int total_width = 0;
@@ -227,7 +390,7 @@ void ui::center_elements_in_container(Container& container, bool horizontal, boo
 			}
 
 			// Horizontally center the group while preserving relative spacing
-			if (horizontal) {
+			if (horizontal && center_group) {
 				element->rect.x = start_group_x + x_offsets[i];
 			}
 		}
@@ -239,6 +402,125 @@ void ui::center_elements_in_container(Container& container, bool horizontal, boo
 			element->orig_rect = element->rect;
 		}
 	}
+}
+
+void ui::center_element(Container& container, AnimatedElement* animated_element) {
+	if (!animated_element)
+		return;
+
+	auto& element = animated_element->element;
+
+	element->rect.x = container.get_usable_rect().center().x - (element->rect.w / 2);
+	element->orig_rect.x = element->rect.x;
+}
+
+void ui::center_elements(Container& container, const std::vector<AnimatedElement*>& animated_elements) {
+	if (animated_elements.empty())
+		return;
+
+	const auto& first = animated_elements.front()->element;
+	const auto& last = animated_elements.back()->element;
+
+	int total_width = last->rect.x2() - first->rect.x;
+	int shift_x = container.get_usable_rect().center().x - (total_width / 2) - first->rect.x;
+
+	for (auto* animated_element : animated_elements) {
+		auto& element = animated_element->element;
+
+		element->rect.x += shift_x;
+		element->orig_rect.x = element->rect.x;
+	}
+}
+
+void ui::shrink_element_to_fit_container_height(Container& container, const std::string& element_id) {
+	auto current_id = std::ranges::find(container.current_element_ids, element_id);
+	if (current_id == container.current_element_ids.end())
+		return;
+
+	auto target_it = container.elements.find(element_id);
+	if (target_it == container.elements.end())
+		return;
+
+	auto& target = target_it->second.element;
+
+	// images are drawn inset from their border, so it's the inner area that has to keep its shape
+	bool inset_image = target->type == ElementType::IMAGE || target->type == ElementType::VIDEO_FRAME;
+	int inset = inset_image ? IMAGE_INSET * 2 : 0;
+
+	int overflow = get_content_height(container) - container.get_usable_rect().h;
+	if (overflow <= 0 || target->rect.h <= inset + 1)
+		return;
+
+	int old_height = target->rect.h;
+	int new_height = std::max(old_height - overflow, inset + 1);
+	int height_reduction = old_height - new_height;
+	float aspect_ratio = (target->rect.w - inset) / static_cast<float>(old_height - inset);
+
+	target->rect.w = std::max(static_cast<int>(std::lround((new_height - inset) * aspect_ratio)), 1) + inset;
+	target->rect.h = new_height;
+	target->orig_rect = target->rect;
+
+	// move the following elements up
+	for (++current_id; current_id != container.current_element_ids.end(); ++current_id) {
+		auto& element = container.elements[*current_id].element;
+		element->rect.y -= height_reduction;
+		element->orig_rect.y -= height_reduction;
+	}
+
+	container.current_position.y -= height_reduction;
+}
+
+void ui::right_align_element(Container& container, AnimatedElement* animated_element) {
+	if (!animated_element)
+		return;
+
+	auto& element = animated_element->element;
+
+	element->rect.x = container.get_usable_rect().x2() - element->rect.w;
+	element->orig_rect.x = element->rect.x;
+}
+
+// same as right_align_element, but keeps a row of elements together as it moves them
+void ui::right_align_elements(Container& container, const std::vector<AnimatedElement*>& animated_elements) {
+	if (animated_elements.empty())
+		return;
+
+	int shift_x = container.get_usable_rect().x2() - animated_elements.back()->element->rect.x2();
+
+	for (auto* animated_element : animated_elements) {
+		auto& element = animated_element->element;
+
+		element->rect.x += shift_x;
+		element->orig_rect.x = element->rect.x;
+	}
+}
+
+void ui::anchor_elements_to_bottom(Container& container) {
+	auto usable_rect = container.get_usable_rect();
+
+	int shift_y = usable_rect.y2() - (usable_rect.y + get_content_height(container));
+	if (shift_y <= 0)
+		return;
+
+	for (const auto& id : container.current_element_ids) {
+		auto& element = container.elements[id].element;
+
+		if (element->fixed)
+			continue;
+
+		element->rect.y += shift_y;
+		element->orig_rect = element->rect;
+	}
+}
+
+void ui::stick_element_to_top(const Container& scroll_container, AnimatedElement* animated_element) {
+	if (!animated_element)
+		return;
+
+	auto& element = animated_element->element;
+	element->rect.y = std::max(
+		scroll_container.get_usable_rect().y, element->orig_rect.y - static_cast<int>(scroll_container.scroll_y)
+	);
 }
 
 void ui::set_cursor(SDL_SystemCursor cursor) {
@@ -258,13 +540,17 @@ std::string ui::get_active_element_type() {
 	return active_element_type;
 }
 
+bool ui::is_active_element(const AnimatedElement& element, const std::string& type) {
+	return active_element == &element && active_element_type == type;
+}
+
 void ui::reset_active_element() {
 	active_element = nullptr;
 	active_element_type = "";
 }
 
 bool ui::set_hovered_element(AnimatedElement& element) {
-	if (hovered_element_internal)
+	if (hover_blocked || hovered_element_internal)
 		return false;
 
 	hovered_element_internal = &element;
@@ -277,6 +563,38 @@ std::string ui::get_hovered_id() {
 
 bool ui::update_container_input(Container& container) {
 	bool updated = false;
+
+	// the owner went away mid-drag, don't leave input captured
+	if (scrollbar_drag.owner && !keys::is_mouse_dragging())
+		end_scrollbar_drag();
+
+	// dragging a scrollbar captures input from everything else
+	if (scrollbar_drag.container && scrollbar_drag.container != &container)
+		return false;
+
+	float last_scroll_y = container.scroll_y;
+
+	// elements from containers above this one get priority
+	bool scrollbar_captured = update_scrollbar(
+		container,
+		&container,
+		get_container_scrollbar_geometry(container),
+		container.scroll_y,
+		container.scrollbar_anim,
+		hovered_element_internal == nullptr,
+		active_element == nullptr
+	);
+
+	if (is_dragging_scrollbar(&container)) {
+		container.scroll_to_top = false; // user took over
+		container.scroll_speed_y = 0.f;  // no momentum while dragging
+	}
+
+	if (container.scroll_y != last_scroll_y)
+		updated = true;
+
+	// don't hover elements underneath the scrollbar while it's being used
+	hover_blocked = scrollbar_captured;
 
 	// update all elements
 	for (auto& [id, element] : container.elements) {
@@ -291,23 +609,26 @@ bool ui::update_container_input(Container& container) {
 			updated |= (*element.element->update_fn)(container, element);
 	}
 
+	hover_blocked = false;
+
 	hovered_id = hovered_element_internal ? hovered_element_internal->element->id : "";
 
 	// scroll
-	if (keys::scroll_delta != 0.f || keys::scroll_delta_precise != 0.f) {
+	if (keys::scroll_delta != 0.f) { // || keys::scroll_delta_precise != 0.f) {
 		if (container.rect.contains(keys::mouse_pos)) {
 			if (can_scroll(container)) {
-				container.scroll_speed_y += keys::scroll_delta;
+				container.scroll_to_top = false; // user took over
+				container.scroll_speed_y += keys::scroll_delta * 1500.f;
 				keys::scroll_delta = 0.f;
 
-				if (keys::scroll_delta_precise != 0.f) {
-					container.scroll_y += keys::scroll_delta_precise;
-					keys::scroll_delta_precise = 0.f;
+				// if (keys::scroll_delta_precise != 0.f) {
+				// 	container.scroll_y += keys::scroll_delta_precise;
+				// 	keys::scroll_delta_precise = 0.f;
 
-					// immediately clamp to edges todo: overscroll with trackpad?
-					int max_scroll = get_max_scroll(container);
-					container.scroll_y = std::clamp(container.scroll_y, 0.f, (float)max_scroll);
-				}
+				// 	// immediately clamp to edges todo: overscroll with trackpad?
+				// 	int max_scroll = get_max_scroll(container);
+				// 	container.scroll_y = std::clamp(container.scroll_y, 0.f, (float)max_scroll);
+				// }
 
 				updated |=
 					true; // if != 0 checks imply that scroll speed changed, no need to explicitly check if it has
@@ -323,12 +644,17 @@ void ui::on_update_input_start() {
 }
 
 void ui::on_update_input_end() {
+	tooltip::on_input_end(hovered_id);
+
 	// reset scroll, shouldn't scroll stuff on a later update
 	keys::scroll_delta = 0.f;
-	keys::scroll_delta_precise = 0.f;
+	keys::scroll_x_delta = 0.f;
+	// keys::scroll_delta_precise = 0.f;
 
 	// empty text events if they werent processed for some reason
 	text_event_queue.clear();
+
+	event_queue.clear();
 
 	// set cursor based on if an element wanted pointer
 	sdl::set_cursor(desired_cursor);
@@ -352,8 +678,14 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 		const float scroll_speed_overscroll_reset_speed = 25.f;
 		const float scroll_overscroll_reset_speed = 10.f;
 		const float scroll_reset_speed = 10.f;
+		const float scroll_to_top_speed = 15.f;
 
-		if (can_scroll(container)) {
+		if (container.scroll_to_top) {
+			container.scroll_speed_y = 0.f;
+			container.scroll_y = u::lerp(container.scroll_y, 0.f, scroll_to_top_speed * delta_time, 0.1f);
+			container.scroll_to_top = container.scroll_y != 0.f;
+		}
+		else if (can_scroll(container)) {
 			// clamp scroll
 			int max_scroll = get_max_scroll(container);
 
@@ -366,7 +698,7 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 				container.scroll_speed_y =
 					u::lerp(container.scroll_speed_y, 0.f, scroll_speed_overscroll_reset_speed * delta_time);
 				container.scroll_y =
-					u::lerp(container.scroll_y, max_scroll, scroll_overscroll_reset_speed * delta_time);
+					u::lerp(container.scroll_y, (float)max_scroll, scroll_overscroll_reset_speed * delta_time);
 			}
 
 			if (container.scroll_speed_y != 0.f) {
@@ -384,6 +716,12 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 			need_to_render_animation_update |= true;
 	}
 
+	need_to_render_animation_update |= container.scrollbar_anim.update(delta_time);
+
+	// keep rendering while dragging, otherwise the loop idles at the low tickrate and the drag stutters
+	if (scrollbar_drag.container == &container)
+		need_to_render_animation_update = true;
+
 	// update elements
 	for (auto it = container.elements.begin(); it != container.elements.end();) {
 		auto& [id, element] = *it;
@@ -396,18 +734,33 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 		bool stale = std::ranges::find(container.current_element_ids, id) == container.current_element_ids.end();
 		main_animation.set_goal(!stale ? 1.f : 0.f);
 
+		if (stale) {
+			if (!element.went_stale) {
+				element.went_stale = true;
+
+				if (element.element->stale_fn)
+					(*element.element->stale_fn)(element);
+			}
+		}
+		else {
+			element.went_stale = false;
+		}
+
 		for (auto& [animation_id, animation] : element.animations) {
 			need_to_render_animation_update |= animation.update(delta_time);
 		}
 
-		if (stale && main_animation.complete) {
-			// animation complete and element stale, remove
-			slider_observers.erase(id);
+		if (stale && main_animation.complete) { // animation complete and element stale, remove
+			if (element.element->remove_fn)
+				(*element.element->remove_fn)(element);
 
 			u::log("removed {}", id);
 			it = container.elements.erase(it);
 			continue;
 		}
+
+		if (element.element->always_render)
+			need_to_render_animation_update |= true;
 
 		++it;
 	}
@@ -417,6 +770,20 @@ bool ui::update_container_frame(Container& container, float delta_time) {
 
 void ui::on_update_frame_end() {}
 
+std::vector<decltype(ui::Container::elements)::iterator> ui::get_sorted_container_elements(Container& container) {
+	std::vector<decltype(Container::elements)::iterator> sorted;
+	sorted.reserve(container.elements.size());
+
+	for (auto it = container.elements.begin(); it != container.elements.end(); ++it)
+		sorted.push_back(it);
+
+	std::ranges::stable_sort(sorted, std::less{}, [](const auto& it) {
+		return it->second.z_index;
+	});
+
+	return sorted;
+}
+
 void ui::render_container(Container& container) {
 	if (container.background_color) {
 		render::rect_filled(container.rect, *container.background_color);
@@ -424,13 +791,13 @@ void ui::render_container(Container& container) {
 
 	// render::push_clip_rect(container.rect); todo: fade or some shit but straight clipping looks poo
 
-	for (auto& [id, element] : container.elements) {
+	for (auto& it : get_sorted_container_elements(container)) {
+		auto& element = it->second;
 		element.element->render_fn(container, element);
 	}
 
-	if (can_scroll(container)) {
-		render_scrollbar(container);
-	}
+	if (auto scrollbar = get_container_scrollbar_geometry(container))
+		render_scrollbar(*scrollbar, container.scrollbar_anim.current);
 
 	// render::pop_clip_rect();
 }

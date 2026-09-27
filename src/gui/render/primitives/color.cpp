@@ -81,44 +81,55 @@ namespace gfx {
 		return ss.str();
 	}
 
-	void Color::from_hex_string(const std::string& hex_str, bool include_alpha) {
+	std::optional<Color> Color::from_hex_string(const std::string& hex_str, bool allow_alpha) {
 		std::string hex = hex_str;
 
 		if (hex.empty())
-			return;
+			return std::nullopt;
 
-		// Remove # if present
 		if (hex[0] == '#') {
 			hex = hex.substr(1);
 		}
 
-		// Check length
 		if (hex.length() != 6 && hex.length() != 8) {
-			return;
+			return std::nullopt;
 		}
 
-		// Convert hex string to uint32_t
 		uint32_t value = 0;
 		try {
 			value = std::stoul(hex, nullptr, 16);
 		}
 		catch (...) {
-			return;
+			return std::nullopt;
 		}
 
-		// Set color based on hex format
+		Color out;
 		if (hex.length() == 6) {
-			r = (value >> 16) & 0xFF;
-			g = (value >> 8) & 0xFF;
-			b = value & 0xFF;
-			a = 255;
+			return Color(
+				// r
+				(value >> 16) & 0xFF,
+				// g
+				(value >> 8) & 0xFF,
+				// b
+				value & 0xFF,
+				// a
+				255
+			);
 		}
-		else if (include_alpha) {
-			r = (value >> 24) & 0xFF;
-			g = (value >> 16) & 0xFF;
-			b = (value >> 8) & 0xFF;
-			a = value & 0xFF;
+		else if (allow_alpha) {
+			return Color(
+				// r
+				(value >> 24) & 0xFF,
+				// g
+				(value >> 16) & 0xFF,
+				// b
+				(value >> 8) & 0xFF,
+				// a
+				value & 0xFF
+			);
 		}
+
+		return std::nullopt;
 	}
 
 	Color Color::from_hsb(float h, float s, float b, uint8_t alpha) {
