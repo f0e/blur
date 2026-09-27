@@ -369,6 +369,38 @@ tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffm
 	return args;
 }
 
+std::vector<std::string> rendering::detail::build_ffmpeg_sample_args(
+	const std::filesystem::path& input_path,
+	const media::VideoInfo& video_info,
+	const BlurSettings& settings,
+	const std::filesystem::path& output_path,
+	size_t start_frame,
+	size_t end_frame,
+	size_t skipped_frames
+) {
+	std::vector<std::string> args = {
+		"-loglevel",    "error",
+		"-hide_banner", "-y",
+		"-fflags",      "+genpts",
+		"-i",           "-",
+		"-i",           u::path_to_string(input_path),
+		"-map",         "0:v",
+	};
+
+	if (video_info.ffmpeg_can_decode_audio)
+		append_audio_filter_args(args, video_info, settings, start_frame, end_frame, skipped_frames);
+
+	append_colour_param_args(args, video_info);
+
+	// it can be finished early, which cuts the video short of the audio
+	args.push_back("-shortest");
+
+	args.insert(args.end(), { "-c:v", "libx264", "-preset", "ultrafast", "-crf", "16", "-c:a", "aac" });
+
+	args.push_back(u::path_to_string(output_path));
+	return args;
+}
+
 void rendering::detail::copy_file_timestamp(const std::filesystem::path& from, const std::filesystem::path& to) {
 	try {
 		auto timestamp = std::filesystem::last_write_time(from);

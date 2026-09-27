@@ -93,6 +93,47 @@ blur.preview.run({}, {}, {}, {})
 	);
 }
 
+tl::expected<rendering::RenderResult, rendering::RenderError> rendering::render_sample(
+	const std::filesystem::path& input_path,
+	const media::VideoInfo& video_info,
+	const BlurSettings& settings,
+	const GlobalAppSettings& app_settings,
+	const std::shared_ptr<RenderState>& state,
+	const std::filesystem::path& output_path,
+	size_t start_frame,
+	size_t end_frame
+) {
+	if (auto error = check_tensorrt_installed(settings))
+		return tl::unexpected(RenderError{ .user_message = *error });
+
+	auto merged_settings = detail::merge_settings(settings, app_settings, devices::get_device_indices(app_settings));
+
+	// a render trimmed to the same stretch would skip these too
+	auto skipped_frames = detail::get_skipped_frames(settings, app_settings, video_info);
+
+	RenderCommands commands = {
+		.vspipe_video = detail::build_vspipe_video_args(
+			input_path, merged_settings, video_info, start_frame, end_frame, {}, false, skipped_frames
+		),
+		.ffmpeg = detail::build_ffmpeg_sample_args(
+			input_path, video_info, settings, output_path, start_frame, end_frame, skipped_frames
+		),
+	};
+
+	auto preview_args = detail::build_ffmpeg_preview_args();
+	commands.ffmpeg.insert(commands.ffmpeg.end(), preview_args.begin(), preview_args.end());
+	state->enable_preview_capture();
+
+	auto pipeline_result = detail::execute_pipeline(commands, state, settings.advanced.debug, true, {});
+	if (!pipeline_result)
+		return tl::unexpected(pipeline_result.error());
+
+	return RenderResult{
+		.output_path = output_path,
+		.stopped = pipeline_result->stopped,
+	};
+}
+
 std::pair<size_t, size_t> rendering::get_trim_frame_range(const media::VideoInfo& video_info, float start, float end) {
 	if (video_info.fps_num <= 0 || video_info.fps_den <= 0)
 		return { 0, 0 };

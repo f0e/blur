@@ -20,6 +20,20 @@ namespace rendering {
 		const std::filesystem::path& log_path
 	);
 
+	// renders the output from source frame start_frame to end_frame with a quick encode, to play back as a sample.
+	// frames are captured as they're made and it can be finished early. the mask covers the whole video like the
+	// preview's, so they share a cached one
+	tl::expected<RenderResult, RenderError> render_sample(
+		const std::filesystem::path& input_path,
+		const media::VideoInfo& video_info,
+		const BlurSettings& settings,
+		const GlobalAppSettings& app_settings,
+		const std::shared_ptr<RenderState>& state,
+		const std::filesystem::path& output_path,
+		size_t start_frame,
+		size_t end_frame
+	);
+
 	std::pair<size_t, size_t> get_trim_frame_range(const media::VideoInfo& video_info, float start, float end);
 
 	bool has_enough_frames_to_render(const media::VideoInfo& video_info, float start, float end);
