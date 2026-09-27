@@ -675,7 +675,22 @@ namespace ui {
 	const inline AnimationState DEFAULT_ANIMATION(25.f);
 
 	struct Container {
-		SDL_Window* window;
+		inline static std::vector<Container*> instances;
+
+		Container() {
+			instances.push_back(this);
+		}
+
+		~Container() {
+			std::erase(instances, this);
+		}
+
+		Container(const Container&) = delete;
+		Container(Container&&) = delete;
+		Container& operator=(const Container&) = delete;
+		Container& operator=(Container&&) = delete;
+
+		SDL_Window* window = nullptr;
 
 		gfx::Rect rect;
 		std::optional<gfx::Color> background_color;
@@ -850,6 +865,9 @@ namespace ui {
 
 	void render_link(const Container& container, const AnimatedElement& element);
 	bool update_link(const Container& container, AnimatedElement& element);
+
+	// drops every container's elements, for shutdown. they can hold video players and textures
+	void clear_containers();
 
 	void reset_container(
 		Container& container,
