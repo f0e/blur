@@ -58,7 +58,6 @@ namespace rendering::detail {
 		bool trimming
 	);
 
-	// a quick encode for a sample, it's only played back
 	std::vector<std::string> build_ffmpeg_sample_args(
 		const std::filesystem::path& input_path,
 		const media::VideoInfo& video_info,

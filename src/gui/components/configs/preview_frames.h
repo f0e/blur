@@ -27,7 +27,6 @@ namespace gui::components::configs::preview_frames {
 		bool editing_loop = false;
 	};
 
-	// a render of part of the video
 	struct Render {
 		float offset = 0.f; // where its start is in the video, in seconds on mpv's clock
 		float speed = 1.f;  // how far through the video a second of it goes

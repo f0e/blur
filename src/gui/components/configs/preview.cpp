@@ -17,7 +17,6 @@
 namespace {
 	bool playback_seek_unsaved = false;
 
-	// loop mode previews a range, rendered and looped, rather than a single frame
 	const std::string LOOP_ICON = "\xe2\x86\xbb";
 	constexpr float DEFAULT_LOOP_SECONDS = 3.f;
 
@@ -207,7 +206,6 @@ void configs::config_preview(ui::Container& container) {
 		}
 	);
 
-	// a new range starts from where the preview's at
 	if (loop_mode && !loop_range && preview.video_info && preview.video_info->duration > 0.f) {
 		float start = std::clamp(seek, 0.f, 1.f);
 		loop_range = { start, std::min(start + (DEFAULT_LOOP_SECONDS / preview.video_info->duration), 1.f) };
