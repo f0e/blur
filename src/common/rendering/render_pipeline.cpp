@@ -209,7 +209,7 @@ namespace {
 	rendering::RenderError assemble_render_error(const std::string& vspipe_errors, const std::string& ffmpeg_errors) {
 		rendering::RenderError err;
 
-		auto parsed = rendering::detail::parse_error_output(vspipe_errors);
+		auto parsed = rendering::parse_error_output(vspipe_errors);
 		if (parsed) {
 			err = *parsed;
 		}

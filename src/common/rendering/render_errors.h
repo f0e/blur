@@ -22,9 +22,10 @@ namespace rendering {
 		}
 	};
 
-	namespace detail {
-		tl::expected<RenderError, std::string> parse_error_output(const std::string& stderr_output);
+	// the error blur.py prints when it fails, if there's one
+	tl::expected<RenderError, std::string> parse_error_output(const std::string& stderr_output);
 
+	namespace detail {
 		std::string without_error_objects(const std::string& stderr_output);
 	}
 }

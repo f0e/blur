@@ -4,7 +4,7 @@
 #include "config_base.h"
 #include "config_app.h"
 #include "config_rules.h"
-#include "rendering/render_commands.h"
+#include "rendering/output.h"
 #include "devices.h"
 #include "encoding.h"
 
@@ -335,7 +335,7 @@ config_blur::ValidationResult config_blur::validate(
 	};
 
 	bool timescaling = config.timescale && config.output_timescale != config.input_timescale;
-	if (timescaling && rendering::detail::copies_audio(config, app_settings, presets)) {
+	if (timescaling && rendering::copies_audio(config, app_settings, presets)) {
 		if (!config.advanced.ffmpeg_override.empty()) {
 			add_error(ValidationField::FFMPEG_OVERRIDE, "cannot use -c:a copy while using timescale");
 		}

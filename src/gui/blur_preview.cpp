@@ -178,7 +178,7 @@ void BlurPreview::update(const Request& request) {
 	m_requested_target = output_seek_target(request.settings, request.video_info, request.position);
 
 	if (auto error = m_player->take_load_error()) {
-		auto parsed = rendering::detail::parse_error_output(*error);
+		auto parsed = rendering::parse_error_output(*error);
 		fail(
 			parsed ? *parsed
 				   : rendering::RenderError{

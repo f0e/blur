@@ -50,7 +50,7 @@ namespace {
 
 			auto config = config_blur::get_config(pending_video.config_name);
 
-			disabled = rendering::detail::copies_audio(config, app_settings);
+			disabled = rendering::copies_audio(config, app_settings);
 		}
 
 		trim_disabled_cache.emplace(key, disabled);

@@ -1,5 +1,6 @@
 #include "render.h"
 #include "render_commands.h"
+#include "output.h"
 #include "render_pipeline.h"
 #include "common/devices.h"
 #ifdef TENSORRT
@@ -111,7 +112,7 @@ tl::expected<rendering::RenderResult, rendering::RenderError> rendering::render_
 	detail::FrameRange range{ .start = start_frame, .end = end_frame };
 
 	// a render trimmed to the same stretch would skip these too
-	auto skipped_frames = detail::get_skipped_frames(settings, app_settings, video_info);
+	auto skipped_frames = get_skipped_frames(settings, app_settings, video_info);
 
 	auto ffmpeg_args = detail::build_ffmpeg_sample_args(
 		input_path, video_info, settings, app_settings, output_path, range, skipped_frames
@@ -196,7 +197,7 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 		output_path = *output_path_override;
 	}
 	else {
-		auto output_res = detail::build_output_filename(input_path, settings, app_settings);
+		auto output_res = build_output_filename(input_path, settings, app_settings);
 		if (!output_res) {
 			return tl::unexpected(output_res.error());
 		}
@@ -246,7 +247,7 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 				.range = range,
 				// untrimmed renders use the whole video like previews do, so they share a cached mask
 				.mask_range = trimmed ? std::optional{ range } : std::nullopt,
-				.skipped_frames = detail::get_skipped_frames(settings, app_settings, video_info),
+				.skipped_frames = get_skipped_frames(settings, app_settings, video_info),
 			}
 		),
 		.ffmpeg = *ffmpeg_args,

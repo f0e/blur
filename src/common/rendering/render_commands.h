@@ -2,7 +2,6 @@
 
 #include "common/config_app.h"
 #include "common/config_blur.h"
-#include "common/config_encoding_presets.h"
 #include "common/devices.h"
 #include "common/media.h"
 
@@ -41,21 +40,6 @@ namespace rendering::detail {
 		const media::VideoInfo& video_info,
 		const VspipeVideoOptions& options = {}
 	);
-
-	bool copies_audio(const BlurSettings& settings, const GlobalAppSettings& app_settings);
-	bool copies_audio(
-		const BlurSettings& settings, const GlobalAppSettings& app_settings, const EncodingPresetSettings& presets
-	);
-
-	tl::expected<std::filesystem::path, std::string> build_output_filename(
-		const std::filesystem::path& input_path, const BlurSettings& settings, const GlobalAppSettings& app_settings
-	);
-
-	size_t get_skipped_frames(
-		const BlurSettings& settings, const GlobalAppSettings& app_settings, const media::VideoInfo& video_info
-	);
-
-	std::optional<std::string> get_audio_copy_conflict(const BlurSettings& settings, bool trimming);
 
 	// the full ffmpeg command for a video render, up to the output path. the preview pipe is added by the caller
 	tl::expected<std::vector<std::string>, std::string> build_ffmpeg_video_args(

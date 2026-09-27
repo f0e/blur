@@ -1,6 +1,6 @@
 #include "render_queue.h"
 #include "render.h"
-#include "render_commands.h"
+#include "output.h"
 #include "common/config_blur.h"
 #include "common/encoding.h"
 
@@ -134,8 +134,8 @@ rendering::QueueAddRes rendering::VideoRenderQueue::add(
 	if (auto_mask_override)
 		settings.auto_mask = *auto_mask_override;
 
-	if (!video_info.audio_sample_rates.empty() && detail::copies_audio(settings, app_settings)) {
-		if (auto conflict = detail::get_audio_copy_conflict(settings, start != 0.f || end != 1.f)) {
+	if (!video_info.audio_sample_rates.empty() && copies_audio(settings, app_settings)) {
+		if (auto conflict = get_audio_copy_conflict(settings, start != 0.f || end != 1.f)) {
 			return {
 				.error = conflict,
 			};
