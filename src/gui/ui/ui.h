@@ -214,10 +214,19 @@ namespace ui {
 		}
 	};
 
+	// a player showing a render of part of a video, rather than the video itself
+	struct TimelineRender {
+		float offset = 0.f; // where its start is in the video, in seconds
+		float speed = 1.f;  // how far through the video a second of it goes
+
+		bool operator==(const TimelineRender& other) const = default;
+	};
+
 	struct TimelineElementData {
 		// the range grabs only show when it has a start and end
 		UIVideo video;
 		std::shared_ptr<VideoPlayer> player;
+		std::optional<TimelineRender> render;
 		VideoWaveform* waveform = nullptr;
 
 		// a stretch to mark, like what a sample covers. as fractions of the duration
@@ -228,9 +237,9 @@ namespace ui {
 		bool interactive = false;
 
 		bool operator==(const TimelineElementData& other) const {
-			return video == other.video && player == other.player && waveform == other.waveform &&
-			       highlight == other.highlight && active == other.active && fade == other.fade &&
-			       interactive == other.interactive;
+			return video == other.video && player == other.player && render == other.render &&
+			       waveform == other.waveform && highlight == other.highlight && active == other.active &&
+			       fade == other.fade && interactive == other.interactive;
 		}
 	};
 

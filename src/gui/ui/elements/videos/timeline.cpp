@@ -57,19 +57,46 @@ namespace {
 		return { .left = left, .right = right };
 	}
 
-	// prefer the player's duration to metadata
+	// prefer the player's duration to metadata, unless it's only playing part of the video
 	float get_duration(const ui::TimelineElementData& data) {
-		if (data.player && data.player->get_duration())
+		if (data.player && !data.render && data.player->get_duration())
 			return static_cast<float>(*data.player->get_duration());
 
 		return data.video.video_info->duration;
 	}
 
 	float get_fps(const ui::TimelineElementData& data) {
-		if (data.player && data.player->get_fps())
+		if (data.player && !data.render && data.player->get_fps())
 			return static_cast<float>(*data.player->get_fps());
 
 		return data.video.video_info->fps_num / (float)data.video.video_info->fps_den;
+	}
+
+	void seek_player(const ui::TimelineElementData& data, float seconds) {
+		if (!data.player)
+			return;
+
+		if (data.render)
+			seconds = std::max((seconds - data.render->offset) / data.render->speed, 0.f);
+
+		data.player->seek(seconds, true);
+	}
+
+	std::optional<float> player_percent(const ui::TimelineElementData& data) {
+		if (!data.render) {
+			auto percent = data.player->get_percent_pos();
+			if (!percent)
+				return {};
+
+			return *percent / 100.f;
+		}
+
+		auto time = data.player->get_time_pos();
+		float duration = data.video.video_info->duration;
+		if (!time || duration <= 0.f)
+			return {};
+
+		return (data.render->offset + (static_cast<float>(*time) * data.render->speed)) / duration;
 	}
 }
 
@@ -98,17 +125,17 @@ void ui::videos::init_zoom(AnimatedElement& timeline, float duration) {
 void ui::videos::update_progress(AnimatedElement& timeline) {
 	const auto& data = std::get<TimelineElementData>(timeline.element->data);
 
-	if (drag.grabbing || !data.player)
+	if (drag.grabbing || !data.player || !data.video.video_info)
 		return;
 
 	if (data.player->is_seeking() || data.player->get_queued_seek())
 		return;
 
-	auto progress_percent = data.player->get_percent_pos();
+	auto progress_percent = player_percent(data);
 	if (!progress_percent)
 		return;
 
-	timeline.animations.at(hasher("progress")).set_goal(*progress_percent / 100.f);
+	timeline.animations.at(hasher("progress")).set_goal(*progress_percent);
 }
 
 ui::AnimatedElement* ui::add_timeline(
@@ -468,8 +495,8 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 			time = std::clamp(time, 0.f, duration);
 			float percent = time / duration;
 
-			if (data.player && time != drag.last_seek) {
-				data.player->seek(time, true);
+			if (time != drag.last_seek) {
+				seek_player(data, time);
 				drag.last_seek = time;
 			}
 
