@@ -10,6 +10,7 @@
 #include "components/main.h"
 #include "os/taskbar.h"
 #include "blur_preview.h"
+#include "blur_sample.h"
 #include "ui/elements/videos/videos.h"
 
 #define DEBUG_RENDER_LOGGING 0
@@ -62,6 +63,8 @@ namespace {
 		gui::components::main::release_previews();
 		ui::videos::player.reset();
 
+		// stopping takes a moment, as the render checks every 50ms
+		BlurSample::wait_for_renders(std::chrono::seconds(5));
 		BlurPreview::remove_temp_files();
 
 		sdl::cleanup();

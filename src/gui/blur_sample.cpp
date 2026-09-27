@@ -15,6 +15,8 @@ namespace {
 	// samples that were still open when they ended
 	std::vector<std::filesystem::path> old_samples;
 
+	std::atomic<int> running_renders = 0;
+
 	void remove_old_samples() {
 		std::erase_if(old_samples, [](const std::filesystem::path& path) {
 			std::error_code ec;
@@ -40,6 +42,7 @@ BlurSample::BlurSample(const Request& request)
 	u::log("rendering blur sample for {}", u::path_to_string(request.video_path));
 
 	// detached so ending the sample doesn't wait for the render to stop
+	running_renders++;
 	std::thread([promise = std::move(promise),
 	             video_path = request.video_path,
 	             video_info = request.video_info,
@@ -59,6 +62,7 @@ BlurSample::BlurSample(const Request& request)
 		}
 
 		promise.set_value(std::move(result));
+		running_renders--;
 	}).detach();
 }
 
@@ -71,6 +75,13 @@ BlurSample::~BlurSample() {
 	old_samples.push_back(m_path);
 
 	remove_old_samples();
+}
+
+void BlurSample::wait_for_renders(std::chrono::milliseconds timeout) {
+	auto start = std::chrono::steady_clock::now();
+
+	while (running_renders > 0 && std::chrono::steady_clock::now() - start < timeout)
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }
 
 void BlurSample::update() {
