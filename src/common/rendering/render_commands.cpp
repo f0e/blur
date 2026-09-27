@@ -148,6 +148,20 @@ namespace {
 		return false;
 	}
 
+	// what a full render would encode with, failing where it would. it's taken as untrimmed
+	tl::expected<std::vector<std::string>, std::string> build_output_encoding_args(
+		const media::VideoInfo& video_info, const BlurSettings& settings, const GlobalAppSettings& app_settings
+	) {
+		auto encoding_args = build_encoding_args(settings, app_settings, nullptr);
+
+		if (!video_info.audio_sample_rates.empty() && wants_audio_copy(encoding_args)) {
+			if (auto conflict = rendering::detail::get_audio_copy_conflict(settings, false))
+				return tl::unexpected(*conflict);
+		}
+
+		return encoding_args;
+	}
+
 	// jpegs are full range bt601, which ffmpeg won't convert to unless it's told to
 	constexpr std::string_view JPEG_COLOUR = "out_color_matrix=bt601:out_range=pc";
 
@@ -372,15 +386,26 @@ tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffm
 	return args;
 }
 
-std::vector<std::string> rendering::detail::build_ffmpeg_sample_args(
+tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffmpeg_sample_args(
 	const std::filesystem::path& input_path,
 	const media::VideoInfo& video_info,
 	const BlurSettings& settings,
+	const GlobalAppSettings& app_settings,
 	const std::filesystem::path& output_path,
 	size_t start_frame,
 	size_t end_frame,
 	size_t skipped_frames
 ) {
+	std::vector<std::string> encoding_args = { "-c:v", "libx264", "-preset", "ultrafast", "-crf", "16" };
+
+	if (app_settings.pre_render_output_encoding) {
+		auto output_args = build_output_encoding_args(video_info, settings, app_settings);
+		if (!output_args)
+			return tl::unexpected(output_args.error());
+
+		encoding_args = std::move(*output_args);
+	}
+
 	std::vector<std::string> args = {
 		"-loglevel",    "error",
 		"-hide_banner", "-y",
@@ -398,7 +423,11 @@ std::vector<std::string> rendering::detail::build_ffmpeg_sample_args(
 	// it can be finished early, which cuts the video short of the audio
 	args.push_back("-shortest");
 
-	args.insert(args.end(), { "-c:v", "libx264", "-preset", "ultrafast", "-crf", "16", "-c:a", "aac" });
+	args.insert(args.end(), encoding_args.begin(), encoding_args.end());
+
+	// the sample's audio is trimmed, so it can't be copied
+	if (!app_settings.pre_render_output_encoding || wants_audio_copy(encoding_args))
+		args.insert(args.end(), { "-c:a", "aac" });
 
 	args.push_back(u::path_to_string(output_path));
 	return args;

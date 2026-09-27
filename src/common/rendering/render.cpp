@@ -111,13 +111,17 @@ tl::expected<rendering::RenderResult, rendering::RenderError> rendering::render_
 	// a render trimmed to the same stretch would skip these too
 	auto skipped_frames = detail::get_skipped_frames(settings, app_settings, video_info);
 
+	auto ffmpeg_args = detail::build_ffmpeg_sample_args(
+		input_path, video_info, settings, app_settings, output_path, start_frame, end_frame, skipped_frames
+	);
+	if (!ffmpeg_args)
+		return tl::unexpected(RenderError{ .user_message = ffmpeg_args.error() });
+
 	RenderCommands commands = {
 		.vspipe_video = detail::build_vspipe_video_args(
 			input_path, merged_settings, video_info, start_frame, end_frame, {}, false, skipped_frames
 		),
-		.ffmpeg = detail::build_ffmpeg_sample_args(
-			input_path, video_info, settings, output_path, start_frame, end_frame, skipped_frames
-		),
+		.ffmpeg = *ffmpeg_args,
 	};
 
 	auto preview_args = detail::build_ffmpeg_preview_args();

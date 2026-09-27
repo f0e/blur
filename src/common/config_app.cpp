@@ -37,6 +37,7 @@ std::string config_app::generate_config_string(const GlobalAppSettings& settings
 	output << "\n";
 	output << "- preview" << "\n";
 	output << "preview volume: " << settings.preview_volume << "\n";
+	output << "pre-renders use output encoding: " << (settings.pre_render_output_encoding ? "true" : "false") << "\n";
 
 	if (!shareable_only) {
 		output << "hardware accelerated preview: " << (settings.preview_hardware_decoding ? "true" : "false") << "\n";
@@ -134,6 +135,9 @@ GlobalAppSettings config_app::parse_from_map(const std::map<std::string, std::st
 
 	config_base::extract_config_value(config_map, "preview volume", settings.preview_volume);
 	config_base::extract_config_value(config_map, "hardware accelerated preview", settings.preview_hardware_decoding);
+	config_base::extract_config_value(
+		config_map, "pre-renders use output encoding", settings.pre_render_output_encoding
+	);
 	config_base::extract_config_value(config_map, "sample video path", settings.sample_video_path);
 	config_base::extract_config_value(config_map, "config preview seek", settings.config_preview_seek);
 

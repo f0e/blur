@@ -357,6 +357,13 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"pre-render output encoding checkbox",
+			{
+				"Encodes pre-renders (shift+space in the previews) with the config's encoding settings, so they look like the output will",
+				"Slower encoders make pre-rendering slower",
+			},
+		},
+		{
 			"skip queue checkbox",
 			{
 				"Starts rendering videos as soon as they're added instead of queueing them up",

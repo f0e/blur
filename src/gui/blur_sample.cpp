@@ -27,9 +27,13 @@ namespace {
 }
 
 BlurSample::BlurSample(const Request& request)
-	: m_path(BlurPreview::temp_file_path("mkv")), m_volume(request.volume),
-	  m_hardware_decoding(request.app_settings.preview_hardware_decoding), m_start_frame(request.start_frame),
-	  m_end_frame(request.end_frame),
+	: m_path(
+		  BlurPreview::temp_file_path(
+			  request.app_settings.pre_render_output_encoding ? request.settings.advanced.video_container : "mkv"
+		  )
+	  ),
+	  m_volume(request.volume), m_hardware_decoding(request.app_settings.preview_hardware_decoding),
+	  m_start_frame(request.start_frame), m_end_frame(request.end_frame),
 	  m_fps(static_cast<double>(request.video_info.fps_num) / request.video_info.fps_den),
 	  m_clock_offset(request.video_info.video_start_time - request.video_info.start_time) {
 	const auto& settings = request.settings;

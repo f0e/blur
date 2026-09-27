@@ -3,12 +3,13 @@
 
 PreviewState PlayerBlurPreview::update(const Request& request) {
 	if (m_sample) {
+		auto settings = sample_settings(request);
 		bool moved = !request.player.is_paused() || request.player.get_time_pos() != m_sample->player_time;
 
 		if (moved || request.video_path != m_sample->video_path)
 			cancel_sample();
-		else if (request.settings != m_sample->settings)
-			rerender_sample(request);
+		else if (settings != m_sample->settings)
+			rerender_sample(request, settings);
 		else
 			m_sample->new_settings.reset();
 	}
@@ -80,7 +81,7 @@ void PlayerBlurPreview::begin_sample(const Request& request) {
 
 	m_sample = Sample{
 		.video_path = request.video_path,
-		.settings = request.settings,
+		.settings = sample_settings(request),
 		.player_time = *time,
 		.start_frame = start_frame,
 		.end_frame = end_frame,
@@ -96,12 +97,12 @@ void PlayerBlurPreview::begin_sample(const Request& request) {
 	};
 }
 
-void PlayerBlurPreview::rerender_sample(const Request& request) {
+void PlayerBlurPreview::rerender_sample(const Request& request, const SampleSettings& settings) {
 	auto& sample = *m_sample;
 	auto now = std::chrono::steady_clock::now();
 
-	if (request.settings != sample.new_settings) {
-		sample.new_settings = request.settings;
+	if (settings != sample.new_settings) {
+		sample.new_settings = settings;
 		sample.new_settings_since = now;
 		return;
 	}
@@ -112,7 +113,7 @@ void PlayerBlurPreview::rerender_sample(const Request& request) {
 	// a looping one's rendered again for as far as it got
 	auto end_frame = sample.sample->looped_end_frame().value_or(sample.end_frame);
 
-	sample.settings = request.settings;
+	sample.settings = settings;
 	sample.new_settings.reset();
 	sample.sample = std::make_unique<BlurSample>(BlurSample::Request{
 		.video_path = request.video_path,

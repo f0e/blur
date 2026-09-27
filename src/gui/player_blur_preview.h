@@ -45,9 +45,26 @@ public:
 	);
 
 private:
+	// what a sample's output depends on, so it's only rendered again when that changes
+	struct SampleSettings {
+		BlurSettings blur;
+		bool pre_render_output_encoding = false;
+		bool fully_blur_first_frame = false;
+
+		bool operator==(const SampleSettings& other) const = default;
+	};
+
+	static SampleSettings sample_settings(const Request& request) {
+		return {
+			.blur = request.settings,
+			.pre_render_output_encoding = request.app_settings.pre_render_output_encoding,
+			.fully_blur_first_frame = request.app_settings.fully_blur_first_frame,
+		};
+	}
+
 	struct Sample {
 		std::filesystem::path video_path;
-		BlurSettings settings;
+		SampleSettings settings;
 
 		// the player's time when it started
 		double player_time = 0.0;
@@ -56,7 +73,7 @@ private:
 		size_t end_frame = 0;
 
 		// settings it's waiting on to settle before it's rendered again
-		std::optional<BlurSettings> new_settings;
+		std::optional<SampleSettings> new_settings;
 		std::chrono::steady_clock::time_point new_settings_since;
 
 		std::unique_ptr<BlurSample> sample;
@@ -72,6 +89,6 @@ private:
 
 	PreviewState update_preview(const Request& request);
 	void begin_sample(const Request& request);
-	void rerender_sample(const Request& request);
+	void rerender_sample(const Request& request, const SampleSettings& settings);
 	void update_sample(const Request& request, PreviewState& state);
 };

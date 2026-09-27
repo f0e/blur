@@ -58,10 +58,11 @@ namespace rendering::detail {
 		bool trimming
 	);
 
-	std::vector<std::string> build_ffmpeg_sample_args(
+	tl::expected<std::vector<std::string>, std::string> build_ffmpeg_sample_args(
 		const std::filesystem::path& input_path,
 		const media::VideoInfo& video_info,
 		const BlurSettings& settings,
+		const GlobalAppSettings& app_settings,
 		const std::filesystem::path& output_path,
 		size_t start_frame,
 		size_t end_frame,
