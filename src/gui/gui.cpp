@@ -9,6 +9,7 @@
 #include "components/configs/preview_frames.h"
 #include "components/main.h"
 #include "os/taskbar.h"
+#include "ui/elements/videos/videos.h"
 
 #define DEBUG_RENDER_LOGGING 0
 
@@ -52,6 +53,16 @@ namespace {
 
 		os::taskbar::set_progress(ProgressState::NONE);
 	}
+
+	// video players and textures free gl resources, so they have to go before the gl context does
+	void shutdown() {
+		gui::renderer::clear_containers();
+		gui::components::configs::preview_frames::reset();
+		gui::components::main::release_previews();
+		ui::videos::player.reset();
+
+		sdl::cleanup();
+	}
 }
 
 int gui::run() {
@@ -79,7 +90,7 @@ int gui::run() {
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {
 				case SDL_EVENT_QUIT:
-					sdl::cleanup();
+					shutdown();
 					return 0;
 
 				case SDL_EVENT_WINDOW_EXPOSED:
@@ -209,6 +220,6 @@ int gui::run() {
 		}
 	}
 
-	sdl::cleanup();
+	shutdown();
 	return 0;
 }
