@@ -148,6 +148,9 @@ namespace {
 		return false;
 	}
 
+	// jpegs are full range bt601, which ffmpeg won't convert to unless it's told to
+	constexpr std::string_view JPEG_COLOUR = "out_color_matrix=bt601:out_range=pc";
+
 	constexpr int PREVIEW_MAX_HEIGHT = 720;
 }
 
@@ -413,7 +416,7 @@ void rendering::detail::copy_file_timestamp(const std::filesystem::path& from, c
 
 std::vector<std::string> rendering::detail::build_ffmpeg_preview_args() {
 	return {
-		"-vf",  std::format("scale=-2:min(ih\\,{})", PREVIEW_MAX_HEIGHT),
+		"-vf",  std::format("scale=-2:min(ih\\,{}):{}", PREVIEW_MAX_HEIGHT, JPEG_COLOUR),
 		"-c:v", "mjpeg",
 		"-q:v", "2",
 		"-f",   "image2pipe",
