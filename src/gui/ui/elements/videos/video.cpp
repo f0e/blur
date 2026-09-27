@@ -45,6 +45,7 @@ void ui::render_video(const Container& container, const AnimatedElement& element
 	float anim = element.animations.at(hasher("main")).current;
 	int alpha = anim * 255;
 	float video_alpha = alpha * (1.f - data.fade);
+	const auto* overlay_frame = data.overlay && data.overlay->frame ? &*data.overlay->frame : nullptr;
 
 	if (data.video.video_info && !data.video.video_info->ffmpeg_can_decode_video) {
 		render::text(
@@ -57,12 +58,12 @@ void ui::render_video(const Container& container, const AnimatedElement& element
 	}
 	else if (data.video.video_info) {
 		bool overlay_drawn = false;
-		if (data.overlay && data.overlay->texture) {
-			render::image(rect.shrink(1), *data.overlay->texture, gfx::Color::white(video_alpha));
+		if (overlay_frame && overlay_frame->texture) {
+			render::image(rect.shrink(1), *overlay_frame->texture, gfx::Color::white(video_alpha));
 			overlay_drawn = true;
 		}
-		else if (data.overlay && data.overlay->player) {
-			overlay_drawn = data.overlay->player->draw(rect.shrink(1), gfx::Color::white(video_alpha));
+		else if (overlay_frame && overlay_frame->player) {
+			overlay_drawn = overlay_frame->player->draw(rect.shrink(1), gfx::Color::white(video_alpha));
 		}
 
 		// the video stands in faded while the overlay's on its way

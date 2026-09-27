@@ -51,10 +51,12 @@ PreviewState PlayerBlurPreview::update_preview(const Request& request) {
 
 	if (auto ready = m_preview.ready_player()) {
 		m_player_frames_at_blur = request.player.frame_count();
-		state.overlay = ready;
+		state.frame = ui::Frame{ .player = ready };
 	}
-	else if (request.player.frame_count() == m_player_frames_at_blur) {
-		state.overlay = m_preview.previous_player();
+	else if (auto previous = m_preview.previous_player();
+	         previous && request.player.frame_count() == m_player_frames_at_blur)
+	{
+		state.frame = ui::Frame{ .player = previous };
 	}
 
 	return state;
@@ -147,13 +149,14 @@ void PlayerBlurPreview::update_sample(const Request& request, PreviewState& stat
 	}
 
 	if (auto player = sample.player()) {
-		state.overlay = player;
+		state.frame = ui::Frame{ .player = player };
 		state.sample_status = "looping the blurred sample, space to stop";
 		return;
 	}
 
-	state.sample_frame = sample.frame();
-	state.sample_frame_id = sample.frame_id();
+	// what's shown for where it started stays up until it's rendered a frame
+	if (auto frame = sample.frame())
+		state.frame = ui::Frame{ .texture = frame, .texture_id = sample.frame_id() };
 
 	auto progress = sample.progress();
 

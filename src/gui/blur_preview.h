@@ -5,6 +5,7 @@
 #include "common/media.h"
 #include "common/rendering/render_errors.h"
 #include "common/rendering/render_state.h"
+#include "ui/frame.h"
 
 class VideoPlayer;
 
@@ -122,13 +123,10 @@ private:
 struct PreviewState {
 	bool playing = false;
 
-	std::shared_ptr<VideoPlayer> overlay;
+	// shown over the video, nothing until it's ready
+	std::optional<ui::Frame> frame;
 
 	BlurPreview::Status status;
-
-	// the id changes with the frame
-	std::shared_ptr<render::Texture> sample_frame;
-	size_t sample_frame_id = 0;
 
 	// replaces the status while a sample's rendering or playing
 	std::optional<std::string> sample_status;

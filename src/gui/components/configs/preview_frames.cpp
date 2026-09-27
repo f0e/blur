@@ -100,8 +100,7 @@ namespace {
 			.video_info = info,
 		};
 
-		if (state.overlay)
-			result.frame = preview_frames::Frame{ .player = state.overlay };
+		result.frame = state.frame;
 
 		return result;
 	}
@@ -145,12 +144,10 @@ namespace {
 			result.playback_position = playback_position;
 		}
 
-		if (state.sample_frame)
-			result.frame = preview_frames::Frame{ .texture = state.sample_frame, .texture_id = state.sample_frame_id };
-		else if (state.overlay)
-			result.frame = preview_frames::Frame{ .player = state.overlay };
+		if (state.frame)
+			result.frame = state.frame;
 		else if (source_player->has_frame() && source_player->get_video_dimensions())
-			result.frame = preview_frames::Frame{ .player = source_player, .faded = !state.playing };
+			result.frame = ui::Frame{ .player = source_player, .faded = !state.playing };
 
 		return result;
 	}

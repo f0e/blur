@@ -3,12 +3,9 @@
 #include "common/config_app.h"
 #include "common/config_blur.h"
 #include "common/media.h"
+#include "../../ui/frame.h"
 
 class VideoPlayer;
-
-namespace render {
-	class Texture;
-}
 
 namespace gui::components::configs::preview_frames {
 	struct Request {
@@ -21,18 +18,8 @@ namespace gui::components::configs::preview_frames {
 		bool show_mask = false;
 	};
 
-	struct Frame {
-		std::shared_ptr<VideoPlayer> player;
-
-		// shown instead of the player when it's set. the id changes with the texture
-		std::shared_ptr<render::Texture> texture;
-		size_t texture_id = 0;
-
-		bool faded = false;
-	};
-
 	struct Result {
-		std::optional<Frame> frame;
+		std::optional<ui::Frame> frame;
 		bool failed = false;
 		bool playing = false;
 		float video_duration = 0.f;

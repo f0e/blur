@@ -2,6 +2,7 @@
 
 #include "../render/render.h"
 #include "../thumbnails.h"
+#include "frame.h"
 #include "helpers/text_input.h"
 #include "common/media.h"
 
@@ -184,11 +185,8 @@ namespace ui {
 	};
 
 	struct VideoOverlay {
-		// null until it's ready, the video's shown faded meanwhile
-		std::shared_ptr<VideoPlayer> player;
-
-		// shown instead of the player when it's set
-		std::shared_ptr<render::Texture> texture;
+		// nothing until it's ready, the video's shown faded meanwhile
+		std::optional<Frame> frame;
 
 		// the stretch of the video it covers, marked on the timeline. as fractions of the container's duration
 		std::optional<std::pair<float, float>> range;

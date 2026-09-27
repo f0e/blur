@@ -140,7 +140,7 @@ namespace {
 			show_preview_error("Failed to generate mask preview.", mask_preview->take_error());
 
 			return {
-				.overlay = ui::VideoOverlay{ .player = state.overlay },
+				.overlay = ui::VideoOverlay{ .frame = state.frame },
 				.status = state.status_text("loading mask..."),
 			};
 		}
@@ -164,8 +164,7 @@ namespace {
 		QueuePreviewState result{ .status = state.status_text("rendering preview...") };
 		if (!state.playing)
 			result.overlay = ui::VideoOverlay{
-				.player = state.overlay,
-				.texture = state.sample_frame,
+				.frame = state.frame,
 				.range = state.sample_range,
 			};
 

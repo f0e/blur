@@ -335,7 +335,7 @@ std::optional<std::string> PreviewState::status_text(std::optional<std::string> 
 	if (playing)
 		return "pause to see blur's output, or shift+space to play a blurred sample";
 
-	if (overlay)
+	if (frame)
 		return std::nullopt;
 
 	if (status.failed)
