@@ -4,6 +4,7 @@
 #include "render/render.h"
 
 #include "common/rendering/render.h"
+#include "common/rendering/render_commands.h"
 
 namespace {
 	// fewer and ffmpeg might not have a whole frame to keep
@@ -32,9 +33,15 @@ BlurSample::BlurSample(const Request& request)
 	  m_end_frame(request.end_frame),
 	  m_fps(static_cast<double>(request.video_info.fps_num) / request.video_info.fps_den),
 	  m_clock_offset(request.video_info.video_start_time - request.video_info.start_time) {
+	const auto& info = request.video_info;
 	const auto& settings = request.settings;
 
 	m_speed = settings.timescale ? static_cast<double>(settings.output_timescale) / settings.input_timescale : 1.0;
+
+	auto skipped_frames = rendering::detail::get_skipped_frames(settings, request.app_settings, info);
+
+	m_source_offset = m_clock_offset + (static_cast<double>(m_start_frame) / m_fps) +
+	                  (static_cast<double>(skipped_frames) / settings.blur_output_fps * m_speed);
 
 	std::promise<tl::expected<rendering::RenderResult, rendering::RenderError>> promise;
 	m_render = promise.get_future();
@@ -45,8 +52,8 @@ BlurSample::BlurSample(const Request& request)
 	running_renders++;
 	std::thread([promise = std::move(promise),
 	             video_path = request.video_path,
-	             video_info = request.video_info,
-	             settings = request.settings,
+	             video_info = info,
+	             settings,
 	             app_settings = request.app_settings,
 	             state = m_state,
 	             path = m_path,

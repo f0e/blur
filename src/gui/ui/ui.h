@@ -227,6 +227,10 @@ namespace ui {
 		UIVideo video;
 		std::shared_ptr<VideoPlayer> player;
 		std::optional<TimelineRender> render;
+
+		// what dragging a range grab seeks to show where it is, when that isn't the player
+		std::shared_ptr<VideoPlayer> range_player;
+
 		VideoWaveform* waveform = nullptr;
 
 		// a stretch to mark, like what a sample covers. as fractions of the duration
@@ -236,10 +240,14 @@ namespace ui {
 		float fade = 0.f;
 		bool interactive = false;
 
+		// the range is the player's playback range, like a trim
+		bool range_is_playback = true;
+
 		bool operator==(const TimelineElementData& other) const {
 			return video == other.video && player == other.player && render == other.render &&
-			       waveform == other.waveform && highlight == other.highlight && active == other.active &&
-			       fade == other.fade && interactive == other.interactive;
+			       range_player == other.range_player && waveform == other.waveform && highlight == other.highlight &&
+			       active == other.active && fade == other.fade && interactive == other.interactive &&
+			       range_is_playback == other.range_is_playback;
 		}
 	};
 

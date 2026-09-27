@@ -82,6 +82,13 @@ namespace {
 		data.player->seek(seconds, true);
 	}
 
+	void seek_range_player(const ui::TimelineElementData& data, float seconds) {
+		if (data.range_player)
+			data.range_player->seek(seconds, true);
+		else
+			seek_player(data, seconds);
+	}
+
 	std::optional<float> player_percent(const ui::TimelineElementData& data) {
 		if (!data.render) {
 			auto percent = data.player->get_percent_pos();
@@ -354,8 +361,7 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 				if (!drag.start_mouse_x) {
 					drag.start_mouse_x = keys::mouse_pos.x;
 
-					if (data.player)
-						data.player->seek(*grab.value * duration, true);
+					seek_range_player(data, *grab.value * duration);
 				}
 				else if (drag.moving || keys::mouse_pos.x != drag.start_mouse_x) {
 					drag.moving = true;
@@ -369,14 +375,14 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 					if (percent != *grab.value) {
 						*grab.value = percent;
 
-						if (data.player) {
+						if (data.player && data.range_is_playback) {
 							if (grab.is_start)
 								data.player->set_start(percent);
 							else
 								data.player->set_end(percent);
-
-							data.player->seek(percent * duration, true);
 						}
+
+						seek_range_player(data, percent * duration);
 					}
 
 					auto& grab_progress_anim = element.animations.at(hasher("progress"));

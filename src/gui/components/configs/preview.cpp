@@ -17,6 +17,14 @@
 namespace {
 	bool playback_seek_unsaved = false;
 
+	// loop mode previews a range, rendered and looped, rather than a single frame
+	const std::string LOOP_ICON = "\xe2\x86\xbb";
+	constexpr float DEFAULT_LOOP_SECONDS = 3.f;
+
+	bool loop_mode = false;
+	std::optional<std::pair<float, float>> loop_range;
+	std::filesystem::path loop_video_path;
+
 	struct SaveMaskDialogState {
 		std::string name;
 		std::string error;
@@ -174,6 +182,19 @@ void configs::config_preview(ui::Container& container) {
 
 	bool showing_hovered_mask = !hovered_mask.empty() && hovered_mask != masks::NONE_OPTION;
 
+	if (preview_video_path != loop_video_path) {
+		loop_video_path = preview_video_path;
+		loop_mode = false;
+		loop_range.reset();
+	}
+
+	bool looping = loop_mode && loop_range && !show_mask_preview;
+
+	bool editing_loop = false;
+	if (auto timeline = container.elements.find("config preview timeline"); timeline != container.elements.end())
+		editing_loop =
+			ui::is_active_element(timeline->second, "grab_0") || ui::is_active_element(timeline->second, "grab_1");
+
 	auto preview = preview_frames::update(
 		{
 			.video_path = preview_video_path,
@@ -181,8 +202,16 @@ void configs::config_preview(ui::Container& container) {
 			.app_settings = app_settings,
 			.position = seek,
 			.show_mask = show_mask_preview,
+			.loop = looping ? loop_range : std::nullopt,
+			.editing_loop = editing_loop,
 		}
 	);
+
+	// a new range starts from where the preview's at
+	if (loop_mode && !loop_range && preview.video_info && preview.video_info->duration > 0.f) {
+		float start = std::clamp(seek, 0.f, 1.f);
+		loop_range = { start, std::min(start + (DEFAULT_LOOP_SECONDS / preview.video_info->duration), 1.f) };
+	}
 
 	if (preview.playback_position)
 		seek = *preview.playback_position;
@@ -302,9 +331,35 @@ void configs::config_preview(ui::Container& container) {
 
 		int seek_width = container.get_usable_rect().w - seek_bar_height - DELETE_ICON_GAP;
 
+		if (!show_mask_preview && preview.video_info) {
+			ui::add_icon_button(
+				"loop preview button",
+				container,
+				LOOP_ICON,
+				fonts::dejavu,
+				gfx::Size(seek_bar_height, seek_bar_height),
+				loop_mode ? gfx::Color::white() : DELETE_ICON_COLOR,
+				gfx::Color::white(),
+				[] {
+					loop_mode = !loop_mode;
+				},
+				loop_mode ? "Preview a single frame" : "Preview a looped render of a range"
+			);
+
+			ui::set_next_same_line(container);
+			seek_width -= seek_bar_height + DELETE_ICON_GAP;
+		}
+
 		ui::AnimatedElement* seek_bar = nullptr;
 
 		if (preview.video_info) {
+			std::optional<ui::TimelineRender> render;
+			if (preview.timeline_render)
+				render = ui::TimelineRender{
+					.offset = preview.timeline_render->offset,
+					.speed = preview.timeline_render->speed,
+				};
+
 			seek_bar = ui::add_timeline(
 				"config preview timeline",
 				container,
@@ -313,11 +368,16 @@ void configs::config_preview(ui::Container& container) {
 						{
 							.path = preview_video_path,
 							.video_info = preview.video_info,
+							.start = looping ? &loop_range->first : nullptr,
+							.end = looping ? &loop_range->second : nullptr,
 						},
 					.player = preview.timeline_player,
+					.render = render,
+					.range_player = preview.source_player,
 					.highlight = preview.sample_range,
 					.active = true,
 					.interactive = true,
+					.range_is_playback = false,
 				},
 				seek_bar_height,
 				seek_width

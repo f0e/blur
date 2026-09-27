@@ -1,6 +1,7 @@
 #include "preview_frames.h"
 
 #include "../notifications.h"
+#include "../../blur_sample.h"
 #include "../../mask_preview.h"
 #include "../../player_blur_preview.h"
 #include "../../ui/helpers/video.h"
@@ -18,6 +19,34 @@ namespace {
 
 	// where playback last moved the seek bar, so it isn't mistaken for a seek
 	std::optional<float> playback_position;
+
+	struct LoopKey {
+		std::filesystem::path video_path;
+		BlurSettings settings;
+		size_t start_frame = 0;
+		size_t end_frame = 0;
+
+		bool operator==(const LoopKey& other) const = default;
+	};
+
+	struct {
+		std::optional<LoopKey> wanted;
+		std::chrono::steady_clock::time_point wanted_since;
+
+		// what the sample's rendering, which is kept up until the next one starts
+		std::optional<LoopKey> rendered;
+		std::unique_ptr<BlurSample> sample;
+	} loop;
+
+	void reset_loop() {
+		loop.wanted.reset();
+		loop.rendered.reset();
+		loop.sample.reset();
+	}
+
+	std::shared_ptr<VideoPlayer> loop_player() {
+		return loop.sample ? loop.sample->player() : nullptr;
+	}
 
 	struct {
 		std::mutex mutex;
@@ -97,6 +126,7 @@ namespace {
 			.video_duration = static_cast<float>(info.video_duration),
 			.status = state.status_text(),
 			.timeline_player = source_player,
+			.source_player = source_player,
 			.video_info = info,
 		};
 
@@ -106,17 +136,102 @@ namespace {
 		return result;
 	}
 
+	void update_loop(
+		const preview_frames::Request& request, const media::VideoInfo& info, preview_frames::Result& result
+	) {
+		if (!source_player->is_paused())
+			source_player->set_paused(true);
+
+		blurred_preview->cancel_sample();
+
+		double fps = static_cast<double>(info.fps_num) / info.fps_den;
+		auto frames = static_cast<size_t>(std::llround(info.video_duration * fps));
+
+		auto to_frame = [&](float percent) {
+			// mpv's clock starts with the container, which can be before the video's first frame
+			double time = (percent * info.duration) - (info.video_start_time - info.start_time);
+			return std::min(static_cast<size_t>(std::llround(std::max(time, 0.0) * fps)), frames);
+		};
+
+		LoopKey key{
+			.video_path = request.video_path,
+			.settings = request.settings,
+			.start_frame = to_frame(request.loop->first),
+			.end_frame = to_frame(request.loop->second),
+		};
+
+		auto now = std::chrono::steady_clock::now();
+		if (key != loop.wanted) {
+			loop.wanted = key;
+			loop.wanted_since = now;
+		}
+
+		if (key != loop.rendered && now - loop.wanted_since >= BlurSample::SETTLE_TIME &&
+		    key.end_frame > key.start_frame)
+		{
+			loop.sample.reset();
+			loop.sample = std::make_unique<BlurSample>(BlurSample::Request{
+				.video_path = request.video_path,
+				.video_info = info,
+				.settings = request.settings,
+				.app_settings = request.app_settings,
+				.start_frame = key.start_frame,
+				.end_frame = key.end_frame,
+			});
+			loop.rendered = key;
+		}
+
+		if (!loop.sample)
+			return;
+
+		loop.sample->update();
+		show_error("Failed to render the loop.", loop.sample->take_error());
+
+		if (request.editing_loop)
+			return;
+
+		if (loop.sample->failed()) {
+			result.status = "couldn't render the loop";
+			return;
+		}
+
+		if (auto player = loop.sample->player()) {
+			result.frame = preview_frames::Frame{ .player = player };
+			result.status.reset();
+
+			result.timeline_player = player;
+			result.timeline_render = preview_frames::Render{
+				.offset = static_cast<float>(loop.sample->source_offset()),
+				.speed = static_cast<float>(loop.sample->speed()),
+			};
+			return;
+		}
+
+		if (auto frame = loop.sample->frame())
+			result.frame = preview_frames::Frame{ .texture = frame, .texture_id = loop.sample->frame_id() };
+
+		auto progress = loop.sample->progress();
+		result.status =
+			progress.total_frames > 0
+				? std::format("rendering the loop... {}%", progress.current_frame * 100 / progress.total_frames)
+				: "starting the loop...";
+	}
+
 	preview_frames::Result update_blurred(const preview_frames::Request& request, const media::VideoInfo& info) {
 		update_source_player(request, info, request.position);
 
 		preview_frames::Result result{
 			.video_duration = static_cast<float>(info.video_duration),
 			.timeline_player = source_player,
+			.source_player = source_player,
 			.video_info = info,
 		};
 
 		if (!source_player)
 			return result;
+
+		if (!request.loop)
+			reset_loop();
 
 		if (!blurred_preview)
 			blurred_preview = std::make_unique<PlayerBlurPreview>();
@@ -151,6 +266,9 @@ namespace {
 			result.frame = preview_frames::Frame{ .player = state.overlay };
 		else if (source_player->has_frame() && source_player->get_video_dimensions())
 			result.frame = preview_frames::Frame{ .player = source_player, .faded = !state.playing };
+
+		if (request.loop && info.fps_num > 0 && info.fps_den > 0)
+			update_loop(request, info, result);
 
 		return result;
 	}
@@ -199,6 +317,13 @@ void preview_frames::handle_key_press(SDL_Keycode key, SDL_Keymod mod) {
 	if (!source_player || showing_mask)
 		return;
 
+	if (loop.wanted) {
+		if (auto player = loop_player())
+			player->handle_key_press(key);
+
+		return;
+	}
+
 	if (key == SDLK_SPACE && blurred_preview) {
 		if (blurred_preview->continue_sample())
 			return;
@@ -217,6 +342,13 @@ void preview_frames::toggle_playback() {
 	if (!source_player || showing_mask)
 		return;
 
+	if (loop.wanted) {
+		if (auto player = loop_player())
+			player->cycle_paused();
+
+		return;
+	}
+
 	if (blurred_preview && blurred_preview->continue_sample())
 		return;
 
@@ -224,6 +356,8 @@ void preview_frames::toggle_playback() {
 }
 
 void preview_frames::pause() {
+	reset_loop();
+
 	if (blurred_preview)
 		blurred_preview->cancel_sample();
 
@@ -240,6 +374,9 @@ void preview_frames::handle_event(const SDL_Event& event, bool& to_render) {
 
 	if (mask_preview)
 		mask_preview->handle_event(event, to_render);
+
+	if (loop.sample)
+		loop.sample->handle_event(event, to_render);
 }
 
 bool preview_frames::save_mask(
@@ -249,6 +386,7 @@ bool preview_frames::save_mask(
 }
 
 void preview_frames::reset() {
+	reset_loop();
 	blurred_preview.reset();
 	mask_preview.reset();
 

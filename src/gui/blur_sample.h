@@ -88,6 +88,16 @@ public:
 
 	void handle_event(const SDL_Event& event, bool& to_render);
 
+	// where the player's start is in the source, in seconds on mpv's clock (which starts with the container)
+	[[nodiscard]] double source_offset() const {
+		return m_source_offset;
+	}
+
+	// how far through the source a second of the sample goes
+	[[nodiscard]] double speed() const {
+		return m_speed;
+	}
+
 private:
 	std::filesystem::path m_path;
 	std::shared_ptr<rendering::RenderState> m_state = std::make_shared<rendering::RenderState>();
@@ -101,6 +111,7 @@ private:
 	double m_fps;
 	double m_clock_offset;
 
+	double m_source_offset = 0.0;
 	double m_speed = 1.0;
 
 	std::shared_ptr<render::Texture> m_frame;
