@@ -299,14 +299,39 @@ void configs::config_preview(ui::Container& container) {
 		container.push_element_gap(SEEK_BAR_BOTTOM_GAP);
 
 		container.push_element_gap(DELETE_ICON_GAP);
-		auto* seek_bar = ui::add_seek_bar(
-			"config preview seek bar",
-			container,
-			seek,
-			fonts::dejavu(fonts::size::SMALL),
-			preview.video_duration,
-			container.get_usable_rect().w - seek_bar_height - DELETE_ICON_GAP
-		);
+
+		int seek_width = container.get_usable_rect().w - seek_bar_height - DELETE_ICON_GAP;
+
+		ui::AnimatedElement* seek_bar = nullptr;
+
+		if (preview.video_info) {
+			seek_bar = ui::add_timeline(
+				"config preview timeline",
+				container,
+				{
+					.video =
+						{
+							.path = preview_video_path,
+							.video_info = preview.video_info,
+						},
+					.player = preview.timeline_player,
+					.active = true,
+					.interactive = true,
+				},
+				seek_bar_height,
+				seek_width
+			);
+		}
+		else {
+			seek_bar = ui::add_seek_bar(
+				"config preview seek bar",
+				container,
+				seek,
+				fonts::dejavu(fonts::size::SMALL),
+				preview.video_duration,
+				seek_width
+			);
+		}
 
 		bool seek_bar_dragging = ui::get_active_element() == seek_bar;
 
