@@ -30,7 +30,6 @@ namespace gui::components::main {
 
 	void invalidate_trim_support();
 
-	// frees the queue's previews, for when the queue isn't shown
 	void release_previews();
 
 	void handle_event(const SDL_Event& event, bool& to_render);

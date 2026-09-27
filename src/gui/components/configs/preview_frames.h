@@ -17,8 +17,6 @@ namespace gui::components::configs::preview_frames {
 
 	struct Frame {
 		std::shared_ptr<VideoPlayer> player;
-
-		// the source video standing in until the blurred frame's ready
 		bool faded = false;
 	};
 
@@ -28,11 +26,7 @@ namespace gui::components::configs::preview_frames {
 		bool playing = false;
 		float video_duration = 0.f;
 		std::string frame_timing_log;
-
-		// what to tell the user while there's nothing blurred to show
 		std::optional<std::string> status;
-
-		// where the player is, for the seek bar to follow playback and frame stepping
 		std::optional<float> playback_position;
 	};
 
@@ -46,7 +40,6 @@ namespace gui::components::configs::preview_frames {
 
 	void pause();
 
-	// false if the mask preview isn't showing an up to date mask
 	bool save_mask(const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done);
 
 	void reset();

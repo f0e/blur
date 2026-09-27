@@ -37,7 +37,6 @@ namespace {
 		return std::filesystem::temp_directory_path() / std::format("blur-preview-{}-{}.{}", pid, ++count, extension);
 	}
 
-	// blur.py's output runs faster or slower than the source with timescale on
 	double output_speed(const BlurSettings& settings) {
 		if (!settings.timescale)
 			return 1.0;
@@ -176,7 +175,6 @@ void BlurPreview::finish_build() {
 
 	auto script = pending.script.get();
 
-	// requested settings changed while it was building
 	if (pending.key != m_requested)
 		return;
 

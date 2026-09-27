@@ -183,7 +183,6 @@ namespace ui {
 		int16_t max_sample = 0;
 	};
 
-	// shown in place of the active video, like its blurred preview
 	struct VideoOverlay {
 		// null until it's ready, the video's shown faded meanwhile
 		std::shared_ptr<VideoPlayer> player;
