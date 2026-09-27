@@ -22,6 +22,8 @@ namespace ui::videos {
 
 	[[nodiscard]] VideoWaveform* get_waveform(const std::filesystem::path& path, float duration);
 
+	[[nodiscard]] std::unordered_map<size_t, AnimationState> timeline_animations(float duration);
+
 	void init_zoom(AnimatedElement& timeline, float duration);
 
 	void update_progress(AnimatedElement& timeline);
