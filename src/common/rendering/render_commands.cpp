@@ -30,11 +30,11 @@ namespace {
 			double frame_duration = static_cast<double>(video_info.fps_den) / video_info.fps_num;
 
 			auto start_sample = static_cast<size_t>(std::llround(
-				(start_frame * frame_duration + skipped_time + video_info.video_start_time - audio_start_time) *
+				((start_frame * frame_duration) + skipped_time + video_info.video_start_time - audio_start_time) *
 				sample_rate
 			));
 			auto end_sample = static_cast<size_t>(std::llround(
-				(end_frame * frame_duration + video_info.video_start_time - audio_start_time) * sample_rate
+				((end_frame * frame_duration) + video_info.video_start_time - audio_start_time) * sample_rate
 			));
 
 			// build the middle part of the filter - everything between asetpts and the output label
