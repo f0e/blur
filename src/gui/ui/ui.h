@@ -209,6 +209,7 @@ namespace ui {
 	};
 
 	struct TimelineElementData {
+		// the range grabs only show when it has a start and end
 		UIVideo video;
 		std::shared_ptr<VideoPlayer> player;
 		VideoWaveform* waveform = nullptr;

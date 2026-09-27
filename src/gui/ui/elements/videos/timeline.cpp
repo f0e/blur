@@ -36,7 +36,13 @@ namespace {
 		return { x - (PLAYHEAD_WIDTH / 2), rect.y, PLAYHEAD_WIDTH, rect.h };
 	}
 
-	GrabRects get_grab_rects(float start, float end, const gfx::Rect& rect, float visible_start, float visible_range) {
+	// around the whole video when there's no range
+	GrabRects get_grab_rects(
+		const ui::UIVideo& video, const gfx::Rect& rect, float visible_start, float visible_range
+	) {
+		float start = video.start != nullptr ? *video.start : 0.f;
+		float end = video.end != nullptr ? *video.end : 1.f;
+
 		float left_t = (start - visible_start) / visible_range;
 		float right_t = (end - visible_start) / visible_range;
 
@@ -134,8 +140,10 @@ ui::AnimatedElement* ui::add_timeline(
 void ui::render_timeline(const Container& container, const AnimatedElement& element) {
 	const auto& data = std::get<TimelineElementData>(element.element->data);
 
-	if (data.fade >= 1.f || !data.video.video_info || !data.video.start || !data.video.end)
+	if (data.fade >= 1.f || !data.video.video_info)
 		return;
+
+	bool has_range = data.video.start != nullptr && data.video.end != nullptr;
 
 	auto rect = element.element->rect;
 
@@ -155,7 +163,7 @@ void ui::render_timeline(const Container& container, const AnimatedElement& elem
 	float visible_range = (zoom_end - zoom_start) / duration;
 	float visible_end = visible_start + visible_range;
 
-	auto grab_rects = get_grab_rects(*data.video.start, *data.video.end, rect, visible_start, visible_range);
+	auto grab_rects = get_grab_rects(data.video, rect, visible_start, visible_range);
 
 	constexpr int STROKE_ALPHA = 125;
 	render::push_clip_rect(container.rect);
@@ -164,19 +172,21 @@ void ui::render_timeline(const Container& container, const AnimatedElement& elem
 	// a pixel spare past the grabs, since the scissor rect gets truncated to framebuffer pixels
 	render::push_clip_rect(rect.expand(GRABS_THICKNESS + 1), true);
 
-	float grabs_alpha = anim * (data.video.trim_disabled ? DISABLED_GRABS_ALPHA : 1.f);
-	render::rect_side(
-		grab_rects.left,
-		gfx::Color::lerp(GRABS_COLOR, GRABS_ACTIVE_COLOR, left_grab).adjust_alpha(grabs_alpha),
-		render::RectSide::LEFT,
-		GRABS_THICKNESS
-	);
-	render::rect_side(
-		grab_rects.right,
-		gfx::Color::lerp(GRABS_COLOR, GRABS_ACTIVE_COLOR, right_grab).adjust_alpha(grabs_alpha),
-		render::RectSide::RIGHT,
-		GRABS_THICKNESS
-	);
+	if (has_range) {
+		float grabs_alpha = anim * (data.video.trim_disabled ? DISABLED_GRABS_ALPHA : 1.f);
+		render::rect_side(
+			grab_rects.left,
+			gfx::Color::lerp(GRABS_COLOR, GRABS_ACTIVE_COLOR, left_grab).adjust_alpha(grabs_alpha),
+			render::RectSide::LEFT,
+			GRABS_THICKNESS
+		);
+		render::rect_side(
+			grab_rects.right,
+			gfx::Color::lerp(GRABS_COLOR, GRABS_ACTIVE_COLOR, right_grab).adjust_alpha(grabs_alpha),
+			render::RectSide::RIGHT,
+			GRABS_THICKNESS
+		);
+	}
 
 	rect = rect.shrink(1);
 
@@ -221,8 +231,10 @@ void ui::render_timeline(const Container& container, const AnimatedElement& elem
 bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 	auto& data = std::get<TimelineElementData>(element.element->data);
 
-	if (!data.active || !data.video.video_info || !data.video.start || !data.video.end)
+	if (!data.active || !data.video.video_info)
 		return false;
+
+	bool has_range = data.video.start != nullptr && data.video.end != nullptr;
 
 	const auto& rect = element.element->rect;
 
@@ -244,7 +256,7 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 	float visible_start = zoom_start / duration;
 	float visible_range = zoom_range / duration;
 
-	auto grab_rects = get_grab_rects(*data.video.start, *data.video.end, rect, visible_start, visible_range);
+	auto grab_rects = get_grab_rects(data.video, rect, visible_start, visible_range);
 
 	bool updated = false;
 
@@ -281,7 +293,7 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 	bool grabbing = false;
 
 	for (auto [i, grab] : u::enumerate(grabs)) {
-		if (data.video.trim_disabled) {
+		if (!has_range || data.video.trim_disabled) {
 			grab.anim.set_goal(0.f);
 			continue;
 		}
@@ -464,7 +476,7 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 
 	float current_percent = progress_anim.goal;
 
-	if (keys::is_key_pressed(SDL_SCANCODE_LEFTBRACKET) || keys::is_key_pressed(SDL_SCANCODE_G)) {
+	if (has_range && (keys::is_key_pressed(SDL_SCANCODE_LEFTBRACKET) || keys::is_key_pressed(SDL_SCANCODE_G))) {
 		*data.video.start = std::clamp(current_percent, 0.f, 1.f);
 
 		if (*data.video.end < *data.video.start) {
@@ -474,7 +486,7 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 		updated = true;
 	}
 
-	if (keys::is_key_pressed(SDL_SCANCODE_RIGHTBRACKET) || keys::is_key_pressed(SDL_SCANCODE_H)) {
+	if (has_range && (keys::is_key_pressed(SDL_SCANCODE_RIGHTBRACKET) || keys::is_key_pressed(SDL_SCANCODE_H))) {
 		*data.video.end = std::clamp(current_percent, 0.f, 1.f);
 
 		if (*data.video.start > *data.video.end) {
