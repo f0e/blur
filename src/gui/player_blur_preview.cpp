@@ -21,7 +21,7 @@ PreviewState PlayerBlurPreview::update(const Request& request) {
 	auto state = update_preview(request);
 
 	if (m_sample)
-		update_sample(state);
+		update_sample(request, state);
 
 	return state;
 }
@@ -125,7 +125,7 @@ void PlayerBlurPreview::rerender_sample(const Request& request) {
 	});
 }
 
-void PlayerBlurPreview::update_sample(PreviewState& state) {
+void PlayerBlurPreview::update_sample(const Request& request, PreviewState& state) {
 	auto& sample = *m_sample->sample;
 	sample.update();
 
@@ -135,6 +135,14 @@ void PlayerBlurPreview::update_sample(PreviewState& state) {
 	if (sample.failed()) {
 		cancel_sample();
 		return;
+	}
+
+	if (request.video_info.duration > 0.0) {
+		auto [start, end] = sample.source_range();
+		state.sample_range = {
+			static_cast<float>(start / request.video_info.duration),
+			static_cast<float>(end / request.video_info.duration),
+		};
 	}
 
 	if (auto player = sample.player()) {

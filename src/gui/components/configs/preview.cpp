@@ -315,6 +315,7 @@ void configs::config_preview(ui::Container& container) {
 							.video_info = preview.video_info,
 						},
 					.player = preview.timeline_player,
+					.highlight = preview.sample_range,
 					.active = true,
 					.interactive = true,
 				},

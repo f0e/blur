@@ -73,5 +73,5 @@ private:
 	PreviewState update_preview(const Request& request);
 	void begin_sample(const Request& request);
 	void rerender_sample(const Request& request);
-	void update_sample(PreviewState& state);
+	void update_sample(const Request& request, PreviewState& state);
 };

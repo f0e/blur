@@ -163,7 +163,11 @@ namespace {
 
 		QueuePreviewState result{ .status = state.status_text("rendering preview...") };
 		if (!state.playing)
-			result.overlay = ui::VideoOverlay{ .player = state.overlay, .texture = state.sample_frame };
+			result.overlay = ui::VideoOverlay{
+				.player = state.overlay,
+				.texture = state.sample_frame,
+				.range = state.sample_range,
+			};
 
 		return result;
 	}

@@ -133,5 +133,8 @@ struct PreviewState {
 	// replaces the status while a sample's rendering or playing
 	std::optional<std::string> sample_status;
 
+	// how much of the video a sample covers so far, as fractions of the container's duration like the timeline's
+	std::optional<std::pair<float, float>> sample_range;
+
 	[[nodiscard]] std::optional<std::string> status_text(std::optional<std::string> loading_text = {}) const;
 };

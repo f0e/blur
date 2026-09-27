@@ -190,6 +190,17 @@ void ui::render_timeline(const Container& container, const AnimatedElement& elem
 
 	rect = rect.shrink(1);
 
+	if (data.highlight && data.highlight->second >= visible_start && data.highlight->first <= visible_end) {
+		float left = std::clamp((data.highlight->first - visible_start) / visible_range, 0.f, 1.f);
+		float right = std::clamp((data.highlight->second - visible_start) / visible_range, 0.f, 1.f);
+
+		gfx::Rect highlight_rect = rect;
+		highlight_rect.x = rect.x + static_cast<int>(left * rect.w);
+		highlight_rect.w = std::max(static_cast<int>(right * rect.w) - static_cast<int>(left * rect.w), 1);
+
+		render::rect_filled(highlight_rect, gfx::Color::white(40 * anim));
+	}
+
 	if (data.waveform) {
 		auto active_rect = rect;
 		active_rect.x = grab_rects.left.x;

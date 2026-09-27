@@ -43,6 +43,9 @@ namespace gui::components::configs::preview_frames {
 		// what the timeline follows and seeks
 		std::shared_ptr<VideoPlayer> timeline_player;
 
+		// what a sample covers, for the timeline to mark. as fractions of the container's duration
+		std::optional<std::pair<float, float>> sample_range;
+
 		std::optional<media::VideoInfo> video_info;
 	};
 
