@@ -76,6 +76,8 @@ int gui::run() {
 		return 1;
 	}
 
+	BlurPreview::remove_stale_temp_files();
+
 	SDL_Event event;
 
 	bool rendered_last = false;
