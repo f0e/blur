@@ -10,6 +10,7 @@ namespace {
 	constexpr gfx::Color GRABS_ACTIVE_COLOR(100, 100, 100);
 	constexpr float DISABLED_GRABS_ALPHA = 0.35f;
 	constexpr gfx::Size GRAB_CLICK_EXPANSION(15, 5);
+	constexpr int PLAYHEAD_WIDTH = 2;
 
 	constexpr float ZOOM_SPEED = 1.4f;
 	constexpr float MIN_ZOOM_SECS = 0.6f;
@@ -27,6 +28,12 @@ namespace {
 		gfx::Rect left;
 		gfx::Rect right;
 	};
+
+	// a filled rect rather than a line, which imgui offsets by half a pixel and so falls short of the top
+	gfx::Rect playhead_rect(const gfx::Rect& rect, float local) {
+		int x = rect.x + static_cast<int>(local * rect.w);
+		return { x - (PLAYHEAD_WIDTH / 2), rect.y, PLAYHEAD_WIDTH, rect.h };
+	}
 
 	GrabRects get_grab_rects(float start, float end, const gfx::Rect& rect, float visible_start, float visible_range) {
 		float left_t = (start - visible_start) / visible_range;
@@ -152,22 +159,15 @@ void ui::render_timeline(const Container& container, const AnimatedElement& elem
 		float progress = element.animations.at(hasher("progress")).current;
 		float progress_local = ((progress * duration) - zoom_start) / zoom_range;
 
-		gfx::Point progress_point = rect.origin();
-		progress_point.x = rect.x + static_cast<int>(progress_local * rect.w);
-
 		float progress_anim = anim * (1.f - left_grab) * (1.f - right_grab);
-		render::line(
-			progress_point, progress_point.offset_y(rect.h), gfx::Color::white(progress_anim * 255), false, 2.f
-		);
+		render::rect_filled(playhead_rect(rect, progress_local), gfx::Color::white(progress_anim * 255));
 
 		float seeking = element.animations.at(hasher("seeking")).current;
 		if (seeking > 0.f) {
 			float seek = element.animations.at(hasher("seek")).current;
 			float seek_local = std::clamp(((seek * duration) - zoom_start) / zoom_range, 0.f, 1.f);
 
-			gfx::Point seek_point = rect.origin();
-			seek_point.x = rect.x + static_cast<int>(seek_local * rect.w);
-			render::line(seek_point, seek_point.offset_y(rect.h), gfx::Color::white(75 * anim * seeking), false, 2.f);
+			render::rect_filled(playhead_rect(rect, seek_local), gfx::Color::white(75 * anim * seeking));
 		}
 	}
 
