@@ -8,8 +8,7 @@ namespace {
 		std::vector<std::string>& args,
 		const media::VideoInfo& video_info,
 		const BlurSettings& settings,
-		size_t start_frame,
-		size_t end_frame,
+		rendering::detail::FrameRange range,
 		size_t skipped_frames
 	) {
 		if (video_info.audio_sample_rates.empty())
@@ -30,11 +29,11 @@ namespace {
 			double frame_duration = static_cast<double>(video_info.fps_den) / video_info.fps_num;
 
 			auto start_sample = static_cast<size_t>(std::llround(
-				((start_frame * frame_duration) + skipped_time + video_info.video_start_time - audio_start_time) *
+				((range.start * frame_duration) + skipped_time + video_info.video_start_time - audio_start_time) *
 				sample_rate
 			));
 			auto end_sample = static_cast<size_t>(std::llround(
-				((end_frame * frame_duration) + video_info.video_start_time - audio_start_time) * sample_rate
+				((range.end * frame_duration) + video_info.video_start_time - audio_start_time) * sample_rate
 			));
 
 			// build the middle part of the filter - everything between asetpts and the output label
@@ -212,11 +211,7 @@ std::vector<std::string> rendering::detail::build_vspipe_video_args(
 	const std::filesystem::path& input_path,
 	const nlohmann::json& merged_settings,
 	const media::VideoInfo& video_info,
-	std::optional<size_t> start_frame,
-	std::optional<size_t> end_frame,
-	std::optional<std::pair<size_t, size_t>> mask_range,
-	bool preview_mask,
-	size_t skipped_frames
+	const VspipeVideoOptions& options
 ) {
 	auto args = build_vspipe_base_args(input_path, merged_settings);
 	args.insert(
@@ -233,25 +228,24 @@ std::vector<std::string> rendering::detail::build_vspipe_video_args(
 		}
 	);
 
-	if (start_frame)
-		args.insert(args.end(), { "-a", std::format("start={}", *start_frame) });
-
-	if (end_frame)
-		args.insert(args.end(), { "-a", std::format("end={}", *end_frame) });
-
-	if (mask_range) {
-		args.insert(args.end(), { "-a", std::format("mask_start={}", mask_range->first) });
-		args.insert(args.end(), { "-a", std::format("mask_end={}", mask_range->second) });
+	if (options.range) {
+		args.insert(args.end(), { "-a", std::format("start={}", options.range->start) });
+		args.insert(args.end(), { "-a", std::format("end={}", options.range->end) });
 	}
 
-	if (preview_mask)
+	if (options.mask_range) {
+		args.insert(args.end(), { "-a", std::format("mask_start={}", options.mask_range->start) });
+		args.insert(args.end(), { "-a", std::format("mask_end={}", options.mask_range->end) });
+	}
+
+	if (options.preview_mask)
 		args.insert(args.end(), { "-a", "preview_mask=true" });
 
 	if (video_info.frameserver)
 		args.insert(args.end(), { "-a", "frameserver=true" });
 
-	if (skipped_frames > 0)
-		args.insert(args.end(), { "-a", std::format("skip_frames={}", skipped_frames) });
+	if (options.skipped_frames > 0)
+		args.insert(args.end(), { "-a", std::format("skip_frames={}", options.skipped_frames) });
 
 	return args;
 }
@@ -337,8 +331,7 @@ tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffm
 	const BlurSettings& settings,
 	const GlobalAppSettings& app_settings,
 	const std::filesystem::path& output_path,
-	size_t start_frame,
-	size_t end_frame,
+	FrameRange range,
 	bool trimming
 ) {
 	auto encoding_args = build_encoding_args(settings, app_settings, nullptr);
@@ -373,7 +366,7 @@ tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffm
 	}
 	else {
 		append_audio_filter_args(
-			args, video_info, settings, start_frame, end_frame, get_skipped_frames(settings, app_settings, video_info)
+			args, video_info, settings, range, get_skipped_frames(settings, app_settings, video_info)
 		);
 	}
 
@@ -392,8 +385,7 @@ tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffm
 	const BlurSettings& settings,
 	const GlobalAppSettings& app_settings,
 	const std::filesystem::path& output_path,
-	size_t start_frame,
-	size_t end_frame,
+	FrameRange range,
 	size_t skipped_frames
 ) {
 	std::vector<std::string> encoding_args = { "-c:v", "libx264", "-preset", "ultrafast", "-crf", "16" };
@@ -416,7 +408,7 @@ tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffm
 	};
 
 	if (video_info.ffmpeg_can_decode_audio)
-		append_audio_filter_args(args, video_info, settings, start_frame, end_frame, skipped_frames);
+		append_audio_filter_args(args, video_info, settings, range, skipped_frames);
 
 	append_colour_param_args(args, video_info);
 

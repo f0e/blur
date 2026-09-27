@@ -45,7 +45,7 @@ tl::expected<std::string, std::string> rendering::build_preview_script(
 	auto merged_settings = detail::merge_settings(settings, app_settings, devices::get_device_indices(app_settings));
 
 	auto vspipe_args =
-		detail::build_vspipe_video_args(input_path, merged_settings, video_info, {}, {}, {}, preview_mask);
+		detail::build_vspipe_video_args(input_path, merged_settings, video_info, { .preview_mask = preview_mask });
 
 	// vspipe hands every -a over as a string, so these stay strings too
 	nlohmann::json script_args = nlohmann::json::object();
@@ -108,18 +108,26 @@ tl::expected<rendering::RenderResult, rendering::RenderError> rendering::render_
 
 	auto merged_settings = detail::merge_settings(settings, app_settings, devices::get_device_indices(app_settings));
 
+	detail::FrameRange range{ .start = start_frame, .end = end_frame };
+
 	// a render trimmed to the same stretch would skip these too
 	auto skipped_frames = detail::get_skipped_frames(settings, app_settings, video_info);
 
 	auto ffmpeg_args = detail::build_ffmpeg_sample_args(
-		input_path, video_info, settings, app_settings, output_path, start_frame, end_frame, skipped_frames
+		input_path, video_info, settings, app_settings, output_path, range, skipped_frames
 	);
 	if (!ffmpeg_args)
 		return tl::unexpected(RenderError{ .user_message = ffmpeg_args.error() });
 
 	RenderCommands commands = {
 		.vspipe_video = detail::build_vspipe_video_args(
-			input_path, merged_settings, video_info, start_frame, end_frame, {}, false, skipped_frames
+			input_path,
+			merged_settings,
+			video_info,
+			{
+				.range = range,
+				.skipped_frames = skipped_frames,
+			}
 		),
 		.ffmpeg = *ffmpeg_args,
 	};
@@ -222,9 +230,10 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 		);
 	}
 
-	auto ffmpeg_args = detail::build_ffmpeg_video_args(
-		input_path, video_info, settings, app_settings, output_path, start_frame, end_frame, trimmed
-	);
+	detail::FrameRange range{ .start = start_frame, .end = end_frame };
+
+	auto ffmpeg_args =
+		detail::build_ffmpeg_video_args(input_path, video_info, settings, app_settings, output_path, range, trimmed);
 	if (!ffmpeg_args)
 		return tl::unexpected(ffmpeg_args.error());
 
@@ -233,12 +242,12 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 			input_path,
 			merged_settings,
 			video_info,
-			start_frame,
-			end_frame,
-			// untrimmed renders use the whole video like previews do, so they share a cached mask
-			trimmed ? std::optional{ std::pair{ start_frame, end_frame } } : std::nullopt,
-			false,
-			detail::get_skipped_frames(settings, app_settings, video_info)
+			{
+				.range = range,
+				// untrimmed renders use the whole video like previews do, so they share a cached mask
+				.mask_range = trimmed ? std::optional{ range } : std::nullopt,
+				.skipped_frames = detail::get_skipped_frames(settings, app_settings, video_info),
+			}
 		),
 		.ffmpeg = *ffmpeg_args,
 	};
