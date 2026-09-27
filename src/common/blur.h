@@ -23,8 +23,6 @@ public:
 	bool verbose = true;
 	bool using_preview = false;
 
-	std::filesystem::path temp_path;
-
 	std::filesystem::path resources_path;
 	std::filesystem::path settings_path;
 	bool used_installer = false;

@@ -148,10 +148,6 @@ void Blur::cleanup() {
 	// stop renders & wait for them to finish stopping
 	rendering::video_render_queue.stop_and_wait();
 
-	// remove temp dirs
-	DEBUG_LOG("removing temp path {}", temp_path);
-	std::filesystem::remove_all(temp_path); // todo: is this unsafe lol
-
 	u::log("Application cleanup completed");
 }
 
