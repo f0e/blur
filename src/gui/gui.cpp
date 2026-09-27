@@ -58,7 +58,7 @@ namespace {
 
 	// video players and textures free gl resources, so they have to go before the gl context does
 	void shutdown() {
-		gui::renderer::clear_containers();
+		ui::clear_containers();
 		gui::components::configs::preview_frames::reset();
 		gui::components::main::release_previews();
 		ui::videos::player.reset();

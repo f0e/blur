@@ -570,23 +570,3 @@ void gui::renderer::on_render_finished(
 		desktop_notification::show("Blur render complete", std::format("Finished rendering {}", video_name));
 	}
 }
-
-void gui::renderer::clear_containers() {
-	for (auto* container : {
-			 &main_container,
-			 &queue_config_container,
-			 &queue_container,
-			 &config_container,
-			 &config_preview_content_container,
-			 &option_information_container,
-			 &notification_container,
-			 &history_button_container,
-			 &history_panel_container,
-			 &update_container,
-			 &nav_container,
-			 &navigation_button_container,
-		 })
-	{
-		container->elements.clear();
-	}
-}
