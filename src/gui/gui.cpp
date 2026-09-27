@@ -63,7 +63,6 @@ namespace {
 		gui::components::main::release_previews();
 		ui::videos::player.reset();
 
-		// stopping takes a moment, as the render checks every 50ms
 		BlurSample::wait_for_renders(std::chrono::seconds(5));
 		BlurPreview::remove_temp_files();
 

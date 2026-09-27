@@ -68,7 +68,7 @@ public:
 		const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
 	) const;
 
-	// somewhere new for a file a preview makes, in a temp folder for this run
+	// in a temp folder for this run
 	static std::filesystem::path temp_file_path(const std::string& extension);
 
 	// for shutdown, once nothing has the files open
@@ -126,14 +126,14 @@ struct PreviewState {
 
 	BlurPreview::Status status;
 
-	// the latest frame of a sample that's rendering, shown over everything else. the id changes with the frame
+	// the id changes with the frame
 	std::shared_ptr<render::Texture> sample_frame;
 	size_t sample_frame_id = 0;
 
 	// replaces the status while a sample's rendering or playing
 	std::optional<std::string> sample_status;
 
-	// how much of the video a sample covers so far, as fractions of the container's duration like the timeline's
+	// as fractions of the container's duration, like the timeline's
 	std::optional<std::pair<float, float>> sample_range;
 
 	[[nodiscard]] std::optional<std::string> status_text(std::optional<std::string> loading_text = {}) const;

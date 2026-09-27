@@ -20,9 +20,7 @@ namespace rendering {
 		const std::filesystem::path& log_path
 	);
 
-	// renders the output from source frame start_frame to end_frame with a quick encode, to play back as a sample.
-	// frames are captured as they're made and it can be finished early. the mask covers the whole video like the
-	// preview's, so they share a cached one
+	// the mask covers the whole video like the preview's, so they share a cached one
 	tl::expected<RenderResult, RenderError> render_sample(
 		const std::filesystem::path& input_path,
 		const media::VideoInfo& video_info,

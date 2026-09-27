@@ -17,8 +17,7 @@ namespace render {
 // thread only
 class BlurSample {
 public:
-	// how long settings have to stay the same before a sample's rendered for them, so dragging a slider doesn't start
-	// a render every frame
+	// so dragging a slider doesn't start a render every frame
 	static constexpr auto SETTLE_TIME = std::chrono::milliseconds(500);
 
 	struct Request {
@@ -55,7 +54,7 @@ public:
 
 	[[nodiscard]] bool finishing() const;
 
-	// the render failed or was stopped, there's nothing more coming
+	// or was stopped
 	[[nodiscard]] bool failed() const {
 		return m_failed;
 	}
