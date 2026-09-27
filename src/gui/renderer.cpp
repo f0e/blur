@@ -116,7 +116,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	const int queue_width = std::min(preferred_queue_width, rect.w - base_config_width);
 	const int queue_page_width = base_config_width + queue_width;
 
-	queue_config_container_rect.x = rect.center().x - queue_page_width / 2;
+	queue_config_container_rect.x = rect.center().x - (queue_page_width / 2);
 	queue_config_container_rect.w = base_config_width;
 
 	ui::reset_container(

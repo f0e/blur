@@ -11,7 +11,9 @@
 #include "config_rules.h"
 #include "masks.h"
 #include "paths.h"
-#include "vspipe.h"
+#ifndef _WIN32
+#	include "vspipe.h"
+#endif
 
 tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_preview) {
 	resources_path = paths::get_resources_path();
@@ -47,8 +49,8 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 
 #if defined(_WIN32)
 	used_installer =
-		std::filesystem::exists(resources_path / "lib\\vapoursynth\\Lib\\site-packages\\vapoursynth\\vspipe.exe") &&
-		std::filesystem::exists(resources_path / "lib\\ffmpeg\\ffmpeg.exe");
+		std::filesystem::exists(resources_path / R"(lib\vapoursynth\Lib\site-packages\vapoursynth\vspipe.exe)") &&
+		std::filesystem::exists(resources_path / R"(lib\ffmpeg\ffmpeg.exe)");
 #elif defined(__linux__) || defined(__APPLE__)
 	used_installer =
 		std::filesystem::exists(resources_path / "python/lib/python3.12/site-packages/vapoursynth/vspipe") &&
@@ -57,9 +59,9 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 
 	if (used_installer) {
 #if defined(_WIN32)
-		vspipe_path = (blur.resources_path / "lib\\vapoursynth\\Lib\\site-packages\\vapoursynth\\vspipe.exe");
-		ffmpeg_path = (blur.resources_path / "lib\\ffmpeg\\ffmpeg.exe");
-		ffprobe_path = (blur.resources_path / "lib\\ffmpeg\\ffprobe.exe");
+		vspipe_path = (blur.resources_path / R"(lib\vapoursynth\Lib\site-packages\vapoursynth\vspipe.exe)");
+		ffmpeg_path = (blur.resources_path / R"(lib\ffmpeg\ffmpeg.exe)");
+		ffprobe_path = (blur.resources_path / R"(lib\ffmpeg\ffprobe.exe)");
 #elif defined(__linux__) || defined(__APPLE__)
 		vspipe_path = (blur.resources_path / "python/lib/python3.12/site-packages/vapoursynth/vspipe");
 		ffmpeg_path = (blur.resources_path / "ffmpeg/ffmpeg");
