@@ -97,6 +97,8 @@ namespace {
 			.failed = state.status.failed,
 			.video_duration = static_cast<float>(info.video_duration),
 			.status = state.status_text(),
+			.timeline_player = source_player,
+			.video_info = info,
 		};
 
 		if (state.overlay)
@@ -108,7 +110,11 @@ namespace {
 	preview_frames::Result update_blurred(const preview_frames::Request& request, const media::VideoInfo& info) {
 		update_source_player(request, info, request.position);
 
-		preview_frames::Result result{ .video_duration = static_cast<float>(info.video_duration) };
+		preview_frames::Result result{
+			.video_duration = static_cast<float>(info.video_duration),
+			.timeline_player = source_player,
+			.video_info = info,
+		};
 
 		if (!source_player)
 			return result;

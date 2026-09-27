@@ -2,6 +2,7 @@
 
 #include "common/config_app.h"
 #include "common/config_blur.h"
+#include "common/media.h"
 
 class VideoPlayer;
 
@@ -29,6 +30,11 @@ namespace gui::components::configs::preview_frames {
 		std::string frame_timing_log;
 		std::optional<std::string> status;
 		std::optional<float> playback_position;
+
+		// what the timeline follows and seeks
+		std::shared_ptr<VideoPlayer> timeline_player;
+
+		std::optional<media::VideoInfo> video_info;
 	};
 
 	Result update(const Request& request);
