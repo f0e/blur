@@ -237,6 +237,7 @@ void ui::add_videos(
 			videos::timeline_rect(video_rect),
 			TimelineElementData{
 				.video = ui_video,
+				.player = videos::player,
 				.waveform = ui_video.video_info ? videos::get_waveform(ui_video.path, duration) : nullptr,
 				.active = active,
 				.fade = fade,

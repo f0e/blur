@@ -51,18 +51,18 @@ namespace {
 	}
 
 	// prefer the player's duration to metadata
-	float get_duration(const ui::UIVideo& video) {
-		if (ui::videos::player && ui::videos::player->get_duration())
-			return static_cast<float>(*ui::videos::player->get_duration());
+	float get_duration(const ui::TimelineElementData& data) {
+		if (data.player && data.player->get_duration())
+			return static_cast<float>(*data.player->get_duration());
 
-		return video.video_info->duration;
+		return data.video.video_info->duration;
 	}
 
-	float get_fps(const ui::UIVideo& video) {
-		if (ui::videos::player && ui::videos::player->get_fps())
-			return static_cast<float>(*ui::videos::player->get_fps());
+	float get_fps(const ui::TimelineElementData& data) {
+		if (data.player && data.player->get_fps())
+			return static_cast<float>(*data.player->get_fps());
 
-		return video.video_info->fps_num / (float)video.video_info->fps_den;
+		return data.video.video_info->fps_num / (float)data.video.video_info->fps_den;
 	}
 }
 
@@ -76,13 +76,15 @@ void ui::videos::init_zoom(AnimatedElement& timeline, float duration) {
 }
 
 void ui::videos::update_progress(AnimatedElement& timeline) {
-	if (drag.grabbing || !player)
+	const auto& data = std::get<TimelineElementData>(timeline.element->data);
+
+	if (drag.grabbing || !data.player)
 		return;
 
-	if (player->is_seeking() || player->get_queued_seek())
+	if (data.player->is_seeking() || data.player->get_queued_seek())
 		return;
 
-	auto progress_percent = player->get_percent_pos();
+	auto progress_percent = data.player->get_percent_pos();
 	if (!progress_percent)
 		return;
 
@@ -184,8 +186,8 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 
 	const auto& rect = element.element->rect;
 
-	float duration = get_duration(data.video);
-	float fps = get_fps(data.video);
+	float duration = get_duration(data);
+	float fps = get_fps(data);
 
 	auto& zoom_start_anim = element.animations.at(hasher("zoom_start"));
 	auto& zoom_end_anim = element.animations.at(hasher("zoom_end"));
@@ -262,8 +264,8 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 				if (!drag.start_mouse_x) {
 					drag.start_mouse_x = keys::mouse_pos.x;
 
-					if (videos::player)
-						videos::player->seek(*grab.value * duration, true);
+					if (data.player)
+						data.player->seek(*grab.value * duration, true);
 				}
 				else if (drag.moving || keys::mouse_pos.x != drag.start_mouse_x) {
 					drag.moving = true;
@@ -277,13 +279,13 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 					if (percent != *grab.value) {
 						*grab.value = percent;
 
-						if (videos::player) {
+						if (data.player) {
 							if (grab.is_start)
-								videos::player->set_start(percent);
+								data.player->set_start(percent);
 							else
-								videos::player->set_end(percent);
+								data.player->set_end(percent);
 
-							videos::player->seek(percent * duration, true);
+							data.player->seek(percent * duration, true);
 						}
 					}
 
@@ -403,8 +405,8 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 			time = std::clamp(time, 0.f, duration);
 			float percent = time / duration;
 
-			if (videos::player && time != drag.last_seek) {
-				videos::player->seek(time, true);
+			if (data.player && time != drag.last_seek) {
+				data.player->seek(time, true);
 				drag.last_seek = time;
 			}
 
@@ -442,7 +444,7 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 		updated = true;
 	}
 
-	if (videos::player && !videos::player->get_queued_seek())
+	if (data.player && !data.player->get_queued_seek())
 		seeking_anim.set_goal(0.f);
 
 	return updated;

@@ -210,14 +210,15 @@ namespace ui {
 
 	struct TimelineElementData {
 		UIVideo video;
+		std::shared_ptr<VideoPlayer> player;
 		VideoWaveform* waveform = nullptr;
 		bool active = false;
 		float fade = 0.f;
 		bool interactive = false;
 
 		bool operator==(const TimelineElementData& other) const {
-			return video == other.video && waveform == other.waveform && active == other.active && fade == other.fade &&
-			       interactive == other.interactive;
+			return video == other.video && player == other.player && waveform == other.waveform &&
+			       active == other.active && fade == other.fade && interactive == other.interactive;
 		}
 	};
 
