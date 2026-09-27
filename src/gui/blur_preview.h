@@ -64,7 +64,10 @@ public:
 		const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
 	) const;
 
-	// the files previews make go in a temp folder for this run. for shutdown, once nothing has them open
+	// somewhere new for a file a preview makes, in a temp folder for this run
+	static std::filesystem::path temp_file_path(const std::string& extension);
+
+	// for shutdown, once nothing has the files open
 	static void remove_temp_files();
 
 	// ones left by runs that didn't get to shut down
