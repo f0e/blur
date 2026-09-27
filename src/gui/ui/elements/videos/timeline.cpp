@@ -119,7 +119,8 @@ void ui::render_timeline(const Container& container, const AnimatedElement& elem
 	render::push_clip_rect(container.rect);
 	render::rect_filled(rect, gfx::Color::black(STROKE_ALPHA * anim));
 	render::rect_stroke(rect, gfx::Color(155, 155, 155, STROKE_ALPHA * anim));
-	render::push_clip_rect(rect.expand(1), true);
+	// a pixel spare past the grabs, since the scissor rect gets truncated to framebuffer pixels
+	render::push_clip_rect(rect.expand(GRABS_THICKNESS + 1), true);
 
 	float grabs_alpha = anim * (data.video.trim_disabled ? DISABLED_GRABS_ALPHA : 1.f);
 	render::rect_side(
