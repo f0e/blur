@@ -58,6 +58,17 @@ namespace rendering::detail {
 		bool trimming
 	);
 
+	// a quick encode for a sample, it's only played back
+	std::vector<std::string> build_ffmpeg_sample_args(
+		const std::filesystem::path& input_path,
+		const media::VideoInfo& video_info,
+		const BlurSettings& settings,
+		const std::filesystem::path& output_path,
+		size_t start_frame,
+		size_t end_frame,
+		size_t skipped_frames
+	);
+
 	std::vector<std::string> build_ffmpeg_preview_args();
 
 	void copy_file_timestamp(const std::filesystem::path& from, const std::filesystem::path& to);
