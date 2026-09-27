@@ -223,6 +223,14 @@ namespace {
 			err.is_blur_exception ? rendering::detail::without_error_objects(vspipe_errors) : vspipe_errors;
 		err.ffmpeg_errors = ffmpeg_errors;
 
+		// nvidia limits how many encodes can run at once, and cheaper cards have a lower limit
+		if (ffmpeg_errors.find("OpenEncodeSessionEx failed") != std::string::npos) {
+			err.user_message =
+				"The GPU couldn't start another encode, likely because it's already running as many as it can. Stop "
+				"other renders, pre-renders or recordings using GPU encoding, or turn GPU encoding off";
+			err.is_blur_exception = false;
+		}
+
 		return err;
 	}
 }
