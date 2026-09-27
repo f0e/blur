@@ -47,6 +47,9 @@ public:
 	// call every ui frame
 	void update();
 
+	// for shutdown, so ended samples' renders have stopped writing their files
+	static void wait_for_renders(std::chrono::milliseconds timeout);
+
 	// stops rendering and loops what's been rendered. false if there isn't enough to
 	bool finish();
 
