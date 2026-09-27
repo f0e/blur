@@ -37,6 +37,9 @@ namespace gui::renderer {
 
 	bool redraw_window(bool rendered_last, bool want_to_render);
 
+	// drops every element, for shutdown. they can hold video players and textures
+	void clear_containers();
+
 	void on_render_finished(
 		const rendering::VideoRenderDetails& render,
 		const tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>>& result
