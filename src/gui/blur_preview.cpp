@@ -273,7 +273,7 @@ void BlurPreview::handle_event(const SDL_Event& event, bool& to_render) {
 
 std::optional<std::string> PreviewState::status_text(std::optional<std::string> loading_text) const {
 	if (playing)
-		return "pause to see it blurred";
+		return "pause to see blur's output";
 
 	if (overlay)
 		return std::nullopt;
