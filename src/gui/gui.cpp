@@ -9,6 +9,7 @@
 #include "components/configs/preview_frames.h"
 #include "components/main.h"
 #include "os/taskbar.h"
+#include "blur_preview.h"
 #include "ui/elements/videos/videos.h"
 
 #define DEBUG_RENDER_LOGGING 0
@@ -60,6 +61,8 @@ namespace {
 		gui::components::configs::preview_frames::reset();
 		gui::components::main::release_previews();
 		ui::videos::player.reset();
+
+		BlurPreview::remove_temp_files();
 
 		sdl::cleanup();
 	}

@@ -64,6 +64,9 @@ public:
 		const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
 	) const;
 
+	// the files previews make go in a temp folder for this run. for shutdown, once nothing has them open
+	static void remove_temp_files();
+
 private:
 	struct Key {
 		std::filesystem::path video_path;

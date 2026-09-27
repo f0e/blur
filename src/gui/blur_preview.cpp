@@ -25,18 +25,6 @@ namespace {
 #endif
 	}
 
-	std::filesystem::path temp_file_path(const std::string& extension) {
-		static std::atomic<int> count = 0;
-
-#ifdef _WIN32
-		auto pid = GetCurrentProcessId();
-#else
-		auto pid = getpid();
-#endif
-
-		return std::filesystem::temp_directory_path() / std::format("blur-preview-{}-{}.{}", pid, ++count, extension);
-	}
-
 	double output_speed(const BlurSettings& settings) {
 		if (!settings.timescale)
 			return 1.0;
@@ -82,6 +70,39 @@ namespace {
 			{ "start", std::to_string(start) },
 		};
 	}
+
+	constexpr std::string_view TEMP_PREFIX = "blur-preview-";
+
+	unsigned long current_pid() {
+#ifdef _WIN32
+		return GetCurrentProcessId();
+#else
+		return getpid();
+#endif
+	}
+
+	std::filesystem::path temp_folder() {
+		return std::filesystem::temp_directory_path() / std::format("{}{}", TEMP_PREFIX, current_pid());
+	}
+
+	std::filesystem::path temp_file_path(const std::string& extension) {
+		static std::atomic<int> count = 0;
+
+		auto folder = temp_folder();
+
+		std::error_code ec;
+		std::filesystem::create_directories(folder, ec);
+
+		return folder / std::format("{}.{}", ++count, extension);
+	}
+}
+
+void BlurPreview::remove_temp_files() {
+	std::error_code ec;
+	std::filesystem::remove_all(temp_folder(), ec);
+
+	if (ec)
+		u::log_error("failed to remove preview files: {}", ec.message());
 }
 
 BlurPreview::~BlurPreview() {
