@@ -752,6 +752,11 @@ namespace ui {
 	void render_timeline(const Container& container, const AnimatedElement& element);
 	bool update_timeline(const Container& container, AnimatedElement& element);
 
+	// a video's timeline laid out like other elements, rather than under a video in a stack
+	AnimatedElement* add_timeline(
+		const std::string& id, Container& container, TimelineElementData data, int height, std::optional<int> width = {}
+	);
+
 	void handle_videos_event(const SDL_Event& event, bool& to_render);
 
 	void render_button(const Container& container, const AnimatedElement& element);

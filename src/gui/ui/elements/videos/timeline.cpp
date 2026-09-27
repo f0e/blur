@@ -14,6 +14,7 @@ namespace {
 
 	constexpr float ZOOM_SPEED = 1.4f;
 	constexpr float MIN_ZOOM_SECS = 0.6f;
+	constexpr float ZOOM_ANIMATION_SPEED = 30.f;
 
 	// shared timeline drag state
 	struct {
@@ -66,6 +67,19 @@ namespace {
 	}
 }
 
+std::unordered_map<size_t, ui::AnimationState> ui::videos::timeline_animations(float duration) {
+	return {
+		{ hasher("main"), AnimationState(25.f) },
+		{ hasher("progress"), AnimationState(70.f) },
+		{ hasher("seeking"), AnimationState(70.f) },
+		{ hasher("seek"), AnimationState(70.f) },
+		{ hasher("left_grab"), AnimationState(150.f) },
+		{ hasher("right_grab"), AnimationState(150.f) },
+		{ hasher("zoom_start"), AnimationState(ZOOM_ANIMATION_SPEED, 0.f) },
+		{ hasher("zoom_end"), AnimationState(ZOOM_ANIMATION_SPEED, duration) },
+	};
+}
+
 void ui::videos::init_zoom(AnimatedElement& timeline, float duration) {
 	auto& zoom_end = timeline.animations.at(hasher("zoom_end"));
 	if (zoom_end.goal > 0.f)
@@ -89,6 +103,32 @@ void ui::videos::update_progress(AnimatedElement& timeline) {
 		return;
 
 	timeline.animations.at(hasher("progress")).set_goal(*progress_percent / 100.f);
+}
+
+ui::AnimatedElement* ui::add_timeline(
+	const std::string& id, Container& container, TimelineElementData data, int height, std::optional<int> width
+) {
+	float duration = data.video.video_info ? data.video.video_info->duration : 0.f;
+	bool has_info = data.video.video_info.has_value();
+
+	Element element(
+		id,
+		ElementType::TIMELINE,
+		gfx::Rect(container.current_position, gfx::Size(width.value_or(container.get_usable_rect().w), height)),
+		std::move(data),
+		render_timeline,
+		update_timeline
+	);
+
+	auto* timeline =
+		add_element(container, std::move(element), container.element_gap, videos::timeline_animations(duration));
+
+	if (has_info) {
+		videos::init_zoom(*timeline, duration);
+		videos::update_progress(*timeline);
+	}
+
+	return timeline;
 }
 
 void ui::render_timeline(const Container& container, const AnimatedElement& element) {
