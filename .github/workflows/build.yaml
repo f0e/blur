@@ -31,7 +31,7 @@ jobs:
         run: choco install ccache --no-progress
 
       - name: Cache ccache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.ccache
@@ -50,7 +50,7 @@ jobs:
       # ── Linux setup ───────────────────────────────────────────────────────
       - name: Cache apt packages
         if: runner.os == 'Linux'
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: /var/cache/apt/archives
           key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml') }}
@@ -92,21 +92,21 @@ jobs:
       # ── Project dependencies ──────────────────────────────────────────────
       - name: Cache build dependencies (macOS)
         if: runner.os == 'macOS'
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ci/out
           key: deps-macos-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-macos.sh') }}
 
       - name: Cache build dependencies (Linux)
         if: runner.os == 'Linux'
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ci/out
           key: deps-linux-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-linux.sh') }}
 
       - name: Cache build dependencies (Windows)
         if: runner.os == 'Windows'
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ci/out
           key: deps-windows-${{ runner.arch }}-${{ hashFiles('ci/build-dependencies-windows.ps1') }}
@@ -144,7 +144,7 @@ jobs:
         run: echo "hash=$(git -C vcpkg rev-parse HEAD)" >> $GITHUB_OUTPUT
 
       - name: Cache vcpkg packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             vcpkg_installed/
