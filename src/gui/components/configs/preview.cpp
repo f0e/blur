@@ -382,6 +382,10 @@ void configs::config_preview(ui::Container& container) {
 	if (showing_hovered_mask || preview.frame) {
 		container.push_element_gap(PREVIEW_IMAGE_GAP);
 
+		std::optional<std::function<void()>> on_click;
+		if (!show_mask_preview)
+			on_click = preview_frames::toggle_playback;
+
 		if (showing_hovered_mask) {
 			auto mask_path = masks::get_path() / u::string_to_path(hovered_mask);
 			preview_image_added = ui::add_image(
@@ -401,15 +405,13 @@ void configs::config_preview(ui::Container& container) {
 									  container,
 									  preview.frame->texture,
 									  container.get_usable_rect().size(),
-									  std::to_string(preview.frame->texture_id)
+									  std::to_string(preview.frame->texture_id),
+									  gfx::Color::white(),
+									  on_click
 			)
 			                          .has_value();
 		}
 		else {
-			std::optional<std::function<void()>> on_click;
-			if (!show_mask_preview)
-				on_click = preview_frames::toggle_playback;
-
 			preview_image_id = "config preview video";
 			preview_image_added = ui::add_video_frame(
 									  preview_image_id,

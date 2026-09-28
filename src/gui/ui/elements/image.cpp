@@ -27,6 +27,25 @@ void ui::render_image(const Container& container, const AnimatedElement& element
 }
 
 namespace {
+	bool update_click(ui::AnimatedElement& element, const std::optional<std::function<void()>>& on_click) {
+		if (!on_click)
+			return false;
+
+		bool hovered = element.element->rect.contains(keys::mouse_pos) && ui::set_hovered_element(element);
+		if (!hovered)
+			return false;
+
+		ui::set_cursor(SDL_SYSTEM_CURSOR_POINTER);
+
+		if (!keys::is_mouse_down())
+			return false;
+
+		keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
+		(*on_click)();
+
+		return true;
+	}
+
 	// fits the area the image is drawn in, then puts the border back around it
 	gfx::Rect fit_rect(const gfx::Point& position, const gfx::Size& max_size, float aspect_ratio) {
 		gfx::Size inner_max_size(
@@ -100,7 +119,8 @@ std::optional<ui::AnimatedElement*> ui::add_image(
 	std::shared_ptr<render::Texture> texture,
 	const gfx::Size& max_size,
 	const std::string& image_id,
-	gfx::Color image_color
+	gfx::Color image_color,
+	std::optional<std::function<void()>> on_click
 ) {
 	if (!texture || !texture->is_valid())
 		return {};
@@ -125,8 +145,10 @@ std::optional<ui::AnimatedElement*> ui::add_image(
 			.texture = texture,
 			.image_id = image_id,
 			.image_color = image_color,
+			.on_click = std::move(on_click),
 		},
-		render_image
+		render_image,
+		update_image
 	);
 
 	return add_element(container, std::move(element), container.element_gap);
@@ -145,24 +167,12 @@ void ui::render_video_frame(const Container& container, const AnimatedElement& e
 	);
 }
 
+bool ui::update_image(const Container& container, AnimatedElement& element) {
+	return update_click(element, std::get<ImageElementData>(element.element->data).on_click);
+}
+
 bool ui::update_video_frame(const Container& container, AnimatedElement& element) {
-	const auto& data = std::get<VideoFrameElementData>(element.element->data);
-	if (!data.on_click)
-		return false;
-
-	bool hovered = element.element->rect.contains(keys::mouse_pos) && set_hovered_element(element);
-	if (!hovered)
-		return false;
-
-	set_cursor(SDL_SYSTEM_CURSOR_POINTER);
-
-	if (!keys::is_mouse_down())
-		return false;
-
-	keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
-	(*data.on_click)();
-
-	return true;
+	return update_click(element, std::get<VideoFrameElementData>(element.element->data).on_click);
 }
 
 std::optional<ui::AnimatedElement*> ui::add_video_frame(

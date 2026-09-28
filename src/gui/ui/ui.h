@@ -152,9 +152,11 @@ namespace ui {
 		std::shared_ptr<render::Texture> texture;
 		std::string image_id;
 		gfx::Color image_color;
+		std::optional<std::function<void()>> on_click;
 
 		bool operator==(const ImageElementData& other) const {
-			return texture == other.texture && image_id == other.image_id && image_color == other.image_color;
+			return texture == other.texture && image_id == other.image_id && image_color == other.image_color &&
+			       on_click.has_value() == other.on_click.has_value();
 		}
 	};
 
@@ -765,6 +767,7 @@ namespace ui {
 	void render_text(const Container& container, const AnimatedElement& element);
 
 	void render_image(const Container& container, const AnimatedElement& element);
+	bool update_image(const Container& container, AnimatedElement& element);
 
 	void render_video_frame(const Container& container, const AnimatedElement& element);
 	bool update_video_frame(const Container& container, AnimatedElement& element);
@@ -938,7 +941,8 @@ namespace ui {
 		std::shared_ptr<render::Texture> texture,
 		const gfx::Size& max_size,
 		const std::string& image_id = "",
-		gfx::Color image_color = gfx::Color::white()
+		gfx::Color image_color = gfx::Color::white(),
+		std::optional<std::function<void()>> on_click = {}
 	);
 
 	// the player's current frame, sized like add_image. nothing's added until a video is loaded
