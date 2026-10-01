@@ -127,14 +127,21 @@ void queue_preview::handle_event(const SDL_Event& event, bool& to_render) {
 
 bool queue_preview::handle_key_press(SDL_Keycode key, SDL_Keymod mod) {
 	const auto& player = ui::videos::player;
-	if (key != SDLK_SPACE || !blur_preview || !player)
+	if (key != SDLK_SPACE || !player)
 		return false;
 
-	if (blur_preview->continue_sample())
+	if (blur_preview && blur_preview->continue_sample())
 		return true;
 
 	if (!(mod & SDL_KMOD_SHIFT))
 		return false;
+
+	// a sample's shown over the blurred preview, so it's turned on for it
+	blur_enabled = true;
+	mask_enabled = false;
+
+	if (!blur_preview)
+		blur_preview = std::make_unique<PlayerBlurPreview>();
 
 	player->set_paused(true);
 	blur_preview->start_sample();
