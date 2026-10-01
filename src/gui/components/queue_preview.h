@@ -21,7 +21,7 @@ namespace gui::components::queue_preview {
 
 	void handle_event(const SDL_Event& event, bool& to_render);
 
-	// shift+space starts a sample, space moves it on. false if the video player should have the key
+	// shift+space starts a pre-render, space moves it on. false if the video player should have the key
 	bool handle_key_press(SDL_Keycode key, SDL_Keymod mod);
 
 	// its vapoursynth core and any gpu memory aren't worth keeping while the queue's not up

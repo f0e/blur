@@ -111,7 +111,7 @@ queue_preview::State queue_preview::update(
 	if (!state.playing)
 		result.overlay = ui::VideoOverlay{
 			.frame = state.frame,
-			.range = state.sample_range,
+			.range = state.pre_render_range,
 		};
 
 	return result;
@@ -130,13 +130,13 @@ bool queue_preview::handle_key_press(SDL_Keycode key, SDL_Keymod mod) {
 	if (key != SDLK_SPACE || !player)
 		return false;
 
-	if (blur_preview && blur_preview->continue_sample())
+	if (blur_preview && blur_preview->continue_pre_render())
 		return true;
 
 	if (!(mod & SDL_KMOD_SHIFT))
 		return false;
 
-	// a sample's shown over the blurred preview, so it's turned on for it
+	// a pre-render's shown over the blurred preview, so it's turned on for it
 	blur_enabled = true;
 	mask_enabled = false;
 
@@ -144,7 +144,7 @@ bool queue_preview::handle_key_press(SDL_Keycode key, SDL_Keymod mod) {
 		blur_preview = std::make_unique<PlayerBlurPreview>();
 
 	player->set_paused(true);
-	blur_preview->start_sample();
+	blur_preview->start_pre_render();
 	return true;
 }
 

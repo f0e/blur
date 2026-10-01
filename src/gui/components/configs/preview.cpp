@@ -324,7 +324,7 @@ void configs::config_preview(ui::Container& container) {
 							.video_info = preview.video_info,
 						},
 					.player = preview.timeline_player,
-					.highlight = preview.sample_range,
+					.highlight = preview.pre_render_range,
 					.active = true,
 					.interactive = true,
 				},
@@ -409,7 +409,7 @@ void configs::config_preview(ui::Container& container) {
 			                          .has_value();
 		}
 		else if (preview.frame->texture) {
-			preview_image_id = "config preview sample frame";
+			preview_image_id = "config preview pre-render frame";
 			preview_image_added = ui::add_image(
 									  preview_image_id,
 									  container,

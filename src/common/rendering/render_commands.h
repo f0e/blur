@@ -52,7 +52,7 @@ namespace rendering::detail {
 		bool trimming
 	);
 
-	tl::expected<std::vector<std::string>, std::string> build_ffmpeg_sample_args(
+	tl::expected<std::vector<std::string>, std::string> build_ffmpeg_pre_render_args(
 		const std::filesystem::path& input_path,
 		const media::VideoInfo& video_info,
 		const BlurSettings& settings,

@@ -94,7 +94,7 @@ blur.preview.run({}, {}, {}, {})
 	);
 }
 
-tl::expected<rendering::RenderResult, rendering::RenderError> rendering::render_sample(
+tl::expected<rendering::RenderResult, rendering::RenderError> rendering::pre_render(
 	const std::filesystem::path& input_path,
 	const media::VideoInfo& video_info,
 	const BlurSettings& settings,
@@ -114,7 +114,7 @@ tl::expected<rendering::RenderResult, rendering::RenderError> rendering::render_
 	// a render trimmed to the same stretch would skip these too
 	auto skipped_frames = get_skipped_frames(settings, app_settings, video_info);
 
-	auto ffmpeg_args = detail::build_ffmpeg_sample_args(
+	auto ffmpeg_args = detail::build_ffmpeg_pre_render_args(
 		input_path, video_info, settings, app_settings, output_path, range, skipped_frames
 	);
 	if (!ffmpeg_args)

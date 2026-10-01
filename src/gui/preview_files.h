@@ -1,6 +1,6 @@
 #pragma once
 
-// files the previews write, like scripts and samples, which go in a temp folder for this run
+// files the previews write, like scripts and pre-renders, which go in a temp folder for this run
 namespace preview_files {
 	std::filesystem::path new_path(const std::string& extension);
 

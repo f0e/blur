@@ -261,11 +261,11 @@ void BlurPreview::handle_event(const SDL_Event& event, bool& to_render) {
 }
 
 std::optional<std::string> PreviewState::status_text(std::optional<std::string> loading_text) const {
-	if (sample_status)
-		return sample_status;
+	if (pre_render_status)
+		return pre_render_status;
 
 	if (playing)
-		return "pause to see blur's output, or shift+space to play a blurred sample";
+		return "pause to see blur's output, or shift+space to pre-render from here";
 
 	if (frame)
 		return std::nullopt;

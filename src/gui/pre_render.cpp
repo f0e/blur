@@ -1,4 +1,4 @@
-#include "blur_sample.h"
+#include "pre_render.h"
 #include "blur_preview.h"
 #include "preview_files.h"
 #include "ui/helpers/video.h"
@@ -10,16 +10,16 @@ namespace {
 	// fewer and ffmpeg might not have a whole frame to keep
 	constexpr int MIN_FRAMES = 2;
 
-	// ids stay unique across samples, since the ui caches images by them
+	// ids stay unique across pre-renders, since the ui caches images by them
 	size_t last_frame_id = 0;
 
-	// samples that were still open when they ended
-	std::vector<std::filesystem::path> old_samples;
+	// files of pre-renders that were still open when they ended
+	std::vector<std::filesystem::path> old_files;
 
 	std::atomic<int> running_renders = 0;
 
-	void remove_old_samples() {
-		std::erase_if(old_samples, [](const std::filesystem::path& path) {
+	void remove_old_files() {
+		std::erase_if(old_files, [](const std::filesystem::path& path) {
 			std::error_code ec;
 			std::filesystem::remove(path, ec);
 			return !ec;
@@ -27,7 +27,7 @@ namespace {
 	}
 }
 
-BlurSample::BlurSample(const Request& request)
+PreRender::PreRender(const Request& request)
 	: m_path(
 		  preview_files::new_path(
 			  request.app_settings.pre_render_output_encoding ? request.settings.advanced.video_container : "mkv"
@@ -44,9 +44,9 @@ BlurSample::BlurSample(const Request& request)
 	std::promise<tl::expected<rendering::RenderResult, rendering::RenderError>> promise;
 	m_render = promise.get_future();
 
-	u::log("rendering blur sample for {}", u::path_to_string(request.video_path));
+	u::log("pre-rendering {}", u::path_to_string(request.video_path));
 
-	// detached so ending the sample doesn't wait for the render to stop
+	// detached so ending the pre-render doesn't wait for the render to stop
 	running_renders++;
 	std::thread([promise = std::move(promise),
 	             video_path = request.video_path,
@@ -57,9 +57,8 @@ BlurSample::BlurSample(const Request& request)
 	             path = m_path,
 	             start_frame = request.start_frame,
 	             end_frame = request.end_frame]() mutable {
-		auto result = rendering::render_sample(
-			video_path, video_info, settings, app_settings, state, path, start_frame, end_frame
-		);
+		auto result =
+			rendering::pre_render(video_path, video_info, settings, app_settings, state, path, start_frame, end_frame);
 
 		if (!result || result->stopped) {
 			std::error_code ec;
@@ -71,33 +70,33 @@ BlurSample::BlurSample(const Request& request)
 	}).detach();
 }
 
-BlurSample::~BlurSample() {
+PreRender::~PreRender() {
 	// the render removes its own file if it's stopped
 	m_state->stop();
 
 	// the ui can still be holding on to the player, so the file might not be free to remove yet
 	m_player.reset();
-	old_samples.push_back(m_path);
+	old_files.push_back(m_path);
 
-	remove_old_samples();
+	remove_old_files();
 }
 
-void BlurSample::wait_for_renders(std::chrono::milliseconds timeout) {
+void PreRender::wait_for_renders(std::chrono::milliseconds timeout) {
 	auto start = std::chrono::steady_clock::now();
 
 	while (running_renders > 0 && std::chrono::steady_clock::now() - start < timeout)
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }
 
-void BlurSample::update() {
-	remove_old_samples();
+void PreRender::update() {
+	remove_old_files();
 
 	if (m_render.valid() && m_render.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
 		auto result = m_render.get();
 
 		if (!result || result->stopped) {
 			if (!result) {
-				u::log_error("blur sample failed: {}", result.error().to_string());
+				u::log_error("pre-render failed: {}", result.error().to_string());
 				m_error = result.error();
 			}
 
@@ -121,7 +120,7 @@ void BlurSample::update() {
 	}
 }
 
-bool BlurSample::finish() {
+bool PreRender::finish() {
 	if (m_player || m_failed || m_state->get_progress().current_frame < MIN_FRAMES)
 		return false;
 
@@ -129,11 +128,11 @@ bool BlurSample::finish() {
 	return true;
 }
 
-bool BlurSample::finishing() const {
+bool PreRender::finishing() const {
 	return m_state->wants_finish() || (m_player && !player());
 }
 
-std::optional<size_t> BlurSample::looped_end_frame() const {
+std::optional<size_t> PreRender::looped_end_frame() const {
 	auto looping = player();
 	if (!looping)
 		return {};
@@ -146,7 +145,7 @@ std::optional<size_t> BlurSample::looped_end_frame() const {
 	return std::min(m_start_frame + frames, m_end_frame);
 }
 
-std::pair<double, double> BlurSample::source_range() const {
+std::pair<double, double> PreRender::source_range() const {
 	auto end_frame = looped_end_frame();
 
 	if (!end_frame) {
@@ -164,14 +163,14 @@ std::pair<double, double> BlurSample::source_range() const {
 	return { seconds(m_start_frame), seconds(*end_frame) };
 }
 
-std::shared_ptr<VideoPlayer> BlurSample::player() const {
+std::shared_ptr<VideoPlayer> PreRender::player() const {
 	if (!m_player || !m_player->has_frame() || !m_player->get_video_dimensions())
 		return nullptr;
 
 	return m_player;
 }
 
-void BlurSample::handle_event(const SDL_Event& event, bool& to_render) {
+void PreRender::handle_event(const SDL_Event& event, bool& to_render) {
 	if (m_player)
 		m_player->handle_mpv_event(event, to_render, true);
 }

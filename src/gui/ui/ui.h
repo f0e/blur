@@ -220,7 +220,7 @@ namespace ui {
 		std::shared_ptr<VideoPlayer> player;
 		VideoWaveform* waveform = nullptr;
 
-		// a stretch to mark, like what a sample covers. as fractions of the duration
+		// a stretch to mark, like what a pre-render covers. as fractions of the duration
 		std::optional<std::pair<float, float>> highlight;
 
 		bool active = false;

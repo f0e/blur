@@ -1,12 +1,12 @@
 #pragma once
 
 #include "blur_preview.h"
-#include "blur_sample.h"
+#include "pre_render.h"
 
 class VideoPlayer;
 
 // shows a config's output over a video player while it's paused. the blur can't keep up with playback, so the video
-// plays as it is, but the output can be rendered from where it's paused and looped as a sample
+// plays as it is, but the output can be pre-rendered from where it's paused and looped
 class PlayerBlurPreview {
 public:
 	struct Request {
@@ -18,7 +18,7 @@ public:
 		const GlobalAppSettings& app_settings;
 		// NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 
-		// the sample's, since it plays its own audio
+		// the pre-render's, since it plays its own audio
 		float volume = 0.f;
 	};
 
@@ -27,13 +27,13 @@ public:
 
 	// renders the output from where the player is once it's paused, showing frames as they're made. it loops once
 	// it's done, or once it's continued. moving or playing the player ends it, changing the settings renders it again
-	void start_sample();
+	void start_pre_render();
 
-	// a rendering sample loops what it's rendered so far, a looping one ends, leaving the player where it started.
-	// false if there's no sample
-	bool continue_sample();
+	// a pre-render that's rendering loops what it's rendered so far, a looping one ends, leaving the player where it
+	// started. false if there's no pre-render
+	bool continue_pre_render();
 
-	void cancel_sample();
+	void cancel_pre_render();
 
 	std::optional<rendering::RenderError> take_error();
 
@@ -45,50 +45,44 @@ public:
 	);
 
 private:
-	// what a sample's output depends on, so it's only rendered again when that changes
-	struct SampleSettings {
+	// so dragging a slider doesn't start a render every frame
+	static constexpr auto SETTLE_TIME = std::chrono::milliseconds(500);
+
+	// what a pre-render's output depends on, so it's only rendered again when that changes
+	struct PreRenderSettings {
 		BlurSettings blur;
-		bool pre_render_output_encoding = false;
+		bool output_encoding = false;
 		bool fully_blur_first_frame = false;
 
-		bool operator==(const SampleSettings& other) const = default;
+		bool operator==(const PreRenderSettings& other) const = default;
 	};
 
-	static SampleSettings sample_settings(const Request& request) {
-		return {
-			.blur = request.settings,
-			.pre_render_output_encoding = request.app_settings.pre_render_output_encoding,
-			.fully_blur_first_frame = request.app_settings.fully_blur_first_frame,
-		};
-	}
-
-	struct Sample {
+	struct ActivePreRender {
+		std::unique_ptr<PreRender> render;
 		std::filesystem::path video_path;
-		SampleSettings settings;
+		PreRenderSettings settings;
 
 		// the player's time when it started
 		double player_time = 0.0;
 
-		size_t start_frame = 0;
-		size_t end_frame = 0;
-
 		// settings it's waiting on to settle before it's rendered again
-		std::optional<SampleSettings> new_settings;
+		std::optional<PreRenderSettings> new_settings;
 		std::chrono::steady_clock::time_point new_settings_since;
-
-		std::unique_ptr<BlurSample> sample;
 	};
 
 	BlurPreview m_preview;
 
 	std::optional<uint64_t> m_player_frames_at_blur;
 
-	bool m_sample_requested = false;
-	std::optional<Sample> m_sample;
-	std::optional<rendering::RenderError> m_sample_error;
+	bool m_pre_render_requested = false;
+	std::optional<ActivePreRender> m_pre_render;
+	std::optional<rendering::RenderError> m_pre_render_error;
+
+	static PreRenderSettings pre_render_settings(const Request& request);
+	static std::unique_ptr<PreRender> make_pre_render(const Request& request, size_t start_frame, size_t end_frame);
 
 	PreviewState update_preview(const Request& request);
-	void begin_sample(const Request& request);
-	void rerender_sample(const Request& request, const SampleSettings& settings);
-	void update_sample(const Request& request, PreviewState& state);
+	void begin_pre_render(const Request& request);
+	void rerender(const Request& request, const PreRenderSettings& settings);
+	void update_pre_render(const Request& request, PreviewState& state);
 };

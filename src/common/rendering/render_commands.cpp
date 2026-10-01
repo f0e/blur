@@ -27,7 +27,7 @@ namespace {
 			double audio_start_time = video_info.audio_start_times[i];
 			double frame_duration = static_cast<double>(video_info.fps_den) / video_info.fps_num;
 
-			auto start_sample = static_cast<size_t>(std::llround(
+			auto start_pre_render = static_cast<size_t>(std::llround(
 				((range.start * frame_duration) + skipped_time + video_info.video_start_time - audio_start_time) *
 				sample_rate
 			));
@@ -61,7 +61,7 @@ namespace {
 			complex_filter += std::format(
 				"[1:a:{}]atrim=start_pts={}:end_pts={},asetpts=PTS-STARTPTS{}[a{}]",
 				i,
-				start_sample,
+				start_pre_render,
 				end_sample,
 				timescale_filter,
 				i
@@ -252,7 +252,7 @@ tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffm
 	return args;
 }
 
-tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffmpeg_sample_args(
+tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffmpeg_pre_render_args(
 	const std::filesystem::path& input_path,
 	const media::VideoInfo& video_info,
 	const BlurSettings& settings,
@@ -290,7 +290,7 @@ tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffm
 
 	args.insert(args.end(), encoding_args.begin(), encoding_args.end());
 
-	// the sample's audio is trimmed, so it can't be copied
+	// the pre-render's audio is trimmed, so it can't be copied
 	if (!app_settings.pre_render_output_encoding || wants_audio_copy(encoding_args))
 		args.insert(args.end(), { "-c:a", "aac" });
 

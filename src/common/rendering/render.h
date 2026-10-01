@@ -21,7 +21,7 @@ namespace rendering {
 	);
 
 	// the mask covers the whole video like the preview's, so they share a cached one
-	tl::expected<RenderResult, RenderError> render_sample(
+	tl::expected<RenderResult, RenderError> pre_render(
 		const std::filesystem::path& input_path,
 		const media::VideoInfo& video_info,
 		const BlurSettings& settings,

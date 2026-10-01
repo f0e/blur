@@ -119,11 +119,11 @@ struct PreviewState {
 
 	BlurPreview::Status status;
 
-	// replaces the status while a sample's rendering or playing
-	std::optional<std::string> sample_status;
+	// replaces the status while a pre-render's rendering or playing
+	std::optional<std::string> pre_render_status;
 
 	// as fractions of the container's duration, like the timeline's
-	std::optional<std::pair<float, float>> sample_range;
+	std::optional<std::pair<float, float>> pre_render_range;
 
 	[[nodiscard]] std::optional<std::string> status_text(std::optional<std::string> loading_text = {}) const;
 };

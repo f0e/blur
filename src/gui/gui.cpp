@@ -11,7 +11,7 @@
 #include "components/queue_preview.h"
 #include "os/taskbar.h"
 #include "preview_files.h"
-#include "blur_sample.h"
+#include "pre_render.h"
 #include "ui/elements/videos/videos.h"
 
 #define DEBUG_RENDER_LOGGING 0
@@ -64,7 +64,7 @@ namespace {
 		gui::components::queue_preview::release();
 		ui::videos::player.reset();
 
-		BlurSample::wait_for_renders(std::chrono::seconds(5));
+		PreRender::wait_for_renders(std::chrono::seconds(5));
 		preview_files::remove_all();
 
 		sdl::cleanup();

@@ -136,7 +136,7 @@ namespace {
 		result.failed = state.status.failed;
 		result.frame_timing_log = state.status.frame_timing_log;
 		result.status = state.status_text();
-		result.sample_range = state.sample_range;
+		result.pre_render_range = state.pre_render_range;
 
 		// a seek that's on its way would put the seek bar back where it came from
 		if (source_player->seek_settled()) {
@@ -197,12 +197,12 @@ void preview_frames::handle_key_press(SDL_Keycode key, SDL_Keymod mod) {
 		return;
 
 	if (key == SDLK_SPACE && blurred_preview) {
-		if (blurred_preview->continue_sample())
+		if (blurred_preview->continue_pre_render())
 			return;
 
 		if (mod & SDL_KMOD_SHIFT) {
 			source_player->set_paused(true);
-			blurred_preview->start_sample();
+			blurred_preview->start_pre_render();
 			return;
 		}
 	}
@@ -214,7 +214,7 @@ void preview_frames::toggle_playback() {
 	if (!source_player || showing_mask)
 		return;
 
-	if (blurred_preview && blurred_preview->continue_sample())
+	if (blurred_preview && blurred_preview->continue_pre_render())
 		return;
 
 	source_player->cycle_paused();
@@ -222,7 +222,7 @@ void preview_frames::toggle_playback() {
 
 void preview_frames::pause() {
 	if (blurred_preview)
-		blurred_preview->cancel_sample();
+		blurred_preview->cancel_pre_render();
 
 	if (source_player && !source_player->is_paused())
 		source_player->set_paused(true);
