@@ -305,6 +305,15 @@ void configs::config_preview(ui::Container& container) {
 		ui::AnimatedElement* seek_bar = nullptr;
 
 		if (preview.video_info) {
+			// the timeline's on the container's clock, which can start before the video
+			const auto& info = *preview.video_info;
+			float progress =
+				info.duration > 0.0
+					? static_cast<float>(
+						  (info.video_start_time - info.start_time + (seek * info.video_duration)) / info.duration
+					  )
+					: 0.f;
+
 			seek_bar = ui::add_timeline(
 				"config preview timeline",
 				container,
@@ -320,7 +329,8 @@ void configs::config_preview(ui::Container& container) {
 					.interactive = true,
 				},
 				seek_bar_height,
-				seek_width
+				seek_width,
+				progress
 			);
 		}
 		else {

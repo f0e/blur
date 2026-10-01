@@ -73,10 +73,10 @@ namespace {
 	}
 }
 
-std::unordered_map<size_t, ui::AnimationState> ui::videos::timeline_animations(float duration) {
+std::unordered_map<size_t, ui::AnimationState> ui::videos::timeline_animations(float duration, float progress) {
 	return {
 		{ hasher("main"), AnimationState(25.f) },
-		{ hasher("progress"), AnimationState(70.f) },
+		{ hasher("progress"), AnimationState(70.f, progress) },
 		{ hasher("seeking"), AnimationState(70.f) },
 		{ hasher("seek"), AnimationState(70.f) },
 		{ hasher("left_grab"), AnimationState(150.f) },
@@ -112,7 +112,12 @@ void ui::videos::update_progress(AnimatedElement& timeline) {
 }
 
 ui::AnimatedElement* ui::add_timeline(
-	const std::string& id, Container& container, TimelineElementData data, int height, std::optional<int> width
+	const std::string& id,
+	Container& container,
+	TimelineElementData data,
+	int height,
+	std::optional<int> width,
+	float progress
 ) {
 	float duration = data.video.video_info ? data.video.video_info->duration : 0.f;
 	bool has_info = data.video.video_info.has_value();
@@ -126,8 +131,9 @@ ui::AnimatedElement* ui::add_timeline(
 		update_timeline
 	);
 
-	auto* timeline =
-		add_element(container, std::move(element), container.element_gap, videos::timeline_animations(duration));
+	auto* timeline = add_element(
+		container, std::move(element), container.element_gap, videos::timeline_animations(duration, progress)
+	);
 
 	if (has_info) {
 		videos::init_zoom(*timeline, duration);

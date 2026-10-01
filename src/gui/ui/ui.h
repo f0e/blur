@@ -781,8 +781,14 @@ namespace ui {
 	bool update_timeline(const Container& container, AnimatedElement& element);
 
 	// a video's timeline laid out like other elements, rather than under a video in a stack
+	// progress is where the playhead starts until the player has a position, as a fraction of the duration
 	AnimatedElement* add_timeline(
-		const std::string& id, Container& container, TimelineElementData data, int height, std::optional<int> width = {}
+		const std::string& id,
+		Container& container,
+		TimelineElementData data,
+		int height,
+		std::optional<int> width = {},
+		float progress = 0.f
 	);
 
 	void handle_videos_event(const SDL_Event& event, bool& to_render);
