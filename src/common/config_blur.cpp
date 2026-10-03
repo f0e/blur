@@ -81,6 +81,29 @@ namespace {
 					return true;
 				},
 		},
+		{
+			.version = "3.0.0",
+			.description = "'pre-interpolated fps' -> 'pre-interpolated minimum fps' or 'minimum multiplier'",
+			.apply =
+				[](config_base::ConfigMap& config) {
+					auto it = config.find("pre-interpolated fps");
+					if (it == config.end())
+						return false;
+
+					auto value = u::trim(it->second);
+					if (value.ends_with("x")) {
+						config.try_emplace("pre-interpolated minimum fps", "0");
+						config.try_emplace("pre-interpolated minimum multiplier", value.substr(0, value.size() - 1));
+					}
+					else {
+						config.try_emplace("pre-interpolated minimum fps", value);
+						config.try_emplace("pre-interpolated minimum multiplier", "1");
+					}
+
+					config.erase(it);
+					return true;
+				},
+		},
 	});
 }
 
@@ -124,7 +147,8 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "- pre-interpolation" << "\n";
 		output << "pre-interpolate: " << (settings.pre_interpolate ? "true" : "false") << "\n";
 		if (!concise || settings.pre_interpolate) {
-			output << "pre-interpolated fps: " << settings.pre_interpolated_fps << "\n";
+			output << "pre-interpolated minimum fps: " << settings.pre_interpolated_minimum_fps << "\n";
+			output << "pre-interpolated minimum multiplier: " << settings.pre_interpolated_minimum_multiplier << "\n";
 			output << "pre-interpolation method: " << settings.pre_interpolation_method << "\n";
 		}
 	}
@@ -442,7 +466,12 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "auto mask", settings.auto_mask);
 
 	config_base::extract_config_value(config_map, "pre-interpolate", settings.pre_interpolate);
-	config_base::extract_config_value(config_map, "pre-interpolated fps", settings.pre_interpolated_fps);
+	config_base::extract_config_value(
+		config_map, "pre-interpolated minimum fps", settings.pre_interpolated_minimum_fps
+	);
+	config_base::extract_config_value(
+		config_map, "pre-interpolated minimum multiplier", settings.pre_interpolated_minimum_multiplier
+	);
 	config_base::extract_config_value(config_map, "pre-interpolation method", settings.pre_interpolation_method);
 
 	config_base::extract_config_value(config_map, "deduplicate", settings.deduplicate);
@@ -678,7 +707,8 @@ nlohmann::json BlurSettings::to_json() const {
 	j["auto_mask"] = this->auto_mask;
 
 	j["pre_interpolate"] = this->pre_interpolate;
-	j["pre_interpolated_fps"] = this->pre_interpolated_fps;
+	j["pre_interpolated_minimum_fps"] = this->pre_interpolated_minimum_fps;
+	j["pre_interpolated_minimum_multiplier"] = this->pre_interpolated_minimum_multiplier;
 	j["pre_interpolation_method"] = this->pre_interpolation_method;
 
 	j["deduplicate"] = this->deduplicate;

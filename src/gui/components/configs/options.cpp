@@ -3,6 +3,7 @@
 
 #include "../../ui/ui.h"
 #include "../../render/render.h"
+#include "../../renderer.h"
 
 #include "common/config_encoding_presets.h"
 #include "common/config_app.h"
@@ -19,21 +20,6 @@ void configs::set_interpolated_fps() {
 	}
 	else {
 		settings.interpolated_fps = std::to_string(interpolated_fps);
-	}
-
-	if (pre_interpolate_scale) {
-		if (interpolate_scale)
-			pre_interpolated_fps_mult =
-				std::min(pre_interpolated_fps_mult, interpolated_fps_mult); // can't preinterpolate more than interp
-
-		settings.pre_interpolated_fps = std::format("{}x", pre_interpolated_fps_mult);
-	}
-	else {
-		if (!interpolate_scale)
-			pre_interpolated_fps =
-				std::min(pre_interpolated_fps, interpolated_fps); // can't preinterpolate more than interp
-
-		settings.pre_interpolated_fps = std::to_string(pre_interpolated_fps);
 	}
 }
 
@@ -263,44 +249,49 @@ void configs::options(ui::Container& container) {
 		section_component("pre-interpolation", &settings.pre_interpolate);
 
 		if (settings.pre_interpolate) {
-			ui::add_checkbox(
-				"pre-interpolate scale checkbox",
+			ui::add_slider(
+				"pre-interpolated minimum fps",
 				container,
-				"pre-interpolate by scaling fps",
-				pre_interpolate_scale,
-				fonts::dejavu,
-				[&](bool new_value) {
-					set_interpolated_fps();
-				}
+				0,
+				2400,
+				&settings.pre_interpolated_minimum_fps,
+				"minimum fps: {} fps",
+				fonts::dejavu
 			);
 
-			if (pre_interpolate_scale) {
-				ui::add_slider(
-					"pre-interpolated fps mult",
-					container,
-					1.f,
-					interpolate_scale ? interpolated_fps_mult : 10.f,
-					&pre_interpolated_fps_mult,
-					"pre-interpolated fps: {:.1f}x",
-					fonts::dejavu,
-					[&](std::variant<int*, float*> value) {
-						set_interpolated_fps();
-					},
-					0.1f
+			ui::add_slider(
+				"pre-interpolated minimum multiplier",
+				container,
+				1.f,
+				10.f,
+				&settings.pre_interpolated_minimum_multiplier,
+				"minimum multiplier: {:.1f}x",
+				fonts::dejavu,
+				{},
+				0.1f
+			);
+
+			if (preview_video_fps && settings.pre_interpolation_method != settings.interpolation_method) {
+				// mirrors blur.py
+				double source_fps = *preview_video_fps;
+				if (settings.timescale)
+					source_fps /= settings.input_timescale;
+
+				double max_fps = interpolate_scale ? source_fps * interpolated_fps_mult : interpolated_fps;
+				double target_fps = std::min(
+					std::max<double>(
+						settings.pre_interpolated_minimum_fps, source_fps * settings.pre_interpolated_minimum_multiplier
+					),
+					max_fps
 				);
-			}
-			else {
-				ui::add_slider(
-					"pre-interpolated fps",
+
+				ui::add_text(
+					"pre-interpolated fps preview",
 					container,
-					1,
-					!interpolate_scale ? interpolated_fps : 2400,
-					&pre_interpolated_fps,
-					"pre-interpolated fps: {} fps",
-					fonts::dejavu,
-					[&](std::variant<int*, float*> value) {
-						set_interpolated_fps();
-					}
+					target_fps > source_fps ? std::format("this clip: {:.0f} → {:.0f} fps", source_fps, target_fps)
+											: std::format("this clip: {:.0f} fps, nothing to add", source_fps),
+					gfx::Color::white(renderer::MUTED_SHADE),
+					fonts::dejavu
 				);
 			}
 
@@ -946,15 +937,6 @@ void configs::parse_interp() {
 
 	parse_fps_setting(
 		settings.interpolated_fps, interpolated_fps, interpolated_fps_mult, interpolate_scale, set_interpolated_fps
-	);
-
-	parse_fps_setting(
-		settings.pre_interpolated_fps,
-		pre_interpolated_fps,
-		pre_interpolated_fps_mult,
-		pre_interpolate_scale,
-		set_interpolated_fps,
-		"pre-"
 	);
 };
 

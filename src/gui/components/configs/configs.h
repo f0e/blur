@@ -58,9 +58,8 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	inline float interpolated_fps_mult = 5.f;
 	inline int interpolated_fps = 1200;
 
-	inline bool pre_interpolate_scale = true;
-	inline float pre_interpolated_fps_mult = 2.f;
-	inline int pre_interpolated_fps = 360;
+	// of the video in the config preview, for showing what fps settings work out to
+	inline std::optional<double> preview_video_fps;
 
 	struct QueueVideoPreview {
 		std::filesystem::path path;
