@@ -386,7 +386,13 @@ def main():
         interpolated_fps = parse_fps_setting("interpolated_fps")
 
         if settings["interpolation_method"] != settings["pre_interpolation_method"] and settings["pre_interpolate"]:
-            pre_interpolated_fps = parse_fps_setting("pre_interpolated_fps")
+            pre_interpolated_fps = min(
+                max(
+                    settings["pre_interpolated_minimum_fps"],
+                    video.fps * settings["pre_interpolated_minimum_multiplier"],
+                ),
+                interpolated_fps,
+            )
 
             if (
                 video.fps < pre_interpolated_fps

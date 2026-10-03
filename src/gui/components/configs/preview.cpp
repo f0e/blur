@@ -187,6 +187,10 @@ void configs::config_preview(ui::Container& container) {
 	if (preview.playback_position)
 		seek = *preview.playback_position;
 
+	preview_video_fps.reset();
+	if (preview.video_info && preview.video_info->fps_num > 0 && preview.video_info->fps_den > 0)
+		preview_video_fps = static_cast<double>(preview.video_info->fps_num) / preview.video_info->fps_den;
+
 	auto add_open_sample_video_prompt = [&](bool was_deleted) {
 		ui::add_text(
 			"drop sample video text",

@@ -50,7 +50,8 @@ Each file in the `configs` folder is a separate blur config.
 ### Pre-interpolation
 
 - pre-interpolate - Enable pre-interpolation using a more accurate but slower AI model before main interpolation
-- pre-interpolated fps - FPS to pre-interpolate the input video to (before main interpolation and blurring). Can be a set FPS number or a multiplier (append x to end e.g. `5x`)
+- pre-interpolated minimum fps - The input video is pre-interpolated (before main interpolation and blurring) to whichever of this and the minimum multiplier is higher. `0` to only use the multiplier
+- pre-interpolated minimum multiplier - Multiplier of the input video's FPS, e.g. `2` doubles it. `1` to only use the minimum fps
 - pre-interpolation method - Method used for pre-interpolation (`rife`, `rife (tensorrt)`):
   - Quality: rife = rife (tensorrt)
   - Speed: rife (tensorrt) > rife

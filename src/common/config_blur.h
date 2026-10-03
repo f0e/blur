@@ -72,7 +72,9 @@ struct BlurSettings {
 	bool auto_mask = false;
 
 	bool pre_interpolate = false;
-	std::string pre_interpolated_fps = "360";
+	// pre-interpolates to whichever of these is higher
+	int pre_interpolated_minimum_fps = 360;
+	float pre_interpolated_minimum_multiplier = 1.f;
 	std::string pre_interpolation_method = "rife";
 
 	bool timescale = false;

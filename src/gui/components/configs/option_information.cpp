@@ -142,16 +142,17 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
-			"pre-interpolated fps mult",
+			"pre-interpolated minimum fps",
 			{
-				"Multiplier for FPS pre-interpolation",
-				"The input video will be interpolated to this FPS (before main interpolation and blurring)",
+				"Pre-interpolates to whichever of the minimum fps and minimum multiplier is higher",
+				"0 to only use the multiplier",
 			},
 		},
 		{
-			"pre-interpolated fps",
+			"pre-interpolated minimum multiplier",
 			{
-				"FPS to pre-interpolate input video to (before blurring)",
+				"Pre-interpolates to whichever of the minimum fps and minimum multiplier is higher",
+				"1x to only use the minimum fps",
 			},
 		},
 #ifdef TENSORRT
