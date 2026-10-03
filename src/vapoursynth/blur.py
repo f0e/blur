@@ -332,6 +332,18 @@ def main():
                     device_index=settings["tensorrt_device_index"],
                     settings_path=settings_path,
                     timeline=timeline,
+                    ensemble=settings["rife_trt_ensemble"],
+                )
+
+            case "gimm-vfi (tensorrt)":
+                return blur.interpolate.interpolate_gimm_vsmlrt(
+                    video,
+                    video_info=video_info,
+                    new_fps=new_fps,
+                    model_path=settings["gimm_trt_model"],
+                    device_index=settings["tensorrt_device_index"],
+                    settings_path=settings_path,
+                    timeline=timeline,
                 )
 
             case "mvtools":
@@ -346,7 +358,7 @@ def main():
             case _:
                 raise u.BlurException(
                     f"Invalid interpolation method: '{method}'. Should be one of: 'svp', 'rife', "
-                    "'rife (tensorrt)', 'mvtools'"
+                    "'rife (tensorrt)', 'gimm-vfi (tensorrt)', 'mvtools'"
                 )
 
     # interpolation
@@ -404,9 +416,11 @@ def main():
                 if settings["pre_interpolation_method"] not in [
                     "rife",
                     "rife (tensorrt)",
+                    "gimm-vfi (tensorrt)",
                 ]:
                     raise u.BlurException(
-                        f"Invalid pre-interpolation method: '{settings['pre_interpolation_method']}'. Should be one of: 'rife', 'rife (tensorrt)'"
+                        f"Invalid pre-interpolation method: '{settings['pre_interpolation_method']}'. Should be one of: "
+                        "'rife', 'rife (tensorrt)', 'gimm-vfi (tensorrt)'"
                     )
 
                 # the first interpolation pass fills deduplication's gaps

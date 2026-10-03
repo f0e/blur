@@ -14,6 +14,18 @@
 
 namespace configs = gui::components::configs;
 
+namespace {
+	// the model isn't shipped with every install, so it's only offered once it's there
+	bool gimm_installed() {
+#ifdef TENSORRT
+		std::error_code ec;
+		return std::filesystem::exists(rife_models::get_gimm_trt_path(), ec);
+#else
+		return false;
+#endif
+	}
+}
+
 void configs::set_interpolated_fps() {
 	if (interpolate_scale) {
 		settings.interpolated_fps = std::format("{}x", interpolated_fps_mult);
@@ -230,6 +242,9 @@ void configs::options(ui::Container& container) {
 
 		if (devices::initialised && !devices::tensorrt.empty()) {
 			interpolation_options.insert(interpolation_options.begin() + 2, "rife (tensorrt)");
+
+			if (gimm_installed())
+				interpolation_options.insert(interpolation_options.begin() + 3, "gimm-vfi (tensorrt)");
 		}
 
 		ui::add_dropdown(
@@ -301,6 +316,9 @@ void configs::options(ui::Container& container) {
 
 			if (devices::initialised && !devices::tensorrt.empty()) {
 				pre_interpolation_options.insert(pre_interpolation_options.end(), "rife (tensorrt)");
+
+				if (gimm_installed())
+					pre_interpolation_options.insert(pre_interpolation_options.end(), "gimm-vfi (tensorrt)");
 			}
 
 			ui::add_dropdown(
@@ -333,19 +351,24 @@ void configs::options(ui::Container& container) {
 			);
 		}
 		else {
+			std::vector<std::string> deduplicate_options = {
+				"svp",
+				"rife",
+#ifdef TENSORRT
+				"rife (tensorrt)",
+#endif
+				"mvtools",
+				"old",
+			};
+
+			if (gimm_installed())
+				deduplicate_options.insert(deduplicate_options.begin() + 3, "gimm-vfi (tensorrt)");
+
 			ui::add_dropdown(
 				"deduplicate method dropdown",
 				container,
 				"deduplicate method",
-				{
-					"svp",
-					"rife",
-#ifdef TENSORRT
-					"rife (tensorrt)",
-#endif
-					"mvtools",
-					"old",
-				},
+				deduplicate_options,
 				settings.deduplicate_method,
 				fonts::dejavu
 			);
@@ -487,6 +510,14 @@ void configs::options(ui::Container& container) {
 		if (uses_rife_trt) {
 			model_dropdown(
 				"rife (tensorrt) model", rife_models::list_trt(), settings.rife_trt_model, rife_models::get_trt_path()
+			);
+
+			ui::add_checkbox(
+				"rife (tensorrt) ensemble checkbox",
+				container,
+				"rife (tensorrt) ensemble",
+				settings.rife_trt_ensemble,
+				fonts::dejavu
 			);
 		}
 #endif

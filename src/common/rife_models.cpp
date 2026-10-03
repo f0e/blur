@@ -28,6 +28,11 @@ std::filesystem::path rife_models::get_trt_path() {
 	return paths::get_resources_path() / "lib/vapoursynth/vs-plugins/models/rife_v2";
 }
 
+// gimm-vfi takes the same inputs as rife, but lives apart so it isn't listed as a rife model
+std::filesystem::path rife_models::get_gimm_trt_path() {
+	return paths::get_resources_path() / "lib/vapoursynth/vs-plugins/models/gimm_vfi/gimm_vfi_r.onnx";
+}
+
 bool rife_models::trt_installed() {
 	std::error_code ec;
 	return std::filesystem::exists(paths::get_resources_path() / "lib/vapoursynth/vs-plugins/vstrt.dll", ec);

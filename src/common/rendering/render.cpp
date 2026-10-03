@@ -11,7 +11,9 @@
 namespace {
 	std::optional<std::string> check_tensorrt_installed(const BlurSettings& settings) {
 #ifdef TENSORRT
-		if (!settings.uses_interpolation_method("rife (tensorrt)"))
+		bool uses_rife = settings.uses_interpolation_method("rife (tensorrt)");
+		bool uses_gimm = settings.uses_interpolation_method("gimm-vfi (tensorrt)");
+		if (!uses_rife && !uses_gimm)
 			return {};
 
 		if (!rife_models::trt_installed()) {
@@ -19,7 +21,15 @@ namespace {
 		}
 
 		std::error_code ec;
-		if (!std::filesystem::exists(rife_models::get_trt_path() / (settings.rife_trt_model + ".onnx"), ec)) {
+		if (uses_gimm && !std::filesystem::exists(rife_models::get_gimm_trt_path(), ec)) {
+			return std::format(
+				"TensorRT GIMM-VFI model wasn't found at {}", u::path_to_string(rife_models::get_gimm_trt_path())
+			);
+		}
+
+		if (uses_rife &&
+		    !std::filesystem::exists(rife_models::get_trt_path() / (settings.rife_trt_model + ".onnx"), ec))
+		{
 			return std::format(
 				"TensorRT RIFE model '{}' wasn't found in {}",
 				settings.rife_trt_model,
