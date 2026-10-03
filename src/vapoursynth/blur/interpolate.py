@@ -13,6 +13,9 @@ import vapoursynth as vs
 from blur import retime
 from vapoursynth import core
 
+# in the filename of RIFE models made by tools/export_rife_large_motion.py
+LARGE_MOTION_MARKER = "large_motion"
+
 TENSORRT_NOT_INSTALLED = (
     'TensorRT RIFE isn\'t installed. Rerun the installer and select "NVIDIA TensorRT RIFE interpolation", '
     "or use a different interpolation method"
@@ -32,10 +35,14 @@ def _vsmlrt():
 
 
 LEGACY_PRESETS = ["weak", "film", "smooth", "animation"]
-NEW_PRESETS = ["default", "test"]
+TUNED_PRESETS = ["quality", "max"]
+NEW_PRESETS = ["default", "test", *TUNED_PRESETS]
 
-DEFAULT_PRESET = "weak"
-DEFAULT_ALGORITHM = 13
+# tuned against real 1200fps footage blended down. they set their own block overlap
+TUNED_OVERLAP = 3
+
+DEFAULT_PRESET = "quality"
+DEFAULT_ALGORITHM = 23
 DEFAULT_BLOCKSIZE = 8
 DEFAULT_OVERLAP = 2
 DEFAULT_SPEED = "medium"
@@ -165,6 +172,53 @@ def _retimed_rife_merge(
     return core.std.AssumeFPS(out, fpsnum=dst_fps.numerator, fpsden=dst_fps.denominator)
 
 
+def _rife_merge(
+    video: vs.VideoNode,
+    dst_fps: Fraction,
+    merge: Callable[[vs.VideoNode, vs.VideoNode, vs.VideoNode], vs.VideoNode],
+) -> vs.VideoNode:
+    """Interpolate to `dst_fps` by asking `merge` for each output frame's exact time point. Like vs-mlrt's RIFE, but
+    with the merge swappable (for ensemble)."""
+    ratio = dst_fps / video.fps
+    dst_frames = int(video.num_frames * ratio)
+    last = video.num_frames - 1
+
+    base = core.std.BlankClip(video, length=dst_frames, keep=True)
+    gray_format = vs.GRAYS if video.format.bits_per_sample == 32 else vs.GRAYH
+    gray = core.std.BlankClip(base, format=gray_format, keep=True)
+
+    def at(n: int) -> tuple[int, int, Fraction]:
+        pos = Fraction(n) / ratio
+        left = min(int(pos), last)
+        return left, min(left + 1, last), pos - int(pos)
+
+    before = core.std.FrameEval(base, lambda n: video[at(n)[0]])
+    after = core.std.FrameEval(base, lambda n: video[at(n)[1]])
+    timepoint = core.std.FrameEval(gray, lambda n: gray.std.BlankClip(color=float(at(n)[2]), keep=True))
+
+    merged = merge(before, after, timepoint)
+
+    # frames landing on a real frame skip the model
+    held = _vsmlrt().bits_as(before, merged)
+    out = core.std.FrameEval(merged, lambda n: held if at(n)[2] == 0 else merged)
+
+    return core.std.AssumeFPS(out, fpsnum=dst_fps.numerator, fpsden=dst_fps.denominator)
+
+
+def _ensembled(
+    merge: Callable[[vs.VideoNode, vs.VideoNode, vs.VideoNode], vs.VideoNode],
+) -> Callable[[vs.VideoNode, vs.VideoNode, vs.VideoNode], vs.VideoNode]:
+    """`merge` run with the frames both ways round and averaged. RIFE's motion estimate isn't symmetric, so the two
+    disagree where it's unsure, and averaging them evens that out."""
+
+    def both(before: vs.VideoNode, after: vs.VideoNode, timepoint: vs.VideoNode) -> vs.VideoNode:
+        forward = merge(before, after, timepoint)
+        backward = merge(after, before, core.std.Expr(timepoint, "1 x -"))
+        return core.std.Expr([forward, backward], "x y + 2 /")
+
+    return both
+
+
 def _with_rate(smooth_str: str, fps: int) -> str:
     """`smooth_str` asking for `fps` instead of whatever framerate it was built around."""
     smooth_json = json.loads(smooth_str)
@@ -187,6 +241,9 @@ def generate_svp_strings(
     if SVP_REQUIRES_GPU:
         gpu = True
 
+    if preset in TUNED_PRESETS:
+        overlap = TUNED_OVERLAP
+
     # build super json
     super_json = {
         "pel": 1,
@@ -204,6 +261,23 @@ def generate_svp_strings(
     match preset:
         case "test":
             vectors_json["main"] = {"search": {"type": 3, "satd": True, "coarse": {"type": 3}}}
+        case _ if preset in TUNED_PRESETS:
+            # weak, with the coarse search covering the whole frame and reaching a little further
+            vectors_json["main"] = {
+                "search": {
+                    "distance": 0,
+                    "coarse": {
+                        "distance": -4,
+                        "width": 4000,
+                        "trymany": True,
+                        "bad": {"sad": 2000},
+                    },
+                }
+            }
+
+            if preset == "max":
+                # around 3x slower for a small gain
+                vectors_json["refine"] = [{"thsad": 200}]
         case _ if preset in LEGACY_PRESETS:
             vectors_json["main"] = {"search": {"distance": 0, "coarse": {}}}
 
@@ -570,7 +644,7 @@ def prepare_rife_vsmlrt(
     )
 
 
-def interpolate_rife_vsmlrt(
+def interpolate_gimm_vsmlrt(
     video: vs.VideoNode,
     video_info: u.VideoInfo,
     new_fps: int,
@@ -579,17 +653,60 @@ def interpolate_rife_vsmlrt(
     settings_path: Path,
     timeline: retime.Timeline | None = None,
 ):
+    """GIMM-VFI exported by tools/export_gimm_vfi.py. It takes the same inputs as RIFE. The model sets its own
+    precision per layer (fp32 sampling coordinates, fp16 convolutions), so the engine is built strongly typed, and
+    frames stay fp32 since fp16 frames cost it about 1dB."""
     u.check_model_path(model_path)
 
     def process(_video: vs.VideoNode, backend) -> vs.VideoNode:
-        if timeline is None:
-            return RIFE_vsmlrt(_video, new_fps=new_fps, model_path=model_path, backend=backend)
+        backend.fp16 = False
+        backend.output_format = 0
+        backend.custom_args.append("--stronglyTyped")
 
-        return _retimed_rife_merge(
-            _video,
-            timeline,
-            _fps(new_fps),
-            lambda before, after, timepoint: _vsmlrt().RIFEMerge(
+        def merge(before, after, timepoint):
+            # generic inference, RIFEMerge adds tensorrt flags that only make sense for rife
+            return _vsmlrt().inference([before, after, timepoint], model_path, backend=backend)
+
+        if timeline is None:
+            return _rife_merge(_video, _fps(new_fps), merge)
+
+        return _retimed_rife_merge(_video, timeline, _fps(new_fps), merge)
+
+    return prepare_rife_vsmlrt(
+        video=video,
+        video_info=video_info,
+        process_func=process,
+        backend_str="tensorrt",
+        device_index=device_index,
+        settings_path=settings_path,
+        override_format=vs.RGBS,
+    )
+
+
+def is_large_motion_model(model_path: str) -> bool:
+    """RIFE re-exported to estimate motion at reduced resolution (see tools/export_rife_large_motion.py). Its full
+    resolution warp needs fp32, half precision sampling coordinates are off by over half a pixel at 1440p."""
+    return LARGE_MOTION_MARKER in Path(model_path).stem
+
+
+def interpolate_rife_vsmlrt(
+    video: vs.VideoNode,
+    video_info: u.VideoInfo,
+    new_fps: int,
+    model_path: str,
+    device_index: int,
+    settings_path: Path,
+    timeline: retime.Timeline | None = None,
+    ensemble: bool = False,
+):
+    u.check_model_path(model_path)
+
+    def process(_video: vs.VideoNode, backend) -> vs.VideoNode:
+        if is_large_motion_model(model_path):
+            backend.fp16 = False
+
+        def merge(before, after, timepoint):
+            return _vsmlrt().RIFEMerge(
                 clipa=before,
                 clipb=after,
                 mask=timepoint,
@@ -597,8 +714,18 @@ def interpolate_rife_vsmlrt(
                 ensemble=False,
                 backend=backend,
                 _implementation=2,
-            ),
-        )
+            )
+
+        if ensemble:
+            # vs-mlrt's own ensemble option isn't supported for 4.7+ models
+            merge = _ensembled(merge)
+        elif timeline is None:
+            return RIFE_vsmlrt(_video, new_fps=new_fps, model_path=model_path, backend=backend)
+
+        if timeline is None:
+            return _rife_merge(_video, _fps(new_fps), merge)
+
+        return _retimed_rife_merge(_video, timeline, _fps(new_fps), merge)
 
     return prepare_rife_vsmlrt(
         video=video,

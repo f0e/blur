@@ -125,8 +125,9 @@ void configs::option_information(ui::Container& container) {
 			{
 #ifdef TENSORRT
 				// todo: update with mvtools
-				"Quality: rife = rife (tensorrt) > svp",
-				"Speed: svp >> rife (tensorrt) > rife",
+				"Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt) > svp",
+				"Speed: svp >> rife (tensorrt) > rife >> gimm-vfi (tensorrt)",
+				"(gimm-vfi is best as a pre-interpolation method, it follows fast motion far better but is slow)",
 #else
 				// todo: update with mvtools
 				"Quality: rife > svp",
@@ -157,10 +158,17 @@ void configs::option_information(ui::Container& container) {
 		},
 #ifdef TENSORRT
 		{
+			"rife (tensorrt) ensemble checkbox",
+			{
+				"Runs RIFE a second time with the frames swapped and averages the two",
+				"Cleaner on fast motion, around twice as slow",
+			},
+		},
+		{
 			"pre-interpolation method dropdown",
 			{
-				"Quality: rife = rife (tensorrt)",
-				"Speed: rife (tensorrt) > rife",
+				"Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt)",
+				"Speed: rife (tensorrt) > rife >> gimm-vfi (tensorrt)",
 			},
 		},
 #endif

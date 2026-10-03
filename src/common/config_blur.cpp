@@ -205,6 +205,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 #ifdef TENSORRT
 		if (!concise || uses_rife_trt) {
 			output << "rife (tensorrt) model: " << settings.rife_trt_model << "\n";
+			output << "rife (tensorrt) ensemble: " << (settings.rife_trt_ensemble ? "true" : "false") << "\n";
 		}
 #endif
 	}
@@ -459,6 +460,7 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "rife model", settings.rife_model);
 #ifdef TENSORRT
 	config_base::extract_config_value(config_map, "rife (tensorrt) model", settings.rife_trt_model);
+	config_base::extract_config_value(config_map, "rife (tensorrt) ensemble", settings.rife_trt_ensemble);
 #endif
 	config_base::extract_config_value(config_map, "mask", settings.mask);
 	if (settings.mask == masks::NONE_OPTION)
@@ -770,7 +772,9 @@ nlohmann::json BlurSettings::to_json() const {
 	j["rife_model"] = rife_models::get_path() / this->rife_model;
 #ifdef TENSORRT
 	j["rife_trt_model"] = rife_models::get_trt_path() / (this->rife_trt_model + ".onnx");
+	j["gimm_trt_model"] = rife_models::get_gimm_trt_path();
 #endif
+	j["rife_trt_ensemble"] = this->rife_trt_ensemble;
 
 	j["manual_svp"] = this->advanced.manual_svp;
 	j["super_string"] = this->advanced.super_string;

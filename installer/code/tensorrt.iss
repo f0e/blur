@@ -16,6 +16,16 @@ Source: "{#DepsDir}\7zip\7z.dll"; DestDir: "{tmp}"; Flags: deleteafterinstall; C
 #define RifeUrl "https://github.com/AmusementClub/vs-mlrt/releases/download/external-models/" + RifeVersion + ".7z"
 #define RifeSha256 "dfdabd84a2a3db773f87604b8cc255e94a6a72f13550d910ccd3b4ee2606cd4f"
 #define RifeDownloadSize "19591599"
+// made with tools/export_rife_large_motion.py and tools/export_gimm_vfi.py. exports aren't byte for byte repeatable,
+// so the hashes are of the uploaded files
+#define LargeMotionVersion "rife_v4.26_large_motion-1"
+#define LargeMotionUrl ""
+#define LargeMotionSha256 "3a8ef88b3ab23475bb93937a71c22c8151adb6706902d6236a79eaba17240f30"
+#define LargeMotionDownloadSize "22752661"
+#define GimmVersion "gimm_vfi_r-2"
+#define GimmUrl ""
+#define GimmSha256 "8126dd32c7759c1c491bdd6184708df146c1b5f7f47c1399ff8e7f7673d1d373"
+#define GimmDownloadSize "52712060"
 
 var
   DownloadPage: TDownloadWizardPage;
@@ -98,10 +108,17 @@ begin
   end;
 end;
 
+procedure CopyDownloadedModel(FileName, DestDir, Marker, Version: String);
+begin
+  if ForceDirectories(DestDir) and
+    CopyFile(ExpandConstant('{tmp}\') + FileName, DestDir + '\' + FileName, False) then
+    SaveStringToFile(Marker, Version, False);
+end;
+
 procedure InstallTensorRT;
 var
-  PluginsMarker, ModelDir, ModelMarker: String;
-  NeedPlugins, NeedModel: Boolean;
+  PluginsMarker, ModelDir, ModelMarker, LargeMotionMarker, GimmDir, GimmMarker: String;
+  NeedPlugins, NeedModel, NeedLargeMotion, NeedGimm: Boolean;
   DownloadSize, ExtractedSize: Int64;
 begin
   PluginsMarker := TensorRTPluginsDir + '\vsmlrt.version';
@@ -109,8 +126,14 @@ begin
   ModelMarker := ModelDir + '\rife.version';
   NeedPlugins := not IsInstalled(PluginsMarker, '{#VsMlrtVersion}');
   NeedModel := not IsInstalled(ModelMarker, '{#RifeVersion}');
+  // it sits next to rife so it's listed as a rife model, which means a rife update wipes it too
+  LargeMotionMarker := ModelDir + '\large_motion.version';
+  NeedLargeMotion := NeedModel or not IsInstalled(LargeMotionMarker, '{#LargeMotionVersion}');
+  GimmDir := TensorRTPluginsDir + '\models\gimm_vfi';
+  GimmMarker := GimmDir + '\gimm.version';
+  NeedGimm := not IsInstalled(GimmMarker, '{#GimmVersion}');
 
-  if not NeedPlugins and not NeedModel then
+  if not NeedPlugins and not NeedModel and not NeedLargeMotion and not NeedGimm then
     Exit;
 
   DownloadPage.Clear;
@@ -129,6 +152,20 @@ begin
   begin
     DownloadPage.Add('{#RifeUrl}', 'rife.7z', '{#RifeSha256}');
     DownloadSize := DownloadSize + {#RifeDownloadSize};
+  end;
+
+  if NeedLargeMotion then
+  begin
+    DownloadPage.Add('{#LargeMotionUrl}', 'rife_v4.26_large_motion.onnx', '{#LargeMotionSha256}');
+    DownloadSize := DownloadSize + {#LargeMotionDownloadSize};
+    ExtractedSize := ExtractedSize + {#LargeMotionDownloadSize};
+  end;
+
+  if NeedGimm then
+  begin
+    DownloadPage.Add('{#GimmUrl}', 'gimm_vfi_r.onnx', '{#GimmSha256}');
+    DownloadSize := DownloadSize + {#GimmDownloadSize};
+    ExtractedSize := ExtractedSize + {#GimmDownloadSize};
   end;
 
   if not HasSpaceToDownload(DownloadSize, ExtractedSize) then
@@ -152,9 +189,19 @@ begin
       if Extract7z(ExpandConstant('{tmp}\rife.7z'), TensorRTPluginsDir + '\models', '-x!rife') then
         SaveStringToFile(ModelMarker, '{#RifeVersion}', False);
     end;
+
+    if NeedLargeMotion then
+      CopyDownloadedModel('rife_v4.26_large_motion.onnx', ModelDir, LargeMotionMarker, '{#LargeMotionVersion}');
+
+    if NeedGimm then
+    begin
+      DelTree(GimmDir, True, True, True);
+      CopyDownloadedModel('gimm_vfi_r.onnx', GimmDir, GimmMarker, '{#GimmVersion}');
+    end;
   end;
 
-  if not IsInstalled(PluginsMarker, '{#VsMlrtVersion}') or not IsInstalled(ModelMarker, '{#RifeVersion}') then
+  if not IsInstalled(PluginsMarker, '{#VsMlrtVersion}') or not IsInstalled(ModelMarker, '{#RifeVersion}') or
+    not IsInstalled(LargeMotionMarker, '{#LargeMotionVersion}') or not IsInstalled(GimmMarker, '{#GimmVersion}') then
     SuppressibleMsgBox('TensorRT RIFE couldn''t be installed. Rerun the installer to try again.', mbError, MB_OK, IDOK);
 end;
 

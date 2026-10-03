@@ -10,6 +10,8 @@ namespace rife_models {
 
 	std::vector<std::string> list_trt();
 
+	std::filesystem::path get_gimm_trt_path();
+
 	bool trt_installed();
 #endif
 }
