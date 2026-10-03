@@ -1,5 +1,6 @@
 import blur.utils as u
 import vapoursynth as vs
+from blur import scenes
 from vapoursynth import core
 
 
@@ -8,6 +9,7 @@ def average(
     weights: list[float],
     divisor: float | None = None,
     squared: bool = False,
+    cuts: vs.VideoNode | None = None,
 ):
     assert len(weights) % 2 == 1, "An odd number of weights is required."
 
@@ -17,7 +19,13 @@ def average(
     if squared:
         kwargs["squared"] = True
 
-    return core.frameblender.FrameBlend(clip, weights, **kwargs)
+    def frame_blend(clip: vs.VideoNode) -> vs.VideoNode:
+        return core.frameblender.FrameBlend(clip, weights, **kwargs)
+
+    if cuts is None:
+        return frame_blend(clip)
+
+    return scenes.within(clip, len(weights) // 2, cuts, frame_blend)
 
 
 def bloom(clip: vs.VideoNode, threshold: float, strength: float):
@@ -46,15 +54,16 @@ def blend(
     bloom_threshold: float,
     bloom_strength: float | None,
     divisor: float | None = None,
+    cuts: vs.VideoNode | None = None,
 ):
     if not preserve_brightness and bloom_strength is None:
-        return average(_video, weights, divisor)
+        return average(_video, weights, divisor, cuts=cuts)
 
     def process(video):
         if bloom_strength is not None:
             video = bloom(video, bloom_threshold, bloom_strength)
 
-        return average(video, weights, divisor, preserve_brightness)
+        return average(video, weights, divisor, preserve_brightness, cuts)
 
     if bloom_strength is not None:
         return u.with_format(

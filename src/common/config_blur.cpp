@@ -163,6 +163,13 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		}
 	}
 
+	// Scene detection section
+	if (!concise || !settings.scene_detection) {
+		output << "\n";
+		output << "- scene detection" << "\n";
+		output << "scene detection: " << (settings.scene_detection ? "true" : "false") << "\n";
+	}
+
 	// Masking section
 	if (!concise || !settings.mask.empty() || settings.auto_mask) {
 		output << "\n";
@@ -457,6 +464,7 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "interpolate", settings.interpolate);
 	config_base::extract_config_value(config_map, "interpolated fps", settings.interpolated_fps);
 	config_base::extract_config_value(config_map, "interpolation method", settings.interpolation_method);
+	config_base::extract_config_value(config_map, "scene detection", settings.scene_detection);
 	config_base::extract_config_value(config_map, "rife model", settings.rife_model);
 #ifdef TENSORRT
 	config_base::extract_config_value(config_map, "rife (tensorrt) model", settings.rife_trt_model);
@@ -705,6 +713,7 @@ nlohmann::json BlurSettings::to_json() const {
 	j["interpolate"] = this->interpolate;
 	j["interpolated_fps"] = this->interpolated_fps;
 	j["interpolation_method"] = this->interpolation_method;
+	j["scene_detection"] = this->scene_detection;
 	j["mask"] = this->mask;
 	j["auto_mask"] = this->auto_mask;
 

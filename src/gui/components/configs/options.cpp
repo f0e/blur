@@ -352,6 +352,12 @@ void configs::options(ui::Container& container) {
 	}
 
 	/*
+	    Scene detection
+	*/
+	if (settings.blur || settings.interpolate || settings.deduplicate)
+		section_component("scene detection", &settings.scene_detection);
+
+	/*
 	    Masking
 	*/
 	if (settings.interpolate || settings.deduplicate) {
