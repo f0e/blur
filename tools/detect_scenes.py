@@ -1,11 +1,7 @@
-"""Lists where blur's scene detection finds cuts in videos, with the same detection blur renders with.
+"""Lists where blur's scene detection finds cuts in videos.
 
-Run with blur's own python (lib/vapoursynth/python.exe), with VAPOURSYNTH_EXTRA_PLUGIN_PATH set to
-lib/vapoursynth/vs-plugins.
-
+Run with lib/vapoursynth/python.exe, with VAPOURSYNTH_EXTRA_PLUGIN_PATH set to lib/vapoursynth/vs-plugins.
 usage: python detect_scenes.py [--json] video [video ...]
-
---json prints a line of json per cut instead ({"frame", "time", "score"}), for scripts like mpv's scene-marks.lua.
 """
 
 import argparse
@@ -36,10 +32,10 @@ def timestamp(seconds: float) -> str:
 
 def detect(path: Path, as_json: bool):
     video = open_video(path)
-    full_range = video.get_frame(0).props.get("_ColorRange") == vs.RANGE_FULL
+    props = video.get_frame(0).props
+    full_range = (props["_Range"] if "_Range" in props else props.get("_ColorRange")) == vs.RANGE_FULL
     cuts = scenes.detect(video, full_range)
 
-    # the json is all that goes to stdout, so a script can read it as is
     out = sys.stderr if as_json else sys.stdout
     print(
         f"\n{path.name} ({video.width}x{video.height}, {float(video.fps):g}fps, {video.num_frames} frames)",
