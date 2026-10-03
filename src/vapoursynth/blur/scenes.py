@@ -29,9 +29,15 @@ PROP_CROSSING = "BlurSceneCrossing"
 PROP_CHANGE = "BlurSceneChange"
 PROP_MOTION = "BlurSceneMotion"
 PROP_BLOCKS = "BlurSceneBlocks"
+PROP_CORRELATION = "BlurSceneCorrelation"
+PROP_HISTOGRAM = "BlurSceneHistogram"
 
 WIDTH = 160
 BLOCK = 10
+
+# correlation and histograms are measured on a copy this many times smaller again, where small movements matter less
+COARSE = 4
+HISTOGRAM_BINS = 16
 
 # how much a block has to change to count towards the changed fraction
 BLOCK_CHANGE = 0.08
@@ -61,6 +67,11 @@ BIG_RATIO = 2.5
 SMALL_CHANGE = 0.04
 SMALL_RATIO = 8
 SMALL_BLOCKS = 0.25
+
+# a cut also changes what's in the picture, not just where it is. hitches in uneven recordings jump as far as a cut
+# but show the same things, so the frames either side stay correlated and keep the same spread of brightness
+MAX_CORRELATION = 0.6
+MIN_HISTOGRAM = 0.1
 
 # vapoursynth's automatic caching drops frames too soon for the windows read here. detection reads the source well
 # ahead of everything else, and seeking back to frames it's dropped doubles render times on long gop video
@@ -100,12 +111,34 @@ def _metrics(video: vs.VideoNode, full_range: bool) -> vs.VideoNode:
         keep=True,
     )
 
+    coarse_rows, coarse_cols = height // COARSE, WIDTH // COARSE
+
+    def coarse(frame: vs.VideoFrame) -> np.ndarray:
+        pixels = np.asarray(frame[0])[: coarse_rows * COARSE, : coarse_cols * COARSE]
+        return pixels.reshape(coarse_rows, COARSE, coarse_cols, COARSE).mean((1, 3))
+
+    def histogram(pixels: np.ndarray) -> np.ndarray:
+        return np.histogram(np.clip(pixels, 0, 1), HISTOGRAM_BINS, (0, 1))[0] / pixels.size
+
     def measure(n: int, f: list[vs.VideoFrame]) -> vs.VideoFrame:
         diff = np.abs(np.asarray(f[1][0]) - np.asarray(f[2][0]))
         blocks = diff[: rows * BLOCK, : cols * BLOCK].reshape(rows, BLOCK, cols, BLOCK).mean((1, 3))
 
+        now, then = coarse(f[1]), coarse(f[2])
+        histogram_change = np.abs(histogram(now) - histogram(then)).sum() / 2
+
+        now, then = now - now.mean(), then - then.mean()
+        # flat frames have no pattern to correlate, so they count as uncorrelated
+        correlation = (now * then).mean() / max(now.std(), 0.02) / max(then.std(), 0.02)
+
         return _with_props(
-            f[0], **{PROP_CHANGE: float(diff.mean()), PROP_BLOCKS: float((blocks > BLOCK_CHANGE).mean())}
+            f[0],
+            **{
+                PROP_CHANGE: float(diff.mean()),
+                PROP_BLOCKS: float((blocks > BLOCK_CHANGE).mean()),
+                PROP_CORRELATION: float(correlation),
+                PROP_HISTOGRAM: float(histogram_change),
+            },
         )
 
     return _cached(core.std.ModifyFrame(holder, [holder, small, before], measure))
@@ -132,6 +165,7 @@ def detect(video: vs.VideoNode, full_range: bool) -> vs.VideoNode:
         def change(index: int) -> float:
             return f[1 + index - n + REACH].props[PROP_CHANGE]  # type: ignore[return-value]
 
+        measured = f[1 + REACH].props
         cut = False
         here = around = blocks = 0.0
         if n > 0:
@@ -151,13 +185,24 @@ def detect(video: vs.VideoNode, full_range: bool) -> vs.VideoNode:
 
             here = change(n)
             around = max((motion(-1) + motion(1)) / 2, MOTION_FLOOR)
-            blocks = f[1 + REACH].props[PROP_BLOCKS]
+            blocks = measured[PROP_BLOCKS]
 
-            cut = (here > BIG_CHANGE and here > BIG_RATIO * around) or (
-                here > SMALL_CHANGE and here > SMALL_RATIO * around and blocks > SMALL_BLOCKS
-            )
+            cut = (
+                (here > BIG_CHANGE and here > BIG_RATIO * around)
+                or (here > SMALL_CHANGE and here > SMALL_RATIO * around and blocks > SMALL_BLOCKS)
+            ) and (measured[PROP_CORRELATION] < MAX_CORRELATION or measured[PROP_HISTOGRAM] > MIN_HISTOGRAM)
 
-        return _with_props(f[0], **{PROP_CUT: int(cut), PROP_CHANGE: here, PROP_MOTION: around, PROP_BLOCKS: blocks})
+        return _with_props(
+            f[0],
+            **{
+                PROP_CUT: int(cut),
+                PROP_CHANGE: here,
+                PROP_MOTION: around,
+                PROP_BLOCKS: blocks,
+                PROP_CORRELATION: measured[PROP_CORRELATION],
+                PROP_HISTOGRAM: measured[PROP_HISTOGRAM],
+            },
+        )
 
     holder = core.std.BlankClip(metrics, keep=True)
     return _cached(core.std.ModifyFrame(holder, [holder, *window], decide))
@@ -360,7 +405,8 @@ def annotate(video: vs.VideoNode, scenes: vs.VideoNode, detected: vs.VideoNode) 
             verdict = "cut" if detection[PROP_CUT] else "not a cut"
             lines.append(
                 f"change {change:.3f} | {times:.1f}x motion {motion:.3f} | {float(detection[PROP_BLOCKS]):.0%} of blocks"
-                f" | {verdict}"
+                f" | correlation {float(detection[PROP_CORRELATION]):.2f}"
+                f" | {float(detection[PROP_HISTOGRAM]):.0%} of histogram | {verdict}"
             )
 
         if not lines:
