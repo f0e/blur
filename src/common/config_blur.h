@@ -71,6 +71,8 @@ struct BlurSettings {
 	// generate a mask from the parts of each video that never move, applied on top of `mask`
 	bool auto_mask = false;
 
+	bool scene_detection = true;
+
 	bool pre_interpolate = false;
 	// pre-interpolates to whichever of these is higher
 	int pre_interpolated_minimum_fps = 360;

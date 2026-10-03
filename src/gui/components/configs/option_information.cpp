@@ -199,6 +199,14 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 
+		{
+			"section scene detection checkbox",
+			{
+				"Finds cuts between scenes and doesn't interpolate or blur across them",
+				"(Stops the two scenes smearing into each other at a cut)",
+			},
+		},
+
 		// Rendering settings
 		{
 			"deduplicate checkbox",

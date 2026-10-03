@@ -64,6 +64,10 @@ Each file in the `configs` folder is a separate blur config.
   - Quality: rife = rife (tensorrt) > svp
   - Speed: old > svp >>> rife
 
+### Scene detection
+
+- scene detection - Avoids interpolating or blurring between scene changes (menu opening, switching camera, scoping in, etc.). Enable `debug` and render a video and a text label will be added when scene detections occur.
+
 ### Masking
 
 Masks protect regions of the frame (like a HUD) from interpolation and deduplication. Black is protected, white is interpolated as normal.
@@ -114,7 +118,7 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 ### Advanced deduplication
 
 - deduplicate range - How far apart two frames can be and still have frames generated between them (-1 = infinite). Make it higher if your footage is at a lower FPS than it should be (e.g. choppy 120fps gameplay recorded at 240fps), lower it if your blurred footage starts blurring static elements such as menu screens
-- deduplicate threshold - Threshold of movement that triggers deduplication. Turn on debug and render a video to embed text showing the movement in each frame
+- deduplicate threshold - Threshold of movement that triggers deduplication. Turn on `debug` and render a video to embed text showing the movement in each frame
 - deduplicate real frame - Which frame in a run of duplicates is the real one:
   - first - The first frame (default)
   - last - The last frame
