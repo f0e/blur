@@ -86,6 +86,10 @@ migraphx_driver_path: str = os.path.join(plugins_path, "vsmlrt-hip", "migraphx-d
 tensorrt_rtx_path: str = os.path.join(plugins_path, "vsmlrt-cuda", "tensorrt_rtx")
 models_path: str = os.path.join(plugins_path, "models")
 
+# blur: engine builders also run from the gui's preview, which has no console. they'd each open a console window
+# there, and what they write to stderr would be lost
+_BUILDER_RUN_ARGS = dict(stderr=subprocess.STDOUT, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
 
 class Backend:
     @dataclass(frozen=False)
@@ -2261,7 +2265,7 @@ def trtexec(
                     # env_key has been set, no extra action
                     env = {env_key: prev_env_value, "CUDA_MODULE_LOADING": "LAZY"}
                     env.update(**custom_env)
-                    subprocess.run(args, env=env, check=True, stdout=sys.stderr)
+                    subprocess.run(args, env=env, check=True, stdout=sys.stderr, **_BUILDER_RUN_ARGS)
                 else:
                     time_str = time.strftime('%y%m%d_%H%M%S', time.localtime())
 
@@ -2273,7 +2277,7 @@ def trtexec(
                     env = {env_key: log_filename, "CUDA_MODULE_LOADING": "LAZY"}
                     env.update(**custom_env)
 
-                    completed_process = subprocess.run(args, env=env, check=False, stdout=sys.stderr)
+                    completed_process = subprocess.run(args, env=env, check=False, stdout=sys.stderr, **_BUILDER_RUN_ARGS)
 
                     if completed_process.returncode == 0:
                         try:
@@ -2289,7 +2293,7 @@ def trtexec(
             else:
                 env = {"CUDA_MODULE_LOADING": "LAZY"}
                 env.update(**custom_env)
-                subprocess.run(args, env=env, check=True, stdout=sys.stderr)
+                subprocess.run(args, env=env, check=True, stdout=sys.stderr, **_BUILDER_RUN_ARGS)
 
             # build succeeded, move it into place
             os.replace(tmp_engine_path, engine_path)
@@ -2430,7 +2434,7 @@ def migraphx_driver(
 
     args.extend(custom_args)
 
-    subprocess.run(args, env=custom_env, check=True, stdout=sys.stderr)
+    subprocess.run(args, env=custom_env, check=True, stdout=sys.stderr, **_BUILDER_RUN_ARGS)
 
     return mxr_path
 
@@ -2629,7 +2633,7 @@ def tensorrt_rtx(
     try:
         env = {"CUDA_MODULE_LOADING": "LAZY"}
         env.update(**custom_env)
-        subprocess.run(args, env=env, check=True, stdout=sys.stderr)
+        subprocess.run(args, env=env, check=True, stdout=sys.stderr, **_BUILDER_RUN_ARGS)
 
         os.replace(tmp_engine_path, engine_path)
     finally:
