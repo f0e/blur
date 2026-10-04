@@ -10,8 +10,11 @@ import itertools
 import os
 import struct
 import zlib
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
+
+import numpy as np
 
 import blur.utils as u
 import vapoursynth as vs
@@ -124,6 +127,14 @@ MIN_STATIC_PX_1080P = 16
 # more of the frame than this being static means it's not a hud (e.g. a locked off shot), so no whole clip mask
 # is made
 MAX_STATIC_FRACTION = 0.5
+
+# areas the static mask fully surrounds are protected too, up to this much of the frame each. those are the insides
+# of translucent panels, which change with the scene behind them so are never static themselves, and otherwise
+# get dragged out past their borders by interpolation
+MAX_ENCLOSED_FRACTION = 0.03
+
+# looked for at this fraction of the analysis size, panels are big enough that the detail doesn't matter
+ENCLOSED_SCALE = 4
 
 # `track`: a pixel holds still in a frame when it changes by less than STILL_THRESHOLD, or STILL_RATIO of how
 # much the area around it changes (the median, radius at 1080p) if that's more. compression gets noisier as the
@@ -448,6 +459,8 @@ def shape(scores: vs.VideoNode, params: Params = DEFAULT_PARAMS) -> vs.VideoNode
     density = core.std.BoxBlur(static, hradius=CLUSTER_RADIUS, vradius=CLUSTER_RADIUS)
     static = core.std.Expr([static, density], f"y {CLUSTER_COVERAGE} < 0 x ?")
 
+    static = _with_enclosed(static)
+
     fraction = core.std.PlaneStats(static).get_frame(0).props["PlaneStatsAverage"]
     found = fraction * static.width * static.height
 
@@ -467,6 +480,69 @@ def shape(scores: vs.VideoNode, params: Params = DEFAULT_PARAMS) -> vs.VideoNode
 
     # white means interpolate as normal
     return _detached(core.std.Expr(static, "1 x -"))
+
+
+def _enclosed(protected: np.ndarray) -> np.ndarray:
+    """Where `protected` fully surrounds an area no bigger than MAX_ENCLOSED_FRACTION of the frame."""
+    height, width = protected.shape
+    limit = MAX_ENCLOSED_FRACTION * height * width
+    seen = protected.copy()
+    found = np.zeros_like(protected)
+
+    def flood(starts: list[tuple[int, int]]) -> list[tuple[int, int]]:
+        area = [start for start in starts if not seen[start]]
+        for start in area:
+            seen[start] = True
+
+        queue = deque(area)
+        while queue:
+            y, x = queue.popleft()
+            for ny, nx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+                if 0 <= ny < height and 0 <= nx < width and not seen[ny, nx]:
+                    seen[ny, nx] = True
+                    area.append((ny, nx))
+                    queue.append((ny, nx))
+
+        return area
+
+    # everything the frame's edge can reach isn't enclosed
+    edge = [(y, x) for y in range(height) for x in (0, width - 1)]
+    edge += [(y, x) for x in range(width) for y in (0, height - 1)]
+    flood(edge)
+
+    for start in zip(*np.nonzero(~seen)):
+        if seen[start]:
+            continue
+
+        area = flood([start])
+        if len(area) <= limit:
+            ys, xs = zip(*area)
+            found[list(ys), list(xs)] = True
+
+    return found
+
+
+def _with_enclosed(static: vs.VideoNode) -> vs.VideoNode:
+    """`static` (1 where protected) with what it encloses protected too."""
+    small = core.resize.Bilinear(
+        static, width=max(1, static.width // ENCLOSED_SCALE), height=max(1, static.height // ENCLOSED_SCALE)
+    )
+    enclosed = _enclosed(np.asarray(small.get_frame(0)[0]) >= 0.5)
+    if not enclosed.any():
+        return static
+
+    def add(n: int, f: vs.VideoFrame) -> vs.VideoFrame:
+        out = f.copy()
+        plane = np.asarray(out[0])
+
+        # nearest neighbour back up to size, the edges are inside the static mask anyway
+        ys = np.minimum(np.arange(static.height) // ENCLOSED_SCALE, enclosed.shape[0] - 1)
+        xs = np.minimum(np.arange(static.width) // ENCLOSED_SCALE, enclosed.shape[1] - 1)
+        plane[enclosed[ys][:, xs]] = 1.0
+
+        return out
+
+    return core.std.ModifyFrame(static, static, add)
 
 
 def _grown(found: vs.VideoNode, padding: int, feather: int) -> vs.VideoNode:
