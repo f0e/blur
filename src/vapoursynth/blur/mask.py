@@ -158,6 +158,24 @@ STILL_CLUSTER_COVERAGE = 0.25
 # overlays apart from the scene
 MAX_STILL_DETAIL = 0.25
 
+# `estimate_layer`: how far past the whole clip mask (at 1080p) how much of the scene shows through is worked out,
+# for overlays' soft edges. further out the estimate is too noisy, and leaves a haze over the scene
+LAYER_GROW_PX_1080P = 2
+
+# the estimate is corrected for the inpainted scene behind being a rough guess where the two line up this well, and
+# trusted as is where they don't (an overlay that changes, like a timer, doesn't follow the scene at all)
+LAYER_MIN_CORRELATION = 0.5
+
+# past the mask itself, this much of the scene showing through is taken to be all of it
+LAYER_SNAP = 0.6
+
+# where less of the scene than LAYER_UNMIX_FROM shows through it's inpainted rather than worked back out, which
+# would amplify noise. from LAYER_UNMIX_FULL it's worked out entirely
+LAYER_UNMIX_FROM = 0.3
+LAYER_UNMIX_FULL = 0.6
+
+LAYER_SUFFIX = ".npz"
+
 
 # `measure` is the slow part (reads the video) and only depends on `samples`. `shape` turns its scores into a mask
 # and is basically free. scores are cached so changing the other settings doesn't need the video read again
@@ -577,6 +595,112 @@ def generate(clip: vs.VideoNode, params: Params = DEFAULT_PARAMS) -> vs.VideoNod
     return None if scores is None else shape(scores, params)
 
 
+# Layers
+#
+# putting the original back over what the mask covers is right for an opaque overlay, but not for one the scene
+# shows through, or for an overlay's soft edges: those show the scene from a frame that's no longer current. so
+# what the whole clip mask covers is treated as a layer over the scene, `observed = a + b * scene` at each pixel,
+# with b how much of the scene shows through (0 where the overlay is opaque, 1 where there isn't one). b and a are
+# worked out once per clip, by comparing what's observed against the scene inpainted from around the mask.
+# `separate` takes the layer out before interpolating and `composite` puts it back over the interpolated scene,
+# keeping the original's overlay (so one that changes, like a timer, stays right) and moving what shows through
+
+
+@dataclass(frozen=True)
+class Layer:
+    """One frame clips at the analysis size: `a` in float yuv (or gray), `b` GRAYS."""
+
+    a: vs.VideoNode
+    b: vs.VideoNode
+
+
+def _planes(frame: vs.VideoFrame) -> np.ndarray:
+    return np.stack([np.asarray(frame[i]) for i in range(frame.format.num_planes)]).astype(np.float64)
+
+
+def _dilated(found: np.ndarray, steps: int) -> np.ndarray:
+    for _ in range(steps):
+        grown = found.copy()
+        grown[1:] |= found[:-1]
+        grown[:-1] |= found[1:]
+        grown[:, 1:] |= found[:, :-1]
+        grown[:, :-1] |= found[:, 1:]
+        found = grown
+
+    return found
+
+
+def _constant(planes: np.ndarray) -> vs.VideoNode:
+    """A one frame float clip holding `planes` (planes, height, width): GRAYS for one, YUV444PS for three."""
+    data = planes.astype(np.float32)
+    fmt = vs.GRAYS if data.shape[0] == 1 else vs.YUV444PS
+    holder = core.std.BlankClip(width=data.shape[2], height=data.shape[1], format=fmt, length=1, keep=True)
+
+    def put(n: int, f: vs.VideoFrame) -> vs.VideoFrame:
+        out = f.copy()
+        for index in range(data.shape[0]):
+            np.copyto(np.asarray(out[index]), data[index])
+
+        return out
+
+    return core.std.ModifyFrame(holder, holder, put)
+
+
+def _layer_arrays(clip: vs.VideoNode, static: vs.VideoNode, samples: int) -> tuple[np.ndarray, np.ndarray]:
+    """`estimate_layer`'s a and b, as arrays."""
+    analysed = _analysed(clip)
+    width, height = analysed.width, analysed.height
+
+    resized = core.resize.Bilinear(static, width=width, height=height, format=vs.GRAYS)
+    found = 1 - np.asarray(resized.get_frame(0)[0]) > 0.01
+    region = _dilated(found, max(1, round(LAYER_GROW_PX_1080P * height / 1080)))
+
+    # white is the scene the inpainting works from
+    around = _constant(np.where(region, 0.0, 1.0)[None])
+
+    observed_sum = behind_sum = product_sum = behind_squares = observed_squares = 0
+    indices = _samples(analysed, samples)
+    for index in indices:
+        frame = analysed[index]
+        observed = _planes(frame.get_frame(0))
+        behind = _planes(fill(frame, around).get_frame(0))
+
+        observed_sum = observed_sum + observed
+        behind_sum = behind_sum + behind
+        product_sum = product_sum + observed * behind
+        behind_squares = behind_squares + behind * behind
+        observed_squares = observed_squares + observed * observed
+
+    count = max(1, len(indices))
+    observed_mean, behind_mean = observed_sum / count, behind_sum / count
+    covariance = product_sum / count - observed_mean * behind_mean
+    behind_variance = behind_squares / count - behind_mean**2
+    observed_variance = observed_squares / count - observed_mean**2
+
+    # from brightness, which varies the most behind an overlay. regressing observed on the inpainted guess
+    # understates b since the guess is rough. regressing the other way round doesn't, where the two line up
+    luma_covariance, luma_behind, luma_observed = covariance[0], behind_variance[0], observed_variance[0]
+    b = np.where(luma_behind > 1e-4, luma_covariance / np.maximum(luma_behind, 1e-4), 0.0)
+    correlation = luma_covariance / np.sqrt(np.maximum(luma_observed * luma_behind, 1e-12))
+    reversed_b = np.where(luma_covariance > 1e-6, luma_observed / np.maximum(luma_covariance, 1e-6), 0.0)
+    b = np.where((correlation > LAYER_MIN_CORRELATION) & (luma_observed > 1e-5), reversed_b, b)
+
+    b = np.clip(b, 0, 1)
+    b = np.where(~found & (b > LAYER_SNAP), 1.0, b)
+    b = np.where(region, b, 1.0)
+
+    a = np.where(region[None], observed_mean - b[None] * behind_mean, 0.0)
+
+    return a, b
+
+
+def estimate_layer(clip: vs.VideoNode, static: vs.VideoNode, samples: int = SAMPLE_COUNT) -> Layer:
+    """What the whole clip mask `static` covers, as a layer over the scene."""
+    a, b = _layer_arrays(clip, static, samples)
+
+    return Layer(_constant(a), _constant(b[None]))
+
+
 def _tracked(clip: vs.VideoNode) -> vs.VideoNode:
     """`clip` ready for `track`: 4:4:4 at its own bit depth (so 8 bit stays cheap), no taller than
     MAX_ANALYSIS_HEIGHT."""
@@ -768,7 +892,7 @@ def _prune(folder: Path, limit: int):
             return 0.0
 
     kept = sorted(
-        (p for p in folder.iterdir() if p.suffix in (MASK_SUFFIX, NOTHING_SUFFIX)),
+        (p for p in folder.iterdir() if p.suffix in (MASK_SUFFIX, NOTHING_SUFFIX, LAYER_SUFFIX)),
         key=modified,
         reverse=True,
     )
@@ -824,6 +948,44 @@ def _scores(
         log.info(f"Mask: couldn't save the measurements ({e})")
 
     return scores
+
+
+def cached_layer(
+    clip: vs.VideoNode,
+    static: vs.VideoNode,
+    video_path: Path,
+    folder: Path,
+    analysed: tuple[int, int],
+    params: Params = DEFAULT_PARAMS,
+) -> Layer:
+    """`estimate_layer`, cached alongside the measurements."""
+    try:
+        path = _cached_path(folder, video_path, analysed, f"layer {params}").with_suffix(LAYER_SUFFIX)
+    except OSError as e:
+        log.info(f"Mask: can't use the cache ({e}), working out the layer every time")
+        return estimate_layer(clip, static, params.samples)
+
+    if path.exists():
+        try:
+            with np.load(path) as stored:
+                return Layer(_constant(stored["a"]), _constant(stored["b"][None]))
+        except Exception as e:  # noqa: BLE001
+            log.info(f"Mask: couldn't read {path.name} ({e}), working the layer out again")
+
+    a, b = _layer_arrays(clip, static, params.samples)
+
+    # written then moved so half written files are never used. pid since a render and a preview can run at once
+    partial = path.with_suffix(f".{os.getpid()}.partial")
+    try:
+        with partial.open("wb") as f:
+            np.savez(f, a=a.astype(np.float32), b=b.astype(np.float32))
+        partial.replace(path)
+        _prune(folder, SCORE_CACHE_LIMIT)
+    except OSError as e:
+        partial.unlink(missing_ok=True)
+        log.info(f"Mask: couldn't save the layer ({e})")
+
+    return Layer(_constant(a), _constant(b[None]))
 
 
 def cached(
@@ -990,15 +1152,65 @@ def fill(clip: vs.VideoNode, gray: vs.VideoNode) -> vs.VideoNode:
     return core.std.Expr([clip, filled, scene], "z 0 > x y ?")
 
 
-def protect(
+def _per_plane(gray: vs.VideoNode, like: vs.VideoNode) -> vs.VideoNode:
+    """A float GRAY clip resized into each plane of `like` (a float format), so expressions can combine the two."""
+    fmt = like.format
+    luma = core.resize.Bilinear(gray, width=like.width, height=like.height, format=vs.GRAYS)
+
+    if fmt.num_planes == 1:
+        return luma
+
+    chroma = core.resize.Bilinear(
+        gray,
+        width=like.width >> fmt.subsampling_w,
+        height=like.height >> fmt.subsampling_h,
+        format=vs.GRAYS,
+    )
+    return core.std.ShufflePlanes([luma, chroma, chroma], planes=[0, 0, 0], colorfamily=fmt.color_family)
+
+
+def separate(clip: vs.VideoNode, gray: vs.VideoNode, layer: Layer | None = None) -> tuple[vs.VideoNode, vs.VideoNode]:
+    """`clip` with its overlays taken out for interpolating, and how much of the scene shows through at each pixel
+    (GRAYS, 1 where there's no overlay) for `composite` to put them back with."""
+    if layer is None:
+        return fill(clip, gray), gray
+
+    fmt = clip.format
+    working = core.query_video_format(fmt.color_family, vs.FLOAT, 32, fmt.subsampling_w, fmt.subsampling_h)
+    as_float = core.resize.Point(clip, format=working.id)
+
+    b = core.resize.Bilinear(layer.b, width=clip.width, height=clip.height)
+
+    # inpainted where too little of the scene shows through to work it back out
+    inpainted = core.resize.Point(fill(clip, core.std.Expr(b, "x 0.999 >= 1 0 ?")), format=working.id)
+
+    a = core.resize.Bilinear(layer.a, width=clip.width, height=clip.height, format=working.id)
+    lowest, full = LAYER_UNMIX_FROM, LAYER_UNMIX_FULL
+    weight = f"z {lowest} - {full - lowest} / 0 max 1 min"
+    taken_out = core.std.Expr(
+        [as_float, a, _per_plane(b, as_float), inpainted],
+        f"z 0.999 >= x x y - z {lowest} max / {weight} * a 1 {weight} - * + ?",
+    )
+    separated = core.resize.Point(taken_out, format=fmt.id, dither_type="none")
+
+    # what the rest of the mask protects more than the layer does (tracking, a mask preset) is inpainted as before
+    sized = core.resize.Bilinear(gray, width=clip.width, height=clip.height, format=vs.GRAYS)
+    separated = fill(separated, core.std.Expr([sized, b], "x y 0.05 - < x 1 ?"))
+
+    return separated, core.std.Expr([sized, b], "x y min")
+
+
+def composite(
     interpolated: vs.VideoNode,
     original: vs.VideoNode,
-    gray: vs.VideoNode,
+    separated: vs.VideoNode,
+    through: vs.VideoNode,
     timeline: retime.Timeline | None = None,
     ratio: Fraction | None = None,
 ) -> vs.VideoNode:
-    """Put `original`'s pixels back wherever the mask is black. With the `timeline` `interpolated` was retimed
-    onto (`ratio` output frames to each of `original`'s), each output frame gets the real frame nearest to it."""
+    """Put the overlays `separate` took out back over the interpolated scene: the original's overlay, plus however
+    much of the scene shows through moving on since. With the `timeline` `interpolated` was retimed onto (`ratio`
+    output frames to each of `original`'s), each output frame goes by the real frame nearest to it."""
 
     def stretched(clip: vs.VideoNode) -> vs.VideoNode:
         if timeline is not None and ratio is not None:
@@ -1006,15 +1218,19 @@ def protect(
 
         return match_length(clip, interpolated)
 
-    base = stretched(original)
-
     # a tracked mask follows `original`'s frames, a one frame mask is just repeated
-    mask = match(gray, interpolated)
-    if gray.num_frames > 1:
-        mask = stretched(mask)
+    shows = match(through, interpolated)
+    if through.num_frames > 1:
+        shows = stretched(shows)
 
-    # white takes clipb (interpolated), black takes clipa (original)
-    return core.std.MaskedMerge(base, interpolated, mask)
+    fmt = interpolated.format
+    white = (1 << fmt.bits_per_sample) - 1 if fmt.sample_type == vs.INTEGER else 1
+
+    # just the interpolated frame where nothing's covered, since separated is the original there
+    return core.std.Expr(
+        [interpolated, stretched(original), stretched(separated), shows],
+        f"y a {white} / x z - * +",
+    )
 
 
 def save(grays: list[vs.VideoNode], clip: vs.VideoNode, path: Path):

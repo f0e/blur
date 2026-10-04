@@ -53,11 +53,13 @@ def build_mask_clips(
     settings_path: Path,
     mask_start: int,
     mask_end: int,
-) -> tuple[list[vs.VideoNode], list[vs.VideoNode]]:
-    """The masks to render with, and the ones that are the same for every frame (what's worth saving as a mask
-    preset)."""
+    layered: bool = False,
+) -> tuple[list[vs.VideoNode], list[vs.VideoNode], blur.mask.Layer | None]:
+    """The masks to render with, the ones that are the same for every frame (what's worth saving as a mask
+    preset), and with `layered`, what the auto mask covers as a layer over the scene."""
     mask_clips = []
     fixed = []
+    layer = None
 
     if mask_name:
         log.info(f"applying mask {mask_name}")
@@ -65,22 +67,33 @@ def build_mask_clips(
         fixed.append(mask_clips[-1])
 
     if auto_mask:
+        params = auto_mask_params.for_clip(mask_source)
         generated = blur.mask.cached(
             mask_source,
             video_path,
             settings_path / blur.mask.CACHE_FOLDER,
             settings_path / blur.mask.SCORE_CACHE_FOLDER,
             (mask_start, mask_end),
-            auto_mask_params.for_clip(mask_source),
+            params,
         )
 
         if generated is not None:
             fixed.append(generated)
 
-        # overlays that come and go are found frame by frame in what's being rendered
-        mask_clips.append(blur.mask.track(video, generated, auto_mask_params))
+            if layered:
+                layer = blur.mask.cached_layer(
+                    mask_source,
+                    generated,
+                    video_path,
+                    settings_path / blur.mask.SCORE_CACHE_FOLDER,
+                    (mask_start, mask_end),
+                    params,
+                )
 
-    return mask_clips, fixed
+        # overlays that come and go are found frame by frame in what's being rendered. the layer covers the rest
+        mask_clips.append(blur.mask.track(video, None if layer else generated, auto_mask_params))
+
+    return mask_clips, fixed, layer
 
 
 def main():
@@ -224,7 +237,7 @@ def main():
     auto_mask_params = blur.mask.Params.from_settings(settings)
 
     if globals().get("preview_mask") == "true":
-        mask_clips, fixed = build_mask_clips(
+        mask_clips, fixed, _ = build_mask_clips(
             mask_name,
             auto_mask,
             auto_mask_params,
@@ -272,9 +285,9 @@ def main():
     # what masked regions get put back to. before deduplication since that interpolates too
     original = video
 
-    mask = None
+    mask = layer = None
     if mask_name or auto_mask:
-        mask_clips, _ = build_mask_clips(
+        mask_clips, _, layer = build_mask_clips(
             mask_name,
             auto_mask,
             auto_mask_params,
@@ -284,6 +297,7 @@ def main():
             settings_path,
             mask_start,
             mask_end,
+            layered=True,
         )
 
         if mask_clips:
@@ -322,7 +336,8 @@ def main():
 
     # after deduplication and scene detection, which need to see the frames as they are
     if mask is not None:
-        video = blur.mask.fill(video, mask)
+        video, shows_through = blur.mask.separate(video, mask, layer)
+        separated = video
 
     def interpolate_to(method: str, video: vs.VideoNode, new_fps, cuts, timeline=None):
         """Interpolate `video` up to `new_fps`, filling `timeline`'s gaps on the way if it was given any. Holds
@@ -524,7 +539,7 @@ def main():
 
     if mask is not None:
         ratio = video.fps / retimed_fps if retimed_by is not None else None
-        video = blur.mask.protect(video, original, mask, retimed_by, ratio)
+        video = blur.mask.composite(video, original, separated, shows_through, retimed_by, ratio)
 
     # debug: label the frames retiming touched. turn blur off to read it
     if debug_timeline is not None:
