@@ -34,6 +34,10 @@ public:
 
 	~VideoPlayer();
 
+	// players finish shutting down in the background (see the destructor). waits up to `timeout` for them, so a normal
+	// exit doesn't cut them off, while one stuck on a script that's still running doesn't hold it up
+	static void wait_for_destroys(std::chrono::milliseconds timeout);
+
 	void handle_key_press(SDL_Keycode key);
 
 	// options are mpv's per-file ones
@@ -140,11 +144,12 @@ public:
 	}
 
 	void set_paused(bool paused) {
+		m_paused = paused;
 		run_command_async({ "set", "pause", paused ? "yes" : "no" });
 	}
 
 	void cycle_paused() {
-		run_command_async({ "cycle", "pause" });
+		set_paused(!m_paused);
 	}
 
 	void set_playback_range(float start, float end) {
@@ -240,7 +245,6 @@ private:
 	std::atomic<double> m_cached_percent_pos{ -1.0 };
 	std::atomic<double> m_cached_time_pos{ -1.0 };
 	std::atomic<bool> m_paused{ true };
-	std::chrono::steady_clock::time_point m_frame_step_time;
 	std::atomic<double> m_cached_duration{ -1.0 };
 	std::atomic<double> m_cached_fps{ 0.0 };
 	std::atomic<int64_t> m_cached_width{ 0 };

@@ -30,9 +30,8 @@ namespace gui::components::main {
 
 	void invalidate_trim_support();
 
-	void release_previews();
-
-	void handle_event(const SDL_Event& event, bool& to_render);
+	// the queue preview's keys, while the queue's up. false if the video player should have the key
+	bool handle_key_press(SDL_Keycode key, SDL_Keymod mod);
 
 	// which subscreen was last drawn, if the main screen is up
 	[[nodiscard]] std::optional<MainScreen> current_screen();

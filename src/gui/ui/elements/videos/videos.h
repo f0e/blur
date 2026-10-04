@@ -22,6 +22,9 @@ namespace ui::videos {
 
 	[[nodiscard]] VideoWaveform* get_waveform(const std::filesystem::path& path, float duration);
 
+	// progress is where the playhead starts, as a fraction of the duration
+	[[nodiscard]] std::unordered_map<size_t, AnimationState> timeline_animations(float duration, float progress = 0.f);
+
 	void init_zoom(AnimatedElement& timeline, float duration);
 
 	void update_progress(AnimatedElement& timeline);

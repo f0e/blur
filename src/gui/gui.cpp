@@ -8,7 +8,11 @@
 #include "components/configs/configs.h"
 #include "components/configs/preview_frames.h"
 #include "components/main.h"
+#include "components/queue_preview.h"
 #include "os/taskbar.h"
+#include "preview_files.h"
+#include "pre_render.h"
+#include "ui/elements/videos/videos.h"
 
 #define DEBUG_RENDER_LOGGING 0
 
@@ -52,6 +56,20 @@ namespace {
 
 		os::taskbar::set_progress(ProgressState::NONE);
 	}
+
+	// video players and textures free gl resources, so they have to go before the gl context does
+	void shutdown() {
+		ui::clear_containers();
+		gui::components::configs::preview_frames::reset();
+		gui::components::queue_preview::release();
+		ui::videos::player.reset();
+
+		VideoPlayer::wait_for_destroys(std::chrono::seconds(2));
+		PreRender::wait_for_renders(std::chrono::seconds(5));
+		preview_files::remove_all();
+
+		sdl::cleanup();
+	}
 }
 
 int gui::run() {
@@ -61,6 +79,8 @@ int gui::run() {
 		sdl::cleanup();
 		return 1;
 	}
+
+	preview_files::remove_stale();
 
 	SDL_Event event;
 
@@ -79,7 +99,7 @@ int gui::run() {
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {
 				case SDL_EVENT_QUIT:
-					sdl::cleanup();
+					shutdown();
 					return 0;
 
 				case SDL_EVENT_WINDOW_EXPOSED:
@@ -139,8 +159,8 @@ int gui::run() {
 				// playback keys go to whichever screen's video is up, and not while typing
 				if (!SDL_TextInputActive(sdl::window)) {
 					if (gui::renderer::screen == gui::renderer::Screens::CONFIG)
-						gui::components::configs::preview_frames::handle_key_press(event.key.key);
-					else
+						gui::components::configs::preview_frames::handle_key_press(event.key.key, event.key.mod);
+					else if (!gui::components::main::handle_key_press(event.key.key, event.key.mod))
 						ui::handle_videos_event(event, to_render);
 				}
 			}
@@ -149,7 +169,7 @@ int gui::run() {
 			}
 
 			gui::components::configs::preview_frames::handle_event(event, to_render);
-			gui::components::main::handle_event(event, to_render);
+			gui::components::queue_preview::handle_event(event, to_render);
 
 			if (keys::process_event(event)) {
 				ui::on_update_input_start();
@@ -209,6 +229,6 @@ int gui::run() {
 		}
 	}
 
-	sdl::cleanup();
+	shutdown();
 	return 0;
 }

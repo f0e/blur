@@ -23,6 +23,7 @@ struct GlobalAppSettings {
 #else
 	bool preview_hardware_decoding = true;
 #endif
+	bool pre_render_output_encoding = true;
 
 	std::string sample_video_path;
 	float config_preview_seek = 0.5f;

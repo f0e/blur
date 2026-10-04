@@ -29,8 +29,8 @@ struct AdvancedSettings {
 	float blur_weighting_gaussian_mean = 2.f;
 	std::string blur_weighting_gaussian_bound = "[0,2]";
 
-	std::string svp_interpolation_preset = "weak";
-	std::string svp_interpolation_algorithm = "13";
+	std::string svp_interpolation_preset = "quality";
+	std::string svp_interpolation_algorithm = "23";
 	std::string interpolation_blocksize = "8";
 	int interpolation_mask_area = 0;
 
@@ -71,8 +71,12 @@ struct BlurSettings {
 	// generate a mask from the parts of each video that never move, applied on top of `mask`
 	bool auto_mask = false;
 
+	bool scene_detection = true;
+
 	bool pre_interpolate = false;
-	std::string pre_interpolated_fps = "360";
+	// pre-interpolates to whichever of these is higher
+	int pre_interpolated_minimum_fps = 360;
+	float pre_interpolated_minimum_multiplier = 1.f;
 	std::string pre_interpolation_method = "rife";
 
 	bool timescale = false;
@@ -106,6 +110,7 @@ struct BlurSettings {
 
 	std::string rife_model = "rife-v4.26_ensembleFalse";
 	std::string rife_trt_model = "rife_v4.26";
+	bool rife_trt_ensemble = false;
 
 	bool override_advanced = false;
 	AdvancedSettings advanced;
@@ -126,7 +131,7 @@ namespace config_blur {
 	inline const BlurSettings DEFAULT_CONFIG;
 
 	inline const std::vector<std::string> SVP_INTERPOLATION_PRESETS = {
-		"weak", "film", "smooth", "animation", "default", "test",
+		"quality", "max", "weak", "film", "smooth", "animation", "default", "test",
 	};
 
 	inline const std::vector<std::string> SVP_INTERPOLATION_ALGORITHMS = {

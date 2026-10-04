@@ -4,6 +4,10 @@
 const int SEEK_SECS = 3;
 const uint64_t DIMENSIONS_OBSERVE_ID = 1;
 
+namespace {
+	std::atomic<int> pending_destroys = 0;
+}
+
 VideoPlayer::~VideoPlayer() {
 	// clean up opengl resources
 	if (m_tex) {
@@ -20,15 +24,31 @@ VideoPlayer::~VideoPlayer() {
 	}
 
 	if (m_mpv) {
+		// it outlives this player, so it can't call back into it
+		mpv_set_wakeup_callback(m_mpv, nullptr, nullptr);
+
+		// mpv_destroy waits for the file being opened, and a blur preview's file is a vapoursynth script that can take
+		// minutes (e.g. building a tensorrt engine), so the ui doesn't wait for it. it'd need another thread anyway:
 		// libmpv's wasapi output calls CoUninitialize on the thread that destroys it, which eventually kills sdl's ole
-		// apartment and breaks drag and drop. destroy it on another thread instead
-		std::thread destroy_thread([mpv = m_mpv] {
+		// apartment and breaks drag and drop
+		++pending_destroys;
+		std::thread([mpv = m_mpv] {
 			mpv_destroy(mpv);
-		});
-		destroy_thread.join();
+			--pending_destroys;
+		}).detach();
 	}
 
-	u::log("Player properly terminated");
+	u::log("Player released");
+}
+
+void VideoPlayer::wait_for_destroys(std::chrono::milliseconds timeout) {
+	auto start = std::chrono::steady_clock::now();
+
+	while (pending_destroys > 0 && std::chrono::steady_clock::now() - start < timeout)
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+	if (pending_destroys > 0)
+		u::log("not waiting for {} video player(s) still opening a file", pending_destroys.load());
 }
 
 void VideoPlayer::handle_key_press(SDL_Keycode key) {
@@ -55,7 +75,6 @@ void VideoPlayer::handle_key_press(SDL_Keycode key) {
 
 		case SDLK_PERIOD: {
 			// the seek flag doesn't move forward. this plays one frame, with the audio muted, then pauses again
-			m_frame_step_time = std::chrono::steady_clock::now();
 			run_command_async({ "frame-step", "1", "mute" });
 			break;
 		}
@@ -509,16 +528,10 @@ bool VideoPlayer::process_mpv_events() {
 				else if (std::strcmp(name, "time-pos") == 0) {
 					m_cached_time_pos = available ? *static_cast<double*>(prop->data) : -1.0;
 				}
-				else if (std::strcmp(name, "pause") == 0 && available) {
-					bool paused = *static_cast<int*>(prop->data) != 0;
-
-					// a frame step can unpause for the frame, which isn't really playing. mpv doesn't always say it
-					// did, so it's only ignored just after a step
-					constexpr auto FRAME_STEP_WINDOW = std::chrono::milliseconds(200);
-					if (!paused && std::chrono::steady_clock::now() - m_frame_step_time < FRAME_STEP_WINDOW)
-						break;
-
-					m_paused = paused;
+				// mpv pauses itself, like at the end with keep-open, but only unpauses itself to play a frame step. so
+				// only pausing is taken from it, and playing is whatever set_paused last asked for
+				else if (std::strcmp(name, "pause") == 0 && available && *static_cast<int*>(prop->data) != 0) {
+					m_paused = true;
 					changed = true;
 				}
 				else if (std::strcmp(name, "duration/full") == 0) {

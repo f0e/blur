@@ -10,7 +10,9 @@
 #include "../ui/elements/videos/videos.h"
 #include "../mask_preview.h"
 #include "../player_blur_preview.h"
-#include "notifications.h"
+#include "queue_preview.h"
+#include "configs/configs.h"
+#include "../fonts/icons.h"
 #include "common/masks.h"
 #include "../render/render.h"
 #include <SDL3/SDL_dialog.h>
@@ -25,6 +27,8 @@ namespace {
 	main::MainScreen last_main_screen = main::MainScreen::HOME;
 
 	const std::string NO_CONFIG_OPTION = "select a config";
+
+	const int EDIT_CONFIG_BUTTON_GAP = 6;
 
 	// keyed on the config too since its encode preset decides whether trimming works
 	std::map<std::pair<size_t, std::string>, bool> trim_disabled_cache;
@@ -46,121 +50,11 @@ namespace {
 
 			auto config = config_blur::get_config(pending_video.config_name);
 
-			disabled = rendering::detail::copies_audio(config, app_settings);
+			disabled = rendering::copies_audio(config, app_settings);
 		}
 
 		trim_disabled_cache.emplace(key, disabled);
 		return disabled;
-	}
-
-	bool blur_preview_enabled = false;
-	bool mask_preview_enabled = false;
-
-	std::unique_ptr<PlayerBlurPreview> blur_preview;
-	std::unique_ptr<MaskPreview> mask_preview;
-
-	// configs are read from disk, so the last one's kept until its file changes
-	struct {
-		std::string name;
-		std::filesystem::file_time_type write_time;
-		BlurSettings settings;
-	} preview_config;
-
-	BlurSettings get_render_settings(const tasks::PendingVideo& pending_video) {
-		std::error_code ec;
-		auto write_time = std::filesystem::last_write_time(config_blur::get_config_path(pending_video.config_name), ec);
-
-		if (pending_video.config_name != preview_config.name || write_time != preview_config.write_time) {
-			preview_config.name = pending_video.config_name;
-			preview_config.write_time = write_time;
-			preview_config.settings = config_blur::get_config(pending_video.config_name);
-		}
-
-		auto settings = preview_config.settings;
-		settings.mask = pending_video.mask;
-		settings.auto_mask = pending_video.auto_mask;
-		return settings;
-	}
-
-	struct QueuePreviewState {
-		std::optional<ui::VideoOverlay> overlay;
-		std::optional<std::string> status;
-	};
-
-	void show_preview_error(const std::string& header, const std::optional<rendering::RenderError>& error) {
-		if (error)
-			gui::components::notifications::show_failure_notification(
-				header, *error, std::chrono::duration<float>(10.f)
-			);
-	}
-
-	QueuePreviewState update_preview(const tasks::PendingVideo& pending_video, const GlobalAppSettings& app_config) {
-		if (!blur_preview_enabled)
-			blur_preview.reset();
-
-		if (!mask_preview_enabled)
-			mask_preview.reset();
-
-		if (!blur_preview_enabled && !mask_preview_enabled)
-			return {};
-
-		if (!pending_video.video_info || !pending_video.video_info->ffmpeg_can_decode_video)
-			return {};
-
-		if (pending_video.config_name.empty())
-			return { .status = "select a config to preview it" };
-
-		const auto& player = ui::videos::player;
-		if (!player || !ui::videos::is_loaded(pending_video.video_path))
-			return {};
-
-		auto settings = get_render_settings(pending_video);
-
-		if (mask_preview_enabled) {
-			if (!mask_preview)
-				mask_preview = std::make_unique<MaskPreview>();
-
-			// the mask's a still image
-			if (!player->is_paused())
-				player->set_paused(true);
-
-			auto state = mask_preview->update(
-				{
-					.video_path = pending_video.video_path,
-					.video_info = *pending_video.video_info,
-					.settings = settings,
-					.app_settings = app_config,
-				}
-			);
-
-			show_preview_error("Failed to generate mask preview.", mask_preview->take_error());
-
-			return {
-				.overlay = ui::VideoOverlay{ .player = state.overlay },
-				.status = state.status_text("loading mask..."),
-			};
-		}
-
-		if (!blur_preview)
-			blur_preview = std::make_unique<PlayerBlurPreview>();
-
-		auto state = blur_preview->update(
-			{
-				.player = *player,
-				.video_path = pending_video.video_path,
-				.video_info = *pending_video.video_info,
-				.settings = settings,
-				.app_settings = app_config,
-			}
-		);
-
-		show_preview_error("Failed to generate blur preview.", blur_preview->take_error());
-
-		QueuePreviewState result{ .status = state.status_text("rendering preview...") };
-		if (!state.playing)
-			result.overlay = ui::VideoOverlay{ .player = state.overlay };
-
-		return result;
 	}
 
 	// with skip_queue on, the queue screen is only needed when a config or trim needs sorting out
@@ -202,17 +96,8 @@ void main::show_screen(MainScreen main_screen) {
 	prefer_render_screen = main_screen == MainScreen::PROGRESS;
 }
 
-void main::release_previews() {
-	blur_preview.reset();
-	mask_preview.reset();
-}
-
-void main::handle_event(const SDL_Event& event, bool& to_render) {
-	if (blur_preview)
-		blur_preview->handle_event(event, to_render);
-
-	if (mask_preview)
-		mask_preview->handle_event(event, to_render);
+bool main::handle_key_press(SDL_Keycode key, SDL_Keymod mod) {
+	return current_screen() == MainScreen::PENDING && queue_preview::handle_key_press(key, mod);
 }
 
 void main::invalidate_trim_support() {
@@ -488,11 +373,11 @@ void main::render_pending(
 	bool trim_disabled = is_trim_disabled(*pending_video);
 
 	// the mask option only shows when there's a mask, so it can't stay on without one
-	bool masking = !pending_video->config_name.empty() && MaskPreview::applies(get_render_settings(*pending_video));
+	bool masking = !pending_video->config_name.empty() && MaskPreview::applies(queue_preview::settings(*pending_video));
 	if (!masking)
-		mask_preview_enabled = false;
+		queue_preview::mask_enabled = false;
 
-	auto preview_state = update_preview(*pending_video, app_config);
+	auto preview_state = queue_preview::update(*pending_video, app_config);
 
 	ui::add_videos(
 		"test video",
@@ -524,7 +409,14 @@ void main::render_pending(
 			config_missing_message,
 			gfx::Color(255, 100, 100),
 			[&] {
-				ui::add_dropdown(
+				bool can_edit_config = !pending_video->config_name.empty();
+
+				const int edit_button_size = ui::get_dropdown_box_height(fonts::dejavu);
+				std::optional<int> dropdown_width;
+				if (can_edit_config)
+					dropdown_width = config_container.get_usable_rect().w - edit_button_size - EDIT_CONFIG_BUTTON_GAP;
+
+				auto* dropdown = ui::add_dropdown(
 					std::format("config dropdown {}", pending_video->video_id),
 					config_container,
 					"config",
@@ -550,8 +442,48 @@ void main::render_pending(
 						invalidate_trim_support();
 					},
 					// show the placeholder as muted without making it selectable
-					{ NO_CONFIG_OPTION }
+					{ NO_CONFIG_OPTION },
+					{},
+					{},
+					dropdown_width
 				);
+
+				if (!can_edit_config)
+					return;
+
+				ui::set_next_same_line(config_container);
+
+				auto* edit_button = ui::add_icon_button(
+					"edit config button",
+					config_container,
+					icons::COG,
+					fonts::icons,
+					gfx::Size(edit_button_size, edit_button_size),
+					gfx::Color::white(120),
+					gfx::Color::white(),
+					[pending_video] {
+						const auto& player = ui::videos::player;
+
+						float seek = 0.f;
+						if (player && pending_video->video_info && ui::videos::is_loaded(pending_video->video_path)) {
+							player->set_paused(true);
+
+							seek =
+								PlayerBlurPreview::player_position(*player, *pending_video->video_info).value_or(0.f);
+						}
+
+						gui::components::configs::edit_config_for_video(
+							pending_video->config_name, pending_video->video_path, seek
+						);
+					},
+					"Edit config & preview using this video"
+				);
+
+				// line it up with the dropdown's box rather than its label
+				auto& edit_rect = edit_button->element->rect;
+				edit_rect.x = config_container.get_usable_rect().x2() - edit_rect.w;
+				edit_rect.y = dropdown->element->rect.y2() - edit_rect.h;
+				edit_button->element->orig_rect = edit_rect;
 			}
 		);
 
@@ -616,11 +548,11 @@ void main::render_pending(
 			"preview blur checkbox",
 			config_container,
 			"preview blur",
-			blur_preview_enabled,
+			queue_preview::blur_enabled,
 			fonts::dejavu,
 			[](bool enabled) {
 				if (enabled)
-					mask_preview_enabled = false;
+					queue_preview::mask_enabled = false;
 			}
 		);
 
@@ -629,11 +561,11 @@ void main::render_pending(
 				"preview mask checkbox",
 				config_container,
 				"preview mask",
-				mask_preview_enabled,
+				queue_preview::mask_enabled,
 				fonts::dejavu,
 				[](bool enabled) {
 					if (enabled)
-						blur_preview_enabled = false;
+						queue_preview::blur_enabled = false;
 				}
 			);
 		}

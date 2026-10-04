@@ -58,9 +58,17 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	inline float interpolated_fps_mult = 5.f;
 	inline int interpolated_fps = 1200;
 
-	inline bool pre_interpolate_scale = true;
-	inline float pre_interpolated_fps_mult = 2.f;
-	inline int pre_interpolated_fps = 360;
+	// of the video in the config preview, for showing what fps settings work out to
+	inline std::optional<double> preview_video_fps;
+
+	struct QueueVideoPreview {
+		std::filesystem::path path;
+		float seek = 0.f; // 0-1
+	};
+
+	inline std::optional<QueueVideoPreview> queue_video_preview;
+
+	void edit_config_for_video(const std::string& name, const std::filesystem::path& video_path, float seek);
 
 	bool has_sample_video();
 	void set_sample_video(const std::filesystem::path& path);
@@ -115,6 +123,9 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	void import_config(const BlurSettings& imported);
 
 	void leave_screen(const std::function<void()>& on_leave);
+
+	void on_screen_left();
+
 	void save_config();
 	void on_load();
 

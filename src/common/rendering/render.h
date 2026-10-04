@@ -20,6 +20,18 @@ namespace rendering {
 		const std::filesystem::path& log_path
 	);
 
+	// the mask covers the whole video like the preview's, so they share a cached one
+	tl::expected<RenderResult, RenderError> pre_render(
+		const std::filesystem::path& input_path,
+		const media::VideoInfo& video_info,
+		const BlurSettings& settings,
+		const GlobalAppSettings& app_settings,
+		const std::shared_ptr<RenderState>& state,
+		const std::filesystem::path& output_path,
+		size_t start_frame,
+		size_t end_frame
+	);
+
 	std::pair<size_t, size_t> get_trim_frame_range(const media::VideoInfo& video_info, float start, float end);
 
 	bool has_enough_frames_to_render(const media::VideoInfo& video_info, float start, float end);

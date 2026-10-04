@@ -209,7 +209,7 @@ namespace {
 	rendering::RenderError assemble_render_error(const std::string& vspipe_errors, const std::string& ffmpeg_errors) {
 		rendering::RenderError err;
 
-		auto parsed = rendering::detail::parse_error_output(vspipe_errors);
+		auto parsed = rendering::parse_error_output(vspipe_errors);
 		if (parsed) {
 			err = *parsed;
 		}
@@ -222,6 +222,14 @@ namespace {
 		err.vspipe_errors =
 			err.is_blur_exception ? rendering::detail::without_error_objects(vspipe_errors) : vspipe_errors;
 		err.ffmpeg_errors = ffmpeg_errors;
+
+		// nvidia limits how many encodes can run at once, and cheaper cards have a lower limit
+		if (ffmpeg_errors.find("OpenEncodeSessionEx failed") != std::string::npos) {
+			err.user_message =
+				"The GPU couldn't start another encode, likely because it's already running as many as it can. Stop "
+				"other renders, pre-renders or recordings using GPU encoding, or turn GPU encoding off";
+			err.is_blur_exception = false;
+		}
 
 		return err;
 	}
@@ -308,12 +316,19 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 		std::thread ffmpeg_stdout_thread(extract_jpeg_stream, std::ref(ffmpeg_stdout), state);
 
 		bool killed = false;
+		bool finished_early = false;
 		while (ffmpeg_process->running()) {
 			if (state->wants_stop() || blur.exiting) {
 				u::safe_terminate(vspipe_group);
 				u::safe_terminate(*ffmpeg_process);
 				killed = true;
 				break;
+			}
+
+			// ffmpeg takes vspipe ending as the end of the video, and drops the frame it was cut off in
+			if (state->wants_finish() && !finished_early) {
+				u::safe_terminate(vspipe_group);
+				finished_early = true;
 			}
 
 			if (state->wants_pause() != state->is_paused()) {
@@ -344,7 +359,7 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 		vspipe_process->wait(wait_ec);
 
 		// if vspipe fails mid-render ffmpeg can still exit 0 with an empty video, so check vspipe too
-		bool vspipe_failed = vspipe_process->exit_code() != 0;
+		bool vspipe_failed = !finished_early && vspipe_process->exit_code() != 0;
 
 		if (vspipe_failed || ffmpeg_process->exit_code() != 0) {
 			return tl::unexpected(assemble_render_error(vspipe_errors.str(), ffmpeg_errors.str()));

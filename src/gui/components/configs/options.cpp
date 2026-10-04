@@ -3,6 +3,7 @@
 
 #include "../../ui/ui.h"
 #include "../../render/render.h"
+#include "../../renderer.h"
 
 #include "common/config_encoding_presets.h"
 #include "common/config_app.h"
@@ -13,27 +14,24 @@
 
 namespace configs = gui::components::configs;
 
+namespace {
+	// the model isn't shipped with every install, so it's only offered once it's there
+	bool gimm_installed() {
+#ifdef TENSORRT
+		std::error_code ec;
+		return std::filesystem::exists(rife_models::get_gimm_trt_path(), ec);
+#else
+		return false;
+#endif
+	}
+}
+
 void configs::set_interpolated_fps() {
 	if (interpolate_scale) {
 		settings.interpolated_fps = std::format("{}x", interpolated_fps_mult);
 	}
 	else {
 		settings.interpolated_fps = std::to_string(interpolated_fps);
-	}
-
-	if (pre_interpolate_scale) {
-		if (interpolate_scale)
-			pre_interpolated_fps_mult =
-				std::min(pre_interpolated_fps_mult, interpolated_fps_mult); // can't preinterpolate more than interp
-
-		settings.pre_interpolated_fps = std::format("{}x", pre_interpolated_fps_mult);
-	}
-	else {
-		if (!interpolate_scale)
-			pre_interpolated_fps =
-				std::min(pre_interpolated_fps, interpolated_fps); // can't preinterpolate more than interp
-
-		settings.pre_interpolated_fps = std::to_string(pre_interpolated_fps);
 	}
 }
 
@@ -244,6 +242,9 @@ void configs::options(ui::Container& container) {
 
 		if (devices::initialised && !devices::tensorrt.empty()) {
 			interpolation_options.insert(interpolation_options.begin() + 2, "rife (tensorrt)");
+
+			if (gimm_installed())
+				interpolation_options.insert(interpolation_options.begin() + 3, "gimm-vfi (tensorrt)");
 		}
 
 		ui::add_dropdown(
@@ -263,44 +264,49 @@ void configs::options(ui::Container& container) {
 		section_component("pre-interpolation", &settings.pre_interpolate);
 
 		if (settings.pre_interpolate) {
-			ui::add_checkbox(
-				"pre-interpolate scale checkbox",
+			ui::add_slider(
+				"pre-interpolated minimum fps",
 				container,
-				"pre-interpolate by scaling fps",
-				pre_interpolate_scale,
-				fonts::dejavu,
-				[&](bool new_value) {
-					set_interpolated_fps();
-				}
+				0,
+				2400,
+				&settings.pre_interpolated_minimum_fps,
+				"minimum fps: {} fps",
+				fonts::dejavu
 			);
 
-			if (pre_interpolate_scale) {
-				ui::add_slider(
-					"pre-interpolated fps mult",
-					container,
-					1.f,
-					interpolate_scale ? interpolated_fps_mult : 10.f,
-					&pre_interpolated_fps_mult,
-					"pre-interpolated fps: {:.1f}x",
-					fonts::dejavu,
-					[&](std::variant<int*, float*> value) {
-						set_interpolated_fps();
-					},
-					0.1f
+			ui::add_slider(
+				"pre-interpolated minimum multiplier",
+				container,
+				1.f,
+				10.f,
+				&settings.pre_interpolated_minimum_multiplier,
+				"minimum multiplier: {:.1f}x",
+				fonts::dejavu,
+				{},
+				0.1f
+			);
+
+			if (preview_video_fps && settings.pre_interpolation_method != settings.interpolation_method) {
+				// mirrors blur.py
+				double source_fps = *preview_video_fps;
+				if (settings.timescale)
+					source_fps /= settings.input_timescale;
+
+				double max_fps = interpolate_scale ? source_fps * interpolated_fps_mult : interpolated_fps;
+				double target_fps = std::min(
+					std::max<double>(
+						settings.pre_interpolated_minimum_fps, source_fps * settings.pre_interpolated_minimum_multiplier
+					),
+					max_fps
 				);
-			}
-			else {
-				ui::add_slider(
-					"pre-interpolated fps",
+
+				ui::add_text(
+					"pre-interpolated fps preview",
 					container,
-					1,
-					!interpolate_scale ? interpolated_fps : 2400,
-					&pre_interpolated_fps,
-					"pre-interpolated fps: {} fps",
-					fonts::dejavu,
-					[&](std::variant<int*, float*> value) {
-						set_interpolated_fps();
-					}
+					target_fps > source_fps ? std::format("this clip: {:.0f} → {:.0f} fps", source_fps, target_fps)
+											: std::format("this clip: {:.0f} fps, nothing to add", source_fps),
+					gfx::Color::white(renderer::MUTED_SHADE),
+					fonts::dejavu
 				);
 			}
 
@@ -310,6 +316,9 @@ void configs::options(ui::Container& container) {
 
 			if (devices::initialised && !devices::tensorrt.empty()) {
 				pre_interpolation_options.insert(pre_interpolation_options.end(), "rife (tensorrt)");
+
+				if (gimm_installed())
+					pre_interpolation_options.insert(pre_interpolation_options.end(), "gimm-vfi (tensorrt)");
 			}
 
 			ui::add_dropdown(
@@ -342,24 +351,35 @@ void configs::options(ui::Container& container) {
 			);
 		}
 		else {
+			std::vector<std::string> deduplicate_options = {
+				"svp",
+				"rife",
+#ifdef TENSORRT
+				"rife (tensorrt)",
+#endif
+				"mvtools",
+				"old",
+			};
+
+			if (gimm_installed())
+				deduplicate_options.insert(deduplicate_options.begin() + 3, "gimm-vfi (tensorrt)");
+
 			ui::add_dropdown(
 				"deduplicate method dropdown",
 				container,
 				"deduplicate method",
-				{
-					"svp",
-					"rife",
-#ifdef TENSORRT
-					"rife (tensorrt)",
-#endif
-					"mvtools",
-					"old",
-				},
+				deduplicate_options,
 				settings.deduplicate_method,
 				fonts::dejavu
 			);
 		}
 	}
+
+	/*
+	    Scene detection
+	*/
+	if (settings.blur || settings.interpolate || settings.deduplicate)
+		section_component("scene detection", &settings.scene_detection);
 
 	/*
 	    Masking
@@ -496,6 +516,14 @@ void configs::options(ui::Container& container) {
 		if (uses_rife_trt) {
 			model_dropdown(
 				"rife (tensorrt) model", rife_models::list_trt(), settings.rife_trt_model, rife_models::get_trt_path()
+			);
+
+			ui::add_checkbox(
+				"rife (tensorrt) ensemble checkbox",
+				container,
+				"rife (tensorrt) ensemble",
+				settings.rife_trt_ensemble,
+				fonts::dejavu
 			);
 		}
 #endif
@@ -946,15 +974,6 @@ void configs::parse_interp() {
 
 	parse_fps_setting(
 		settings.interpolated_fps, interpolated_fps, interpolated_fps_mult, interpolate_scale, set_interpolated_fps
-	);
-
-	parse_fps_setting(
-		settings.pre_interpolated_fps,
-		pre_interpolated_fps,
-		pre_interpolated_fps_mult,
-		pre_interpolate_scale,
-		set_interpolated_fps,
-		"pre-"
 	);
 };
 

@@ -3,7 +3,6 @@
 constexpr float OFFSET_ANIMATION_SPEED = 25.f;
 constexpr float OFFSET_ANIMATION_SNAP = 0.0005f;
 constexpr float ASPECT_ANIMATION_SPEED = 15.f;
-constexpr float ZOOM_ANIMATION_SPEED = 30.f;
 
 namespace {
 	std::optional<std::filesystem::path> loaded_path;
@@ -237,7 +236,9 @@ void ui::add_videos(
 			videos::timeline_rect(video_rect),
 			TimelineElementData{
 				.video = ui_video,
+				.player = videos::player,
 				.waveform = ui_video.video_info ? videos::get_waveform(ui_video.path, duration) : nullptr,
+				.highlight = active && active_overlay ? active_overlay->range : std::nullopt,
 				.active = active,
 				.fade = fade,
 				.interactive = active && video_elem->animations.at(hasher("offset")).complete,
@@ -249,20 +250,8 @@ void ui::add_videos(
 			true
 		);
 
-		auto* timeline_elem = add_element(
-			container,
-			std::move(timeline_element),
-			{
-				{ hasher("main"), AnimationState(25.f) },
-				{ hasher("progress"), AnimationState(70.f) },
-				{ hasher("seeking"), AnimationState(70.f) },
-				{ hasher("seek"), AnimationState(70.f) },
-				{ hasher("left_grab"), AnimationState(150.f) },
-				{ hasher("right_grab"), AnimationState(150.f) },
-				{ hasher("zoom_start"), AnimationState(ZOOM_ANIMATION_SPEED, 0.f) },
-				{ hasher("zoom_end"), AnimationState(ZOOM_ANIMATION_SPEED, duration) },
-			}
-		);
+		auto* timeline_elem =
+			add_element(container, std::move(timeline_element), videos::timeline_animations(duration));
 
 		timeline_elem->z_index = -distance;
 

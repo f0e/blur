@@ -1,15 +1,13 @@
 #include "render_commands.h"
-#include "common/config_encoding_presets.h"
+#include "output.h"
 #include "common/vspipe.h"
-#include "common/encoding.h"
 
 namespace {
 	void append_audio_filter_args(
 		std::vector<std::string>& args,
 		const media::VideoInfo& video_info,
 		const BlurSettings& settings,
-		size_t start_frame,
-		size_t end_frame,
+		rendering::detail::FrameRange range,
 		size_t skipped_frames
 	) {
 		if (video_info.audio_sample_rates.empty())
@@ -29,12 +27,12 @@ namespace {
 			double audio_start_time = video_info.audio_start_times[i];
 			double frame_duration = static_cast<double>(video_info.fps_den) / video_info.fps_num;
 
-			auto start_sample = static_cast<size_t>(std::llround(
-				(start_frame * frame_duration + skipped_time + video_info.video_start_time - audio_start_time) *
+			auto start_pre_render = static_cast<size_t>(std::llround(
+				((range.start * frame_duration) + skipped_time + video_info.video_start_time - audio_start_time) *
 				sample_rate
 			));
 			auto end_sample = static_cast<size_t>(std::llround(
-				(end_frame * frame_duration + video_info.video_start_time - audio_start_time) * sample_rate
+				((range.end * frame_duration) + video_info.video_start_time - audio_start_time) * sample_rate
 			));
 
 			// build the middle part of the filter - everything between asetpts and the output label
@@ -63,7 +61,7 @@ namespace {
 			complex_filter += std::format(
 				"[1:a:{}]atrim=start_pts={}:end_pts={},asetpts=PTS-STARTPTS{}[a{}]",
 				i,
-				start_sample,
+				start_pre_render,
 				end_sample,
 				timescale_filter,
 				i
@@ -121,44 +119,10 @@ namespace {
 		}
 	}
 
-	std::vector<std::string> build_encoding_args(
-		const BlurSettings& settings, const GlobalAppSettings& app_settings, const EncodingPresetSettings* presets
-	) {
-		if (!settings.advanced.ffmpeg_override.empty())
-			return encoding::ffmpeg_string_to_args(settings.advanced.ffmpeg_override);
-
-		std::string gpu_type = settings.gpu_encoding ? app_settings.gpu_type : "cpu";
-		std::string preset = u::to_lower(settings.encode_preset.empty() ? "h264" : settings.encode_preset);
-
-		if (presets)
-			return config_encoding_presets::get_preset_params(*presets, gpu_type, preset, settings.quality);
-
-		return config_encoding_presets::get_preset_params(gpu_type, preset, settings.quality);
-	}
-
-	bool wants_audio_copy(const std::vector<std::string>& encoding_args) {
-		for (size_t i = 0; i + 1 < encoding_args.size(); i++) {
-			const auto& flag = encoding_args[i];
-			bool is_audio_codec = flag == "-acodec" || flag.starts_with("-c:a") || flag.starts_with("-codec:a");
-
-			if (is_audio_codec && encoding_args[i + 1] == "copy")
-				return true;
-		}
-
-		return false;
-	}
+	// jpegs are full range bt601, which ffmpeg won't convert to unless it's told to
+	constexpr std::string_view JPEG_COLOUR = "out_color_matrix=bt601:out_range=pc";
 
 	constexpr int PREVIEW_MAX_HEIGHT = 720;
-}
-
-bool rendering::detail::copies_audio(const BlurSettings& settings, const GlobalAppSettings& app_settings) {
-	return wants_audio_copy(build_encoding_args(settings, app_settings, nullptr));
-}
-
-bool rendering::detail::copies_audio(
-	const BlurSettings& settings, const GlobalAppSettings& app_settings, const EncodingPresetSettings& presets
-) {
-	return wants_audio_copy(build_encoding_args(settings, app_settings, &presets));
 }
 
 nlohmann::json rendering::detail::merge_settings(
@@ -195,11 +159,7 @@ std::vector<std::string> rendering::detail::build_vspipe_video_args(
 	const std::filesystem::path& input_path,
 	const nlohmann::json& merged_settings,
 	const media::VideoInfo& video_info,
-	std::optional<size_t> start_frame,
-	std::optional<size_t> end_frame,
-	std::optional<std::pair<size_t, size_t>> mask_range,
-	bool preview_mask,
-	size_t skipped_frames
+	const VspipeVideoOptions& options
 ) {
 	auto args = build_vspipe_base_args(input_path, merged_settings);
 	args.insert(
@@ -216,102 +176,26 @@ std::vector<std::string> rendering::detail::build_vspipe_video_args(
 		}
 	);
 
-	if (start_frame)
-		args.insert(args.end(), { "-a", std::format("start={}", *start_frame) });
-
-	if (end_frame)
-		args.insert(args.end(), { "-a", std::format("end={}", *end_frame) });
-
-	if (mask_range) {
-		args.insert(args.end(), { "-a", std::format("mask_start={}", mask_range->first) });
-		args.insert(args.end(), { "-a", std::format("mask_end={}", mask_range->second) });
+	if (options.range) {
+		args.insert(args.end(), { "-a", std::format("start={}", options.range->start) });
+		args.insert(args.end(), { "-a", std::format("end={}", options.range->end) });
 	}
 
-	if (preview_mask)
+	if (options.mask_range) {
+		args.insert(args.end(), { "-a", std::format("mask_start={}", options.mask_range->start) });
+		args.insert(args.end(), { "-a", std::format("mask_end={}", options.mask_range->end) });
+	}
+
+	if (options.preview_mask)
 		args.insert(args.end(), { "-a", "preview_mask=true" });
 
 	if (video_info.frameserver)
 		args.insert(args.end(), { "-a", "frameserver=true" });
 
-	if (skipped_frames > 0)
-		args.insert(args.end(), { "-a", std::format("skip_frames={}", skipped_frames) });
+	if (options.skipped_frames > 0)
+		args.insert(args.end(), { "-a", std::format("skip_frames={}", options.skipped_frames) });
 
 	return args;
-}
-
-tl::expected<std::filesystem::path, std::string> rendering::detail::build_output_filename(
-	const std::filesystem::path& input_path, const BlurSettings& settings, const GlobalAppSettings& app_settings
-) {
-	auto output_folder = (input_path.parent_path() / app_settings.output_prefix).lexically_normal();
-
-	try {
-		std::filesystem::create_directories(output_folder);
-	}
-	catch (const std::filesystem::filesystem_error& e) {
-		return tl::unexpected(fmt::format("Failed to create output directory: {}", e.what()));
-	}
-
-	std::string base_name = std::format("{} - blur", input_path.stem());
-
-	if (settings.detailed_filenames) {
-		std::string details;
-		if (settings.blur && settings.interpolate) {
-			details = std::format(
-				"{}fps ({}, {})", settings.blur_output_fps, settings.interpolated_fps, settings.blur_amount
-			);
-		}
-		else if (settings.blur) {
-			details = std::format("{}fps ({})", settings.blur_output_fps, settings.blur_amount);
-		}
-		else if (settings.interpolate) {
-			details = std::format("{}fps", settings.interpolated_fps);
-		}
-
-		if (!details.empty())
-			base_name += " ~ " + details;
-	}
-
-	// find unique filename
-	int counter = 1;
-	std::filesystem::path result;
-	do {
-		std::string filename = base_name;
-		if (counter > 1)
-			filename += std::format(" ({})", counter);
-		filename += "." + settings.advanced.video_container;
-		result = output_folder / filename;
-		counter++;
-	}
-	while (std::filesystem::exists(result));
-
-	return result;
-}
-
-size_t rendering::detail::get_skipped_frames(
-	const BlurSettings& settings, const GlobalAppSettings& app_settings, const media::VideoInfo& video_info
-) {
-	if (!app_settings.fully_blur_first_frame || !settings.blur || settings.blur_amount <= 0.f)
-		return 0;
-
-	// copied audio can't be trimmed to match
-	if (!video_info.audio_sample_rates.empty() && copies_audio(settings, app_settings))
-		return 0;
-
-	// each frame blends up to blur_amount / 2 frames either side of it, but the first frames have nothing before them
-	return static_cast<size_t>(std::ceil(settings.blur_amount / 2.f));
-}
-
-std::optional<std::string> rendering::detail::get_audio_copy_conflict(const BlurSettings& settings, bool trimming) {
-	std::optional<std::string> unsupported;
-	if (trimming)
-		unsupported = "trimming";
-	else if (settings.timescale && settings.output_timescale != settings.input_timescale)
-		unsupported = "timescale";
-
-	if (!unsupported)
-		return {};
-
-	return std::format("{} needs to re-encode the audio, which '-c:a copy' doesn't allow", *unsupported);
 }
 
 tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffmpeg_video_args(
@@ -320,8 +204,7 @@ tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffm
 	const BlurSettings& settings,
 	const GlobalAppSettings& app_settings,
 	const std::filesystem::path& output_path,
-	size_t start_frame,
-	size_t end_frame,
+	FrameRange range,
 	bool trimming
 ) {
 	auto encoding_args = build_encoding_args(settings, app_settings, nullptr);
@@ -356,7 +239,7 @@ tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffm
 	}
 	else {
 		append_audio_filter_args(
-			args, video_info, settings, start_frame, end_frame, get_skipped_frames(settings, app_settings, video_info)
+			args, video_info, settings, range, get_skipped_frames(settings, app_settings, video_info)
 		);
 	}
 
@@ -364,6 +247,52 @@ tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffm
 
 	// append encoding args at end
 	args.insert(args.end(), encoding_args.begin(), encoding_args.end());
+
+	args.push_back(u::path_to_string(output_path));
+	return args;
+}
+
+tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffmpeg_pre_render_args(
+	const std::filesystem::path& input_path,
+	const media::VideoInfo& video_info,
+	const BlurSettings& settings,
+	const GlobalAppSettings& app_settings,
+	const std::filesystem::path& output_path,
+	FrameRange range,
+	size_t skipped_frames
+) {
+	std::vector<std::string> encoding_args = { "-c:v", "libx264", "-preset", "ultrafast", "-crf", "16" };
+
+	if (app_settings.pre_render_output_encoding) {
+		auto output_args = build_output_encoding_args(video_info, settings, app_settings);
+		if (!output_args)
+			return tl::unexpected(output_args.error());
+
+		encoding_args = std::move(*output_args);
+	}
+
+	std::vector<std::string> args = {
+		"-loglevel",    "error",
+		"-hide_banner", "-y",
+		"-fflags",      "+genpts",
+		"-i",           "-",
+		"-i",           u::path_to_string(input_path),
+		"-map",         "0:v",
+	};
+
+	if (video_info.ffmpeg_can_decode_audio)
+		append_audio_filter_args(args, video_info, settings, range, skipped_frames);
+
+	append_colour_param_args(args, video_info);
+
+	// it can be finished early, which cuts the video short of the audio
+	args.push_back("-shortest");
+
+	args.insert(args.end(), encoding_args.begin(), encoding_args.end());
+
+	// the pre-render's audio is trimmed, so it can't be copied
+	if (!app_settings.pre_render_output_encoding || wants_audio_copy(encoding_args))
+		args.insert(args.end(), { "-c:a", "aac" });
 
 	args.push_back(u::path_to_string(output_path));
 	return args;
@@ -381,7 +310,7 @@ void rendering::detail::copy_file_timestamp(const std::filesystem::path& from, c
 
 std::vector<std::string> rendering::detail::build_ffmpeg_preview_args() {
 	return {
-		"-vf",  std::format("scale=-2:min(ih\\,{})", PREVIEW_MAX_HEIGHT),
+		"-vf",  std::format("scale=-2:min(ih\\,{}):{}", PREVIEW_MAX_HEIGHT, JPEG_COLOUR),
 		"-c:v", "mjpeg",
 		"-q:v", "2",
 		"-f",   "image2pipe",

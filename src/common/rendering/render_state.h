@@ -46,6 +46,11 @@ namespace rendering {
 			m_to_stop = true;
 		}
 
+		// stops rendering frames, but keeps what's been rendered as the output
+		void finish() {
+			m_to_finish = true;
+		}
+
 		[[nodiscard]] bool is_paused() const {
 			std::lock_guard lock(m_mutex);
 			return m_paused;
@@ -64,6 +69,10 @@ namespace rendering {
 
 		[[nodiscard]] bool wants_pause() const {
 			return m_to_pause;
+		}
+
+		[[nodiscard]] bool wants_finish() const {
+			return m_to_finish;
 		}
 
 		void mark_paused(bool paused) {
@@ -107,6 +116,7 @@ namespace rendering {
 
 		std::atomic<bool> m_to_pause = false;
 		std::atomic<bool> m_to_stop = false;
+		std::atomic<bool> m_to_finish = false;
 
 		std::atomic<bool> m_read_stdout_jpg = false;
 		mutable std::mutex m_preview_mutex;

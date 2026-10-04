@@ -41,19 +41,21 @@ Each file in the `configs` folder is a separate blur config.
 
 - interpolate - Whether or not the input video file will be interpolated to a higher FPS
 - interpolated fps - If interpolate is enabled, this is the FPS that the input file will be interpolated to (before blurring). Can be a set FPS number or a multiplier (append x to end e.g. `5x`)
-- interpolation method - Method used for interpolation (`svp`, `rife`, `rife (tensorrt)`, `mvtools`):
-  - Quality: rife = rife (tensorrt) > svp
-  - Speed: svp >> rife (tensorrt) > rife
-  - `rife (tensorrt)` is only available with a supported NVIDIA GPU
+- interpolation method - Method used for interpolation (`svp`, `rife`, `rife (tensorrt)`, `gimm-vfi (tensorrt)`, `mvtools`):
+  - Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt) > svp
+  - Speed: svp >> rife (tensorrt) > rife >> gimm-vfi (tensorrt)
+  - `rife (tensorrt)` and `gimm-vfi (tensorrt)` are only available with a supported NVIDIA GPU
+  - `gimm-vfi (tensorrt)` follows fast motion far better than rife (mostly matters at 60fps and below), but is around 5x slower than `rife (tensorrt)`. It's best used as the pre-interpolation method, to around 3x the source framerate, with svp doing the rest. Its model is made with `tools/export_gimm_vfi.py`
   - Note: On macOS, SVP requires SVP Manager to be open or a red border will appear. It provides a 30-day trial, but then costs $24.99 for a lifetime license. RIFE can always be used however, but it is slower than SVP.
 
 ### Pre-interpolation
 
 - pre-interpolate - Enable pre-interpolation using a more accurate but slower AI model before main interpolation
-- pre-interpolated fps - FPS to pre-interpolate the input video to (before main interpolation and blurring). Can be a set FPS number or a multiplier (append x to end e.g. `5x`)
-- pre-interpolation method - Method used for pre-interpolation (`rife`, `rife (tensorrt)`):
-  - Quality: rife = rife (tensorrt)
-  - Speed: rife (tensorrt) > rife
+- pre-interpolated minimum fps - The input video is pre-interpolated (before main interpolation and blurring) to whichever of this and the minimum multiplier is higher. `0` to only use the multiplier
+- pre-interpolated minimum multiplier - Multiplier of the input video's FPS, e.g. `2` doubles it. `1` to only use the minimum fps
+- pre-interpolation method - Method used for pre-interpolation (`rife`, `rife (tensorrt)`, `gimm-vfi (tensorrt)`):
+  - Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt)
+  - Speed: rife (tensorrt) > rife >> gimm-vfi (tensorrt)
 
 ### Deduplication
 
@@ -61,6 +63,10 @@ Each file in the `configs` folder is a separate blur config.
 - deduplicate method - Method used to replace duplicate frames. Only used when interpolation is off, otherwise duplicates are filled by the interpolation method:
   - Quality: rife = rife (tensorrt) > svp
   - Speed: old > svp >>> rife
+
+### Scene detection
+
+- scene detection - Avoids interpolating or blurring between scene changes (menu opening, switching camera, scoping in, etc.). Enable `debug` and render a video and a text label will be added when scene detections occur.
 
 ### Masking
 
@@ -82,6 +88,8 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 
 - rife model - Model used by `rife`. Models are read from the `models` folder where blur is installed (`lib/models` on Windows), drop new ones in to use them
 - rife (tensorrt) model - Model used by `rife (tensorrt)`
+  - rife_v4.26_large_motion - 4.26 estimating motion at half resolution. Follows fast motion at low framerates much better and is faster than rife_v4.26, but loses a little fine detail at high input framerates (240+). Made with `tools/export_rife_large_motion.py`
+- rife (tensorrt) ensemble - Runs RIFE a second time with the frames swapped and averages the two. Cleaner on fast motion, around twice as slow
 
 ### GPU acceleration
 
@@ -110,7 +118,7 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 ### Advanced deduplication
 
 - deduplicate range - How far apart two frames can be and still have frames generated between them (-1 = infinite). Make it higher if your footage is at a lower FPS than it should be (e.g. choppy 120fps gameplay recorded at 240fps), lower it if your blurred footage starts blurring static elements such as menu screens
-- deduplicate threshold - Threshold of movement that triggers deduplication. Turn on debug and render a video to embed text showing the movement in each frame
+- deduplicate threshold - Threshold of movement that triggers deduplication. Turn on `debug` and render a video to embed text showing the movement in each frame
 - deduplicate real frame - Which frame in a run of duplicates is the real one:
   - first - The first frame (default)
   - last - The last frame
@@ -146,15 +154,17 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 ### Advanced interpolation
 
 - svp interpolation preset - Preset used for framerate interpolation when using SVP, one of:
-  - weak (default) - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
+  - quality (default) - Tuned against real high framerate footage. Fewer doubled edges on fast motion than weak, at around twice the cost
+  - max - quality with an extra refinement pass. Around three times slower than quality for a very small gain
+  - weak - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - film - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - smooth - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - animation - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - default _(Default SVP settings)_
   - test
 - svp interpolation algorithm - Algorithm used for framerate interpolation when using SVP, one of:
-  - 13 - Best overall quality and smoothness (default) - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
-  - 23 - Sometimes smoother than 13, but can result in smearing - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
+  - 23 - Smoothest on fast motion, can smear (default) - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
+  - 13 - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - 1 - _[Explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
   - 2 - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - 11 - _[Explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_

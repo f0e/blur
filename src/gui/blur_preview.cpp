@@ -1,4 +1,5 @@
 #include "blur_preview.h"
+#include "preview_files.h"
 #include "ui/helpers/video.h"
 
 #include "common/rendering/render.h"
@@ -23,18 +24,6 @@ namespace {
 		if (!LoadLibraryW(vsscript_path.c_str()))
 			u::log_error("failed to load {} ({})", u::path_to_string(vsscript_path), GetLastError());
 #endif
-	}
-
-	std::filesystem::path temp_file_path(const std::string& extension) {
-		static std::atomic<int> count = 0;
-
-#ifdef _WIN32
-		auto pid = GetCurrentProcessId();
-#else
-		auto pid = getpid();
-#endif
-
-		return std::filesystem::temp_directory_path() / std::format("blur-preview-{}-{}.{}", pid, ++count, extension);
 	}
 
 	double output_speed(const BlurSettings& settings) {
@@ -85,6 +74,14 @@ namespace {
 }
 
 BlurPreview::~BlurPreview() {
+	// the script carries on after the player's gone, and an engine build in it would keep going for minutes. this
+	// tells it to stop (see blur/preview.py)
+	if (!m_log_path.empty()) {
+		auto cancel_path = m_log_path;
+		cancel_path += ".cancel";
+		std::ofstream cancel(cancel_path);
+	}
+
 	// mpv has to let go of the script before it's deleted
 	m_player.reset();
 
@@ -100,8 +97,7 @@ void BlurPreview::update(const Request& request) {
 		load_vsscript();
 
 		m_player = std::make_shared<VideoPlayer>(0.f, false);
-		m_script_path = temp_file_path("vpy");
-		m_log_path = temp_file_path("log");
+		m_script_path = preview_files::new_path("vpy");
 	}
 
 	Key key{
@@ -121,12 +117,16 @@ void BlurPreview::update(const Request& request) {
 	m_requested_target = output_seek_target(request.settings, request.video_info, request.position);
 
 	if (auto error = m_player->take_load_error()) {
-		auto parsed = rendering::detail::parse_error_output(*error);
+		// mpv only knows the script didn't load, the script writes why to its log
+		std::ifstream log(m_log_path);
+		std::string output = std::string(std::istreambuf_iterator<char>(log), {}) + *error;
+
+		auto parsed = rendering::parse_error_output(output);
 		fail(
 			parsed ? *parsed
 				   : rendering::RenderError{
 						 .user_message = "Failed to load blur.py",
-						 .technical_details = *error,
+						 .technical_details = output,
 					 }
 		);
 	}
@@ -152,6 +152,8 @@ void BlurPreview::update(const Request& request) {
 }
 
 void BlurPreview::start_build(const Request& request) {
+	auto log_path = preview_files::new_path("log");
+
 	m_pending = PendingScript{
 		.key = *m_requested,
 		// device indices can wait on device detection, so it's built off the main thread
@@ -162,10 +164,11 @@ void BlurPreview::start_build(const Request& request) {
 		     app_settings = request.app_settings,
 		     video_info = request.video_info,
 		     mask = request.mask,
-		     log_path = m_log_path] {
+		     log_path] {
 				return rendering::build_preview_script(video_path, settings, app_settings, video_info, mask, log_path);
 			}
 		),
+		.log_path = log_path,
 	};
 }
 
@@ -187,8 +190,15 @@ void BlurPreview::finish_build() {
 	}
 
 	std::ofstream(m_script_path, std::ios::binary) << *script;
+
+	// fails while the script it belonged to is still running, in which case it goes with the rest of the temp folder
+	std::error_code ec;
+	if (!m_log_path.empty())
+		std::filesystem::remove(m_log_path, ec);
+
+	m_log_path = pending.log_path;
 	{
-		std::ofstream clear_log(m_log_path, std::ios::trunc);
+		std::ofstream create_log(m_log_path);
 	}
 	m_log_offset = 0;
 
@@ -272,10 +282,13 @@ void BlurPreview::handle_event(const SDL_Event& event, bool& to_render) {
 }
 
 std::optional<std::string> PreviewState::status_text(std::optional<std::string> loading_text) const {
-	if (playing)
-		return "pause to see blur's output";
+	if (pre_render_status)
+		return pre_render_status;
 
-	if (overlay)
+	if (playing)
+		return "pause to see blur's output, or shift+space to pre-render from here";
+
+	if (frame)
 		return std::nullopt;
 
 	if (status.failed)

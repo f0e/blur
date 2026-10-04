@@ -125,8 +125,9 @@ void configs::option_information(ui::Container& container) {
 			{
 #ifdef TENSORRT
 				// todo: update with mvtools
-				"Quality: rife = rife (tensorrt) > svp",
-				"Speed: svp >> rife (tensorrt) > rife",
+				"Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt) > svp",
+				"Speed: svp >> rife (tensorrt) > rife >> gimm-vfi (tensorrt)",
+				"(gimm-vfi is best as a pre-interpolation method, it follows fast motion far better but is slow)",
 #else
 				// todo: update with mvtools
 				"Quality: rife > svp",
@@ -142,24 +143,32 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
-			"pre-interpolated fps mult",
+			"pre-interpolated minimum fps",
 			{
-				"Multiplier for FPS pre-interpolation",
-				"The input video will be interpolated to this FPS (before main interpolation and blurring)",
+				"Pre-interpolates to whichever of the minimum fps and minimum multiplier is higher",
+				"0 to only use the multiplier",
 			},
 		},
 		{
-			"pre-interpolated fps",
+			"pre-interpolated minimum multiplier",
 			{
-				"FPS to pre-interpolate input video to (before blurring)",
+				"Pre-interpolates to whichever of the minimum fps and minimum multiplier is higher",
+				"1x to only use the minimum fps",
 			},
 		},
 #ifdef TENSORRT
 		{
+			"rife (tensorrt) ensemble checkbox",
+			{
+				"Runs RIFE a second time with the frames swapped and averages the two",
+				"Cleaner on fast motion, around twice as slow",
+			},
+		},
+		{
 			"pre-interpolation method dropdown",
 			{
-				"Quality: rife = rife (tensorrt)",
-				"Speed: rife (tensorrt) > rife",
+				"Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt)",
+				"Speed: rife (tensorrt) > rife >> gimm-vfi (tensorrt)",
 			},
 		},
 #endif
@@ -187,6 +196,14 @@ void configs::option_information(ui::Container& container) {
 			{
 				"Mask amount for interpolation",
 				"(Higher reduces blur on static objects but can affect smoothness)",
+			},
+		},
+
+		{
+			"section scene detection checkbox",
+			{
+				"Finds cuts between scenes and doesn't interpolate or blur across them",
+				"(Stops the two scenes smearing into each other at a cut)",
 			},
 		},
 
@@ -354,6 +371,13 @@ void configs::option_information(ui::Container& container) {
 			{
 				"Decodes previewed videos (in the queue and config preview) on the GPU. Will usually be faster, but not always",
 				"Try toggling it if the preview is choppy",
+			},
+		},
+		{
+			"pre-render output encoding checkbox",
+			{
+				"Encodes pre-renders (shift+space in the previews) with the config's encoding settings, so they look like the output will",
+				"Slower encoders make pre-rendering slower",
 			},
 		},
 		{

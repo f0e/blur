@@ -18,8 +18,10 @@ PreviewState MaskPreview::update(const Request& request) {
 		}
 	);
 
-	return {
-		.overlay = m_preview.ready_player(),
-		.status = m_preview.status(),
-	};
+	PreviewState state{ .status = m_preview.status() };
+
+	if (auto ready = m_preview.ready_player())
+		state.frame = ui::Frame{ .player = ready };
+
+	return state;
 }

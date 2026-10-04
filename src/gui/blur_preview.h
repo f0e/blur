@@ -5,8 +5,13 @@
 #include "common/media.h"
 #include "common/rendering/render_errors.h"
 #include "common/rendering/render_state.h"
+#include "ui/frame.h"
 
 class VideoPlayer;
+
+namespace render {
+	class Texture;
+}
 
 // plays blur.py's output for a video in mpv, running vapoursynth in this process, so it can be seeked around
 // without rendering each frame from scratch
@@ -79,6 +84,8 @@ private:
 	struct PendingScript {
 		Key key;
 		std::future<tl::expected<std::string, std::string>> script;
+		// each load gets its own, since a script that's been replaced can still be writing to the last one
+		std::filesystem::path log_path;
 	};
 
 	std::shared_ptr<VideoPlayer> m_player;
@@ -109,9 +116,16 @@ private:
 struct PreviewState {
 	bool playing = false;
 
-	std::shared_ptr<VideoPlayer> overlay;
+	// shown over the video, nothing until it's ready
+	std::optional<ui::Frame> frame;
 
 	BlurPreview::Status status;
+
+	// replaces the status while a pre-render's rendering or playing
+	std::optional<std::string> pre_render_status;
+
+	// as fractions of the container's duration, like the timeline's
+	std::optional<std::pair<float, float>> pre_render_range;
 
 	[[nodiscard]] std::optional<std::string> status_text(std::optional<std::string> loading_text = {}) const;
 };

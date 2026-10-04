@@ -4,7 +4,7 @@
 #include "config_base.h"
 #include "config_app.h"
 #include "config_rules.h"
-#include "rendering/render_commands.h"
+#include "rendering/output.h"
 #include "devices.h"
 #include "encoding.h"
 
@@ -81,6 +81,29 @@ namespace {
 					return true;
 				},
 		},
+		{
+			.version = "3.0.0",
+			.description = "'pre-interpolated fps' -> 'pre-interpolated minimum fps' or 'minimum multiplier'",
+			.apply =
+				[](config_base::ConfigMap& config) {
+					auto it = config.find("pre-interpolated fps");
+					if (it == config.end())
+						return false;
+
+					auto value = u::trim(it->second);
+					if (value.ends_with("x")) {
+						config.try_emplace("pre-interpolated minimum fps", "0");
+						config.try_emplace("pre-interpolated minimum multiplier", value.substr(0, value.size() - 1));
+					}
+					else {
+						config.try_emplace("pre-interpolated minimum fps", value);
+						config.try_emplace("pre-interpolated minimum multiplier", "1");
+					}
+
+					config.erase(it);
+					return true;
+				},
+		},
 	});
 }
 
@@ -124,7 +147,8 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "- pre-interpolation" << "\n";
 		output << "pre-interpolate: " << (settings.pre_interpolate ? "true" : "false") << "\n";
 		if (!concise || settings.pre_interpolate) {
-			output << "pre-interpolated fps: " << settings.pre_interpolated_fps << "\n";
+			output << "pre-interpolated minimum fps: " << settings.pre_interpolated_minimum_fps << "\n";
+			output << "pre-interpolated minimum multiplier: " << settings.pre_interpolated_minimum_multiplier << "\n";
 			output << "pre-interpolation method: " << settings.pre_interpolation_method << "\n";
 		}
 	}
@@ -137,6 +161,13 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		if (!concise || settings.deduplicate) {
 			output << "deduplicate method: " << settings.deduplicate_method << "\n";
 		}
+	}
+
+	// Scene detection section
+	if (!concise || !settings.scene_detection) {
+		output << "\n";
+		output << "- scene detection" << "\n";
+		output << "scene detection: " << (settings.scene_detection ? "true" : "false") << "\n";
 	}
 
 	// Masking section
@@ -181,6 +212,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 #ifdef TENSORRT
 		if (!concise || uses_rife_trt) {
 			output << "rife (tensorrt) model: " << settings.rife_trt_model << "\n";
+			output << "rife (tensorrt) ensemble: " << (settings.rife_trt_ensemble ? "true" : "false") << "\n";
 		}
 #endif
 	}
@@ -335,7 +367,7 @@ config_blur::ValidationResult config_blur::validate(
 	};
 
 	bool timescaling = config.timescale && config.output_timescale != config.input_timescale;
-	if (timescaling && rendering::detail::copies_audio(config, app_settings, presets)) {
+	if (timescaling && rendering::copies_audio(config, app_settings, presets)) {
 		if (!config.advanced.ffmpeg_override.empty()) {
 			add_error(ValidationField::FFMPEG_OVERRIDE, "cannot use -c:a copy while using timescale");
 		}
@@ -432,9 +464,11 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "interpolate", settings.interpolate);
 	config_base::extract_config_value(config_map, "interpolated fps", settings.interpolated_fps);
 	config_base::extract_config_value(config_map, "interpolation method", settings.interpolation_method);
+	config_base::extract_config_value(config_map, "scene detection", settings.scene_detection);
 	config_base::extract_config_value(config_map, "rife model", settings.rife_model);
 #ifdef TENSORRT
 	config_base::extract_config_value(config_map, "rife (tensorrt) model", settings.rife_trt_model);
+	config_base::extract_config_value(config_map, "rife (tensorrt) ensemble", settings.rife_trt_ensemble);
 #endif
 	config_base::extract_config_value(config_map, "mask", settings.mask);
 	if (settings.mask == masks::NONE_OPTION)
@@ -442,7 +476,12 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "auto mask", settings.auto_mask);
 
 	config_base::extract_config_value(config_map, "pre-interpolate", settings.pre_interpolate);
-	config_base::extract_config_value(config_map, "pre-interpolated fps", settings.pre_interpolated_fps);
+	config_base::extract_config_value(
+		config_map, "pre-interpolated minimum fps", settings.pre_interpolated_minimum_fps
+	);
+	config_base::extract_config_value(
+		config_map, "pre-interpolated minimum multiplier", settings.pre_interpolated_minimum_multiplier
+	);
 	config_base::extract_config_value(config_map, "pre-interpolation method", settings.pre_interpolation_method);
 
 	config_base::extract_config_value(config_map, "deduplicate", settings.deduplicate);
@@ -674,11 +713,13 @@ nlohmann::json BlurSettings::to_json() const {
 	j["interpolate"] = this->interpolate;
 	j["interpolated_fps"] = this->interpolated_fps;
 	j["interpolation_method"] = this->interpolation_method;
+	j["scene_detection"] = this->scene_detection;
 	j["mask"] = this->mask;
 	j["auto_mask"] = this->auto_mask;
 
 	j["pre_interpolate"] = this->pre_interpolate;
-	j["pre_interpolated_fps"] = this->pre_interpolated_fps;
+	j["pre_interpolated_minimum_fps"] = this->pre_interpolated_minimum_fps;
+	j["pre_interpolated_minimum_multiplier"] = this->pre_interpolated_minimum_multiplier;
 	j["pre_interpolation_method"] = this->pre_interpolation_method;
 
 	j["deduplicate"] = this->deduplicate;
@@ -740,7 +781,9 @@ nlohmann::json BlurSettings::to_json() const {
 	j["rife_model"] = rife_models::get_path() / this->rife_model;
 #ifdef TENSORRT
 	j["rife_trt_model"] = rife_models::get_trt_path() / (this->rife_trt_model + ".onnx");
+	j["gimm_trt_model"] = rife_models::get_gimm_trt_path();
 #endif
+	j["rife_trt_ensemble"] = this->rife_trt_ensemble;
 
 	j["manual_svp"] = this->advanced.manual_svp;
 	j["super_string"] = this->advanced.super_string;

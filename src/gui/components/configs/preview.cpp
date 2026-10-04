@@ -163,6 +163,10 @@ void configs::config_preview(ui::Container& container) {
 
 	// an unusable video goes in as an empty path, which tears the preview down
 	auto preview_video_path = sample_video_exists ? sample_video_path : std::filesystem::path{};
+	if (queue_video_preview)
+		preview_video_path = queue_video_preview->path;
+
+	float& seek = queue_video_preview ? queue_video_preview->seek : app_settings.config_preview_seek;
 
 	bool masking = MaskPreview::applies(settings);
 	if (!masking)
@@ -175,12 +179,17 @@ void configs::config_preview(ui::Container& container) {
 			.video_path = preview_video_path,
 			.settings = settings,
 			.app_settings = app_settings,
+			.position = seek,
 			.show_mask = show_mask_preview,
 		}
 	);
 
 	if (preview.playback_position)
-		app_settings.config_preview_seek = *preview.playback_position;
+		seek = *preview.playback_position;
+
+	preview_video_fps.reset();
+	if (preview.video_info && preview.video_info->fps_num > 0 && preview.video_info->fps_den > 0)
+		preview_video_fps = static_cast<double>(preview.video_info->fps_num) / preview.video_info->fps_den;
 
 	auto add_open_sample_video_prompt = [&](bool was_deleted) {
 		ui::add_text(
@@ -212,7 +221,7 @@ void configs::config_preview(ui::Container& container) {
 		});
 	};
 
-	if (!sample_video_set) {
+	if (!queue_video_preview && !sample_video_set) {
 		ui::add_text(
 			"no sample video text",
 			container,
@@ -226,7 +235,7 @@ void configs::config_preview(ui::Container& container) {
 		return;
 	}
 
-	if (!sample_video_exists) {
+	if (!queue_video_preview && !sample_video_exists) {
 		ui::add_text(
 			"missing sample video text",
 			container,
@@ -294,38 +303,76 @@ void configs::config_preview(ui::Container& container) {
 		container.push_element_gap(SEEK_BAR_BOTTOM_GAP);
 
 		container.push_element_gap(DELETE_ICON_GAP);
-		auto* seek_bar = ui::add_seek_bar(
-			"config preview seek bar",
-			container,
-			app_settings.config_preview_seek,
-			fonts::dejavu(fonts::size::SMALL),
-			preview.video_duration,
-			container.get_usable_rect().w - seek_bar_height - DELETE_ICON_GAP
-		);
+
+		int seek_width = container.get_usable_rect().w - seek_bar_height - DELETE_ICON_GAP;
+
+		ui::AnimatedElement* seek_bar = nullptr;
+
+		if (preview.video_info) {
+			// the timeline's on the container's clock, which can start before the video
+			const auto& info = *preview.video_info;
+			float progress =
+				info.duration > 0.0
+					? static_cast<float>(
+						  (info.video_start_time - info.start_time + (seek * info.video_duration)) / info.duration
+					  )
+					: 0.f;
+
+			seek_bar = ui::add_timeline(
+				"config preview timeline",
+				container,
+				{
+					.video =
+						{
+							.path = preview_video_path,
+							.video_info = preview.video_info,
+						},
+					.player = preview.timeline_player,
+					.highlight = preview.pre_render_range,
+					.active = true,
+					.interactive = true,
+				},
+				seek_bar_height,
+				seek_width,
+				progress
+			);
+		}
+		else {
+			seek_bar = ui::add_seek_bar(
+				"config preview seek bar",
+				container,
+				seek,
+				fonts::dejavu(fonts::size::SMALL),
+				preview.video_duration,
+				seek_width
+			);
+		}
 
 		bool seek_bar_dragging = ui::get_active_element() == seek_bar;
 
 		// save once the drag or playback is over rather than writing the config on every frame it moves. playback
 		// isn't an edit, so it's kept from showing up as an unsaved change meanwhile
-		if (preview.playing) {
-			if (app_settings.config_preview_seek != current_app_settings.config_preview_seek) {
-				current_app_settings.config_preview_seek = app_settings.config_preview_seek;
-				playback_seek_unsaved = true;
+		if (!queue_video_preview) {
+			if (preview.playing) {
+				if (app_settings.config_preview_seek != current_app_settings.config_preview_seek) {
+					current_app_settings.config_preview_seek = app_settings.config_preview_seek;
+					playback_seek_unsaved = true;
+				}
 			}
-		}
-		else if ((app_settings.config_preview_seek != current_app_settings.config_preview_seek ||
-		          playback_seek_unsaved) &&
-		         !seek_bar_dragging)
-		{
-			save_preview_app_settings();
-			playback_seek_unsaved = false;
+			else if ((app_settings.config_preview_seek != current_app_settings.config_preview_seek ||
+			          playback_seek_unsaved) &&
+			         !seek_bar_dragging)
+			{
+				save_preview_app_settings();
+				playback_seek_unsaved = false;
+			}
 		}
 
 		ui::set_next_same_line(container);
 		container.pop_element_gap();
 
 		ui::add_icon_button(
-			"remove sample video button",
+			queue_video_preview ? "stop previewing queue video button" : "remove sample video button",
 			container,
 			icons::CLOSE,
 			fonts::icons,
@@ -333,9 +380,12 @@ void configs::config_preview(ui::Container& container) {
 			DELETE_ICON_COLOR,
 			DELETE_ICON_HOVER_COLOR,
 			[] {
-				confirm_clear_sample_video();
+				if (queue_video_preview)
+					queue_video_preview.reset();
+				else
+					confirm_clear_sample_video();
 			},
-			"Remove sample video"
+			queue_video_preview ? "Preview the sample video instead" : "Remove sample video"
 		);
 
 		container.pop_element_gap();
@@ -345,6 +395,10 @@ void configs::config_preview(ui::Container& container) {
 	bool preview_image_added = false;
 	if (showing_hovered_mask || preview.frame) {
 		container.push_element_gap(PREVIEW_IMAGE_GAP);
+
+		std::optional<std::function<void()>> on_click;
+		if (!show_mask_preview)
+			on_click = preview_frames::toggle_playback;
 
 		if (showing_hovered_mask) {
 			auto mask_path = masks::get_path() / u::string_to_path(hovered_mask);
@@ -358,11 +412,20 @@ void configs::config_preview(ui::Container& container) {
 			)
 			                          .has_value();
 		}
+		else if (preview.frame->texture) {
+			preview_image_id = "config preview pre-render frame";
+			preview_image_added = ui::add_image(
+									  preview_image_id,
+									  container,
+									  preview.frame->texture,
+									  container.get_usable_rect().size(),
+									  std::to_string(preview.frame->texture_id),
+									  gfx::Color::white(),
+									  on_click
+			)
+			                          .has_value();
+		}
 		else {
-			std::optional<std::function<void()>> on_click;
-			if (!show_mask_preview)
-				on_click = preview_frames::toggle_playback;
-
 			preview_image_id = "config preview video";
 			preview_image_added = ui::add_video_frame(
 									  preview_image_id,
