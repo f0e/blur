@@ -10,6 +10,7 @@ struct AutoMaskSettings {
 	int fill = 24;
 	int padding = 1;
 	int feather = 1;
+	bool enclosed = true;
 
 	bool operator==(const AutoMaskSettings& other) const = default;
 };

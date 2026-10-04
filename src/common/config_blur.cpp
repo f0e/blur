@@ -294,6 +294,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "auto mask fill: " << settings.advanced.auto_mask.fill << "\n";
 			output << "auto mask padding: " << settings.advanced.auto_mask.padding << "\n";
 			output << "auto mask feather: " << settings.advanced.auto_mask.feather << "\n";
+			output << "auto mask enclosed: " << (settings.advanced.auto_mask.enclosed ? "true" : "false") << "\n";
 
 			output << "\n";
 			output << "- advanced blur" << "\n";
@@ -538,6 +539,7 @@ BlurSettings config_blur::parse_from_map(
 		config_base::extract_config_value(config_map, "auto mask fill", settings.advanced.auto_mask.fill);
 		config_base::extract_config_value(config_map, "auto mask padding", settings.advanced.auto_mask.padding);
 		config_base::extract_config_value(config_map, "auto mask feather", settings.advanced.auto_mask.feather);
+		config_base::extract_config_value(config_map, "auto mask enclosed", settings.advanced.auto_mask.enclosed);
 
 		config_base::extract_config_value(
 			config_map, "blur weighting gaussian std dev", settings.advanced.blur_weighting_gaussian_std_dev
@@ -774,6 +776,7 @@ nlohmann::json BlurSettings::to_json() const {
 	j["auto_mask_fill"] = this->advanced.auto_mask.fill;
 	j["auto_mask_padding"] = this->advanced.auto_mask.padding;
 	j["auto_mask_feather"] = this->advanced.auto_mask.feather;
+	j["auto_mask_enclosed"] = this->advanced.auto_mask.enclosed;
 
 	j["blur_weighting_gaussian_std_dev"] = this->advanced.blur_weighting_gaussian_std_dev;
 	j["blur_weighting_gaussian_mean"] = this->advanced.blur_weighting_gaussian_mean;

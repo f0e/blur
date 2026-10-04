@@ -147,6 +147,7 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 - auto mask fill - How far the mask fills into a flat area from the detail around it
 - auto mask padding - How far the mask spreads past what was found
 - auto mask feather - How far the edge of the mask fades out
+- auto mask enclosed - Also masks areas the mask surrounds, like the inside of a translucent panel. Stops interpolation smearing them, but leaves what's seen through them unblurred, so it's worth turning off for high fps sources
 
 ### Advanced blur
 

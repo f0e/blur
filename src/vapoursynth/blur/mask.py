@@ -128,9 +128,9 @@ MIN_STATIC_PX_1080P = 16
 # is made
 MAX_STATIC_FRACTION = 0.5
 
-# areas the static mask fully surrounds are protected too, up to this much of the frame each. those are the insides
-# of translucent panels, which change with the scene behind them so are never static themselves, and otherwise
-# get dragged out past their borders by interpolation
+# with `enclosed` on, areas the static mask fully surrounds are protected too, up to this much of the frame each.
+# those are the insides of translucent panels, which change with the scene behind them so are never static themselves,
+# and otherwise get dragged out past their borders by interpolation
 MAX_ENCLOSED_FRACTION = 0.03
 
 # looked for at this fraction of the analysis size, panels are big enough that the detail doesn't matter
@@ -174,6 +174,7 @@ class Params:
     fill: int = FILL_PX_1080P
     padding: int = GROW_PX
     feather: int = FEATHER_PX
+    enclosed: bool = True
 
     @staticmethod
     def from_settings(settings: dict) -> "Params":
@@ -193,6 +194,7 @@ class Params:
             fill=number("auto_mask_fill", FILL_PX_1080P, 0, 512),
             padding=number("auto_mask_padding", GROW_PX, 0, 128),
             feather=number("auto_mask_feather", FEATHER_PX, 0, 128),
+            enclosed=settings.get("auto_mask_enclosed") is not False,
         )
 
 
@@ -459,7 +461,8 @@ def shape(scores: vs.VideoNode, params: Params = DEFAULT_PARAMS) -> vs.VideoNode
     density = core.std.BoxBlur(static, hradius=CLUSTER_RADIUS, vradius=CLUSTER_RADIUS)
     static = core.std.Expr([static, density], f"y {CLUSTER_COVERAGE} < 0 x ?")
 
-    static = _with_enclosed(static)
+    if params.enclosed:
+        static = _with_enclosed(static)
 
     fraction = core.std.PlaneStats(static).get_frame(0).props["PlaneStatsAverage"]
     found = fraction * static.width * static.height
