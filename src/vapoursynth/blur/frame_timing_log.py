@@ -562,7 +562,7 @@ def shown_packets(pts: np.ndarray, frames: int, fps: Fraction, nearest: bool) ->
     return np.clip(at, 0, len(order) - 1)
 
 
-def packet_sizes(video_path: Path, frames: int, fps: Fraction, nearest: bool) -> tuple[np.ndarray, np.ndarray]:
+def video_packets(video_path: Path, frames: int, fps: Fraction, nearest: bool) -> tuple[np.ndarray, np.ndarray]:
     """The size of every encoded packet in a video, and which packet (in presentation order) each of its `frames`
     shows. Reads the mp4 sample table directly when possible since it's much faster than ffprobe."""
     sizes = _mp4_sample_sizes(video_path)
