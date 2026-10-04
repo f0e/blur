@@ -12,6 +12,7 @@ namespace gui::components::queue_preview {
 	struct State {
 		std::optional<ui::VideoOverlay> overlay;
 		std::optional<std::string> status;
+		bool frame_timing_log = false;
 	};
 
 	// the video's config, with its own mask choices
