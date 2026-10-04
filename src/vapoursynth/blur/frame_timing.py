@@ -286,7 +286,7 @@ def analyse(
 
     sidecar_path = logs[0]
     try:
-        sizes, shown = timing_log.packet_sizes(video_path, frames, fps, nearest)
+        sizes, shown = timing_log.video_packets(video_path, frames, fps, nearest)
         sidecar_path, sidecar, first = timing_log.find_sidecar(logs, sizes)
         ticks = timing_log.render_ticks(sidecar, sizes, first)[shown]
         read, fingerprint, timed_by = timing_log.reads_for(sidecar, ticks)
