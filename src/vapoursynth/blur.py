@@ -71,7 +71,7 @@ def build_mask_clips(
             settings_path / blur.mask.CACHE_FOLDER,
             settings_path / blur.mask.SCORE_CACHE_FOLDER,
             (mask_start, mask_end),
-            auto_mask_params,
+            auto_mask_params.for_clip(mask_source),
         )
 
         if generated is not None:

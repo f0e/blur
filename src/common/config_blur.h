@@ -11,6 +11,7 @@ struct AutoMaskSettings {
 	int padding = 1;
 	int feather = 1;
 	bool enclosed = true;
+	int enclosed_max_fps = 180;
 
 	bool operator==(const AutoMaskSettings& other) const = default;
 };
