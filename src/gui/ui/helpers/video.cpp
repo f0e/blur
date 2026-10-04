@@ -4,6 +4,10 @@
 const int SEEK_SECS = 3;
 const uint64_t DIMENSIONS_OBSERVE_ID = 1;
 
+namespace {
+	std::atomic<int> pending_destroys = 0;
+}
+
 VideoPlayer::~VideoPlayer() {
 	// clean up opengl resources
 	if (m_tex) {
@@ -20,15 +24,31 @@ VideoPlayer::~VideoPlayer() {
 	}
 
 	if (m_mpv) {
+		// it outlives this player, so it can't call back into it
+		mpv_set_wakeup_callback(m_mpv, nullptr, nullptr);
+
+		// mpv_destroy waits for the file being opened, and a blur preview's file is a vapoursynth script that can take
+		// minutes (e.g. building a tensorrt engine), so the ui doesn't wait for it. it'd need another thread anyway:
 		// libmpv's wasapi output calls CoUninitialize on the thread that destroys it, which eventually kills sdl's ole
-		// apartment and breaks drag and drop. destroy it on another thread instead
-		std::thread destroy_thread([mpv = m_mpv] {
+		// apartment and breaks drag and drop
+		++pending_destroys;
+		std::thread([mpv = m_mpv] {
 			mpv_destroy(mpv);
-		});
-		destroy_thread.join();
+			--pending_destroys;
+		}).detach();
 	}
 
-	u::log("Player properly terminated");
+	u::log("Player released");
+}
+
+void VideoPlayer::wait_for_destroys(std::chrono::milliseconds timeout) {
+	auto start = std::chrono::steady_clock::now();
+
+	while (pending_destroys > 0 && std::chrono::steady_clock::now() - start < timeout)
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+	if (pending_destroys > 0)
+		u::log("not waiting for {} video player(s) still opening a file", pending_destroys.load());
 }
 
 void VideoPlayer::handle_key_press(SDL_Keycode key) {

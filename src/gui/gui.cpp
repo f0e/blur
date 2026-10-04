@@ -64,6 +64,7 @@ namespace {
 		gui::components::queue_preview::release();
 		ui::videos::player.reset();
 
+		VideoPlayer::wait_for_destroys(std::chrono::seconds(2));
 		PreRender::wait_for_renders(std::chrono::seconds(5));
 		preview_files::remove_all();
 

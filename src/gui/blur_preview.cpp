@@ -90,7 +90,6 @@ void BlurPreview::update(const Request& request) {
 
 		m_player = std::make_shared<VideoPlayer>(0.f, false);
 		m_script_path = preview_files::new_path("vpy");
-		m_log_path = preview_files::new_path("log");
 	}
 
 	Key key{
@@ -145,6 +144,8 @@ void BlurPreview::update(const Request& request) {
 }
 
 void BlurPreview::start_build(const Request& request) {
+	auto log_path = preview_files::new_path("log");
+
 	m_pending = PendingScript{
 		.key = *m_requested,
 		// device indices can wait on device detection, so it's built off the main thread
@@ -155,10 +156,11 @@ void BlurPreview::start_build(const Request& request) {
 		     app_settings = request.app_settings,
 		     video_info = request.video_info,
 		     mask = request.mask,
-		     log_path = m_log_path] {
+		     log_path] {
 				return rendering::build_preview_script(video_path, settings, app_settings, video_info, mask, log_path);
 			}
 		),
+		.log_path = log_path,
 	};
 }
 
@@ -180,8 +182,15 @@ void BlurPreview::finish_build() {
 	}
 
 	std::ofstream(m_script_path, std::ios::binary) << *script;
+
+	// fails while the script it belonged to is still running, in which case it goes with the rest of the temp folder
+	std::error_code ec;
+	if (!m_log_path.empty())
+		std::filesystem::remove(m_log_path, ec);
+
+	m_log_path = pending.log_path;
 	{
-		std::ofstream clear_log(m_log_path, std::ios::trunc);
+		std::ofstream create_log(m_log_path);
 	}
 	m_log_offset = 0;
 
