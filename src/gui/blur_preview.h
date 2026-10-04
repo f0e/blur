@@ -65,8 +65,10 @@ public:
 		const BlurSettings& settings, const media::VideoInfo& video_info, float position
 	);
 
-	bool save_frame(
-		const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
+	// a mask preview's masks that are the same for every frame, rather than the frame on screen, which would include
+	// whatever was tracked on it
+	bool save_mask(
+		const std::filesystem::path& path, const std::function<void(std::optional<std::string> error)>& on_done
 	) const;
 
 private:

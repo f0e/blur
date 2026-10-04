@@ -306,13 +306,17 @@ std::optional<std::string> PreviewState::status_text(std::optional<std::string> 
 	return loading_text;
 }
 
-bool BlurPreview::save_frame(
-	const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
+bool BlurPreview::save_mask(
+	const std::filesystem::path& path, const std::function<void(std::optional<std::string> error)>& on_done
 ) const {
-	auto player = ready_player();
-	if (!player)
+	if (!ready_player())
 		return false;
 
-	player->screenshot_to_file(path, std::move(on_done));
+	std::error_code ec;
+	std::filesystem::copy_file(
+		rendering::savable_mask_path(m_log_path), path, std::filesystem::copy_options::overwrite_existing, ec
+	);
+
+	on_done(ec ? std::optional(ec.message()) : std::nullopt);
 	return true;
 }

@@ -994,6 +994,25 @@ def protect(interpolated: vs.VideoNode, original: vs.VideoNode, gray: vs.VideoNo
     return core.std.MaskedMerge(base, interpolated, mask)
 
 
+def save(grays: list[vs.VideoNode], clip: vs.VideoNode, path: Path):
+    """Write one frame masks combined, at `clip`'s size, as a png. All white (masking nothing) when there are
+    none."""
+    if grays:
+        gray = combine(grays)
+    else:
+        gray = core.std.BlankClip(clip, format=vs.GRAYS, color=1.0, length=1)
+
+    eight_bit = core.resize.Bilinear(
+        gray,
+        width=clip.width,
+        height=clip.height,
+        format=vs.GRAY8,
+        range_in_s="full",
+        range_s="full",
+    )
+    path.write_bytes(_greyscale_png(eight_bit.get_frame(0)[0], eight_bit.width, eight_bit.height))
+
+
 def preview(clip: vs.VideoNode, grays: list[vs.VideoNode]) -> vs.VideoNode:
     """The mask on its own at the render's size, for the config screen's mask preview."""
     if grays:
