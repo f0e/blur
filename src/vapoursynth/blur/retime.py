@@ -148,6 +148,21 @@ def describe(n: int, time: Fraction, props, at: Bracket) -> str:
     return f"{n} | src {float(time):.3f}{diff} | {where}"
 
 
+def nearest(clip: vs.VideoNode, timeline: Timeline, target: vs.VideoNode, ratio: Fraction) -> vs.VideoNode:
+    """`clip`'s real frames stretched over `target`'s frames (and framerate), each output frame taking whichever
+    real frame it's closest to in time."""
+    decisions = over_output(timeline, target.num_frames, ratio)
+
+    def pick(n: int, f: vs.VideoFrame) -> vs.VideoNode:
+        at = bracket(f.props, source_time(n, ratio))
+        frame = at.right if at.timepoint is not None and at.timepoint >= Fraction(1, 2) else at.left
+
+        return clip[min(frame, clip.num_frames - 1)]
+
+    holder = core.std.BlankClip(clip, length=target.num_frames, fpsnum=target.fps_num, fpsden=target.fps_den)
+    return core.std.FrameEval(holder, pick, prop_src=decisions)
+
+
 def annotate(video: vs.VideoNode, timeline: Timeline, ratio: Fraction) -> vs.VideoNode:
     """Label the frames retiming had a hand in, for the debug setting. Runs on finished frames since tensorrt
     interpolates in half float, which text can't be drawn on."""

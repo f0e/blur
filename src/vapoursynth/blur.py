@@ -312,6 +312,9 @@ def main():
         debug_timeline = timeline
         debug_source_fps = video.fps
 
+    # masked regions are put back from whichever real frame each output frame is nearest, which retiming moves
+    retimed_by, retimed_fps = timeline, video.fps
+
     # where the video cuts to another scene, moved along with it as it's interpolated
     cuts = detected_cuts = None
     if settings["scene_detection"] and (settings["interpolate"] or retiming or settings["blur"]):
@@ -510,6 +513,7 @@ def main():
 
         if method == "old":
             # the only method that doesn't use the timeline
+            retimed_by = None
             video = blur.deduplicate.fill_drops_old(
                 video,
                 threshold=deduplicate_threshold,
@@ -519,7 +523,8 @@ def main():
             video, cuts = interpolate_to(method, video, video.fps, cuts, timeline=timeline)
 
     if mask is not None:
-        video = blur.mask.protect(video, original, mask)
+        ratio = video.fps / retimed_fps if retimed_by is not None else None
+        video = blur.mask.protect(video, original, mask, retimed_by, ratio)
 
     # debug: label the frames retiming touched. turn blur off to read it
     if debug_timeline is not None:

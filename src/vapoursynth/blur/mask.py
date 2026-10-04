@@ -12,13 +12,14 @@ import struct
 import zlib
 from collections import deque
 from dataclasses import dataclass, replace
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
 
 import blur.utils as u
 import vapoursynth as vs
-from blur import log
+from blur import log, retime
 from vapoursynth import core
 
 
@@ -989,14 +990,28 @@ def fill(clip: vs.VideoNode, gray: vs.VideoNode) -> vs.VideoNode:
     return core.std.Expr([clip, filled, scene], "z 0 > x y ?")
 
 
-def protect(interpolated: vs.VideoNode, original: vs.VideoNode, gray: vs.VideoNode) -> vs.VideoNode:
-    """Put `original`'s pixels back wherever the mask is black."""
-    base = match_length(original, interpolated)
+def protect(
+    interpolated: vs.VideoNode,
+    original: vs.VideoNode,
+    gray: vs.VideoNode,
+    timeline: retime.Timeline | None = None,
+    ratio: Fraction | None = None,
+) -> vs.VideoNode:
+    """Put `original`'s pixels back wherever the mask is black. With the `timeline` `interpolated` was retimed
+    onto (`ratio` output frames to each of `original`'s), each output frame gets the real frame nearest to it."""
+
+    def stretched(clip: vs.VideoNode) -> vs.VideoNode:
+        if timeline is not None and ratio is not None:
+            return retime.nearest(clip, timeline, interpolated, ratio)
+
+        return match_length(clip, interpolated)
+
+    base = stretched(original)
 
     # a tracked mask follows `original`'s frames, a one frame mask is just repeated
     mask = match(gray, interpolated)
     if gray.num_frames > 1:
-        mask = match_length(mask, interpolated)
+        mask = stretched(mask)
 
     # white takes clipb (interpolated), black takes clipa (original)
     return core.std.MaskedMerge(base, interpolated, mask)
