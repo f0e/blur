@@ -84,6 +84,8 @@ private:
 	struct PendingScript {
 		Key key;
 		std::future<tl::expected<std::string, std::string>> script;
+		// each load gets its own, since a script that's been replaced can still be writing to the last one
+		std::filesystem::path log_path;
 	};
 
 	std::shared_ptr<VideoPlayer> m_player;

@@ -34,6 +34,10 @@ public:
 
 	~VideoPlayer();
 
+	// players finish shutting down in the background (see the destructor). waits up to `timeout` for them, so a normal
+	// exit doesn't cut them off, while one stuck on a script that's still running doesn't hold it up
+	static void wait_for_destroys(std::chrono::milliseconds timeout);
+
 	void handle_key_press(SDL_Keycode key);
 
 	// options are mpv's per-file ones

@@ -86,9 +86,78 @@ migraphx_driver_path: str = os.path.join(plugins_path, "vsmlrt-hip", "migraphx-d
 tensorrt_rtx_path: str = os.path.join(plugins_path, "vsmlrt-cuda", "tensorrt_rtx")
 models_path: str = os.path.join(plugins_path, "models")
 
-# blur: engine builders also run from the gui's preview, which has no console. they'd each open a console window
-# there, and what they write to stderr would be lost
-_BUILDER_RUN_ARGS = dict(stderr=subprocess.STDOUT, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+_builder_job = None
+
+
+def _run_builder(args, env, check: bool) -> subprocess.CompletedProcess:
+    """blur: runs an engine builder (trtexec etc.), its output going to stderr.
+
+    builders also run from the gui's preview, which has no console. they'd each open a console window there, and what
+    they wrote to stderr would be lost. on windows a child also outlives whoever started it, so a cancelled render or
+    a preview the gui gave up on would leave the build running. it's put in a job that's killed when this process ends
+    """
+    global _builder_job
+
+    process = subprocess.Popen(
+        args, env=env, stdout=sys.stderr, stderr=subprocess.STDOUT,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    )
+
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+        kernel32.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+        kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+
+        if _builder_job is None:
+            class IoCounters(ctypes.Structure):
+                _fields_ = [(name, ctypes.c_ulonglong) for name in (
+                    "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+                    "ReadTransferCount", "WriteTransferCount", "OtherTransferCount",
+                )]
+
+            class BasicLimits(ctypes.Structure):
+                _fields_ = [
+                    ("PerProcessUserTimeLimit", ctypes.c_longlong), ("PerJobUserTimeLimit", ctypes.c_longlong),
+                    ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                    ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                    ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD),
+                    ("SchedulingClass", wintypes.DWORD),
+                ]
+
+            class ExtendedLimits(ctypes.Structure):
+                _fields_ = [
+                    ("BasicLimitInformation", BasicLimits), ("IoInfo", IoCounters),
+                    ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
+                    ("PeakProcessMemoryUsed", ctypes.c_size_t), ("PeakJobMemoryUsed", ctypes.c_size_t),
+                ]
+
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+            JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+
+            job = kernel32.CreateJobObjectW(None, None)
+            limits = ExtendedLimits()
+            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            if job and kernel32.SetInformationJobObject(
+                job, JOB_OBJECT_EXTENDED_LIMIT_INFORMATION, ctypes.byref(limits), ctypes.sizeof(limits)
+            ):
+                # never closed, it's what ends the builders along with this process
+                _builder_job = job
+
+        if _builder_job is not None:
+            # a builder that's already finished can't be added, which doesn't matter
+            kernel32.AssignProcessToJobObject(_builder_job, int(process._handle))
+
+    with process:
+        returncode = process.wait()
+
+    if check and returncode != 0:
+        raise subprocess.CalledProcessError(returncode, args)
+
+    return subprocess.CompletedProcess(args, returncode)
 
 
 class Backend:
@@ -2265,7 +2334,7 @@ def trtexec(
                     # env_key has been set, no extra action
                     env = {env_key: prev_env_value, "CUDA_MODULE_LOADING": "LAZY"}
                     env.update(**custom_env)
-                    subprocess.run(args, env=env, check=True, stdout=sys.stderr, **_BUILDER_RUN_ARGS)
+                    _run_builder(args, env, check=True)
                 else:
                     time_str = time.strftime('%y%m%d_%H%M%S', time.localtime())
 
@@ -2277,7 +2346,7 @@ def trtexec(
                     env = {env_key: log_filename, "CUDA_MODULE_LOADING": "LAZY"}
                     env.update(**custom_env)
 
-                    completed_process = subprocess.run(args, env=env, check=False, stdout=sys.stderr, **_BUILDER_RUN_ARGS)
+                    completed_process = _run_builder(args, env, check=False)
 
                     if completed_process.returncode == 0:
                         try:
@@ -2293,7 +2362,7 @@ def trtexec(
             else:
                 env = {"CUDA_MODULE_LOADING": "LAZY"}
                 env.update(**custom_env)
-                subprocess.run(args, env=env, check=True, stdout=sys.stderr, **_BUILDER_RUN_ARGS)
+                _run_builder(args, env, check=True)
 
             # build succeeded, move it into place
             os.replace(tmp_engine_path, engine_path)
@@ -2434,7 +2503,7 @@ def migraphx_driver(
 
     args.extend(custom_args)
 
-    subprocess.run(args, env=custom_env, check=True, stdout=sys.stderr, **_BUILDER_RUN_ARGS)
+    _run_builder(args, custom_env, check=True)
 
     return mxr_path
 
@@ -2633,7 +2702,7 @@ def tensorrt_rtx(
     try:
         env = {"CUDA_MODULE_LOADING": "LAZY"}
         env.update(**custom_env)
-        subprocess.run(args, env=env, check=True, stdout=sys.stderr, **_BUILDER_RUN_ARGS)
+        _run_builder(args, env, check=True)
 
         os.replace(tmp_engine_path, engine_path)
     finally:
