@@ -274,7 +274,6 @@ def main():
 
         if mask_clips:
             mask = blur.mask.combine(mask_clips)
-            video = blur.mask.fill(video, mask)
 
     # input timescale
     if settings["timescale"]:
@@ -303,6 +302,10 @@ def main():
     cuts = detected_cuts = None
     if settings["scene_detection"] and (settings["interpolate"] or retiming or settings["blur"]):
         cuts = detected_cuts = blur.scenes.detect(video, video_info.is_full_color_range)
+
+    # after deduplication and scene detection, which need to see the frames as they are
+    if mask is not None:
+        video = blur.mask.fill(video, mask)
 
     def interpolate_to(method: str, video: vs.VideoNode, new_fps, cuts, timeline=None):
         """Interpolate `video` up to `new_fps`, filling `timeline`'s gaps on the way if it was given any. Holds
