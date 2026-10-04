@@ -40,7 +40,8 @@ def load(path: Path) -> vs.VideoNode:
 #
 #  - held still (`_held_still`): the pixel stays the same colour. catches opaque overlays
 #  - stands out (`_local_contrast`): the pixel stays on the same side of its surroundings, in brightness or colour.
-#    catches translucent overlays like a crosshair
+#    catches translucent overlays like a crosshair. surroundings are the median of the box around it rather than
+#    the average, otherwise the scene right next to a bright stroke stands out too and leaves a gap around it
 #  - has detail (`_local_contrast`): the pixel differs from its surroundings at all. required as well, so flat
 #    areas like empty sky don't get masked (and then stutter when something crosses them)
 #
@@ -70,8 +71,8 @@ MIN_CONSISTENCY = 0.9
 # how different a pixel can be between samples and still count as unchanged, to allow for compression noise
 SAME_PIXEL_THRESHOLD = 0.03
 
-# how far a pixel has to be from the average of the box around it to stand out, and the box radius at 1080p. the
-# box should be just wider than an overlay's strokes, bigger boxes make scene near bright panels stand out too
+# how far a pixel has to be from the median of the box around it to stand out, and the box radius at 1080p. the
+# box should be over twice as wide as an overlay's strokes, or the median is the stroke itself
 LOCAL_CONTRAST = 0.01
 LOCAL_RADIUS_PX_1080P = 3
 
@@ -87,7 +88,7 @@ FILL_PX_1080P = 24
 CLUSTER_RADIUS = 2
 CLUSTER_COVERAGE = 0.06
 
-# how far the mask grows past what was detected and how far it fades out, at 1080p. kept small on purpose
+# how far the mask grows past what was detected, and how much of that fades out, at 1080p. kept small on purpose
 GROW_PX = 1
 FEATHER_PX = 1
 
@@ -260,6 +261,18 @@ def _held_still(samples: list[vs.VideoNode]) -> vs.VideoNode:
     return core.std.Expr(counted, f"x {len(samples) - 1} /")
 
 
+def _local_median(clip: vs.VideoNode, radius: int) -> vs.VideoNode:
+    """Median of each pixel's box, done as rows then columns. Not exact but close, and far cheaper."""
+    size = radius * 2 + 1
+    middle = f"sort{size} drop{radius} swap{radius} drop{radius}"
+
+    across = " ".join(f"x[{offset},0]" for offset in range(-radius, radius + 1))
+    down = " ".join(f"x[0,{offset}]" for offset in range(-radius, radius + 1))
+
+    clip = core.akarin.Expr(clip, f"{across} {middle}")
+    return core.akarin.Expr(clip, f"{down} {middle}")
+
+
 def _local_contrast(samples: list[vs.VideoNode], radius: int) -> tuple[vs.VideoNode, vs.VideoNode]:
     """How much of the time each pixel was on the same side of its neighbours (stands out), and on either side
     (has detail), 0-1. Each plane is measured separately and the highest wins."""
@@ -267,7 +280,7 @@ def _local_contrast(samples: list[vs.VideoNode], radius: int) -> tuple[vs.VideoN
     above, below = blank, blank
 
     for sample in samples:
-        local = core.std.BoxBlur(sample, hradius=radius, vradius=radius)
+        local = _local_median(sample, radius)
 
         # difference computed inline to save memory, every sample's intermediates are live at once
         above = core.std.Expr([above, sample, local], f"y z - {LOCAL_CONTRAST} > x 1 + x ?")
@@ -370,13 +383,14 @@ def shape(scores: vs.VideoNode, params: Params = DEFAULT_PARAMS) -> vs.VideoNode
 
     padding, feather = scaled(params.padding), scaled(params.feather)
 
-    # feather fades inside the padding, so grow by padding - feather (the blur is centred on the edge)
-    grow = padding - feather
-    for _ in range(abs(grow)):
-        static = core.std.Maximum(static) if grow > 0 else core.std.Minimum(static)
-
-    if feather > 0:
-        static = core.std.BoxBlur(static, hradius=feather, vradius=feather)
+    # grown a ring at a time, with the outer `feather` rings fading out. the fade stays inside the padding and
+    # never eats into what was detected, since a tight mask's edge is the overlay's own edge
+    fade = min(feather, padding)
+    grown = static
+    for ring in range(1, padding + 1):
+        grown = core.std.Maximum(grown)
+        strength = min(1, (padding - ring + 1) / (fade + 1))
+        static = core.std.Expr([static, grown], f"x y {strength} * max")
 
     # white means interpolate as normal
     return _detached(core.std.Expr(static, "1 x -"))
