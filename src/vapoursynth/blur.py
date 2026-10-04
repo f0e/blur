@@ -206,6 +206,7 @@ def main():
             video.num_frames,
             video_path,
             hold=hold,
+            nearest=source_plugin == "BestSource",
         )
 
     retiming = (settings["deduplicate"] and settings["deduplicate_range"] != 0) or logged_timing is not None
