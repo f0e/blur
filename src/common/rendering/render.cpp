@@ -76,6 +76,9 @@ tl::expected<std::string, std::string> rendering::build_preview_script(
 			script_args[arg.substr(0, split)] = arg.substr(split + 1);
 	}
 
+	if (preview_mask)
+		script_args["savable_mask_path"] = u::path_to_string(savable_mask_path(log_path));
+
 	auto python_path = [](const std::filesystem::path& path) {
 		std::string str = u::path_to_string(path);
 		std::ranges::replace(str, '\\', '/');
@@ -108,6 +111,10 @@ blur.preview.run({}, {}, {}, {})
 		plugins_path,
 		python_path(log_path)
 	);
+}
+
+std::filesystem::path rendering::savable_mask_path(const std::filesystem::path& log_path) {
+	return std::filesystem::path(log_path).replace_extension("png");
 }
 
 tl::expected<rendering::RenderResult, rendering::RenderError> rendering::pre_render(

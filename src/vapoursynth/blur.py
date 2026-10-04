@@ -53,12 +53,16 @@ def build_mask_clips(
     settings_path: Path,
     mask_start: int,
     mask_end: int,
-) -> list[vs.VideoNode]:
+) -> tuple[list[vs.VideoNode], list[vs.VideoNode]]:
+    """The masks to render with, and the ones that are the same for every frame (what's worth saving as a mask
+    preset)."""
     mask_clips = []
+    fixed = []
 
     if mask_name:
         log.info(f"applying mask {mask_name}")
         mask_clips.append(blur.mask.load(settings_path / "masks" / mask_name))
+        fixed.append(mask_clips[-1])
 
     if auto_mask:
         generated = blur.mask.cached(
@@ -70,10 +74,13 @@ def build_mask_clips(
             auto_mask_params,
         )
 
+        if generated is not None:
+            fixed.append(generated)
+
         # overlays that come and go are found frame by frame in what's being rendered
         mask_clips.append(blur.mask.track(video, generated, auto_mask_params))
 
-    return mask_clips
+    return mask_clips, fixed
 
 
 def main():
@@ -217,7 +224,7 @@ def main():
     auto_mask_params = blur.mask.Params.from_settings(settings)
 
     if globals().get("preview_mask") == "true":
-        mask_clips = build_mask_clips(
+        mask_clips, fixed = build_mask_clips(
             mask_name,
             auto_mask,
             auto_mask_params,
@@ -228,6 +235,10 @@ def main():
             mask_start,
             mask_end,
         )
+
+        # the gui saves this rather than the frame on screen, which would bake in whatever was tracked on it
+        if savable_mask_path := globals().get("savable_mask_path"):
+            blur.mask.save(fixed, video, Path(savable_mask_path))
 
         preview = blur.mask.preview(video, mask_clips)
         preview.set_output()
@@ -263,7 +274,7 @@ def main():
 
     mask = None
     if mask_name or auto_mask:
-        mask_clips = build_mask_clips(
+        mask_clips, _ = build_mask_clips(
             mask_name,
             auto_mask,
             auto_mask_params,

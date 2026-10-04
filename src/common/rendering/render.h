@@ -20,6 +20,9 @@ namespace rendering {
 		const std::filesystem::path& log_path
 	);
 
+	// where a mask preview's script writes its masks that are the same for every frame, as a png
+	std::filesystem::path savable_mask_path(const std::filesystem::path& log_path);
+
 	// the mask covers the whole video like the preview's, so they share a cached one
 	tl::expected<RenderResult, RenderError> pre_render(
 		const std::filesystem::path& input_path,
