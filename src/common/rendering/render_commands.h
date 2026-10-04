@@ -62,7 +62,7 @@ namespace rendering::detail {
 		size_t skipped_frames
 	);
 
-	std::vector<std::string> build_ffmpeg_preview_args();
+	std::vector<std::string> build_ffmpeg_preview_args(const media::VideoInfo& video_info);
 
 	void copy_file_timestamp(const std::filesystem::path& from, const std::filesystem::path& to);
 }
