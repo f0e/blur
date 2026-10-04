@@ -258,6 +258,23 @@ def main():
     # what masked regions get put back to. before deduplication since that interpolates too
     original = video
 
+    mask = None
+    if mask_name or auto_mask:
+        mask_clips = build_mask_clips(
+            mask_name,
+            auto_mask,
+            auto_mask_params,
+            mask_source,
+            video_path,
+            settings_path,
+            mask_start,
+            mask_end,
+        )
+
+        if mask_clips:
+            mask = blur.mask.combine(mask_clips)
+            video = blur.mask.fill(video, mask)
+
     # input timescale
     if settings["timescale"]:
         input_timescale = float(settings["input_timescale"])
@@ -374,9 +391,7 @@ def main():
         return blur.scenes.hold(result, video, cuts, timeline)
 
     # interpolation
-    interpolated = False
     if settings["interpolate"]:
-        frames_before_interpolation = video.num_frames
 
         def parse_fps_setting(setting_key):
             fps_value = settings[setting_key].strip()
@@ -466,8 +481,6 @@ def main():
             fps_added = video.fps - old_fps
             log.info(f"added {fps_added} (interp: {interpolated_fps}. video.fps: {video.fps}/{interpolated_fps})")
 
-        interpolated = video.num_frames != frames_before_interpolation
-
     if timeline is not None:
         # no interpolation, so deduplication fills its own gaps using 'deduplicate method'
         method = settings["deduplicate_method"]
@@ -487,22 +500,8 @@ def main():
         else:
             video, cuts = interpolate_to(method, video, video.fps, cuts, timeline=timeline)
 
-    # masking, only needed if something was interpolated
-    mask_clips = []
-    if (mask_name or auto_mask) and (retiming or interpolated):
-        mask_clips = build_mask_clips(
-            mask_name,
-            auto_mask,
-            auto_mask_params,
-            mask_source,
-            video_path,
-            settings_path,
-            mask_start,
-            mask_end,
-        )
-
-    if mask_clips:
-        video = blur.mask.protect(video, original, blur.mask.combine(mask_clips))
+    if mask is not None:
+        video = blur.mask.protect(video, original, mask)
 
     # debug: label the frames retiming touched. turn blur off to read it
     if debug_timeline is not None:
