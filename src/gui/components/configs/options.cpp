@@ -916,6 +916,14 @@ void configs::options(ui::Container& container) {
 				fonts::dejavu
 			);
 
+			ui::add_checkbox(
+				"auto mask enclosed checkbox",
+				container,
+				"auto mask enclosed",
+				settings.advanced.auto_mask.enclosed,
+				fonts::dejavu
+			);
+
 			ui::add_slider(
 				"auto mask samples slider",
 				container,

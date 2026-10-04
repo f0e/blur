@@ -114,6 +114,13 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"auto mask enclosed checkbox",
+			{
+				"Also masks areas the mask surrounds, like the inside of a translucent panel",
+				"Stops interpolation smearing them, but leaves what's seen through them unblurred",
+			},
+		},
+		{
 			"auto mask samples slider",
 			{
 				"How many frames are sampled to find the parts that never move",
