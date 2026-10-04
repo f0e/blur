@@ -317,17 +317,39 @@ def SVP(
     vectors_string: str,
     smooth_str: str,
 ):
+    # svp only takes 4:2:0. for 4:4:4 the motion is found once on a 4:2:0 copy, then each plane is rendered as the
+    # luma of its own clip along those vectors so none of them lose resolution. upscaling the luma to match the
+    # chroma instead makes svp do about 3x the work
+    planes = video.format.id == vs.YUV444P8
+    analysed = core.resize.Bilinear(video, format=vs.YUV420P8) if planes else video
+
     try:
-        super = core.svp1.Super(video, super_string)
-        vectors = core.svp1.Analyse(super["clip"], super["data"], video, vectors_string)
-        return core.svp2.SmoothFps(
-            video,
-            super["clip"],
-            super["data"],
-            vectors["clip"],
-            vectors["data"],
-            smooth_str,
+        super = core.svp1.Super(analysed, super_string)
+        vectors = core.svp1.Analyse(super["clip"], super["data"], analysed, vectors_string)
+
+        def smooth(clip: vs.VideoNode):
+            return core.svp2.SmoothFps(
+                clip,
+                super["clip"],
+                super["data"],
+                vectors["clip"],
+                vectors["data"],
+                smooth_str,
+            )
+
+        if not planes:
+            return smooth(video)
+
+        neutral = core.std.BlankClip(
+            analysed, format=vs.GRAY8, width=analysed.width // 2, height=analysed.height // 2, color=128
         )
+
+        def smooth_plane(plane: int):
+            luma = core.std.ShufflePlanes(video, planes=plane, colorfamily=vs.GRAY)
+            clip = core.std.ShufflePlanes([luma, neutral, neutral], planes=[0, 0, 0], colorfamily=vs.YUV)
+            return core.std.ShufflePlanes(smooth(clip), planes=0, colorfamily=vs.GRAY)
+
+        return core.std.ShufflePlanes([smooth_plane(plane) for plane in range(3)], planes=[0, 0, 0], colorfamily=vs.YUV)
     except vs.Error as e:
         raise u.BlurException(
             user_error="Failed to initialise SVP. Ensure your GPU drivers are up to date. You may need to disable 'gpu interpolation'.",
@@ -359,6 +381,9 @@ def svp(
             _fps(new_fps),
             lambda pairs, steps: SVP(pairs, super_string, vectors_string, _with_rate(smooth_str, steps)),
         )
+
+    if _video.format.id == vs.YUV444P8:
+        return process(_video)
 
     return u.with_scaled_luminance(
         _video,
