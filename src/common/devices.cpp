@@ -1,5 +1,5 @@
 #include "devices.h"
-#include "rife_models.h"
+#include "interpolation_models.h"
 #include "script_status.h"
 #include "vspipe.h"
 
@@ -180,27 +180,31 @@ namespace {
 	}
 
 	std::optional<int> find_fastest_rife_device() {
-		auto model = get_benchmark_model(rife_models::list(), config_blur::DEFAULT_CONFIG.rife_model);
+		auto model = get_benchmark_model(interpolation_models::list_rife(), config_blur::DEFAULT_CONFIG.rife_model);
 		if (!model)
 			return {};
 
 		return find_fastest_device(
 			devices::rife,
 			"rife",
-			std::format("rife_model_path={}", u::path_to_string(rife_models::get_path() / *model))
+			std::format("rife_model_path={}", u::path_to_string(interpolation_models::get_rife_path() / *model))
 		);
 	}
 
 #ifdef TENSORRT
 	std::optional<int> find_fastest_tensorrt_device() {
-		auto model = get_benchmark_model(rife_models::list_trt(), config_blur::DEFAULT_CONFIG.rife_trt_model);
+		auto model =
+			get_benchmark_model(interpolation_models::list_rife_trt(), config_blur::DEFAULT_CONFIG.rife_trt_model);
 		if (!model)
 			return {};
 
 		return find_fastest_device(
 			devices::tensorrt,
 			"rife (tensorrt)",
-			std::format("rife_trt_model_path={}", u::path_to_string(rife_models::get_trt_path() / (*model + ".onnx")))
+			std::format(
+				"rife_trt_model_path={}",
+				u::path_to_string(interpolation_models::get_rife_trt_path() / (*model + ".onnx"))
+			)
 		);
 	}
 #endif

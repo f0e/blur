@@ -9,7 +9,7 @@
 #include "common/config_app.h"
 #include "common/masks.h"
 #include "common/devices.h"
-#include "common/rife_models.h"
+#include "common/interpolation_models.h"
 #include "common/encoding.h"
 
 namespace configs = gui::components::configs;
@@ -19,7 +19,7 @@ namespace {
 	bool gimm_installed() {
 #ifdef TENSORRT
 		std::error_code ec;
-		return std::filesystem::exists(rife_models::get_gimm_trt_path(), ec);
+		return std::filesystem::exists(interpolation_models::get_gimm_trt_path(), ec);
 #else
 		return false;
 #endif
@@ -510,12 +510,20 @@ void configs::options(ui::Container& container) {
 
 		// the folders are listed every frame so models dropped in show up straight away
 		if (uses_rife)
-			model_dropdown("rife model", rife_models::list(), settings.rife_model, rife_models::get_path());
+			model_dropdown(
+				"rife model",
+				interpolation_models::list_rife(),
+				settings.rife_model,
+				interpolation_models::get_rife_path()
+			);
 
 #ifdef TENSORRT
 		if (uses_rife_trt) {
 			model_dropdown(
-				"rife (tensorrt) model", rife_models::list_trt(), settings.rife_trt_model, rife_models::get_trt_path()
+				"rife (tensorrt) model",
+				interpolation_models::list_rife_trt(),
+				settings.rife_trt_model,
+				interpolation_models::get_rife_trt_path()
 			);
 
 			ui::add_checkbox(
