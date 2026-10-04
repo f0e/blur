@@ -319,6 +319,16 @@ def _local_median(clip: vs.VideoNode, radius: int) -> vs.VideoNode:
     return core.akarin.Expr(clip, f"{down} {middle}")
 
 
+def _detail_expression(threshold: float) -> str:
+    """akarin expression for whether pixel x differs from its local median y, or sits on an edge. A clean edge is
+    its own median, so the spread of the 3x3 around it is checked too."""
+    around = [f"x[{dx},{dy}]" for dy in (-1, 0, 1) for dx in (-1, 0, 1)]
+    highest = " ".join(around) + " max" * (len(around) - 1)
+    lowest = " ".join(around) + " min" * (len(around) - 1)
+
+    return f"x y - abs {threshold} > {highest} {lowest} - {threshold} > or"
+
+
 def _every_plane(gray: vs.VideoNode, like: vs.VideoNode) -> vs.VideoNode:
     """A GRAY clip copied into each plane of `like`'s format, so expressions can combine the two."""
     planes = like.format.num_planes
@@ -344,7 +354,8 @@ def _local_contrast(
         # differences computed inline to save memory, every sample's intermediates are live at once
         above = core.std.Expr([above, sample, local, changed], f"y z - {LOCAL_CONTRAST} > a and x 1 + x ?")
         below = core.std.Expr([below, sample, local, changed], f"y z - -{LOCAL_CONTRAST} < a and x 1 + x ?")
-        either = core.std.Expr([either, sample, local], f"y z - abs {LOCAL_CONTRAST} > x 1 + x ?")
+        detail = core.akarin.Expr([sample, local], f"{_detail_expression(LOCAL_CONTRAST)} 1 0 ?")
+        either = core.std.Expr([either, detail], "x y +")
         counted = core.std.Expr([counted, changed], "x y +")
 
     stands_out = _best_plane(core.std.Expr([above, below], "x y max"))
@@ -428,7 +439,8 @@ def shape(scores: vs.VideoNode, params: Params = DEFAULT_PARAMS) -> vs.VideoNode
     reach = scaled(params.fill)
     if reach > 0:
         near_drawn = core.std.BoxBlur(core.std.Expr([static, drawn], "x y min"), hradius=reach, vradius=reach)
-        static = core.std.Expr([static, near_drawn], "y 0 > x 0 ?")
+        # half of one pixel's share of the box, since the blur's running sum leaves tiny values where it should be 0
+        static = core.std.Expr([static, near_drawn], f"y {0.5 / (2 * reach + 1) ** 2} > x 0 ?")
     else:
         static = core.std.Expr([static, drawn], "x y min")
 
@@ -564,6 +576,7 @@ def track(clip: vs.VideoNode, static: vs.VideoNode | None, params: Params = DEFA
 
     radius = max(1, round(LOCAL_RADIUS_PX_1080P * scale))
     local = _local_median(analysed, radius)
+    # just the median here, counting edges lets in scenery that compression left untouched between frames
     detail = _best_plane(core.akarin.Expr([analysed, local], f"x y - abs {LOCAL_CONTRAST * peak} > {peak} 0 ?"))
 
     found = core.std.Expr([still, detail], "x y min")
