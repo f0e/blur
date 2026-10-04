@@ -74,6 +74,14 @@ namespace {
 }
 
 BlurPreview::~BlurPreview() {
+	// the script carries on after the player's gone, and an engine build in it would keep going for minutes. this
+	// tells it to stop (see blur/preview.py)
+	if (!m_log_path.empty()) {
+		auto cancel_path = m_log_path;
+		cancel_path += ".cancel";
+		std::ofstream cancel(cancel_path);
+	}
+
 	// mpv has to let go of the script before it's deleted
 	m_player.reset();
 
