@@ -80,11 +80,11 @@ namespace {
 		       pix_fmt.starts_with("gbr");
 	}
 
-	// carry the source's colour metadata through so the output isn't reinterpreted
-	void append_colour_param_args(std::vector<std::string>& args, const media::VideoInfo& video_info) {
+	// vspipe's y4m doesn't carry the source's colour metadata, so it's set again before anything reads it
+	std::optional<std::string> build_colour_param_filter(const media::VideoInfo& video_info) {
 		std::vector<std::string> params;
 
-		// blur.py converts rgb sources to yuv, so their pixel format and matrix don't carry over
+		// blur.py converts rgb sources to yuv, so their matrix doesn't carry over
 		bool rgb = video_info.pix_fmt && is_rgb_pix_fmt(*video_info.pix_fmt);
 
 		if (video_info.color_range && *video_info.color_range != "") {
@@ -102,17 +102,22 @@ namespace {
 			params.emplace_back("color_primaries=" + *video_info.color_primaries);
 
 		if (params.empty())
-			return;
+			return {};
 
-		std::string filter =
-			"setparams=" +
-			std::accumulate(
-				std::next(params.begin()), params.end(), params[0], [](const std::string& a, const std::string& b) {
-					return a + ":" + b;
-				}
-			);
+		return "setparams=" +
+		       std::accumulate(
+				   std::next(params.begin()), params.end(), params[0], [](const std::string& a, const std::string& b) {
+					   return a + ":" + b;
+				   }
+			   );
+	}
 
-		args.insert(args.end(), { "-vf", filter });
+	void append_colour_param_args(std::vector<std::string>& args, const media::VideoInfo& video_info) {
+		if (auto filter = build_colour_param_filter(video_info))
+			args.insert(args.end(), { "-vf", *filter });
+
+		// blur.py converts rgb sources to yuv, so their pixel format doesn't carry over
+		bool rgb = video_info.pix_fmt && is_rgb_pix_fmt(*video_info.pix_fmt);
 
 		if (video_info.pix_fmt && !rgb) {
 			args.insert(args.end(), { "-pix_fmt", *video_info.pix_fmt });
@@ -308,12 +313,14 @@ void rendering::detail::copy_file_timestamp(const std::filesystem::path& from, c
 	}
 }
 
-std::vector<std::string> rendering::detail::build_ffmpeg_preview_args() {
+std::vector<std::string> rendering::detail::build_ffmpeg_preview_args(const media::VideoInfo& video_info) {
+	std::string filter = std::format("scale=-2:min(ih\\,{}):{}", PREVIEW_MAX_HEIGHT, JPEG_COLOUR);
+
+	// without it full range sources are read as limited and stretched
+	if (auto colour = build_colour_param_filter(video_info))
+		filter = *colour + "," + filter;
+
 	return {
-		"-vf",  std::format("scale=-2:min(ih\\,{}):{}", PREVIEW_MAX_HEIGHT, JPEG_COLOUR),
-		"-c:v", "mjpeg",
-		"-q:v", "2",
-		"-f",   "image2pipe",
-		"-",
+		"-vf", filter, "-c:v", "mjpeg", "-q:v", "2", "-f", "image2pipe", "-",
 	};
 }

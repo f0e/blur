@@ -149,7 +149,7 @@ tl::expected<rendering::RenderResult, rendering::RenderError> rendering::pre_ren
 		.ffmpeg = *ffmpeg_args,
 	};
 
-	auto preview_args = detail::build_ffmpeg_preview_args();
+	auto preview_args = detail::build_ffmpeg_preview_args(video_info);
 	commands.ffmpeg.insert(commands.ffmpeg.end(), preview_args.begin(), preview_args.end());
 	state->enable_preview_capture();
 
@@ -271,7 +271,7 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 
 	// add preview pipe if needed
 	if (settings.preview && blur.using_preview) {
-		auto preview_args = detail::build_ffmpeg_preview_args();
+		auto preview_args = detail::build_ffmpeg_preview_args(video_info);
 		commands.ffmpeg.insert(commands.ffmpeg.end(), preview_args.begin(), preview_args.end());
 
 		state->enable_preview_capture();
