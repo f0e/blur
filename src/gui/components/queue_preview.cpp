@@ -107,7 +107,10 @@ queue_preview::State queue_preview::update(
 
 	show_error("Failed to generate blur preview.", blur_preview->take_error());
 
-	State result{ .status = state.status_text("rendering preview...") };
+	State result{
+		.status = state.status_text("rendering preview..."),
+		.frame_timing_log = !state.status.frame_timing_log.empty(),
+	};
 	if (!state.playing)
 		result.overlay = ui::VideoOverlay{
 			.frame = state.frame,

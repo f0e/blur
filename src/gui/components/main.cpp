@@ -579,6 +579,16 @@ void main::render_pending(
 				fonts::dejavu(fonts::size::SMALL)
 			);
 		}
+
+		if (preview_state.frame_timing_log) {
+			ui::add_text(
+				"preview frame timing log text",
+				config_container,
+				"using accurate frame timings",
+				gfx::Color::white(renderer::MUTED_SHADE),
+				fonts::dejavu(fonts::size::SMALL)
+			);
+		}
 	}
 
 	if (trim_disabled) {
