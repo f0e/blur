@@ -12,6 +12,8 @@ namespace interpolation_models {
 
 	std::filesystem::path get_gimm_trt_path();
 
+	std::vector<std::string> list_gimm_trt();
+
 	bool trt_installed();
 #endif
 }

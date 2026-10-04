@@ -22,10 +22,14 @@ Source: "{#DepsDir}\7zip\7z.dll"; DestDir: "{tmp}"; Flags: deleteafterinstall; C
 #define LargeMotionUrl ""
 #define LargeMotionSha256 "3a8ef88b3ab23475bb93937a71c22c8151adb6706902d6236a79eaba17240f30"
 #define LargeMotionDownloadSize "22752661"
-#define GimmVersion "gimm_vfi_r-2"
-#define GimmUrl ""
-#define GimmSha256 "8126dd32c7759c1c491bdd6184708df146c1b5f7f47c1399ff8e7f7673d1d373"
-#define GimmDownloadSize "52712060"
+// both gimm checkpoints install together, under one version
+#define GimmVersion "gimm_vfi_r-3"
+#define GimmPlainUrl ""
+#define GimmPlainSha256 "1da1ef4b7f81e871502a32523950fa47abe3d7671aa3c65f0656c829feb65723"
+#define GimmPlainDownloadSize "52428293"
+#define GimmLpipsUrl ""
+#define GimmLpipsSha256 "757e1bf011559e9b4376e8d21e7755c3b934dd6365fb4c089640346f63339c78"
+#define GimmLpipsDownloadSize "52428293"
 
 var
   DownloadPage: TDownloadWizardPage;
@@ -163,9 +167,10 @@ begin
 
   if NeedGimm then
   begin
-    DownloadPage.Add('{#GimmUrl}', 'gimm_vfi_r.onnx', '{#GimmSha256}');
-    DownloadSize := DownloadSize + {#GimmDownloadSize};
-    ExtractedSize := ExtractedSize + {#GimmDownloadSize};
+    DownloadPage.Add('{#GimmPlainUrl}', 'gimm_vfi_r_plain.onnx', '{#GimmPlainSha256}');
+    DownloadPage.Add('{#GimmLpipsUrl}', 'gimm_vfi_r_lpips.onnx', '{#GimmLpipsSha256}');
+    DownloadSize := DownloadSize + {#GimmPlainDownloadSize} + {#GimmLpipsDownloadSize};
+    ExtractedSize := ExtractedSize + {#GimmPlainDownloadSize} + {#GimmLpipsDownloadSize};
   end;
 
   if not HasSpaceToDownload(DownloadSize, ExtractedSize) then
@@ -193,10 +198,13 @@ begin
     if NeedLargeMotion then
       CopyDownloadedModel('rife_v4.26_large_motion.onnx', ModelDir, LargeMotionMarker, '{#LargeMotionVersion}');
 
+    // also clears out gimm_vfi_r.onnx, the single model older versions installed
     if NeedGimm then
     begin
       DelTree(GimmDir, True, True, True);
-      CopyDownloadedModel('gimm_vfi_r.onnx', GimmDir, GimmMarker, '{#GimmVersion}');
+      if ForceDirectories(GimmDir) and
+        CopyFile(ExpandConstant('{tmp}\gimm_vfi_r_plain.onnx'), GimmDir + '\gimm_vfi_r_plain.onnx', False) then
+        CopyDownloadedModel('gimm_vfi_r_lpips.onnx', GimmDir, GimmMarker, '{#GimmVersion}');
     end;
   end;
 

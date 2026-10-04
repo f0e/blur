@@ -111,6 +111,7 @@ struct BlurSettings {
 	std::string rife_model = "rife-v4.26_ensembleFalse";
 	std::string rife_trt_model = "rife_v4.26";
 	bool rife_trt_ensemble = false;
+	std::string gimm_trt_model = "gimm_vfi_r_plain";
 
 	bool override_advanced = false;
 	AdvancedSettings advanced;
