@@ -14,7 +14,7 @@ typed tensorrt engine (--stronglyTyped) with fp32 frames in and out. a plain fp1
 coordinates need fp32, and fp16 frames cost about 1dB.
 
 Needs a cuda gpu, git, and: pip install torch onnx onnxscript omegaconf einops easydict yacs
-usage: python export_gimm_vfi.py OUT.onnx [--work DIR] [--iters 8] [--checkpoint lpips|plain] [--check]
+usage: python export_gimm_vfi.py OUT.onnx [--work DIR] [--iters 8] [--checkpoint plain|lpips] [--check]
 """
 
 import argparse
@@ -280,46 +280,73 @@ def load(repo: Path, checkpoint: str):
 # sampling coordinates stay fp32
 HALF_OPS = {"Conv", "PRelu", "Relu", "LeakyRelu", "BatchNormalization", "InstanceNormalization"}
 
+# these only move or add values, so they run in fp16 when all their inputs already are. that keeps the decoders'
+# slices, concats and residual adds between convolutions from casting back and forth (8% faster, same output)
+FOLLOW_OPS = {"Slice", "Split", "Concat", "Add", "DepthToSpace"}
+# the inputs after these are indices or sizes
+FIRST_INPUT_ONLY = {"Slice", "Split", "DepthToSpace"}
+
 
 def half_layers(proto):
-    """Runs HALF_OPS in fp16, casting their inputs down and outputs back up."""
+    """Runs HALF_OPS in fp16, and FOLLOW_OPS where their inputs are fp16 already. Outputs are cast back up for
+    whatever still uses them in fp32."""
     from onnx import TensorProto, helper, numpy_helper
 
     graph = proto.graph
     weights = {w.name: w for w in graph.initializer if w.data_type == TensorProto.FLOAT}
-    halved = {}
+    # fp32 name -> its fp16 copy
+    half_of = {}
+    # fp32 names that were worked out in fp16. a value only cast down to feed a convolution doesn't count, it's
+    # still needed at full precision wherever else it goes
+    computed_half = set()
+    halved_weights = {}
     nodes = []
     for node in graph.node:
-        if node.op_type not in HALF_OPS:
+        data = [name for name in node.input[: 1 if node.op_type in FIRST_INPUT_ONLY else None] if name]
+        follows = (
+            node.op_type in FOLLOW_OPS
+            and any(name in computed_half for name in data)
+            and all(name in computed_half or name in weights for name in data)
+        )
+        if node.op_type not in HALF_OPS and not follows:
             nodes.append(node)
             continue
 
-        inputs = []
-        for i, name in enumerate(node.input):
-            if not name:
-                inputs.append(name)
-            elif name in weights:
-                if name not in halved:
-                    halved[name] = numpy_helper.from_array(
+        inputs = list(node.input)
+        for i, name in enumerate(inputs):
+            if name not in data:
+                continue
+            if name in weights:
+                if name not in halved_weights:
+                    halved_weights[name] = numpy_helper.from_array(
                         numpy_helper.to_array(weights[name]).astype("float16"), name + "_fp16"
                     )
-                inputs.append(name + "_fp16")
+                inputs[i] = name + "_fp16"
             else:
-                cast = f"{node.name}_in{i}_fp16"
-                nodes.append(helper.make_node("Cast", [name], [cast], to=TensorProto.FLOAT16, name=cast))
-                inputs.append(cast)
+                if name not in half_of:
+                    half_of[name] = name + "_fp16"
+                    nodes.append(helper.make_node("Cast", [name], [half_of[name]], to=TensorProto.FLOAT16))
+                inputs[i] = half_of[name]
 
-        outputs = [f"{node.name}_out{i}_fp16" for i in range(len(node.output))]
+        outputs = [name + "_fp16" for name in node.output]
         half = helper.make_node(node.op_type, inputs, outputs, name=node.name)
         half.attribute.extend(node.attribute)
         nodes.append(half)
         for half_name, name in zip(outputs, node.output):
-            nodes.append(helper.make_node("Cast", [half_name], [name], to=TensorProto.FLOAT, name=half_name + "_fp32"))
+            nodes.append(helper.make_node("Cast", [half_name], [name], to=TensorProto.FLOAT))
+            half_of[name] = half_name
+            computed_half.add(name)
 
+    # drop the casts back up that nothing reads
+    needed = {output.name for output in graph.output}
+    kept = []
+    for node in reversed(nodes):
+        if any(name in needed for name in node.output):
+            kept.append(node)
+            needed.update(node.input)
     del graph.node[:]
-    graph.node.extend(nodes)
-    used = {name for node in nodes for name in node.input}
-    initializers = [w for w in graph.initializer if w.name in used] + list(halved.values())
+    graph.node.extend(reversed(kept))
+    initializers = [w for w in graph.initializer if w.name in needed] + list(halved_weights.values())
     del graph.initializer[:]
     graph.initializer.extend(initializers)
 
@@ -352,7 +379,8 @@ def main():
     parser.add_argument("--work", type=Path, default=Path("gimm-vfi-export"), help="where the checkout and weights go")
     # 8 matches 20 on blur's test footage and is faster
     parser.add_argument("--iters", type=int, default=8, help="raft iterations")
-    parser.add_argument("--checkpoint", choices=("lpips", "plain"), default="lpips")
+    # lpips is tuned to look sharp, plain scores 0.2dB higher against real frames
+    parser.add_argument("--checkpoint", choices=("plain", "lpips"), default="plain")
     parser.add_argument("--check", action="store_true", help="compare the export with torch (needs onnxruntime)")
     args = parser.parse_args()
 
