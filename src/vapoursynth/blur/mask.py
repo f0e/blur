@@ -647,6 +647,52 @@ def combine(grays: list[vs.VideoNode]) -> vs.VideoNode:
     return combined
 
 
+# the fill's coarsest level is around this tall
+FILL_MIN_HEIGHT = 8
+
+
+def fill(clip: vs.VideoNode, gray: vs.VideoNode) -> vs.VideoNode:
+    """Paint over anything the mask protects with the scene around it. Otherwise interpolation drags overlays
+    along with the scene, and the copies land just outside the mask."""
+    fmt = clip.format
+    working = core.query_video_format(fmt.color_family, vs.FLOAT, 32, fmt.subsampling_w, fmt.subsampling_h)
+
+    # only pixels the mask leaves completely alone count as scene
+    white = (1 << fmt.bits_per_sample) - 1 if fmt.sample_type == vs.INTEGER else 1
+    scene = core.std.Expr(match(gray, clip), f"x {white * 0.999} >= 1 0 ?", format=working.id)
+
+    # push-pull: halve the scene (weighted by `scene`) until the holes are gone, then fill each level's holes
+    # from the one below it
+    colour = core.resize.Point(clip, format=working.id)
+    levels = [(core.std.Expr([colour, scene], "x y *"), scene)]
+
+    width_step, height_step = 1 << fmt.subsampling_w, 1 << fmt.subsampling_h
+    width, height = clip.width, clip.height
+    while height > FILL_MIN_HEIGHT:
+        width = max(width_step, width // 2 // width_step * width_step)
+        height = max(height_step, height // 2 // height_step * height_step)
+
+        premultiplied, weight = levels[-1]
+        levels.append(
+            (
+                core.resize.Bilinear(premultiplied, width=width, height=height),
+                core.resize.Bilinear(weight, width=width, height=height),
+            )
+        )
+
+    premultiplied, weight = levels[-1]
+    filled = core.std.Expr([premultiplied, weight], "y 0.000001 > x y / 0 ?")
+
+    for premultiplied, weight in reversed(levels[:-1]):
+        below = core.resize.Bilinear(filled, width=premultiplied.width, height=premultiplied.height)
+        filled = core.std.Expr([premultiplied, weight, below], "x 1 y - z * +")
+
+    filled = core.resize.Point(filled, format=fmt.id, dither_type="none")
+
+    # scene pixels go back exactly as they were
+    return core.std.Expr([clip, filled, scene], "z 0 > x y ?")
+
+
 def protect(interpolated: vs.VideoNode, original: vs.VideoNode, gray: vs.VideoNode) -> vs.VideoNode:
     """Put `original`'s pixels back wherever the mask is black."""
     base = match_length(original, interpolated)
