@@ -1,5 +1,6 @@
 """Runs blur.py inside another process's vapoursynth (the gui's mpv) rather than through vspipe."""
 
+import contextlib
 import io
 import os
 import sys
@@ -19,12 +20,23 @@ class _StderrRouter:
         self.fallback = fallback
         # thread evaluating a script -> its open log
         self.logs: dict[int, int] = {}
+        # thread evaluating a script -> the file the gui makes when it gives up on it
+        self.cancel_paths: dict[int, str] = {}
 
     def open(self, log_path: str):
-        self.logs[threading.get_ident()] = os.open(log_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT)
+        thread = threading.get_ident()
+        self.logs[thread] = os.open(log_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT)
+        self.cancel_paths[thread] = log_path + ".cancel"
 
     def close(self):
-        os.close(self.logs.pop(threading.get_ident()))
+        thread = threading.get_ident()
+        os.close(self.logs.pop(thread))
+        del self.cancel_paths[thread]
+
+    def cancelled(self) -> bool:
+        """Whether the gui has given up on the script this thread is evaluating."""
+        cancel_path = self.cancel_paths.get(threading.get_ident())
+        return cancel_path is not None and os.path.exists(cancel_path)
 
     def write(self, text: str) -> int:
         log = self.logs.get(threading.get_ident())
@@ -71,6 +83,13 @@ def run(script_path: str, script_args: dict[str, str], plugins_path: str, log_pa
 
     router = sys.stderr
     router.open(log_path)
+
+    # vs-mlrt only fails to import without tensorrt, when there's nothing to build
+    with contextlib.suppress(ImportError, RuntimeError):
+        from external import vsmlrt
+
+        # an engine build can outlast the preview that started it, and nothing else would stop it
+        vsmlrt.builder_cancelled = router.cancelled
 
     try:
         script = Path(script_path)

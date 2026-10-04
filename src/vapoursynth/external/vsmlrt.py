@@ -88,6 +88,10 @@ models_path: str = os.path.join(plugins_path, "models")
 
 _builder_job = None
 
+# blur: checked while a builder runs, and true stops it. the gui's preview sets this so a preview that's been closed
+# doesn't keep building
+builder_cancelled: typing.Callable[[], bool] = lambda: False
+
 
 def _run_builder(args, env, check: bool) -> subprocess.CompletedProcess:
     """blur: runs an engine builder (trtexec etc.), its output going to stderr.
@@ -152,7 +156,15 @@ def _run_builder(args, env, check: bool) -> subprocess.CompletedProcess:
             kernel32.AssignProcessToJobObject(_builder_job, int(process._handle))
 
     with process:
-        returncode = process.wait()
+        while True:
+            try:
+                returncode = process.wait(timeout=0.5)
+                break
+            except subprocess.TimeoutExpired:
+                if builder_cancelled():
+                    process.kill()
+                    process.wait()
+                    raise RuntimeError("engine build cancelled")
 
     if check and returncode != 0:
         raise subprocess.CalledProcessError(returncode, args)
