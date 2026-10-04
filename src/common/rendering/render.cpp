@@ -4,7 +4,7 @@
 #include "render_pipeline.h"
 #include "common/devices.h"
 #ifdef TENSORRT
-#	include "common/rife_models.h"
+#	include "common/interpolation_models.h"
 #endif
 #include "common/media.h"
 
@@ -16,24 +16,26 @@ namespace {
 		if (!uses_rife && !uses_gimm)
 			return {};
 
-		if (!rife_models::trt_installed()) {
+		if (!interpolation_models::trt_installed()) {
 			return "TensorRT RIFE isn't installed. Rerun the installer and select \"NVIDIA TensorRT RIFE interpolation\", or use a different interpolation method";
 		}
 
 		std::error_code ec;
-		if (uses_gimm && !std::filesystem::exists(rife_models::get_gimm_trt_path(), ec)) {
+		if (uses_gimm && !std::filesystem::exists(interpolation_models::get_gimm_trt_path(), ec)) {
 			return std::format(
-				"TensorRT GIMM-VFI model wasn't found at {}", u::path_to_string(rife_models::get_gimm_trt_path())
+				"TensorRT GIMM-VFI model wasn't found at {}",
+				u::path_to_string(interpolation_models::get_gimm_trt_path())
 			);
 		}
 
-		if (uses_rife &&
-		    !std::filesystem::exists(rife_models::get_trt_path() / (settings.rife_trt_model + ".onnx"), ec))
+		if (uses_rife && !std::filesystem::exists(
+							 interpolation_models::get_rife_trt_path() / (settings.rife_trt_model + ".onnx"), ec
+						 ))
 		{
 			return std::format(
 				"TensorRT RIFE model '{}' wasn't found in {}",
 				settings.rife_trt_model,
-				u::path_to_string(rife_models::get_trt_path())
+				u::path_to_string(interpolation_models::get_rife_trt_path())
 			);
 		}
 #endif

@@ -1,6 +1,6 @@
 #include "config_blur.h"
 #include "masks.h"
-#include "rife_models.h"
+#include "interpolation_models.h"
 #include "config_base.h"
 #include "config_app.h"
 #include "config_rules.h"
@@ -778,10 +778,10 @@ nlohmann::json BlurSettings::to_json() const {
 	j["interpolation_blocksize"] = this->advanced.interpolation_blocksize;
 	j["interpolation_mask_area"] = this->advanced.interpolation_mask_area;
 
-	j["rife_model"] = rife_models::get_path() / this->rife_model;
+	j["rife_model"] = interpolation_models::get_rife_path() / this->rife_model;
 #ifdef TENSORRT
-	j["rife_trt_model"] = rife_models::get_trt_path() / (this->rife_trt_model + ".onnx");
-	j["gimm_trt_model"] = rife_models::get_gimm_trt_path();
+	j["rife_trt_model"] = interpolation_models::get_rife_trt_path() / (this->rife_trt_model + ".onnx");
+	j["gimm_trt_model"] = interpolation_models::get_gimm_trt_path();
 #endif
 	j["rife_trt_ensemble"] = this->rife_trt_ensemble;
 

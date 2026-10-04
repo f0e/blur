@@ -1,7 +1,7 @@
-#include "rife_models.h"
+#include "interpolation_models.h"
 #include "paths.h"
 
-std::filesystem::path rife_models::get_path() {
+std::filesystem::path interpolation_models::get_rife_path() {
 #if defined(_WIN32)
 	return paths::get_resources_path() / "lib/models";
 #else
@@ -9,11 +9,11 @@ std::filesystem::path rife_models::get_path() {
 #endif
 }
 
-std::vector<std::string> rife_models::list() {
+std::vector<std::string> interpolation_models::list_rife() {
 	std::vector<std::string> models;
 
 	std::error_code ec;
-	for (const auto& entry : std::filesystem::directory_iterator(get_path(), ec)) {
+	for (const auto& entry : std::filesystem::directory_iterator(get_rife_path(), ec)) {
 		if (entry.is_directory(ec) && std::filesystem::exists(entry.path() / "flownet.param", ec))
 			models.push_back(u::path_to_string(entry.path().filename()));
 	}
@@ -24,25 +24,25 @@ std::vector<std::string> rife_models::list() {
 }
 
 #ifdef TENSORRT
-std::filesystem::path rife_models::get_trt_path() {
+std::filesystem::path interpolation_models::get_rife_trt_path() {
 	return paths::get_resources_path() / "lib/vapoursynth/vs-plugins/models/rife_v2";
 }
 
 // gimm-vfi takes the same inputs as rife, but lives apart so it isn't listed as a rife model
-std::filesystem::path rife_models::get_gimm_trt_path() {
+std::filesystem::path interpolation_models::get_gimm_trt_path() {
 	return paths::get_resources_path() / "lib/vapoursynth/vs-plugins/models/gimm_vfi/gimm_vfi_r.onnx";
 }
 
-bool rife_models::trt_installed() {
+bool interpolation_models::trt_installed() {
 	std::error_code ec;
 	return std::filesystem::exists(paths::get_resources_path() / "lib/vapoursynth/vs-plugins/vstrt.dll", ec);
 }
 
-std::vector<std::string> rife_models::list_trt() {
+std::vector<std::string> interpolation_models::list_rife_trt() {
 	std::vector<std::string> models;
 
 	std::error_code ec;
-	for (const auto& entry : std::filesystem::directory_iterator(get_trt_path(), ec)) {
+	for (const auto& entry : std::filesystem::directory_iterator(get_rife_trt_path(), ec)) {
 		if (entry.is_regular_file(ec) && entry.path().extension() == ".onnx")
 			models.push_back(u::path_to_string(entry.path().stem()));
 	}
