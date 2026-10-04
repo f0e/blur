@@ -45,6 +45,9 @@ def load(path: Path) -> vs.VideoNode:
 #  - has detail (`_local_contrast`): the pixel differs from its surroundings at all. required as well, so flat
 #    areas like empty sky don't get masked (and then stutter when something crosses them)
 #
+# a sample only counts towards the first two when the area around the pixel changed since the previous sample.
+# otherwise a clip that spends most of its time looking at one spot makes that spot look static
+#
 # the mask is kept tight to the overlay, since masked background stutters and looks worse than the artifacts
 
 # frames sampled from across the clip. each one is a seek and a decode
@@ -70,6 +73,13 @@ MIN_CONSISTENCY = 0.9
 
 # how different a pixel can be between samples and still count as unchanged, to allow for compression noise
 SAME_PIXEL_THRESHOLD = 0.03
+
+# the area around a pixel has to change by this much on average (radius at 1080p) for a pair of samples to count
+MOVED_RADIUS_PX_1080P = 48
+MOVED_THRESHOLD = 0.02
+
+# pixels whose surroundings changed in fewer pairs of samples than this aren't masked, there's too little to go on
+MIN_MOVED_PAIRS = 3
 
 # how far a pixel has to be from the median of the box around it to stand out, and the box radius at 1080p. the
 # box should be over twice as wide as an overlay's strokes, or the median is the stroke itself
@@ -251,14 +261,25 @@ def _best_plane(clip: vs.VideoNode) -> vs.VideoNode:
     return best
 
 
-def _held_still(samples: list[vs.VideoNode]) -> vs.VideoNode:
-    """How much of the time each pixel was the same as in the previous sample, 0-1. Compares consecutive pairs so
-    one odd frame only affects two pairs."""
-    counted = core.std.BlankClip(samples[0], color=0.0)
-    for a, b in itertools.pairwise(samples):
-        counted = core.std.Expr([counted, a, b], f"y z - abs {SAME_PIXEL_THRESHOLD} < x 1 + x ?")
+def _moved(brightness: list[vs.VideoNode], radius: int) -> list[vs.VideoNode]:
+    """For each pair of consecutive samples, 1 where the area around the pixel changed between them."""
+    return [
+        core.std.Expr(
+            core.std.BoxBlur(core.std.Expr([a, b], "x y - abs"), hradius=radius, vradius=radius),
+            f"x {MOVED_THRESHOLD} > 1 0 ?",
+        )
+        for a, b in itertools.pairwise(brightness)
+    ]
 
-    return core.std.Expr(counted, f"x {len(samples) - 1} /")
+
+def _held_still(brightness: list[vs.VideoNode], moved: list[vs.VideoNode]) -> vs.VideoNode:
+    """How many of the pairs that moved each pixel stayed the same in. Compares consecutive pairs so one odd frame
+    only affects two pairs."""
+    counted = core.std.BlankClip(brightness[0], color=0.0)
+    for (a, b), changed in zip(itertools.pairwise(brightness), moved):
+        counted = core.std.Expr([counted, a, b, changed], f"y z - abs {SAME_PIXEL_THRESHOLD} < a and x 1 + x ?")
+
+    return counted
 
 
 def _local_median(clip: vs.VideoNode, radius: int) -> vs.VideoNode:
@@ -273,25 +294,38 @@ def _local_median(clip: vs.VideoNode, radius: int) -> vs.VideoNode:
     return core.akarin.Expr(clip, f"{down} {middle}")
 
 
-def _local_contrast(samples: list[vs.VideoNode], radius: int) -> tuple[vs.VideoNode, vs.VideoNode]:
-    """How much of the time each pixel was on the same side of its neighbours (stands out), and on either side
-    (has detail), 0-1. Each plane is measured separately and the highest wins."""
+def _every_plane(gray: vs.VideoNode, like: vs.VideoNode) -> vs.VideoNode:
+    """A GRAY clip copied into each plane of `like`'s format, so expressions can combine the two."""
+    planes = like.format.num_planes
+    if planes == 1:
+        return gray
+
+    return core.std.ShufflePlanes([gray] * planes, [0] * planes, like.format.color_family)
+
+
+def _local_contrast(
+    samples: list[vs.VideoNode], radius: int, moved: list[vs.VideoNode]
+) -> tuple[vs.VideoNode, vs.VideoNode, vs.VideoNode]:
+    """How many of the samples that moved each pixel was on the same side of its neighbours in (stands out), how
+    many samples moved, and how much of the time it was on either side (has detail, 0-1). Each plane is measured
+    separately and the highest wins. The first sample goes by the first pair."""
     blank = core.std.BlankClip(samples[0], color=[0.0] * samples[0].format.num_planes)
-    above, below = blank, blank
+    above, below, either, counted = blank, blank, blank, blank
 
-    for sample in samples:
+    for index, sample in enumerate(samples):
         local = _local_median(sample, radius)
+        changed = _every_plane(moved[max(0, index - 1)], sample)
 
-        # difference computed inline to save memory, every sample's intermediates are live at once
-        above = core.std.Expr([above, sample, local], f"y z - {LOCAL_CONTRAST} > x 1 + x ?")
-        below = core.std.Expr([below, sample, local], f"y z - -{LOCAL_CONTRAST} < x 1 + x ?")
+        # differences computed inline to save memory, every sample's intermediates are live at once
+        above = core.std.Expr([above, sample, local, changed], f"y z - {LOCAL_CONTRAST} > a and x 1 + x ?")
+        below = core.std.Expr([below, sample, local, changed], f"y z - -{LOCAL_CONTRAST} < a and x 1 + x ?")
+        either = core.std.Expr([either, sample, local], f"y z - abs {LOCAL_CONTRAST} > x 1 + x ?")
+        counted = core.std.Expr([counted, changed], "x y +")
 
-    count = len(samples)
+    stands_out = _best_plane(core.std.Expr([above, below], "x y max"))
+    has_detail = _best_plane(core.std.Expr(either, f"x {len(samples)} /"))
 
-    stands_out = _best_plane(core.std.Expr([above, below], f"x y max {count} /"))
-    has_detail = _best_plane(core.std.Expr([above, below], f"x y + {count} /"))
-
-    return stands_out, has_detail
+    return stands_out, _plane(counted, 0), has_detail
 
 
 def measure(clip: vs.VideoNode, samples: int = SAMPLE_COUNT) -> vs.VideoNode | None:
@@ -313,14 +347,25 @@ def measure(clip: vs.VideoNode, samples: int = SAMPLE_COUNT) -> vs.VideoNode | N
     frames = [analysed[i] for i in indices]
 
     # in analysis pixels
-    radius = max(1, round(LOCAL_RADIUS_PX_1080P * analysed.height / 1080))
+    scale = analysed.height / 1080
+    radius = max(1, round(LOCAL_RADIUS_PX_1080P * scale))
+    moved_radius = max(1, round(MOVED_RADIUS_PX_1080P * scale))
 
     # only brightness for _held_still, desaturated scenery would always have the same chroma
     brightness = [_plane(frame, 0) for frame in frames]
+    moved = _moved(brightness, moved_radius)
 
-    stands_out, has_detail = _local_contrast(frames, radius)
+    pairs = core.std.BlankClip(brightness[0], color=0.0)
+    for changed in moved:
+        pairs = core.std.Expr([pairs, changed], "x y +")
 
-    static = core.std.Expr([_held_still(brightness), stands_out], "x y max")
+    held = _held_still(brightness, moved)
+    stands_out, samples_moved, has_detail = _local_contrast(frames, radius, moved)
+
+    static = core.std.Expr(
+        [held, pairs, stands_out, samples_moved],
+        f"y {MIN_MOVED_PAIRS} < 0 x y / z a / max ?",
+    )
 
     scores = core.std.StackVertical([static, has_detail])
 
