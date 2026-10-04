@@ -110,12 +110,16 @@ void BlurPreview::update(const Request& request) {
 	m_requested_target = output_seek_target(request.settings, request.video_info, request.position);
 
 	if (auto error = m_player->take_load_error()) {
-		auto parsed = rendering::parse_error_output(*error);
+		// mpv only knows the script didn't load, the script writes why to its log
+		std::ifstream log(m_log_path);
+		std::string output = std::string(std::istreambuf_iterator<char>(log), {}) + *error;
+
+		auto parsed = rendering::parse_error_output(output);
 		fail(
 			parsed ? *parsed
 				   : rendering::RenderError{
 						 .user_message = "Failed to load blur.py",
-						 .technical_details = *error,
+						 .technical_details = output,
 					 }
 		);
 	}
