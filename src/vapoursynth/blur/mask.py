@@ -48,6 +48,9 @@ def load(path: Path) -> vs.VideoNode:
 # a sample only counts towards the first two when the area around the pixel changed since the previous sample.
 # otherwise a clip that spends most of its time looking at one spot makes that spot look static
 #
+# `track` then adds whatever holds still in each frame on top, for overlays that come and go (kill feeds, ammo
+# counts, scoreboards) and so never make it into the whole clip mask
+#
 # the mask is kept tight to the overlay, since masked background stutters and looks worse than the artifacts
 
 # frames sampled from across the clip. each one is a seek and a decode
@@ -118,8 +121,30 @@ NOTHING_SUFFIX = ".nothing"
 # minimum static area in pixels at 1080p, just under a dot crosshair
 MIN_STATIC_PX_1080P = 16
 
-# more of the frame than this being static means it's not a hud (e.g. a locked off shot), so no mask is made
+# more of the frame than this being static means it's not a hud (e.g. a locked off shot), so no whole clip mask
+# is made
 MAX_STATIC_FRACTION = 0.5
+
+# `track`: a pixel holds still in a frame when it changes by less than STILL_THRESHOLD, or STILL_RATIO of how
+# much the area around it changes (the median, radius at 1080p) if that's more. compression gets noisier as the
+# scene moves, so static text can change by a few levels during a flick
+STILL_THRESHOLD = 0.012
+STILL_RATIO = 0.15
+STILL_AREA_RADIUS_PX_1080P = 24
+
+# it has to hold still for this long on at least one side of the frame, slow scenery can stay under the
+# threshold for a frame or two
+STILL_SECONDS = 0.05
+
+# and in most frames this far either side, so the mask doesn't flicker
+STILL_VOTE_SECONDS = 0.04
+
+# still pixels are dropped unless this much of the box around them is still too
+STILL_CLUSTER_COVERAGE = 0.25
+
+# more of a frame's detail holding still than this means the camera is, and then nothing moving is there to tell
+# overlays apart from the scene
+MAX_STILL_DETAIL = 0.25
 
 
 # `measure` is the slow part (reads the video) and only depends on `samples`. `shape` turns its scores into a mask
@@ -339,9 +364,7 @@ def measure(clip: vs.VideoNode, samples: int = SAMPLE_COUNT) -> vs.VideoNode | N
 
     # asking for fewer samples than the minimum still makes a mask
     if len(indices) < min(MIN_SAMPLES, samples):
-        log.info(
-            f"Mask: only {len(indices)} frames differ from each other, not enough to find a mask. Rendering unmasked"
-        )
+        log.info(f"Mask: only {len(indices)} frames differ from each other, not enough to find a whole clip mask")
         return None
 
     frames = [analysed[i] for i in indices]
@@ -417,28 +440,34 @@ def shape(scores: vs.VideoNode, params: Params = DEFAULT_PARAMS) -> vs.VideoNode
     found = fraction * static.width * static.height
 
     if found < max(1, round(MIN_STATIC_PX_1080P * scale * scale)):
-        log.info(f"Mask: nothing static found ({found:.0f} pixels). Rendering unmasked")
+        log.info(f"Mask: nothing static across the whole clip ({found:.0f} pixels)")
         return None
 
     if fraction > MAX_STATIC_FRACTION:
-        log.info(f"Mask: {fraction:.1%} of the frame is static, too much to be an overlay. Rendering unmasked")
+        log.info(
+            f"Mask: {fraction:.1%} of the frame is static, too much to be an overlay. Leaving the whole clip mask out"
+        )
         return None
 
     log.info(f"Mask: protecting the {fraction:.2%} of the frame that never moves")
 
-    padding, feather = scaled(params.padding), scaled(params.feather)
-
-    # grown a ring at a time, with the outer `feather` rings fading out. the fade stays inside the padding and
-    # never eats into what was detected, since a tight mask's edge is the overlay's own edge
-    fade = min(feather, padding)
-    grown = static
-    for ring in range(1, padding + 1):
-        grown = core.std.Maximum(grown)
-        strength = min(1, (padding - ring + 1) / (fade + 1))
-        static = core.std.Expr([static, grown], f"x y {strength} * max")
+    static = _grown(static, scaled(params.padding), scaled(params.feather))
 
     # white means interpolate as normal
     return _detached(core.std.Expr(static, "1 x -"))
+
+
+def _grown(found: vs.VideoNode, padding: int, feather: int) -> vs.VideoNode:
+    """`found` (1 where protected) grown a ring at a time, with the outer `feather` rings fading out. The fade stays
+    inside the padding and never eats into what was found, since a tight mask's edge is the overlay's own edge."""
+    fade = min(feather, padding)
+    grown = found
+    for ring in range(1, padding + 1):
+        grown = core.std.Maximum(grown)
+        strength = min(1, (padding - ring + 1) / (fade + 1))
+        found = core.std.Expr([found, grown], f"x y {strength} * max")
+
+    return found
 
 
 def generate(clip: vs.VideoNode, params: Params = DEFAULT_PARAMS) -> vs.VideoNode | None:
@@ -446,6 +475,125 @@ def generate(clip: vs.VideoNode, params: Params = DEFAULT_PARAMS) -> vs.VideoNod
     scores = measure(clip, params.samples)
 
     return None if scores is None else shape(scores, params)
+
+
+def _tracked(clip: vs.VideoNode) -> vs.VideoNode:
+    """`clip` ready for `track`: 4:4:4 at its own bit depth (so 8 bit stays cheap), no taller than
+    MAX_ANALYSIS_HEIGHT."""
+    fmt = clip.format
+    bits = 8 if fmt.sample_type == vs.INTEGER and fmt.bits_per_sample <= 8 else 16
+    family = vs.GRAY if fmt.color_family == vs.GRAY else vs.YUV
+    convert = {"format": core.query_video_format(family, vs.INTEGER, bits, 0, 0).id}
+
+    if fmt.color_family == vs.RGB:
+        # any matrix works, the values are only compared against each other
+        convert["matrix_s"] = "709"
+
+    if clip.height <= MAX_ANALYSIS_HEIGHT:
+        return core.resize.Point(clip, **convert)
+
+    return core.resize.Bilinear(
+        clip,
+        width=round(clip.width * MAX_ANALYSIS_HEIGHT / clip.height / 2) * 2,
+        height=MAX_ANALYSIS_HEIGHT,
+        **convert,
+    )
+
+
+def _shifted(clip: vs.VideoNode, offset: int) -> vs.VideoNode:
+    """`clip` moved `offset` frames earlier (later when negative), holding the end frame to keep the length."""
+    if offset > 0:
+        return clip[offset:] + clip[-1] * offset
+
+    return clip[0] * -offset + clip[:offset]
+
+
+def track(clip: vs.VideoNode, static: vs.VideoNode | None, params: Params = DEFAULT_PARAMS) -> vs.VideoNode:
+    """`static` plus whatever has detail and holds still in each frame of `clip`, as a mask with one frame for
+    each of `clip`'s."""
+    analysed = _tracked(clip)
+    peak = (1 << analysed.format.bits_per_sample) - 1
+    scale = analysed.height / 1080
+    fps = analysed.fps_num / analysed.fps_den if analysed.fps_num else 60
+
+    padding = max(1, round(params.padding * scale)) if params.padding > 0 else 0
+    feather = max(1, round(params.feather * scale)) if params.feather > 0 else 0
+
+    if analysed.num_frames < 2:
+        return static if static is not None else core.std.BlankClip(analysed, format=vs.GRAYS, color=1.0)
+
+    # compared against frames this far away on each side, the ends of the span and the middle
+    span = min(max(1, round(STILL_SECONDS * fps)), analysed.num_frames - 1)
+    offsets = sorted({1, max(1, span // 2), span})
+
+    # how much the area around each pixel changes over the span, in brightness
+    brightness = _plane(analysed, 0)
+    area_radius = max(1, round(STILL_AREA_RADIUS_PX_1080P * scale / 8))
+
+    def area_change(offset: int) -> vs.VideoNode:
+        change = core.std.Expr([brightness, _plane(_shifted(analysed, offset), 0)], "x y - abs")
+
+        # the median at an eighth of the size, so one moving edge doesn't raise it for everything near it
+        small = core.resize.Bilinear(change, width=max(8, analysed.width // 8), height=max(8, analysed.height // 8))
+        return core.resize.Bilinear(_local_median(small, area_radius), width=analysed.width, height=analysed.height)
+
+    area = core.std.Expr([area_change(span), area_change(-span)], "x y max")
+
+    # one expression for the whole test, since every clip here holds frames from across the span
+    later = [_shifted(analysed, offset) for offset in offsets]
+    earlier = [_shifted(analysed, -offset) for offset in offsets]
+    clips = [analysed, *later, *earlier, _every_plane(area, analysed)]
+    threshold = f"{STILL_THRESHOLD * peak} src{len(clips) - 1} {STILL_RATIO} * max"
+
+    def held(side: range) -> str:
+        changes = " ".join(f"src{i} src0 - abs" for i in side) + " max" * (len(side) - 1)
+        return f"{changes} {threshold} <="
+
+    after = range(1, 1 + len(offsets))
+    before = range(1 + len(offsets), 1 + 2 * len(offsets))
+
+    # still for the span on either side, and against both neighbours
+    neighbours = f"{held(range(after.start, after.start + 1))} {held(range(before.start, before.start + 1))} and"
+    expression = f"{held(after)} {held(before)} or {neighbours} and {peak} 0 ?"
+    per_plane = core.akarin.Expr(clips, expression)
+
+    # every plane has to hold still
+    still = _plane(per_plane, 0)
+    for index in range(1, analysed.format.num_planes):
+        still = core.std.Expr([still, _plane(per_plane, index)], "x y min")
+
+    radius = max(1, round(LOCAL_RADIUS_PX_1080P * scale))
+    local = _local_median(analysed, radius)
+    detail = _best_plane(core.akarin.Expr([analysed, local], f"x y - abs {LOCAL_CONTRAST * peak} > {peak} 0 ?"))
+
+    found = core.std.Expr([still, detail], "x y min")
+    density = core.std.BoxBlur(found, hradius=CLUSTER_RADIUS, vradius=CLUSTER_RADIUS)
+    found = core.std.Expr([found, density], f"y {STILL_CLUSTER_COVERAGE * peak} < 0 x ?")
+
+    # nothing is moving to tell overlays from the scene when most detail holds still
+    found = core.std.PlaneStats(found, prop="Found")
+    detail = core.std.PlaneStats(detail, prop="Detail")
+    found = core.akarin.Expr(
+        [found, detail],
+        f"x.FoundAverage y.DetailAverage 0.000001 + / {MAX_STILL_DETAIL} > 0 x ?",
+    )
+
+    vote = round(STILL_VOTE_SECONDS * fps)
+    if vote > 0:
+        found = core.std.AverageFrames(found, weights=[1] * (2 * vote + 1))
+
+    protected = core.std.Expr(found, f"x {peak / 2} >= 1 0 ?", format=vs.GRAYS)
+
+    # without the analysis' yuv matrix, which stops it being resized into an rgb clip
+    gray = core.std.RemoveFrameProps(core.std.Expr(_grown(protected, padding, feather), "1 x -"), "_Matrix")
+
+    if static is None:
+        return gray
+
+    static = core.resize.Bilinear(static, width=gray.width, height=gray.height, format=vs.GRAYS)
+
+    # black protects, so take the darker one
+    return core.std.Expr([gray, static], "x y min")
 
 
 # Caching
@@ -670,6 +818,9 @@ def combine(grays: list[vs.VideoNode]) -> vs.VideoNode:
     if len(grays) == 1:
         return grays[0]
 
+    # expressions take their length from the first clip, so a one frame mask can't cut a tracked one short
+    grays = sorted(grays, key=lambda gray: gray.num_frames, reverse=True)
+
     width = max(gray.width for gray in grays)
     height = max(gray.height for gray in grays)
 
@@ -742,8 +893,13 @@ def protect(interpolated: vs.VideoNode, original: vs.VideoNode, gray: vs.VideoNo
     """Put `original`'s pixels back wherever the mask is black."""
     base = match_length(original, interpolated)
 
+    # a tracked mask follows `original`'s frames, a one frame mask is just repeated
+    mask = match(gray, interpolated)
+    if gray.num_frames > 1:
+        mask = match_length(mask, interpolated)
+
     # white takes clipb (interpolated), black takes clipa (original)
-    return core.std.MaskedMerge(base, interpolated, match(gray, interpolated))
+    return core.std.MaskedMerge(base, interpolated, mask)
 
 
 def preview(clip: vs.VideoNode, grays: list[vs.VideoNode]) -> vs.VideoNode:

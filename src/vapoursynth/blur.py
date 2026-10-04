@@ -48,6 +48,7 @@ def build_mask_clips(
     auto_mask: bool,
     auto_mask_params: blur.mask.Params,
     mask_source: vs.VideoNode,
+    video: vs.VideoNode,
     video_path: Path,
     settings_path: Path,
     mask_start: int,
@@ -69,8 +70,8 @@ def build_mask_clips(
             auto_mask_params,
         )
 
-        if generated is not None:
-            mask_clips.append(generated)
+        # overlays that come and go are found frame by frame in what's being rendered
+        mask_clips.append(blur.mask.track(video, generated, auto_mask_params))
 
     return mask_clips
 
@@ -221,6 +222,7 @@ def main():
             auto_mask,
             auto_mask_params,
             mask_source,
+            video,
             video_path,
             settings_path,
             mask_start,
@@ -266,6 +268,7 @@ def main():
             auto_mask,
             auto_mask_params,
             mask_source,
+            video,
             video_path,
             settings_path,
             mask_start,
