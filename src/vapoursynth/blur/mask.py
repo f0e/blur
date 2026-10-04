@@ -11,7 +11,7 @@ import os
 import struct
 import zlib
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
@@ -175,6 +175,7 @@ class Params:
     padding: int = GROW_PX
     feather: int = FEATHER_PX
     enclosed: bool = True
+    enclosed_max_fps: int = 180
 
     @staticmethod
     def from_settings(settings: dict) -> "Params":
@@ -195,7 +196,14 @@ class Params:
             padding=number("auto_mask_padding", GROW_PX, 0, 128),
             feather=number("auto_mask_feather", FEATHER_PX, 0, 128),
             enclosed=settings.get("auto_mask_enclosed") is not False,
+            enclosed_max_fps=number("auto_mask_enclosed_max_fps", 180, 1, 100000),
         )
+
+    def for_clip(self, clip: vs.VideoNode) -> "Params":
+        """The settings as they apply to `clip`. Enclosed areas aren't masked above `enclosed_max_fps`, where
+        interpolation barely smears them."""
+        fps = clip.fps_num / clip.fps_den if clip.fps_num else 0
+        return replace(self, enclosed=self.enclosed and fps <= self.enclosed_max_fps)
 
 
 DEFAULT_PARAMS = Params()

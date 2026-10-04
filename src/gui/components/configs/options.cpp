@@ -924,6 +924,18 @@ void configs::options(ui::Container& container) {
 				fonts::dejavu
 			);
 
+			if (settings.advanced.auto_mask.enclosed) {
+				ui::add_slider(
+					"auto mask enclosed max fps slider",
+					container,
+					1,
+					1000,
+					&settings.advanced.auto_mask.enclosed_max_fps,
+					"auto mask enclosed max fps: {}",
+					fonts::dejavu
+				);
+			}
+
 			ui::add_slider(
 				"auto mask samples slider",
 				container,

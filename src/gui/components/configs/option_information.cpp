@@ -121,6 +121,13 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"auto mask enclosed max fps slider",
+			{
+				"Only masks enclosed areas for sources at or below this framerate",
+				"(at high framerates interpolation barely smears them, and the scene behind looks better blurred)",
+			},
+		},
+		{
 			"auto mask samples slider",
 			{
 				"How many frames are sampled to find the parts that never move",
