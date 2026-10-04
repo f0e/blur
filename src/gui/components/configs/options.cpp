@@ -15,11 +15,10 @@
 namespace configs = gui::components::configs;
 
 namespace {
-	// the model isn't shipped with every install, so it's only offered once it's there
+	// the models aren't shipped with every install, so it's only offered once there's one
 	bool gimm_installed() {
 #ifdef TENSORRT
-		std::error_code ec;
-		return std::filesystem::exists(interpolation_models::get_gimm_trt_path(), ec);
+		return !interpolation_models::list_gimm_trt().empty();
 #else
 		return false;
 #endif
@@ -496,17 +495,19 @@ void configs::options(ui::Container& container) {
 	ui::add_checkbox("upscale checkbox", container, "upscale", settings.upscale, fonts::dejavu);
 
 	/*
-	    Rife Models
+	    Interpolation Models
 	*/
 	bool uses_rife = settings.uses_interpolation_method("rife");
 #ifdef TENSORRT
 	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
+	bool uses_gimm = settings.uses_interpolation_method("gimm-vfi (tensorrt)");
 #else
 	bool uses_rife_trt = false;
+	bool uses_gimm = false;
 #endif
 
-	if (uses_rife || uses_rife_trt) {
-		section_component("rife models");
+	if (uses_rife || uses_rife_trt || uses_gimm) {
+		section_component("interpolation models");
 
 		// the folders are listed every frame so models dropped in show up straight away
 		if (uses_rife)
@@ -532,6 +533,15 @@ void configs::options(ui::Container& container) {
 				"rife (tensorrt) ensemble",
 				settings.rife_trt_ensemble,
 				fonts::dejavu
+			);
+		}
+
+		if (uses_gimm) {
+			model_dropdown(
+				"gimm-vfi (tensorrt) model",
+				interpolation_models::list_gimm_trt(),
+				settings.gimm_trt_model,
+				interpolation_models::get_gimm_trt_path()
 			);
 		}
 #endif

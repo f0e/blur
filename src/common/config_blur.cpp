@@ -196,16 +196,18 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "upscale: " << (settings.upscale ? "true" : "false") << "\n";
 	}
 
-	// Rife models section
+	// Interpolation models section
 	bool uses_rife = settings.uses_interpolation_method("rife");
 #ifdef TENSORRT
 	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
+	bool uses_gimm = settings.uses_interpolation_method("gimm-vfi (tensorrt)");
 #else
 	bool uses_rife_trt = false;
+	bool uses_gimm = false;
 #endif
-	if (!concise || uses_rife || uses_rife_trt) {
+	if (!concise || uses_rife || uses_rife_trt || uses_gimm) {
 		output << "\n";
-		output << "- rife models" << "\n";
+		output << "- interpolation models" << "\n";
 		if (!concise || uses_rife) {
 			output << "rife model: " << settings.rife_model << "\n";
 		}
@@ -213,6 +215,9 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		if (!concise || uses_rife_trt) {
 			output << "rife (tensorrt) model: " << settings.rife_trt_model << "\n";
 			output << "rife (tensorrt) ensemble: " << (settings.rife_trt_ensemble ? "true" : "false") << "\n";
+		}
+		if (!concise || uses_gimm) {
+			output << "gimm-vfi (tensorrt) model: " << settings.gimm_trt_model << "\n";
 		}
 #endif
 	}
@@ -469,6 +474,7 @@ BlurSettings config_blur::parse_from_map(
 #ifdef TENSORRT
 	config_base::extract_config_value(config_map, "rife (tensorrt) model", settings.rife_trt_model);
 	config_base::extract_config_value(config_map, "rife (tensorrt) ensemble", settings.rife_trt_ensemble);
+	config_base::extract_config_value(config_map, "gimm-vfi (tensorrt) model", settings.gimm_trt_model);
 #endif
 	config_base::extract_config_value(config_map, "mask", settings.mask);
 	if (settings.mask == masks::NONE_OPTION)
@@ -781,7 +787,7 @@ nlohmann::json BlurSettings::to_json() const {
 	j["rife_model"] = interpolation_models::get_rife_path() / this->rife_model;
 #ifdef TENSORRT
 	j["rife_trt_model"] = interpolation_models::get_rife_trt_path() / (this->rife_trt_model + ".onnx");
-	j["gimm_trt_model"] = interpolation_models::get_gimm_trt_path();
+	j["gimm_trt_model"] = interpolation_models::get_gimm_trt_path() / (this->gimm_trt_model + ".onnx");
 #endif
 	j["rife_trt_ensemble"] = this->rife_trt_ensemble;
 

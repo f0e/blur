@@ -84,12 +84,15 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 - copy dates - Copies over the modified date from the input file to the output file
 - upscale - Upscales to 4K using nearest-neighbour interpolation
 
-### RIFE models
+### Interpolation models
 
 - rife model - Model used by `rife`. Models are read from the `models` folder where blur is installed (`lib/models` on Windows), drop new ones in to use them
 - rife (tensorrt) model - Model used by `rife (tensorrt)`
   - rife_v4.26_large_motion - 4.26 estimating motion at half resolution. Follows fast motion at low framerates much better and is faster than rife_v4.26, but loses a little fine detail at high input framerates (240+). Made with `tools/export_rife_large_motion.py`
 - rife (tensorrt) ensemble - Runs RIFE a second time with the frames swapped and averages the two. Cleaner on fast motion, around twice as slow
+- gimm-vfi (tensorrt) model - Model used by `gimm-vfi (tensorrt)`. Both are the same speed, made with `tools/export_gimm_vfi.py`
+  - gimm_vfi_r_plain - Trained to match the real in-between frames. Scores a little closer to them
+  - gimm_vfi_r_lpips - Trained to look sharp. Once blurred it's very close to plain
 
 ### GPU acceleration
 
