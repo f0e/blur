@@ -158,24 +158,6 @@ STILL_CLUSTER_COVERAGE = 0.25
 # overlays apart from the scene
 MAX_STILL_DETAIL = 0.25
 
-# `_shows_through`: translucent and thin overlays (chat text) are never still, the scene changes their pixels. but
-# they vary less than the scene around them does, by how much of it they let through. compared over this long
-# before and after each frame, separately so an overlay that just appeared or went isn't smeared across the change
-THROUGH_SECONDS = 0.25
-
-# the scene around a pixel, as the median of the box this big (radius at 1080p)
-THROUGH_RADIUS_PX_1080P = 6
-
-# below this much variation around a pixel there's too little to compare against, so it's left alone
-THROUGH_MIN_VARIANCE = 1e-3
-
-# letting through more than this much of the scene counts as letting through all of it
-THROUGH_CUTOFF = 0.9
-
-# pixels are dropped unless this much of the box around them shows an overlay too, and unless they do in the frames
-# either side as well. lone pixels of scenery can look damped for a moment during a flick
-THROUGH_COVERAGE = 0.3
-
 # `estimate_layer`: how far past the whole clip mask (at 1080p) how much of the scene shows through is worked out,
 # for overlays' soft edges. further out the estimate is too noisy, and leaves a haze over the scene
 LAYER_GROW_PX_1080P = 2
@@ -750,48 +732,6 @@ def _shifted(clip: vs.VideoNode, offset: int) -> vs.VideoNode:
     return clip[0] * -offset + clip[:offset]
 
 
-def _shows_through(clip: vs.VideoNode) -> vs.VideoNode:
-    """How much of the scene shows through each pixel of each frame of `clip`, GRAYS at the analysis size (1 where
-    there's no overlay). From brightness: a layer letting b of the scene through varies b times as much as it."""
-    analysed = _analysed(clip)
-    fps = analysed.fps_num / analysed.fps_den if analysed.fps_num else 60
-
-    # each side's window is a few short averages next to each other, which all frames share
-    step = 5
-    steps = max(1, min(3, round(THROUGH_SECONDS * fps / step)))
-
-    brightness = _plane(analysed, 0)
-    around = _local_median(brightness, max(1, round(THROUGH_RADIUS_PX_1080P * analysed.height / 1080)))
-
-    # three of the four sums in one clip, so they're averaged together
-    sums = core.std.ShufflePlanes([brightness, around, core.std.Expr(brightness, "x x *")], [0, 0, 0], vs.YUV)
-    shared = [core.std.AverageFrames(c, weights=[1] * step) for c in (sums, core.std.Expr(around, "x x *"))]
-
-    def side(direction: int) -> vs.VideoNode:
-        offsets = [direction * (step // 2 + index * step) for index in range(steps)]
-        packed, around_squared = (
-            core.std.AverageFrames([_shifted(c, offset) for offset in offsets], weights=[1] * steps) for c in shared
-        )
-
-        # sqrt(variance of the pixel / variance of the scene around it)
-        return core.std.Expr(
-            [_plane(packed, 0), _plane(packed, 1), around_squared, _plane(packed, 2)],
-            f"z y y * - {THROUGH_MIN_VARIANCE} < 1 a x x * - 0 max z y y * - / sqrt 1 min ?",
-        )
-
-    through = core.std.Expr([side(-1), side(1)], f"x y max dup {THROUGH_CUTOFF} < swap 1 ?")
-
-    covered = core.std.Expr(through, "x 1 < 1 0 ?")
-    density = core.std.BoxBlur(covered, hradius=CLUSTER_RADIUS, vradius=CLUSTER_RADIUS)
-    through = core.std.Expr([through, density], f"y {THROUGH_COVERAGE} < 1 x ?")
-
-    if through.num_frames < 3:
-        return through
-
-    held = [through, _shifted(through, 1), _shifted(through, -1)]
-    return core.std.Expr(held, "x y max z max")
-
-
 def track(clip: vs.VideoNode, static: vs.VideoNode | None, params: Params = DEFAULT_PARAMS) -> vs.VideoNode:
     """`static` plus whatever has detail and holds still in each frame of `clip`, as a mask with one frame for
     each of `clip`'s."""
@@ -869,14 +809,8 @@ def track(clip: vs.VideoNode, static: vs.VideoNode | None, params: Params = DEFA
 
     protected = core.std.Expr(found, f"x {peak / 2} >= 1 0 ?", format=vs.GRAYS)
 
-    gray = core.std.Expr(_grown(protected, padding, feather), "1 x -")
-
-    # overlays the scene shows through, at however much it does
-    through = core.resize.Bilinear(_shows_through(clip), width=gray.width, height=gray.height)
-    gray = core.std.Expr([gray, through], "x y min")
-
     # without the analysis' yuv matrix, which stops it being resized into an rgb clip
-    gray = core.std.RemoveFrameProps(gray, "_Matrix")
+    gray = core.std.RemoveFrameProps(core.std.Expr(_grown(protected, padding, feather), "1 x -"), "_Matrix")
 
     if static is None:
         return gray
