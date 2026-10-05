@@ -91,7 +91,7 @@ def build_mask_clips(
                 )
 
         # overlays that come and go are found frame by frame in what's being rendered. the layer covers the rest
-        mask_clips.append(blur.mask.track(video, generated, auto_mask_params, layered=layer is not None))
+        mask_clips.append(blur.mask.track(video, None if layer else generated, auto_mask_params))
 
     return mask_clips, fixed, layer
 
