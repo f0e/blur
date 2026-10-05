@@ -176,6 +176,27 @@ THROUGH_CUTOFF = 0.9
 # either side as well. lone pixels of scenery can look damped for a moment during a flick
 THROUGH_COVERAGE = 0.3
 
+# `_whole_lines`: a partly protected overlay looks worse than an unprotected one, so what's found frame by frame
+# is decided a line of text at a time. a pixel with detail counts towards the line around it (radius at 1080p),
+# and the whole line is protected once this much of its detail was found
+LINE_RADIUS_PX_1080P = (45, 2)
+LINE_ACCEPT = 0.5
+
+# the decision is smoothed over this many frames either side so a line doesn't flicker
+LINE_STEADY_FRAMES = 2
+
+# detail this close to what was found (at 1080p) can join its line, and the line then grows this far for the
+# overlay's shadow and edges
+LINE_REACH_PX_1080P = 2
+LINE_GROW_PX_1080P = 2
+
+# how far from the median around it a pixel has to be to count as detail
+LINE_DETAIL = 0.04
+
+# only pixels that match the frame before or after are protected. the overlay does, the scene behind it doesn't
+# when the camera's moving, so none of that gets frozen in around the letters
+LINE_STILL = 0.05
+
 # `estimate_layer`: how far past the whole clip mask (at 1080p) how much of the scene shows through is worked out,
 # for overlays' soft edges. further out the estimate is too noisy, and leaves a haze over the scene
 LAYER_GROW_PX_1080P = 2
@@ -792,9 +813,59 @@ def _shows_through(clip: vs.VideoNode) -> vs.VideoNode:
     return core.std.Expr(held, "x y max z max")
 
 
-def track(clip: vs.VideoNode, static: vs.VideoNode | None, params: Params = DEFAULT_PARAMS) -> vs.VideoNode:
+def _whole_lines(analysed: vs.VideoNode, found: vs.VideoNode) -> vs.VideoNode:
+    """`found` (GRAYS, 0 where protected) protected a line at a time, rather than in specks."""
+    peak = (1 << analysed.format.bits_per_sample) - 1
+    scale = analysed.height / 1080
+
+    def scaled(pixels: int) -> int:
+        return max(1, round(pixels * scale))
+
+    brightness = _plane(analysed, 0)
+    around = _local_median(brightness, scaled(LOCAL_RADIUS_PX_1080P))
+    detail = core.std.Expr([brightness, around], f"x y - abs {LINE_DETAIL * peak} > 1 0 ?", format=vs.GRAYS)
+
+    found = core.std.Expr(found, "x 0.9 < 1 0 ?")
+    found_detail = core.std.Expr([found, detail], "x y min")
+
+    across, down = (scaled(r) for r in LINE_RADIUS_PX_1080P)
+    share = core.std.Expr(
+        [
+            core.std.BoxBlur(found_detail, hradius=across, vradius=down),
+            core.std.BoxBlur(detail, hradius=across, vradius=down),
+        ],
+        "y 0.02 > x y / 0 ?",
+    )
+    if share.num_frames > 2 * LINE_STEADY_FRAMES:
+        share = core.std.AverageFrames(share, weights=[1] * (2 * LINE_STEADY_FRAMES + 1))
+
+    near = found
+    for _ in range(scaled(LINE_REACH_PX_1080P)):
+        near = core.std.Maximum(near)
+
+    lines = core.std.Expr([detail, near, share], f"x y min z {LINE_ACCEPT} >= and 1 0 ?")
+    for _ in range(scaled(LINE_GROW_PX_1080P)):
+        lines = core.std.Maximum(lines)
+
+    # every plane has to match a neighbouring frame
+    before, after = _shifted(analysed, -1), _shifted(analysed, 1)
+    threshold = LINE_STILL * peak
+    matching = core.std.Expr(
+        [analysed, before, after], f"x y - abs {threshold} < x z - abs {threshold} < or {peak} 0 ?"
+    )
+    held = _plane(matching, 0)
+    for index in range(1, analysed.format.num_planes):
+        held = core.std.Expr([held, _plane(matching, index)], "x y min")
+
+    return core.std.Expr([lines, held], f"x 0.5 >= y {peak / 2} >= and 0 1 ?", format=vs.GRAYS)
+
+
+def track(
+    clip: vs.VideoNode, static: vs.VideoNode | None, params: Params = DEFAULT_PARAMS, layered: bool = False
+) -> vs.VideoNode:
     """`static` plus whatever has detail and holds still in each frame of `clip`, as a mask with one frame for
-    each of `clip`'s."""
+    each of `clip`'s. With `layered`, `static` only helps find overlays and isn't part of the mask, since a layer
+    covers it."""
     analysed = _tracked(clip)
     peak = (1 << analysed.format.bits_per_sample) - 1
     scale = analysed.height / 1080
@@ -804,7 +875,9 @@ def track(clip: vs.VideoNode, static: vs.VideoNode | None, params: Params = DEFA
     feather = max(1, round(params.feather * scale)) if params.feather > 0 else 0
 
     if analysed.num_frames < 2:
-        return static if static is not None else core.std.BlankClip(analysed, format=vs.GRAYS, color=1.0)
+        if static is None or layered:
+            return core.std.BlankClip(analysed, format=vs.GRAYS, color=1.0, length=1)
+        return static
 
     # compared against frames this far away on each side, the ends of the span and the middle
     span = min(max(1, round(STILL_SECONDS * fps)), analysed.num_frames - 1)
@@ -871,20 +944,22 @@ def track(clip: vs.VideoNode, static: vs.VideoNode | None, params: Params = DEFA
 
     gray = core.std.Expr(_grown(protected, padding, feather), "1 x -")
 
-    # overlays the scene shows through, at however much it does
+    # overlays the scene shows through
     through = core.resize.Bilinear(_shows_through(clip), width=gray.width, height=gray.height)
     gray = core.std.Expr([gray, through], "x y min")
 
-    # without the analysis' yuv matrix, which stops it being resized into an rgb clip
-    gray = core.std.RemoveFrameProps(gray, "_Matrix")
+    if static is not None:
+        static = core.resize.Bilinear(static, width=gray.width, height=gray.height, format=vs.GRAYS)
+        gray = core.std.Expr([gray, static], "x y min")
 
-    if static is None:
-        return gray
-
-    static = core.resize.Bilinear(static, width=gray.width, height=gray.height, format=vs.GRAYS)
+    gray = _whole_lines(analysed, gray)
 
     # black protects, so take the darker one
-    return core.std.Expr([gray, static], "x y min")
+    if static is not None and not layered:
+        gray = core.std.Expr([gray, static], "x y min")
+
+    # without the analysis' yuv matrix, which stops it being resized into an rgb clip
+    return core.std.RemoveFrameProps(gray, "_Matrix")
 
 
 # Caching
