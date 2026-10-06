@@ -529,6 +529,8 @@ def _ffprobe_packets(path: Path) -> tuple[np.ndarray, np.ndarray] | None:
         capture_output=True,
         text=True,
         check=False,
+        # avoid console window flashing
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     if out.returncode != 0:
         return None
