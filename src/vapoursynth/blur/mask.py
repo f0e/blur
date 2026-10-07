@@ -805,7 +805,7 @@ def track(clip: vs.VideoNode, static: vs.VideoNode | None, params: Params = DEFA
 
     vote = round(STILL_VOTE_SECONDS * fps)
     if vote > 0:
-        found = core.std.AverageFrames(found, weights=[1] * (2 * vote + 1))
+        found = core.frameblender.FrameBlend(found, weights=[1] * (2 * vote + 1))
 
     protected = core.std.Expr(found, f"x {peak / 2} >= 1 0 ?", format=vs.GRAYS)
 
