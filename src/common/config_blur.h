@@ -32,7 +32,7 @@ struct AdvancedSettings {
 	std::string blur_weighting_gaussian_bound = "[0,2]";
 
 	std::string svp_interpolation_preset = "quality";
-	std::string svp_interpolation_algorithm = "23";
+	std::string svp_interpolation_algorithm = "auto";
 	std::string interpolation_blocksize = "8";
 	int interpolation_mask_area = 0;
 
@@ -138,7 +138,7 @@ namespace config_blur {
 	};
 
 	inline const std::vector<std::string> SVP_INTERPOLATION_ALGORITHMS = {
-		"1", "2", "11", "13", "21", "23",
+		"auto", "1", "2", "11", "13", "21", "23",
 	};
 
 	inline const std::vector<std::string> INTERPOLATION_BLOCK_SIZES = { "4", "8", "16", "32" };

@@ -168,8 +168,9 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
   - default _(Default SVP settings)_
   - test
 - svp interpolation algorithm - Algorithm used for framerate interpolation when using SVP, one of:
-  - 23 - Smoothest on fast motion, can smear (default) - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
-  - 13 - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
+  - auto (default) - 23 when the video reaches SVP below 240fps, 13 from 240fps up. Pre-interpolation counts, so a 120fps video pre-interpolated to 240fps gets 13
+  - 23 - Smoothest on fast motion, but smears static things like a HUD more - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
+  - 13 - Keeps a HUD cleaner, but leaves blocky gaps and sharp copies in the blur on fast motion at low framerates - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - 1 - _[Explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
   - 2 - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - 11 - _[Explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_

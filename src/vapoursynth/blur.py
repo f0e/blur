@@ -258,9 +258,14 @@ def main():
         return
 
     # validate some settings
-    svp_interpolation_algorithm = u.coalesce(
-        u.safe_int(settings["svp_interpolation_algorithm"]),
-        blur.interpolate.DEFAULT_ALGORITHM,
+    # none picks one per interpolation from the framerate reaching svp
+    svp_interpolation_algorithm = (
+        None
+        if settings["svp_interpolation_algorithm"] == "auto"
+        else u.coalesce(
+            u.safe_int(settings["svp_interpolation_algorithm"]),
+            blur.interpolate.DEFAULT_ALGORITHM,
+        )
     )
 
     interpolation_blocksize = u.coalesce(
@@ -365,7 +370,11 @@ def main():
                         video_info=video_info,
                         new_fps=new_fps,
                         preset=settings["svp_interpolation_preset"],
-                        algorithm=svp_interpolation_algorithm,
+                        algorithm=(
+                            blur.interpolate.auto_algorithm(video.fps)
+                            if svp_interpolation_algorithm is None
+                            else svp_interpolation_algorithm
+                        ),
                         blocksize=interpolation_blocksize,
                         overlap=0,
                         masking=interpolation_mask_area,
