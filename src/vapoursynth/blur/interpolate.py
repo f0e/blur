@@ -43,6 +43,10 @@ TUNED_OVERLAP = 3
 
 DEFAULT_PRESET = "quality"
 DEFAULT_ALGORITHM = 23
+
+# 23 follows large motion better, 13 smears static things like a hud less. from this framerate up the motion between
+# frames is small enough that 13 loses nothing visible
+AUTO_ALGORITHM_MIN_FPS = 240
 DEFAULT_BLOCKSIZE = 8
 DEFAULT_OVERLAP = 2
 DEFAULT_SPEED = "medium"
@@ -390,6 +394,11 @@ def svp(
         vs.YUV420P8,
         process,
     )
+
+
+def auto_algorithm(fps) -> int:
+    """The svp algorithm for footage reaching svp at `fps`, after any pre-interpolation."""
+    return 13 if round(fps) >= AUTO_ALGORITHM_MIN_FPS else 23
 
 
 def interpolate_svp(
