@@ -571,10 +571,6 @@ def main():
             blur_frames = int(frame_gap * settings["blur_amount"])
 
             if blur_frames > 0:
-                # number of weights must be odd
-                if blur_frames % 2 == 0:
-                    blur_frames += 1
-
                 weights = blur.weighting.parse(
                     blur_frames,
                     weighting_type=settings["blur_weighting"],

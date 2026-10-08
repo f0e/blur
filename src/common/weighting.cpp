@@ -98,9 +98,10 @@ weighting::WeightingResult weighting::gaussian_sym(int frames, double stddev, st
 weighting::WeightingResult weighting::vegas(int frames) {
 	std::vector<double> weights;
 	if (frames % 2 == 0) {
-		weights.reserve(frames);
+		// the ends are shared with the neighbouring output frames so they're halved, and the count is rounded up to odd
+		weights.reserve(frames + 1);
 		weights.push_back(1);
-		for (int i = 1; i < frames - 1; ++i)
+		for (int i = 1; i < frames; ++i)
 			weights.push_back(2);
 		weights.push_back(1);
 	}
@@ -156,6 +157,13 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 			return { .weights = {} };
 	}
 
+	// vegas needs the count before it's rounded up to odd, to know whether the end frames are shared
+	int raw_blended_frames = blended_frames;
+
+	// number of weights must be odd, matching the render
+	if (blended_frames % 2 == 0)
+		blended_frames++;
+
 	auto gaussian_bound = parse_gaussian_bound(settings.advanced.blur_weighting_gaussian_bound);
 	if (!gaussian_bound)
 		return { .error = "Failed to parse gaussian bound" };
@@ -201,7 +209,7 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 		  } },
 		{ "vegas",
 		  [&] {
-			  return vegas(blended_frames);
+			  return vegas(raw_blended_frames);
 		  } }
 	};
 
