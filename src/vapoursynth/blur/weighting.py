@@ -106,13 +106,14 @@ def gaussian_sym(frames: int, standard_deviation: Number = 1, bound: tuple[Numbe
 
 def vegas(frames: int) -> list[float]:
     """
-    Vegas-style weighting based on frame count.
+    Vegas-style weighting based on frame count, before it's rounded up to odd.
 
-    If frames is even: [1, 2, 2, ..., 2, 1]
+    If frames is even: [1, 2, 2, ..., 2, 1] (frames + 1 weights, the ends are shared with the neighbouring output frames
+                       so they're halved)
     If frames is odd:  [1, 1, 1, ..., 1]
     """
     if frames % 2 == 0:
-        weights = [1] + [2] * (frames - 2) + [1]
+        weights = [1] + [2] * (frames - 1) + [1]
     else:
         weights = [1] * frames
 
@@ -137,6 +138,14 @@ def parse(
     gaussian_mean: float,
     gaussian_bound: str,
 ):
+    # vegas needs the count before it's rounded up to odd, to know whether the end frames are shared
+    if weighting_type == "vegas":
+        return vegas(blur_frames)
+
+    # number of weights must be odd
+    if blur_frames % 2 == 0:
+        blur_frames += 1
+
     match weighting_type:
         case "equal":
             return equal(blur_frames)
@@ -172,9 +181,6 @@ def parse(
                 standard_deviation=gaussian_std_dev,
                 bound=gaussian_bound,
             )
-
-        case "vegas":
-            return vegas(blur_frames)
 
         case _:
             try:
