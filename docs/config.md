@@ -90,9 +90,8 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 - rife (tensorrt) model - Model used by `rife (tensorrt)`
   - rife_v4.26_large_motion - 4.26 estimating motion at half resolution. Follows fast motion at low framerates much better and is faster than rife_v4.26, but loses a little fine detail at high input framerates (240+). Made with `tools/export_rife_large_motion.py`
 - rife (tensorrt) ensemble - Runs RIFE a second time with the frames swapped and averages the two. Cleaner on fast motion, around twice as slow
-- gimm-vfi (tensorrt) model - Model used by `gimm-vfi (tensorrt)`. Both are the same speed, made with `tools/export_gimm_vfi.py`
-  - gimm_vfi_r_plain - Trained to match the real in-between frames. Scores a little closer to them
-  - gimm_vfi_r_lpips - Trained to look sharp. Once blurred it's very close to plain
+- gimm-vfi (tensorrt) model - Model used by `gimm-vfi (tensorrt)`, made with `tools/export_gimm_vfi.py`
+  - gimm_vfi_r_sharp - Keeps nearly all the fine detail in motion, and holds static HUD elements still instead of dragging them along with the scene behind. Small HUD details like the crosshair still need a mask
 
 ### GPU acceleration
 

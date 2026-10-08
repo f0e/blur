@@ -8,13 +8,14 @@ GIMM-VFI doesn't export as is, so this checks out a pinned commit and changes it
 - raft's correlation lookups and the decoders' warps become gathers rather than grid_sample. tensorrt fuses those
   grid_samples with the layers around them and gets the result wrong
 - a few spots that only work for one resolution, or don't export, are rewritten (see EDITS)
+- the output frame is put together sharper, and static hud is held still (see multi_flow_combine)
 
 The convolutions and the layers between them are stored in fp16, everything else stays fp32. build it as a strongly
 typed tensorrt engine (--stronglyTyped) with fp32 frames in and out. a plain fp16 engine is broken, since sampling
 coordinates need fp32, and fp16 frames cost about 1dB.
 
 Needs a cuda gpu, git, and: pip install torch onnx onnxscript omegaconf einops easydict yacs
-usage: python export_gimm_vfi.py OUT.onnx [--work DIR] [--iters 8] [--checkpoint plain|lpips] [--check]
+usage: python export_gimm_vfi.py OUT.onnx [--work DIR] [--iters 8] [--check]
 """
 
 import argparse
@@ -33,10 +34,10 @@ REPO = "https://github.com/GSeanCDAT/GIMM-VFI.git"
 COMMIT = "dbc56449994a3c2e045d46fd46bed570239913f8"
 WEIGHTS = "https://huggingface.co/GSean/GIMM-VFI/resolve/main/"
 
-# raft's flow is estimated at this fraction of the frame size
-FLOW_SCALE = 4
-
 INR = "src/models/generalizable_INR/"
+
+# raft's flow is estimated at this fraction of the frame size. 2 is barely better, at 6x the time and 4x the memory
+FLOW_SCALE = 4
 
 # (file, old, new). each old text has to be found exactly once
 EDITS = [
@@ -163,7 +164,7 @@ def checkout(work: Path) -> Path:
 
     ckpts = repo / "pretrained_ckpt"
     ckpts.mkdir(exist_ok=True)
-    for name in ("gimmvfi_r_arb_lpips.pt", "gimmvfi_r_arb.pt", "raft-things.pth"):
+    for name in ("gimmvfi_r_arb_lpips.pt", "raft-things.pth"):
         if not (ckpts / name).exists():
             print("downloading", name)
             urllib.request.urlretrieve(WEIGHTS + name, ckpts / name)
@@ -233,7 +234,102 @@ def warp(tenInput, tenFlow):
     return out
 
 
-def load(repo: Path, checkpoint: str):
+def cubic_weights(t, a=-0.75):
+    """weights of the 4 taps around a sample, t is how far past the second one it is. the same kernel as
+    grid_sample's bicubic"""
+    return (
+        ((a * (t + 1) - 5 * a) * (t + 1) + 8 * a) * (t + 1) - 4 * a,
+        ((a + 2) * t - (a + 3)) * t * t + 1,
+        ((a + 2) * (1 - t) - (a + 3)) * (1 - t) * (1 - t) + 1,
+        ((a * (2 - t) - 5 * a) * (2 - t) + 8 * a) * (2 - t) - 4 * a,
+    )
+
+
+def warp_cubic(tenInput, tenFlow):
+    """warp, but bicubic"""
+    n, c, h, w = tenInput.shape
+    ys = torch.arange(h, device=tenInput.device, dtype=tenInput.dtype).view(1, h, 1)
+    xs = torch.arange(w, device=tenInput.device, dtype=tenInput.dtype).view(1, 1, w)
+    x = (xs + tenFlow[:, 0]).clamp(0, w - 1)
+    y = (ys + tenFlow[:, 1]).clamp(0, h - 1)
+    x0, y0 = torch.floor(x), torch.floor(y)
+    wxs, wys = cubic_weights(x - x0), cubic_weights(y - y0)
+    flat = tenInput.reshape(n, c, h * w)
+    out = 0
+    for dy, wy in zip(range(-1, 3), wys):
+        row = (y0 + dy).clamp(0, h - 1) * w
+        for dx, wx in zip(range(-1, 3), wxs):
+            index = (row + (x0 + dx).clamp(0, w - 1)).long().reshape(n, 1, h * w).expand(n, c, h * w)
+            out = out + torch.gather(flat, 2, index).reshape(n, c, h, w) * (wx * wy).unsqueeze(1)
+    return out
+
+
+def multi_flow_combine(comb_block, img0, img1, flow0, flow1, mask=None, img_res=None, mean=None):
+    """drop-in for fi_components.multi_flow_combine, which makes the output frame from the decoder's few flow
+    estimates. the original warps the frames once per estimate and averages the results, which blurs wherever the
+    estimates differ by a fraction of a pixel. this warps once with their average instead, which keeps nearly all
+    the detail, and bicubic, since bilinear loses about a fifth of it. it also holds still whatever is static and
+    textured, like hud text, which the model otherwise drags along with the scene behind it"""
+    assert mean is None
+    b, c, h, w = flow0.shape
+    num_flows = c // 2
+    flow0 = flow0.reshape(b, num_flows, 2, h, w)
+    flow1 = flow1.reshape(b, num_flows, 2, h, w)
+    mask = mask.reshape(b, num_flows, 1, h, w)
+    img_res = img_res.reshape(b, num_flows, 3, h, w)
+
+    img0_warp = warp_cubic(img0, flow0.mean(1))
+    img1_warp = warp_cubic(img1, flow1.mean(1))
+    img_warps = mask * img0_warp.unsqueeze(1) + (1 - mask) * img1_warp.unsqueeze(1) + img_res
+
+    res = comb_block(img_warps.reshape(b, -1, h, w))
+    out = hold_static(img_warps.mean(1) + res, img0, img1, img0_warp, img1_warp)
+    return (out + 1.0) / 2
+
+
+# raft's flows between the two frames, kept by load() for hold_static, which runs deep inside the model
+raft_flows = {}
+
+
+def hold_static(out, img0, img1, img0_warp, img1_warp):
+    """Blends to the unmoved frames where they match each other better than the warped ones do. that's only
+    trusted on texture, flat sky matches itself while things move across it. matching is per pixel so hud edges
+    against a moving background still count, and isolated matches in the scene are dropped. raft's flow also has to
+    fail to explain the pixel, otherwise a repeating pattern that moved by a whole repeat (railings, fences) gets
+    held in pieces"""
+
+    def pool(x):
+        return F.avg_pool2d(x, 7, 1, 3, count_include_pad=False)
+
+    def texture(img):
+        return pool((img - pool(img)).abs().mean(1, keepdim=True))
+
+    still = (img0 - img1).abs().mean(1, keepdim=True)
+    warped = pool((img0_warp - img1_warp).abs().mean(1, keepdim=True))
+
+    h, w = img0.shape[-2:]
+    f01, f10 = raft_flows["f01"], raft_flows["f10"]
+    scale = w / f01.shape[-1]
+
+    def up(flow):
+        return scale * F.interpolate(flow, size=(h, w), mode="bilinear", align_corners=False)
+
+    moved0 = (img0 - warp(img1, up(f01))).abs().mean(1, keepdim=True)
+    moved1 = (img1 - warp(img0, up(f10))).abs().mean(1, keepdim=True)
+    unexplained = ((pool(torch.minimum(moved0, moved1) - still) - 0.02) / 0.02).clamp(0, 1)
+
+    textured = ((torch.minimum(texture(img0), texture(img1)) - 0.03) / 0.03).clamp(0, 1)
+    # images are -1..1 here. per pixel catches hud edges, the pooled match catches the rest of the hud
+    pixel = ((warped - still - 0.02) / 0.02).clamp(0, 1) * ((0.08 - still) / 0.04).clamp(0, 1)
+    # opening, keeps only runs at least 3px wide
+    pixel = F.max_pool2d(-F.max_pool2d(-pixel * textured, 3, 1, 1), 3, 1, 1)
+    still = pool(still)
+    pooled = ((warped - still - 0.02) / 0.02).clamp(0, 1) * ((0.08 - still) / 0.02).clamp(0, 1) * textured
+    hold = torch.maximum(pixel, pooled) * unexplained
+    return hold * (img0 + img1) / 2 + (1 - hold) * out
+
+
+def load(repo: Path):
     sys.path.insert(0, str(repo / "src"))
 
     # the cupy kernels are replaced below, so cupy only has to exist while importing. it can't stay, torch.export
@@ -257,6 +353,7 @@ def load(repo: Path, checkpoint: str):
     module("gimmvfi_r").softsplat = softsplat
     module("gimmvfi_r").warp = warp
     module("modules.fi_components").warp = warp
+    module("gimmvfi_r").multi_flow_combine = multi_flow_combine
     module("raft.corr").bilinear_sampler = sample
 
     config = GIMMVFIConfig.create(OmegaConf.load(repo / "configs" / "gimmvfi" / "gimmvfi_r_arb.yaml").arch)
@@ -268,11 +365,19 @@ def load(repo: Path, checkpoint: str):
     finally:
         os.chdir(cwd)
 
-    suffix = "_lpips" if checkpoint == "lpips" else ""
-    state = torch.load(repo / "pretrained_ckpt" / f"gimmvfi_r_arb{suffix}.pt", map_location="cpu")["state_dict"]
+    # the lpips checkpoint is tuned to look sharp, and once blurred scores as well as the plain one
+    state = torch.load(repo / "pretrained_ckpt" / "gimmvfi_r_arb_lpips.pt", map_location="cpu")["state_dict"]
     model.load_state_dict(state, strict=True)
     for p in model.parameters():
         p.requires_grad_(False)
+    estimate = model.cal_bidirection_flow
+
+    def keep_flows(im0, im1, iters=20):
+        out = estimate(im0, im1, iters=iters)
+        raft_flows["f01"], raft_flows["f10"] = out[1][:, :, 0], out[1][:, :, 1]
+        return out
+
+    model.cal_bidirection_flow = keep_flows
     return model.cuda().eval()
 
 
@@ -379,8 +484,6 @@ def main():
     parser.add_argument("--work", type=Path, default=Path("gimm-vfi-export"), help="where the checkout and weights go")
     # 8 matches 20 on blur's test footage and is faster
     parser.add_argument("--iters", type=int, default=8, help="raft iterations")
-    # lpips is tuned to look sharp, plain scores 0.2dB higher against real frames
-    parser.add_argument("--checkpoint", choices=("plain", "lpips"), default="plain")
     parser.add_argument("--check", action="store_true", help="compare the export with torch (needs onnxruntime)")
     args = parser.parse_args()
 
@@ -389,7 +492,7 @@ def main():
 
     args.work.mkdir(parents=True, exist_ok=True)
     repo = checkout(args.work.resolve())
-    model = RifeInterface(load(repo, args.checkpoint), args.iters).eval()
+    model = RifeInterface(load(repo), args.iters).eval()
 
     x = torch.rand(1, 7, 512, 896, device="cuda")
     x[:, 6] = 0.5
