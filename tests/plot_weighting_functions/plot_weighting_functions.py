@@ -19,6 +19,7 @@ def plot_analysis(frames: int):
     # Row 1, Col 1: All basic functions comparison
     functions = {
         "Equal": blur.weighting.equal(frames),
+        "Cosine": blur.weighting.cosine(frames),
         "Ascending": blur.weighting.ascending(frames),
         "Descending": blur.weighting.descending(frames),
         "Gaussian": blur.weighting.gaussian(frames, standard_deviation=1),
@@ -36,6 +37,7 @@ def plot_analysis(frames: int):
         "#8c564b",
         "#e377c2",
         "#7f7f7f",
+        "#bcbd22",
     ]
 
     for i, (name, weights) in enumerate(functions.items()):

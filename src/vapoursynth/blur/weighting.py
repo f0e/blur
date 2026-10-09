@@ -38,6 +38,17 @@ def equal(frames: int) -> list[float]:
     return [1 / frames] * frames
 
 
+def cosine(frames: int) -> list[float]:
+    """
+    Raised cosine (hann) shutter, zero at both ends. At blur amount 2 neighbouring output frames' windows sum to a
+    constant, so fast motion leaves one continuous trail.
+    """
+    if frames <= 1:
+        return [1.0] * frames
+
+    return normalize([1 - math.cos(2 * math.pi * i / (frames - 1)) for i in range(frames)])
+
+
 def ascending(frames: int) -> list[float]:
     """Linearly increasing weights."""
     return normalize(range(1, frames + 1))
@@ -150,6 +161,9 @@ def parse(
         case "equal":
             return equal(blur_frames)
 
+        case "cosine":
+            return cosine(blur_frames)
+
         case "ascending":
             return ascending(blur_frames)
 
@@ -188,5 +202,5 @@ def parse(
                 return divide(blur_frames, weights)
             except (ValueError, AttributeError):
                 raise u.BlurException(
-                    f"Invalid blur weighting type: {weighting_type}. Valid options are: 'equal', 'gaussian_sym', 'vegas', 'pyramid', 'gaussian', 'ascending', 'descending', 'gaussian_reverse', or a comma-separated list of custom weights (e.g. '1, 2, 3, 2, 1')."
+                    f"Invalid blur weighting type: {weighting_type}. Valid options are: 'equal', 'cosine', 'gaussian_sym', 'vegas', 'pyramid', 'gaussian', 'ascending', 'descending', 'gaussian_reverse', or a comma-separated list of custom weights (e.g. '1, 2, 3, 2, 1')."
                 )
