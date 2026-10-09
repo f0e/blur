@@ -527,8 +527,8 @@ def main():
             log.info(f"added {fps_added} (interp: {interpolated_fps}. video.fps: {video.fps}/{interpolated_fps})")
 
     if timeline is not None:
-        # no interpolation, so deduplication fills its own gaps using 'deduplicate method'
-        method = settings["deduplicate_method"]
+        # no interpolation, so retiming fills its own gaps using 'retime method'
+        method = settings["retime_method"]
         log.info(f"filling duplicate frames with {method}")
 
         if method == "old" and logged_timing is not None:

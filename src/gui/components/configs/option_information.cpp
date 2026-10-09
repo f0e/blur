@@ -276,13 +276,14 @@ void configs::option_information(ui::Container& container) {
 			{
 				"For use with the obs-frame-timing-recorder OBS plugin",
 				"Uses the .frametiming files it generates to work out when each frame was really drawn, resulting in much smoother blur",
-				"This also replaces deduplication, as it's more accurate",
+				"This replaces deduplication for videos that have a log, as it's more accurate",
 			},
 		},
 		{
-			"deduplicate method dropdown",
+			"retime method dropdown",
 			{
-				"Method used to replace duplicate frames (only used when interpolation is off)",
+				"Method used to replace duplicate frames and fill the gaps frame timing logs leave (only used when "
+				"interpolation is off)",
 				// todo: update with mvtools
 				"Quality: rife = rife (tensorrt) > svp",
 				"Speed: old > svp >>> rife",
@@ -290,9 +291,9 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
-			"deduplicate method interpolation note",
+			"retime method interpolation note",
 			{
-				"Duplicates are replaced by the interpolation method while interpolation is on",
+				"Duplicates and gaps are filled by the interpolation method while interpolation is on",
 			},
 		},
 		{
