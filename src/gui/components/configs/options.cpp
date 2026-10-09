@@ -132,7 +132,6 @@ void configs::options(ui::Container& container) {
 				"equal",
 				"cosine",
 				"gaussian_sym",
-				"vegas",
 				"pyramid",
 				"gaussian",
 				"ascending",

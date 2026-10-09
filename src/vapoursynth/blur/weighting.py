@@ -115,22 +115,6 @@ def gaussian_sym(frames: int, standard_deviation: Number = 1, bound: tuple[Numbe
     return gaussian(frames, mean=0, standard_deviation=standard_deviation, bound=(-max_abs, max_abs))
 
 
-def vegas(frames: int) -> list[float]:
-    """
-    Vegas-style weighting based on frame count, before it's rounded up to odd.
-
-    If frames is even: [1, 2, 2, ..., 2, 1] (frames + 1 weights, the ends are shared with the neighbouring output frames
-                       so they're halved)
-    If frames is odd:  [1, 1, 1, ..., 1]
-    """
-    if frames % 2 == 0:
-        weights = [1] + [2] * (frames - 1) + [1]
-    else:
-        weights = [1] * frames
-
-    return normalize(weights)
-
-
 def divide(frames: int, weights: list[float]) -> list[float]:
     """
     Stretch weights array to specified frame count.
@@ -149,16 +133,33 @@ def parse(
     gaussian_mean: float,
     gaussian_bound: str,
 ):
-    # vegas needs the count before it's rounded up to odd, to know whether the end frames are shared
-    if weighting_type == "vegas":
-        return vegas(blur_frames)
-
-    # number of weights must be odd
-    if blur_frames % 2 == 0:
+    # weights must be centred on a frame, so an even count gets one more frame and its two ends are shared with the
+    # neighbouring output frames. halving them means every source frame counts once in total, like advancedfx's
+    # trapezoid sampling
+    shared_ends = blur_frames % 2 == 0
+    if shared_ends:
         blur_frames += 1
 
+    weights = get_type_weights(blur_frames, weighting_type, gaussian_std_dev, gaussian_mean, gaussian_bound)
+
+    if shared_ends:
+        weights[0] /= 2
+        weights[-1] /= 2
+        weights = normalize(weights)
+
+    return weights
+
+
+def get_type_weights(
+    blur_frames: int,
+    weighting_type: str,
+    gaussian_std_dev: float,
+    gaussian_mean: float,
+    gaussian_bound: str,
+) -> list[float]:
     match weighting_type:
-        case "equal":
+        # vegas was equal with the shared ends halved, which every weighting does now
+        case "equal" | "vegas":
             return equal(blur_frames)
 
         case "cosine":
@@ -202,5 +203,5 @@ def parse(
                 return divide(blur_frames, weights)
             except (ValueError, AttributeError):
                 raise u.BlurException(
-                    f"Invalid blur weighting type: {weighting_type}. Valid options are: 'equal', 'cosine', 'gaussian_sym', 'vegas', 'pyramid', 'gaussian', 'ascending', 'descending', 'gaussian_reverse', or a comma-separated list of custom weights (e.g. '1, 2, 3, 2, 1')."
+                    f"Invalid blur weighting type: {weighting_type}. Valid options are: 'equal', 'cosine', 'gaussian_sym', 'pyramid', 'gaussian', 'ascending', 'descending', 'gaussian_reverse', or a comma-separated list of custom weights (e.g. '1, 2, 3, 2, 1')."
                 )
