@@ -14,7 +14,7 @@ namespace weighting {
 	};
 
 	WeightingResult equal(int frames);
-	WeightingResult cosine(int frames);
+	WeightingResult cosine(int frames, bool rectangle = false);
 	WeightingResult ascending(int frames);
 	WeightingResult descending(int frames);
 	WeightingResult pyramid(int frames);

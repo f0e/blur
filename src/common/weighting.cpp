@@ -46,14 +46,28 @@ weighting::WeightingResult weighting::equal(int frames) {
 	return { .weights = std::vector<double>(frames, 1.0 / frames) };
 }
 
-weighting::WeightingResult weighting::cosine(int frames) {
+weighting::WeightingResult weighting::cosine(int frames, bool rectangle) {
 	if (frames <= 1)
 		return { .weights = std::vector<double>(frames, 1.0) };
 
-	// raised cosine (hann), zero at both ends. at blur amount 2 neighbouring output frames' windows sum to a constant
+	// raised cosine (hann). at blur amount 2 neighbouring output frames' windows sum to a constant. with rectangle
+	// sampling each frame holds for its slice of time, so it gets the window's area over that slice rather than a point
+	// sample (which would be zero at both ends)
 	std::vector<double> weights(frames);
-	for (int i = 0; i < frames; ++i)
-		weights[i] = 1 - std::cos(2 * std::numbers::pi * i / (frames - 1));
+
+	if (rectangle) {
+		auto area = [](double x) {
+			return x - (std::sin(2 * std::numbers::pi * x) / (2 * std::numbers::pi));
+		};
+
+		for (int i = 0; i < frames; ++i)
+			weights[i] = area(static_cast<double>(i + 1) / frames) - area(static_cast<double>(i) / frames);
+	}
+	else {
+		for (int i = 0; i < frames; ++i)
+			weights[i] = 1 - std::cos(2 * std::numbers::pi * i / (frames - 1));
+	}
+
 	return { .weights = normalize(weights) };
 }
 
@@ -154,10 +168,12 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 	if (blended_frames <= 0)
 		return { .weights = {} };
 
-	// weights must be centred on a frame, so an even count gets one more frame and its two ends are shared with the
-	// neighbouring output frames. halving them means every source frame counts once in total, matching the render
+	// weights must be centred on a frame, so an even count needs one more weight. rectangle sampling keeps the window
+	// that many frames with a zero weight added, trapezoid gains a frame and halves the two ends shared with the
+	// neighbouring output frames, and round up gains a frame without halving. matches the render
 	bool shared_ends = blended_frames % 2 == 0;
-	if (shared_ends)
+	bool rectangle = settings.blur_sampling == "rectangle";
+	if (shared_ends && !rectangle)
 		blended_frames++;
 
 	auto gaussian_bound = parse_gaussian_bound(settings.advanced.blur_weighting_gaussian_bound);
@@ -171,7 +187,7 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 		  } },
 		{ "cosine",
 		  [&] {
-			  return cosine(blended_frames);
+			  return cosine(blended_frames, rectangle);
 		  } },
 		{ "ascending",
 		  [&] {
@@ -244,9 +260,14 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 		return { .error = res.error };
 
 	if (shared_ends) {
-		res.weights.front() /= 2;
-		res.weights.back() /= 2;
-		res.weights = normalize(res.weights);
+		if (rectangle) {
+			res.weights.push_back(0.0);
+		}
+		else if (settings.blur_sampling == "trapezoid") {
+			res.weights.front() /= 2;
+			res.weights.back() /= 2;
+			res.weights = normalize(res.weights);
+		}
 	}
 
 	return { .weights = res.weights };

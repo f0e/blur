@@ -543,6 +543,9 @@ void configs::preview(ui::Container& container, float delta_time) {
 		if (!hovered_weighting.empty())
 			weight_settings.blur_weighting = hovered_weighting;
 
+		if (!hovered_sampling.empty())
+			weight_settings.blur_sampling = hovered_sampling;
+
 		auto weights_res = weighting::get_weights(weight_settings, interp_fps);
 		if (weights_res.error.empty()) {
 			ui::add_weighting_graph("weighting graph", container, weights_res.weights, interp_fps.has_value());

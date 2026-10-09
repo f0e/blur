@@ -38,13 +38,21 @@ def equal(frames: int) -> list[float]:
     return [1 / frames] * frames
 
 
-def cosine(frames: int) -> list[float]:
+def cosine(frames: int, rectangle: bool = False) -> list[float]:
     """
-    Raised cosine (hann) shutter, zero at both ends. At blur amount 2 neighbouring output frames' windows sum to a
-    constant, so fast motion leaves one continuous trail.
+    Raised cosine (hann) shutter. At blur amount 2 neighbouring output frames' windows sum to a constant, so fast motion
+    leaves one continuous trail. With rectangle sampling each frame holds for its slice of time, so it gets the
+    window's area over that slice rather than a point sample (which would be zero at both ends).
     """
     if frames <= 1:
         return [1.0] * frames
+
+    if rectangle:
+
+        def area(x: float) -> float:
+            return x - math.sin(2 * math.pi * x) / (2 * math.pi)
+
+        return normalize([area((i + 1) / frames) - area(i / frames) for i in range(frames)])
 
     return normalize([1 - math.cos(2 * math.pi * i / (frames - 1)) for i in range(frames)])
 
@@ -132,17 +140,29 @@ def parse(
     gaussian_std_dev: float,
     gaussian_mean: float,
     gaussian_bound: str,
+    sampling: str = "rectangle",
 ):
-    # weights must be centred on a frame, so an even count gets one more frame and its two ends are shared with the
-    # neighbouring output frames. halving them means every source frame counts once in total, like advancedfx's
-    # trapezoid sampling
+    # weights must be centred on a frame, so an even count needs one more weight.
+    # rectangle (like sourcedemorender and advancedfx's rectangle mode): each frame holds for its slice of time, so the
+    # window stays that many frames and the extra weight is zero, putting it half a frame off centre.
+    # trapezoid (like advancedfx's default): frames are points the window interpolates between, so it gains a frame
+    # and its two ends are shared with the neighbouring output frames, halved so every source frame counts once in
+    # total.
+    # round up (like smoothie): gains a frame like trapezoid but keeps its ends whole, blending a frame more than asked
     shared_ends = blur_frames % 2 == 0
+
+    if sampling == "rectangle":
+        weights = get_type_weights(
+            blur_frames, weighting_type, gaussian_std_dev, gaussian_mean, gaussian_bound, rectangle=True
+        )
+        return weights + [0.0] if shared_ends else weights
+
     if shared_ends:
         blur_frames += 1
 
     weights = get_type_weights(blur_frames, weighting_type, gaussian_std_dev, gaussian_mean, gaussian_bound)
 
-    if shared_ends:
+    if shared_ends and sampling == "trapezoid":
         weights[0] /= 2
         weights[-1] /= 2
         weights = normalize(weights)
@@ -156,6 +176,7 @@ def get_type_weights(
     gaussian_std_dev: float,
     gaussian_mean: float,
     gaussian_bound: str,
+    rectangle: bool = False,
 ) -> list[float]:
     match weighting_type:
         # vegas was equal with the shared ends halved, which every weighting does now
@@ -163,7 +184,7 @@ def get_type_weights(
             return equal(blur_frames)
 
         case "cosine":
-            return cosine(blur_frames)
+            return cosine(blur_frames, rectangle)
 
         case "ascending":
             return ascending(blur_frames)

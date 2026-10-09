@@ -577,6 +577,7 @@ def main():
                     gaussian_std_dev=settings["blur_weighting_gaussian_std_dev"],
                     gaussian_mean=settings["blur_weighting_gaussian_mean"],
                     gaussian_bound=json.loads(settings["blur_weighting_gaussian_bound"]),
+                    sampling=settings["blur_sampling"],
                 )
 
                 video = blur.blending.blend(

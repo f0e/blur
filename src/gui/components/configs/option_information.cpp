@@ -17,12 +17,22 @@ void configs::option_information(ui::Container& container) {
 			{
 				"Amount of motion blur",
 				"(0 = no blur, 1 = fully blend all frames, >1 = blend extra frames (ghosting))",
+				"",
 			},
 		},
 		// { "output fps",
 		//   {
 		// 	  "FPS of the output video",
 		//   }, },
+		{
+			"blur sampling dropdown",
+			{
+				"How the first and last frames blended into each output frame are handled",
+				"rectangle: every frame counts equally. With an even number of blur frames, the blur sits half a frame before the output frame instead of centred on it (like SourceDemoRender and HLAE's rectangle method)",
+				"trapezoid: with an even number of blur frames, one more is added and the first and last count half, keeping the blur centred on the output frame (like HLAE's trapezoid method, its default)",
+				"round up: with an even number of blur frames, one more is added at full strength, keeping the blur centred but blending one more frame than the blur amount asks for (like smoothie)",
+			},
+		},
 		{
 			"preserve brightness checkbox",
 			{
