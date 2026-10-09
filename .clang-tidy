@@ -30,6 +30,7 @@ Checks: >
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   -cppcoreguidelines-pro-type-reinterpret-cast,
   -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-pro-type-union-access,
   -modernize-use-emplace,
 
 WarningsAsErrors: ""
