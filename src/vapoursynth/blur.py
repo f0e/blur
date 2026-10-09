@@ -567,8 +567,8 @@ def main():
     # blurring
     if settings["blur"]:
         if settings["blur_amount"] > 0:
-            frame_gap = int(video.fps / settings["blur_output_fps"])
-            blur_frames = int(frame_gap * settings["blur_amount"])
+            # rounded once from the exposure, rounding the frame gap first made it jitter by a frame between output fps
+            blur_frames = int(video.fps * settings["blur_amount"] / settings["blur_output_fps"] + 0.5)
 
             if blur_frames > 0:
                 weights = blur.weighting.parse(
