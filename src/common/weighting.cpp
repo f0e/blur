@@ -144,15 +144,15 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 	if (settings.blur_amount <= 0.f)
 		return { .weights = {} };
 
-	int blended_frames =
-		30; // always get weights assuming 30 blended frames when no video fps is available for consistency
+	// without the video fps, assume a fixed number of source frames per output frame so the weights still follow the
+	// blur amount
+	double frame_gap =
+		video_fps ? static_cast<double>(*video_fps) / settings.blur_output_fps : static_cast<double>(ASSUMED_FRAME_GAP);
 
-	if (video_fps) {
-		int frame_gap = *video_fps / settings.blur_output_fps;
-		blended_frames = frame_gap * settings.blur_amount;
-		if (blended_frames <= 0)
-			return { .weights = {} };
-	}
+	// rounded once from the exposure, matching the render
+	int blended_frames = static_cast<int>(std::lround(frame_gap * settings.blur_amount));
+	if (blended_frames <= 0)
+		return { .weights = {} };
 
 	// weights must be centred on a frame, so an even count gets one more frame and its two ends are shared with the
 	// neighbouring output frames. halving them means every source frame counts once in total, matching the render

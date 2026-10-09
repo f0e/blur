@@ -3,6 +3,8 @@
 #include "config_blur.h"
 
 namespace weighting {
+	constexpr int ASSUMED_FRAME_GAP = 20;
+
 	std::vector<double> normalize(const std::vector<double>& weights);
 	std::vector<double> scale_range(int n, double start, double end);
 
