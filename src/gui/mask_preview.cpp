@@ -1,7 +1,7 @@
 #include "mask_preview.h"
 
 bool MaskPreview::applies(const BlurSettings& settings) {
-	return (settings.interpolate || settings.deduplicate) && (!settings.mask.empty() || settings.auto_mask);
+	return config_blur::masking_possible(settings) && (!settings.mask.empty() || settings.auto_mask);
 }
 
 PreviewState MaskPreview::update(const Request& request) {

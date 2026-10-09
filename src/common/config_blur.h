@@ -159,6 +159,9 @@ namespace config_blur {
 
 	bool same_masking(const BlurSettings& a, const BlurSettings& b);
 
+	// whether a render could use masks. with frame timing logs it depends on the video having one
+	bool masking_possible(const BlurSettings& settings);
+
 	void create(const std::filesystem::path& filepath, const BlurSettings& current_settings = BlurSettings());
 
 	std::string export_concise(const BlurSettings& settings);

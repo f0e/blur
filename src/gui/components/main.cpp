@@ -372,8 +372,12 @@ void main::render_pending(
 
 	bool trim_disabled = is_trim_disabled(*pending_video);
 
+	bool has_config = !pending_video->config_name.empty();
+	auto video_settings = has_config ? queue_preview::settings(*pending_video) : BlurSettings();
+	bool masking_possible = has_config && config_blur::masking_possible(video_settings);
+
 	// the mask option only shows when there's a mask, so it can't stay on without one
-	bool masking = !pending_video->config_name.empty() && MaskPreview::applies(queue_preview::settings(*pending_video));
+	bool masking = has_config && MaskPreview::applies(video_settings);
 	if (!masking)
 		queue_preview::mask_enabled = false;
 
@@ -510,37 +514,39 @@ void main::render_pending(
 			);
 		}
 
-		static std::string selected_mask;
-		selected_mask = pending_video->mask.empty() ? masks::NONE_OPTION : pending_video->mask;
+		if (masking_possible) {
+			static std::string selected_mask;
+			selected_mask = pending_video->mask.empty() ? masks::NONE_OPTION : pending_video->mask;
 
-		// ids are per video since elements keep the callback they were created with
-		ui::add_dropdown(
-			std::format("mask dropdown {}", pending_video->video_id),
-			config_container,
-			"mask",
-			masks::options(pending_video->mask),
-			selected_mask,
-			fonts::dejavu,
-			[pending_video](std::string* new_value) {
-				pending_video->mask = *new_value == masks::NONE_OPTION ? "" : *new_value;
-			},
-			{ masks::NONE_OPTION }
-		);
+			// ids are per video since elements keep the callback they were created with
+			ui::add_dropdown(
+				std::format("mask dropdown {}", pending_video->video_id),
+				config_container,
+				"mask",
+				masks::options(pending_video->mask),
+				selected_mask,
+				fonts::dejavu,
+				[pending_video](std::string* new_value) {
+					pending_video->mask = *new_value == masks::NONE_OPTION ? "" : *new_value;
+				},
+				{ masks::NONE_OPTION }
+			);
 
-		static bool auto_mask;
-		auto_mask = pending_video->auto_mask;
+			static bool auto_mask;
+			auto_mask = pending_video->auto_mask;
 
-		ui::add_checkbox(
-			std::format("auto mask checkbox {}", pending_video->video_id),
-			config_container,
-			"auto mask",
-			auto_mask,
-			fonts::dejavu,
-			[pending_video](bool new_value) {
-				pending_video->auto_mask = new_value;
-			},
-			true
-		);
+			ui::add_checkbox(
+				std::format("auto mask checkbox {}", pending_video->video_id),
+				config_container,
+				"auto mask",
+				auto_mask,
+				fonts::dejavu,
+				[pending_video](bool new_value) {
+					pending_video->auto_mask = new_value;
+				},
+				true
+			);
+		}
 
 		ui::add_separator("queue preview separator", config_container, ui::SeparatorStyle::FADE_BOTH);
 
