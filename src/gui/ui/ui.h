@@ -431,11 +431,12 @@ namespace ui {
 
 	struct WeightingGraphElementData {
 		std::vector<double> weights;
-		bool accurate_fps;
+		double window_center; // source frames from the output frame to the middle of the weights
+		double frame_gap;
+		int source_fps;
+		bool fps_known;
 
-		bool operator==(const WeightingGraphElementData& other) const {
-			return weights == other.weights && accurate_fps == other.accurate_fps;
-		}
+		bool operator==(const WeightingGraphElementData& other) const = default;
 	};
 
 	struct TabsElementData {
@@ -1125,7 +1126,13 @@ namespace ui {
 	);
 
 	AnimatedElement* add_weighting_graph(
-		const std::string& id, Container& container, const std::vector<double>& weights, bool accurate_fps
+		const std::string& id,
+		Container& container,
+		const std::vector<double>& weights,
+		double window_center,
+		double frame_gap,
+		int source_fps,
+		bool fps_known
 	);
 
 	int tabs_height(const render::Font& font);
