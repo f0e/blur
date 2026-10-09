@@ -22,6 +22,7 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	inline const std::vector<std::string> RIGHT_TABS = { "preview", "weightings", "rules" };
 	inline std::string selected_right_tab = RIGHT_TABS[0];
 	inline std::string hovered_weighting;
+	inline std::string hovered_sampling;
 	inline std::string hovered_mask;
 	inline std::string hovered_config;
 

@@ -36,6 +36,7 @@ void configs::set_interpolated_fps() {
 
 void configs::options(ui::Container& container) {
 	hovered_weighting.clear();
+	hovered_sampling.clear();
 	hovered_mask.clear();
 
 	auto validation = config_blur::validate(settings, app_settings, encoding_preset_settings, false);
@@ -142,12 +143,32 @@ void configs::options(ui::Container& container) {
 			fonts::dejavu
 		);
 
+		ui::AnimatedElement* sampling_dropdown = nullptr;
+		validated_element(config_blur::ValidationField::BLUR_SAMPLING, "blur sampling error", [&] {
+			sampling_dropdown = ui::add_dropdown(
+				"blur sampling dropdown",
+				container,
+				"blur sampling",
+				config_blur::BLUR_SAMPLING_METHODS,
+				settings.blur_sampling,
+				fonts::dejavu
+			);
+		});
+
 		const auto& dropdown_data = std::get<ui::DropdownElementData>(weighting_dropdown->element->data);
 		hovered_weighting = dropdown_data.hovered_option;
 
 		set_temporary_tab(
 			"blur weighting", weighting_dropdown->animations.at(ui::hasher("expand")).goal > 0, RIGHT_TABS[1]
 		);
+
+		if (sampling_dropdown) {
+			hovered_sampling = std::get<ui::DropdownElementData>(sampling_dropdown->element->data).hovered_option;
+
+			set_temporary_tab(
+				"blur sampling", sampling_dropdown->animations.at(ui::hasher("expand")).goal > 0, RIGHT_TABS[1]
+			);
+		}
 
 		ui::add_checkbox(
 			"preserve brightness checkbox",

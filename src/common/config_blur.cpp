@@ -121,6 +121,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "blur amount: " << settings.blur_amount << "\n";
 			output << "blur output fps: " << settings.blur_output_fps << "\n";
 			output << "blur weighting: " << settings.blur_weighting << "\n";
+			output << "blur sampling: " << settings.blur_sampling << "\n";
 			output << "preserve brightness: " << (settings.preserve_brightness ? "true" : "false") << "\n";
 			output << "bloom: " << (settings.bloom ? "true" : "false") << "\n";
 			if (!concise || settings.bloom) {
@@ -421,6 +422,17 @@ config_blur::ValidationResult config_blur::validate(
 			config.advanced.svp_interpolation_algorithm = DEFAULT_CONFIG.advanced.svp_interpolation_algorithm;
 	}
 
+	if (!u::contains(BLUR_SAMPLING_METHODS, config.blur_sampling)) {
+		add_error(
+			ValidationField::BLUR_SAMPLING,
+			std::format("Blur sampling ({}) is not a valid option", config.blur_sampling),
+			true
+		);
+
+		if (fix)
+			config.blur_sampling = DEFAULT_CONFIG.blur_sampling;
+	}
+
 	if (!u::contains(INTERPOLATION_BLOCK_SIZES, config.advanced.interpolation_blocksize)) {
 		add_error(
 			ValidationField::INTERPOLATION_BLOCKSIZE,
@@ -461,6 +473,7 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "blur amount", settings.blur_amount);
 	config_base::extract_config_value(config_map, "blur output fps", settings.blur_output_fps);
 	config_base::extract_config_value(config_map, "blur weighting", settings.blur_weighting);
+	config_base::extract_config_value(config_map, "blur sampling", settings.blur_sampling);
 
 	config_base::extract_config_value(config_map, "preserve brightness", settings.preserve_brightness);
 
@@ -717,6 +730,7 @@ nlohmann::json BlurSettings::to_json() const {
 	j["blur_amount"] = this->blur_amount;
 	j["blur_output_fps"] = this->blur_output_fps;
 	j["blur_weighting"] = this->blur_weighting;
+	j["blur_sampling"] = this->blur_sampling;
 	j["preserve_brightness"] = this->preserve_brightness;
 	j["bloom"] = this->bloom;
 	j["bloom_threshold"] = this->bloom_threshold;

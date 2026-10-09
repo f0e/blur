@@ -51,6 +51,7 @@ struct BlurSettings {
 	float blur_amount = 1.f;
 	int blur_output_fps = 60;
 	std::string blur_weighting = "equal";
+	std::string blur_sampling = "rectangle";
 
 	bool preserve_brightness = false;
 
@@ -143,6 +144,8 @@ namespace config_blur {
 
 	inline const std::vector<std::string> INTERPOLATION_BLOCK_SIZES = { "4", "8", "16", "32" };
 
+	inline const std::vector<std::string> BLUR_SAMPLING_METHODS = { "rectangle", "trapezoid", "round up" };
+
 	inline const std::vector<std::string> SOURCE_PLUGINS = { "LWLibavSource", "BestSource" };
 
 	// constexpr so they're initialised before config_rules::DEFAULT_CONFIG, which reads DEFAULT_CONFIG_NAME
@@ -167,6 +170,7 @@ namespace config_blur {
 		SVP_INTERPOLATION_PRESET,
 		SVP_INTERPOLATION_ALGORITHM,
 		INTERPOLATION_BLOCKSIZE,
+		BLUR_SAMPLING,
 	};
 
 	struct ValidationError {
