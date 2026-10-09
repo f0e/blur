@@ -259,9 +259,12 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 	if (!res.error.empty())
 		return { .error = res.error };
 
+	double window_center = 0.0;
+
 	if (shared_ends) {
 		if (rectangle) {
-			res.weights.push_back(0.0);
+			// the render pads with a zero at the end, putting these frames half a frame before the output frame
+			window_center = -0.5;
 		}
 		else if (settings.blur_sampling == "trapezoid") {
 			res.weights.front() /= 2;
@@ -270,5 +273,11 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 		}
 	}
 
-	return { .weights = res.weights };
+	return {
+		.weights = res.weights,
+		.window_center = window_center,
+		.frame_gap = frame_gap,
+		.source_fps = video_fps ? *video_fps : ASSUMED_FRAME_GAP * settings.blur_output_fps,
+		.fps_known = video_fps.has_value(),
+	};
 }

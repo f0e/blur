@@ -30,7 +30,12 @@ namespace weighting {
 	std::optional<std::pair<double, double>> parse_gaussian_bound(const std::string& json_str);
 
 	struct GetWeightsResult {
+		// the frames each output frame blends, without the zero the render pads an even rectangle count with
 		std::vector<double> weights;
+		double window_center = 0.0; // source frames from the output frame to the middle of those frames
+		double frame_gap = 0.0;     // source frames per output frame
+		int source_fps = 0;
+		bool fps_known = false;
 		std::string error;
 	};
 

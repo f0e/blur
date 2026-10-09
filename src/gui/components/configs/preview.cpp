@@ -548,7 +548,15 @@ void configs::preview(ui::Container& container, float delta_time) {
 
 		auto weights_res = weighting::get_weights(weight_settings, interp_fps);
 		if (weights_res.error.empty()) {
-			ui::add_weighting_graph("weighting graph", container, weights_res.weights, interp_fps.has_value());
+			ui::add_weighting_graph(
+				"weighting graph",
+				container,
+				weights_res.weights,
+				weights_res.window_center,
+				weights_res.frame_gap,
+				weights_res.source_fps,
+				weights_res.fps_known
+			);
 		}
 		else {
 			ui::add_text(
