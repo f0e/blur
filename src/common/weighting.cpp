@@ -34,9 +34,9 @@ std::vector<double> weighting::scale_range(int n, double start, double end) {
 	}
 	else {
 		result.reserve(n);
-		double step = (end - start) / (n - 1);
+		// multiplied before dividing like the python, so indices that land on whole numbers round the same way
 		for (int i = 0; i < n; ++i) {
-			result.push_back(start + (i * step));
+			result.push_back(start + (i * (end - start) / (n - 1)));
 		}
 	}
 	return result;
