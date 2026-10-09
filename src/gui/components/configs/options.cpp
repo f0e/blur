@@ -121,7 +121,11 @@ void configs::options(ui::Container& container) {
 			&settings.blur_output_fps,
 			app_settings.blur_amount_tied_to_fps,
 			"fps",
-			fonts::dejavu
+			fonts::dejavu,
+			{},
+			0.f,
+			"",
+			std::format("\xC2\xB7 {:.0f}\xC2\xB0", settings.blur_amount * 360)
 		);
 
 		ui::add_slider("output fps", container, 1, 120, &settings.blur_output_fps, "output fps: {} fps", fonts::dejavu);

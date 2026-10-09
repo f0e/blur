@@ -178,6 +178,12 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 	else {
 		std::string label = format_label(slider_data.current_value, slider_data.label_format);
 		render::text(positions.label_rect.origin(), text_color, label, slider_data.font);
+
+		if (!slider_data.label_note.empty()) {
+			gfx::Point note_pos = positions.label_rect.origin();
+			note_pos.x += slider_data.font.calc_size(label + " ").w;
+			render::text(note_pos, tooltip_color, slider_data.label_note, slider_data.font);
+		}
 	}
 
 	// Render tooltip if provided
@@ -520,7 +526,8 @@ ui::AnimatedElement* ui::add_slider_tied(
 	const render::Font& font,
 	std::optional<std::function<void(const std::variant<int*, float*>&)>> on_change,
 	float precision,
-	const std::string& tooltip
+	const std::string& tooltip,
+	const std::string& label_note
 ) {
 	gfx::Size slider_size(200, font.height() + TRACK_LABEL_GAP + TRACK_HEIGHT);
 	if (!tooltip.empty())
@@ -565,7 +572,8 @@ ui::AnimatedElement* ui::add_slider_tied(
 	                       .is_tied_slider = true,
 	                       .is_tied = &is_tied,
 	                       .tied_value = tied_value,
-	                       .tied_text = tied_text },
+	                       .tied_text = tied_text,
+	                       .label_note = label_note },
 		render_slider,
 		update_slider,
 		remove_slider
