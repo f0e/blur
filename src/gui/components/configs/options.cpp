@@ -422,7 +422,7 @@ void configs::options(ui::Container& container) {
 	/*
 	    Masking
 	*/
-	if (settings.interpolate || settings.deduplicate) {
+	if (config_blur::masking_possible(settings)) {
 		section_component("masking");
 
 		static std::string selected_mask;
@@ -897,7 +897,7 @@ void configs::options(ui::Container& container) {
 		/*
 		    Advanced Masking
 		*/
-		if ((settings.interpolate || settings.deduplicate) && settings.auto_mask) {
+		if (config_blur::masking_possible(settings) && settings.auto_mask) {
 			section_component("advanced masking");
 
 			ui::add_slider(

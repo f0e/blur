@@ -347,6 +347,11 @@ void config_blur::create(const std::filesystem::path& filepath, const BlurSettin
 	config_base::write_config_string(filepath, generate_config_string(current_settings, false));
 }
 
+bool config_blur::masking_possible(const BlurSettings& settings) {
+	return settings.interpolate || (settings.deduplicate && settings.advanced.deduplicate_range != 0) ||
+	       settings.frame_timing_logs;
+}
+
 bool config_blur::same_masking(const BlurSettings& a, const BlurSettings& b) {
 	if (a.mask != b.mask || a.auto_mask != b.auto_mask || a.advanced.auto_mask != b.advanced.auto_mask)
 		return false;
