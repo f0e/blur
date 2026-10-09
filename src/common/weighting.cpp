@@ -108,22 +108,6 @@ weighting::WeightingResult weighting::gaussian_sym(int frames, double stddev, st
 	return gaussian(frames, 0.0, stddev, { -max_abs, max_abs });
 }
 
-weighting::WeightingResult weighting::vegas(int frames) {
-	std::vector<double> weights;
-	if (frames % 2 == 0) {
-		// the ends are shared with the neighbouring output frames so they're halved, and the count is rounded up to odd
-		weights.reserve(frames + 1);
-		weights.push_back(1);
-		for (int i = 1; i < frames; ++i)
-			weights.push_back(2);
-		weights.push_back(1);
-	}
-	else {
-		weights.assign(frames, 1);
-	}
-	return { .weights = normalize(weights) };
-}
-
 weighting::WeightingResult weighting::divide(int frames, const std::vector<double>& weights) {
 	std::vector<double> stretched;
 	std::vector<double> indices = scale_range(frames, 0, static_cast<double>(weights.size()) - 0.1);
@@ -170,11 +154,10 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 			return { .weights = {} };
 	}
 
-	// vegas needs the count before it's rounded up to odd, to know whether the end frames are shared
-	int raw_blended_frames = blended_frames;
-
-	// number of weights must be odd, matching the render
-	if (blended_frames % 2 == 0)
+	// weights must be centred on a frame, so an even count gets one more frame and its two ends are shared with the
+	// neighbouring output frames. halving them means every source frame counts once in total, matching the render
+	bool shared_ends = blended_frames % 2 == 0;
+	if (shared_ends)
 		blended_frames++;
 
 	auto gaussian_bound = parse_gaussian_bound(settings.advanced.blur_weighting_gaussian_bound);
@@ -224,19 +207,18 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 		  [&] {
 			  return gaussian_sym(blended_frames, settings.advanced.blur_weighting_gaussian_std_dev, *gaussian_bound);
 		  } },
+		// vegas was equal with the shared ends halved, which every weighting does now
 		{ "vegas",
 		  [&] {
-			  return vegas(raw_blended_frames);
+			  return equal(blended_frames);
 		  } }
 	};
 
+	WeightingResult res;
+
 	auto it = weighting_map.find(settings.blur_weighting);
 	if (it != weighting_map.end()) {
-		auto res = it->second();
-		if (res.error.empty())
-			return { .weights = res.weights };
-		else
-			return { .error = res.error };
+		res = it->second();
 	}
 	else {
 		try {
@@ -248,18 +230,24 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 				custom_weights.push_back(std::stod(token));
 			}
 
-			auto res = divide(blended_frames, custom_weights);
-
-			if (res.error.empty())
-				return { .weights = res.weights };
-			else
-				return { .error = res.error };
+			res = divide(blended_frames, custom_weights);
 		}
 		catch (...) {
 			throw std::runtime_error(
 				"Invalid blur_weighting value: " + settings.blur_weighting +
-				". Valid options: 'equal', 'cosine', 'gaussian_sym', 'vegas', 'pyramid', 'gaussian', 'ascending', 'descending', 'gaussian_reverse', or a comma-separated list (e.g. '1, 2, 3')."
+				". Valid options: 'equal', 'cosine', 'gaussian_sym', 'pyramid', 'gaussian', 'ascending', 'descending', 'gaussian_reverse', or a comma-separated list (e.g. '1, 2, 3')."
 			);
 		}
 	}
+
+	if (!res.error.empty())
+		return { .error = res.error };
+
+	if (shared_ends) {
+		res.weights.front() /= 2;
+		res.weights.back() /= 2;
+		res.weights = normalize(res.weights);
+	}
+
+	return { .weights = res.weights };
 }

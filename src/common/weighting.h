@@ -23,7 +23,6 @@ namespace weighting {
 		int frames, double mean = 2.0, double stddev = 1.0, std::pair<double, double> bound = { 0.0, 2.0 }
 	);
 	WeightingResult gaussian_sym(int frames, double stddev = 1.0, std::pair<double, double> bound = { 0.0, 2.0 });
-	WeightingResult vegas(int frames);
 	WeightingResult divide(int frames, const std::vector<double>& weights);
 
 	std::optional<std::pair<double, double>> parse_gaussian_bound(const std::string& json_str);

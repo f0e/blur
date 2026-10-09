@@ -26,7 +26,6 @@ def plot_analysis(frames: int):
         "Gaussian Reverse": blur.weighting.gaussian_reverse(frames, standard_deviation=1),
         "Gaussian Sym": blur.weighting.gaussian_sym(frames, standard_deviation=1),
         "Pyramid": blur.weighting.pyramid(frames),
-        "Vegas": blur.weighting.vegas(frames),
     }
     colors = [
         "#1f77b4",
@@ -37,7 +36,6 @@ def plot_analysis(frames: int):
         "#8c564b",
         "#e377c2",
         "#7f7f7f",
-        "#bcbd22",
     ]
 
     for i, (name, weights) in enumerate(functions.items()):

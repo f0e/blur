@@ -26,7 +26,6 @@ Each file in the `configs` folder is a separate blur config.
   - equal - Each frame is blended equally
   - cosine
   - gaussian_sym
-  - vegas
   - pyramid
   - gaussian
   - ascending
