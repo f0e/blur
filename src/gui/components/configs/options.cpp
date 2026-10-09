@@ -130,6 +130,7 @@ void configs::options(ui::Container& container) {
 			"blur weighting",
 			{
 				"equal",
+				"cosine",
 				"gaussian_sym",
 				"vegas",
 				"pyramid",

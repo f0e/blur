@@ -24,6 +24,7 @@ Each file in the `configs` folder is a separate blur config.
 - blur output fps - If blur is enabled, this is the FPS the output video will be
 - blur weighting - Weighting function to use when blending frames. Options are listed below. Also: [View weighting comparison graphs](../tests/plot_weighting_functions/weighting_functions.pdf)
   - equal - Each frame is blended equally
+  - cosine
   - gaussian_sym
   - vegas
   - pyramid

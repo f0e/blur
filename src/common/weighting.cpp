@@ -1,5 +1,7 @@
 #include "weighting.h"
 
+#include <numbers>
+
 // thanks to:
 // https://github.com/couleur-tweak-tips/smoothie-rs/blob/f1681afe3629bd7b8e3d12a109c89a8e00873248/target/scripts/weighting.py
 // https://github.com/dwiandhikaap/HFR-Resampler/blob/d8f4adddc554161ebd4ebb04ca804eb046036c08/Weights.py
@@ -42,6 +44,17 @@ std::vector<double> weighting::scale_range(int n, double start, double end) {
 
 weighting::WeightingResult weighting::equal(int frames) {
 	return { .weights = std::vector<double>(frames, 1.0 / frames) };
+}
+
+weighting::WeightingResult weighting::cosine(int frames) {
+	if (frames <= 1)
+		return { .weights = std::vector<double>(frames, 1.0) };
+
+	// raised cosine (hann), zero at both ends. at blur amount 2 neighbouring output frames' windows sum to a constant
+	std::vector<double> weights(frames);
+	for (int i = 0; i < frames; ++i)
+		weights[i] = 1 - std::cos(2 * std::numbers::pi * i / (frames - 1));
+	return { .weights = normalize(weights) };
 }
 
 weighting::WeightingResult weighting::ascending(int frames) {
@@ -173,6 +186,10 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 		  [&] {
 			  return equal(blended_frames);
 		  } },
+		{ "cosine",
+		  [&] {
+			  return cosine(blended_frames);
+		  } },
 		{ "ascending",
 		  [&] {
 			  return ascending(blended_frames);
@@ -241,7 +258,7 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 		catch (...) {
 			throw std::runtime_error(
 				"Invalid blur_weighting value: " + settings.blur_weighting +
-				". Valid options: 'equal', 'gaussian_sym', 'vegas', 'pyramid', 'gaussian', 'ascending', 'descending', 'gaussian_reverse', or a comma-separated list (e.g. '1, 2, 3')."
+				". Valid options: 'equal', 'cosine', 'gaussian_sym', 'vegas', 'pyramid', 'gaussian', 'ascending', 'descending', 'gaussian_reverse', or a comma-separated list (e.g. '1, 2, 3')."
 			);
 		}
 	}
