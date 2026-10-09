@@ -324,6 +324,7 @@ namespace ui {
 		bool* is_tied;
 		std::optional<std::variant<int*, float*>> tied_value;
 		std::string tied_text;
+		std::string label_note;
 
 		std::string editing_text;
 		helpers::text_input::TextInputData text_input;
@@ -332,7 +333,8 @@ namespace ui {
 			return min_value == other.min_value && max_value == other.max_value &&
 			       current_value == other.current_value && label_format == other.label_format && font == other.font &&
 			       precision == other.precision && tooltip == other.tooltip && is_tied_slider == other.is_tied_slider &&
-			       is_tied == other.is_tied && tied_value == other.tied_value && tied_text == other.tied_text;
+			       is_tied == other.is_tied && tied_value == other.tied_value && tied_text == other.tied_text &&
+			       label_note == other.label_note;
 			// && text_input == other.text_input;
 		}
 	};
@@ -1050,7 +1052,8 @@ namespace ui {
 		const render::Font& font,
 		std::optional<std::function<void(const std::variant<int*, float*>&)>> on_change = {},
 		float precision = 0.f,
-		const std::string& tooltip = ""
+		const std::string& tooltip = "",
+		const std::string& label_note = ""
 	);
 
 	int seek_bar_height(const render::Font& font);

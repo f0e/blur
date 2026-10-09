@@ -18,6 +18,7 @@ void configs::option_information(ui::Container& container) {
 				"Amount of motion blur",
 				"(0 = no blur, 1 = fully blend all frames, >1 = blend extra frames (ghosting))",
 				"",
+				"The angle next to it is the shutter angle.",
 			},
 		},
 		// { "output fps",
