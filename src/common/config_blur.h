@@ -22,7 +22,6 @@ struct AdvancedSettings {
 	std::string deduplicate_threshold = "0.003";
 	std::string duplicate_timing = "first";
 	int max_future_checks = 3;
-	bool frame_timing_logs = true;
 	std::string ffmpeg_override;
 	bool debug = false;
 	std::string source_plugin = "LWLibavSource";
@@ -96,11 +95,12 @@ struct BlurSettings {
 	int quality = 16;
 	bool upscale = false;
 
+	bool frame_timing_logs = true;
 	bool deduplicate = true;
 #ifdef __APPLE__
-	std::string deduplicate_method = "rife";
+	std::string retime_method = "rife";
 #else
-	std::string deduplicate_method = "svp";
+	std::string retime_method = "svp";
 #endif
 
 	bool preview = true;

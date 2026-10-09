@@ -61,10 +61,11 @@ Each file in the `configs` folder is a separate blur config.
   - Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt)
   - Speed: rife (tensorrt) > rife >> gimm-vfi (tensorrt)
 
-### Deduplication
+### Retiming
 
 - deduplicate - Removes duplicate frames and generates new interpolated frames to take their place. Fixes 'unsmooth' looking output caused by stuttering in recordings
-- deduplicate method - Method used to replace duplicate frames. Only used when interpolation is off, otherwise duplicates are filled by the interpolation method:
+- use frame timing logs - For use with the [obs-frame-timing-recorder](https://github.com/f0e/obs-frame-timing-recorder) OBS plugin. Uses the `.frametiming` files it generates to work out when each frame was really drawn, resulting in much smoother blur. Replaces deduplication for videos that have a log, as it's more accurate.
+- retime method - Method used to replace duplicate frames and fill the gaps frame timing logs leave. Only used when interpolation is off, otherwise they're filled by the interpolation method:
   - Quality: rife = rife (tensorrt) > svp
   - Speed: old > svp >>> rife
 
@@ -131,10 +132,6 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
   - center - The middle frame
   - surrounding - Ignores all the duplicates and uses the frames either side of them. Gives the smoothest result but can lead to a lot of artifacting
 - deduplicate max future checks - How many following runs of duplicates `surrounding` can skip over (limited by deduplicate range)
-
-### Advanced frame timing
-
-- use frame timing logs - For use with the [obs-frame-timing-recorder](https://github.com/f0e/obs-frame-timing-recorder) OBS plugin. Uses the `.frametiming` files it generates to work out when each frame was really drawn, resulting in much smoother blur. Replaces deduplication, as it's more accurate
 
 ### Advanced rendering
 

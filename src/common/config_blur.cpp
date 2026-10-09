@@ -104,6 +104,21 @@ namespace {
 					return true;
 				},
 		},
+		{
+			.version = "3.0.0",
+			.description = "'deduplicate method' -> 'retime method'",
+			.apply =
+				[](config_base::ConfigMap& config) {
+					auto it = config.find("deduplicate method");
+					if (it == config.end())
+						return false;
+
+					config.try_emplace("retime method", it->second);
+
+					config.erase(it);
+					return true;
+				},
+		},
 	});
 }
 
@@ -154,14 +169,13 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		}
 	}
 
-	// Deduplication section
-	if (!concise || settings.deduplicate) {
+	// Retiming section
+	if (!concise || settings.deduplicate || settings.frame_timing_logs) {
 		output << "\n";
-		output << "- deduplication" << "\n";
+		output << "- retiming" << "\n";
 		output << "deduplicate: " << (settings.deduplicate ? "true" : "false") << "\n";
-		if (!concise || settings.deduplicate) {
-			output << "deduplicate method: " << settings.deduplicate_method << "\n";
-		}
+		output << "use frame timing logs: " << (settings.frame_timing_logs ? "true" : "false") << "\n";
+		output << "retime method: " << settings.retime_method << "\n";
 	}
 
 	// Scene detection section
@@ -274,10 +288,6 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "deduplicate max future checks: " << settings.advanced.max_future_checks << "\n";
 
 			output << "\n";
-			output << "- advanced frame timing" << "\n";
-			output << "use frame timing logs: " << (settings.advanced.frame_timing_logs ? "true" : "false") << "\n";
-
-			output << "\n";
 			output << "- advanced rendering" << "\n";
 			output << "video container: " << settings.advanced.video_container << "\n";
 			if (!concise || !settings.advanced.ffmpeg_override.empty()) {
@@ -342,7 +352,7 @@ bool config_blur::same_masking(const BlurSettings& a, const BlurSettings& b) {
 		return false;
 
 	if (a.interpolate != b.interpolate || a.deduplicate != b.deduplicate ||
-	    a.advanced.deduplicate_range != b.advanced.deduplicate_range)
+	    a.advanced.deduplicate_range != b.advanced.deduplicate_range || a.frame_timing_logs != b.frame_timing_logs)
 		return false;
 
 	return a.advanced.source_plugin == b.advanced.source_plugin && a.gpu_decoding == b.gpu_decoding;
@@ -505,8 +515,9 @@ BlurSettings config_blur::parse_from_map(
 	);
 	config_base::extract_config_value(config_map, "pre-interpolation method", settings.pre_interpolation_method);
 
+	config_base::extract_config_value(config_map, "use frame timing logs", settings.frame_timing_logs);
 	config_base::extract_config_value(config_map, "deduplicate", settings.deduplicate);
-	config_base::extract_config_value(config_map, "deduplicate method", settings.deduplicate_method);
+	config_base::extract_config_value(config_map, "retime method", settings.retime_method);
 
 	config_base::extract_config_value(config_map, "encode preset", settings.encode_preset);
 	config_base::extract_config_value(config_map, "quality", settings.quality);
@@ -540,8 +551,6 @@ BlurSettings config_blur::parse_from_map(
 		config_base::extract_config_value(
 			config_map, "deduplicate max future checks", settings.advanced.max_future_checks
 		);
-
-		config_base::extract_config_value(config_map, "use frame timing logs", settings.advanced.frame_timing_logs);
 
 		config_base::extract_config_value(config_map, "video container", settings.advanced.video_container);
 		config_base::extract_config_value(config_map, "custom ffmpeg filters", settings.advanced.ffmpeg_override);
@@ -749,7 +758,8 @@ nlohmann::json BlurSettings::to_json() const {
 	j["pre_interpolation_method"] = this->pre_interpolation_method;
 
 	j["deduplicate"] = this->deduplicate;
-	j["deduplicate_method"] = this->deduplicate_method;
+	j["retime_method"] = this->retime_method;
+	j["frame_timing_logs"] = this->frame_timing_logs;
 
 	j["timescale"] = this->timescale;
 	j["input_timescale"] = this->input_timescale;
@@ -782,7 +792,6 @@ nlohmann::json BlurSettings::to_json() const {
 	j["deduplicate_threshold"] = this->advanced.deduplicate_threshold;
 	j["duplicate_timing"] = this->advanced.duplicate_timing;
 	j["max_future_checks"] = this->advanced.max_future_checks;
-	j["frame_timing_logs"] = this->advanced.frame_timing_logs;
 
 	// j["video_container"] = this->advanced.video_container;
 	// j["ffmpeg_override"] = this->advanced.ffmpeg_override;
@@ -831,5 +840,5 @@ bool BlurSettings::uses_interpolation_method(const std::string& method) const {
 		return this->interpolation_method == method ||
 		       (this->pre_interpolate && this->pre_interpolation_method == method);
 
-	return this->deduplicate && this->deduplicate_method == method;
+	return (this->deduplicate || this->frame_timing_logs) && this->retime_method == method;
 }

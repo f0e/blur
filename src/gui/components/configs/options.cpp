@@ -357,25 +357,39 @@ void configs::options(ui::Container& container) {
 	}
 
 	/*
-	    Deduplication
+	    Retiming
 	*/
-	section_component("deduplication");
+	section_component("retiming");
 
 	ui::add_checkbox("deduplicate checkbox", container, "deduplicate", settings.deduplicate, fonts::dejavu);
 
-	if (settings.deduplicate) {
-		// deduplication happens as part of interpolation when it's on, so there's no method to pick
+	ui::add_checkbox(
+		"frame timing logs checkbox", container, "use frame timing logs", settings.frame_timing_logs, fonts::dejavu
+	);
+
+	if (settings.frame_timing_logs && settings.deduplicate) {
+		ui::add_text(
+			"deduplicate frame timing logs note",
+			container,
+			"deduplication is skipped for videos with a frame timing log",
+			gfx::Color::white(renderer::MUTED_SHADE),
+			fonts::dejavu
+		);
+	}
+
+	if (settings.deduplicate || settings.frame_timing_logs) {
+		// retiming happens as part of interpolation when it's on, so there's no method to pick
 		if (settings.interpolate) {
 			ui::add_text(
-				"deduplicate method interpolation note",
+				"retime method interpolation note",
 				container,
-				"filled by the interpolation method",
-				WARNING_COLOR,
+				"retiming uses the interpolation method",
+				gfx::Color::white(renderer::MUTED_SHADE),
 				fonts::dejavu
 			);
 		}
 		else {
-			std::vector<std::string> deduplicate_options = {
+			std::vector<std::string> retime_options = {
 				"svp",
 				"rife",
 #ifdef TENSORRT
@@ -386,14 +400,14 @@ void configs::options(ui::Container& container) {
 			};
 
 			if (gimm_installed())
-				deduplicate_options.insert(deduplicate_options.begin() + 3, "gimm-vfi (tensorrt)");
+				retime_options.insert(retime_options.begin() + 3, "gimm-vfi (tensorrt)");
 
 			ui::add_dropdown(
-				"deduplicate method dropdown",
+				"retime method dropdown",
 				container,
-				"deduplicate method",
-				deduplicate_options,
-				settings.deduplicate_method,
+				"retime method",
+				retime_options,
+				settings.retime_method,
 				fonts::dejavu
 			);
 		}
@@ -750,7 +764,7 @@ void configs::options(ui::Container& container) {
 		*/
 		section_component("advanced deduplication");
 
-		if (settings.deduplicate_method != "old") {
+		if (settings.retime_method != "old") {
 			ui::add_slider(
 				"deduplicate range",
 				container,
@@ -795,19 +809,6 @@ void configs::options(ui::Container& container) {
 				fonts::dejavu
 			);
 		}
-
-		/*
-		    Advanced Frame Timing
-		*/
-		section_component("advanced frame timing");
-
-		ui::add_checkbox(
-			"frame timing logs checkbox",
-			container,
-			"use frame timing logs",
-			settings.advanced.frame_timing_logs,
-			fonts::dejavu
-		);
 
 		/*
 		    Advanced Rendering
