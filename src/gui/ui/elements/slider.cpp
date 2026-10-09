@@ -135,36 +135,6 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 	float anim = element.animations.at(hasher("main")).current;
 	float hover_anim = element.animations.at(hasher("hover")).current;
 
-	// i'm doing this in render because it needs to run when the other slider if updating and atm it wouldn't cause only
-	// one element can update at once. not ideal, but idc
-	// todo: refactor
-	if (slider_data.is_tied_slider && slider_data.is_tied != nullptr) {
-		if (slider_observers.contains(element.element->id)) {
-			auto& observer = slider_observers[element.element->id];
-
-			if (*slider_data.is_tied && slider_data.tied_value) {
-				float current_tied_val = std::visit(to_float_ptr, *slider_data.tied_value);
-
-				if (observer.init && current_tied_val != observer.last_tied_value) {
-					float proportion = current_tied_val / observer.last_tied_value;
-
-					std::visit(
-						[proportion](auto&& arg) {
-							*arg = static_cast<std::decay_t<decltype(*arg)>>(*arg * proportion);
-						},
-						slider_data.current_value
-					);
-				}
-
-				observer.last_tied_value = current_tied_val;
-				observer.init = true;
-			}
-			else {
-				observer.init = false;
-			}
-		}
-	}
-
 	// Get current value as float
 	float current_val = std::visit(to_float_ptr, slider_data.current_value);
 	float min_val = std::visit(to_float, slider_data.min_value);
@@ -556,8 +526,28 @@ ui::AnimatedElement* ui::add_slider_tied(
 	if (!tooltip.empty())
 		slider_size.h += LINE_HEIGHT_ADD + font.height();
 
-	if (!slider_observers.contains(id)) {
-		slider_observers.emplace(id, SliderObserver{});
+	// follow the tied value here rather than when rendering, so anything built after this slider in the same frame
+	// (like the weighting graph) sees both values updated together
+	auto& observer = slider_observers[id];
+	if (is_tied) {
+		float current_tied_val = std::visit(to_float_ptr, tied_value);
+
+		if (observer.init && current_tied_val != observer.last_tied_value) {
+			float proportion = current_tied_val / observer.last_tied_value;
+
+			std::visit(
+				[proportion](auto&& arg) {
+					*arg = static_cast<std::decay_t<decltype(*arg)>>(*arg * proportion);
+				},
+				value
+			);
+		}
+
+		observer.last_tied_value = current_tied_val;
+		observer.init = true;
+	}
+	else {
+		observer.init = false;
 	}
 
 	Element element(
