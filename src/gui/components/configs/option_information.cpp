@@ -451,6 +451,10 @@ void configs::option_information(ui::Container& container) {
 #endif
 	};
 
+	// an open dropdown is previewing its options in the same space
+	if (!temp_tab_owner.empty())
+		return;
+
 	std::string hovered = ui::get_hovered_id();
 
 	if (hovered.empty())
