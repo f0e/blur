@@ -74,10 +74,11 @@ MAX_CORRELATION = 0.6
 MIN_HISTOGRAM = 0.1
 
 # vapoursynth's automatic caching drops frames too soon for the windows read here. detection reads the source well
-# ahead of everything else, and seeking back to frames it's dropped doubles render times on long gop video
+# ahead of everything else, and seeking back to frames it's dropped doubles render times on long gop video. the cache
+# has to cover detection's window plus every frame the threads are working through, up to a share of vapoursynth's
+# cache limit
 CACHED = 256
-SOURCE_CACHE_BYTES = 1 << 30
-SOURCE_CACHE_FRAMES = (2 * REACH, 4 * REACH)
+SOURCE_CACHE_SHARE = 8
 
 
 def _cached(clip: vs.VideoNode, frames: int = CACHED) -> vs.VideoNode:
@@ -152,10 +153,12 @@ def _reach(gaps: list[int]) -> int:
     return int(min(REACH if steady else IRREGULAR_REACH, max(MIN_REACH, 2 * statistics.median(gaps))))
 
 
-def detect(video: vs.VideoNode, full_range: bool) -> vs.VideoNode:
-    """Which frames of `video` start a new scene. Makes `video` keep more frames cached, see SOURCE_CACHE_BYTES."""
-    low, high = SOURCE_CACHE_FRAMES
-    _cached(video, max(low, min(SOURCE_CACHE_BYTES // _frame_bytes(video), high)))
+def detect(video: vs.VideoNode, full_range: bool, spread: float = 1) -> vs.VideoNode:
+    """Which frames of `video` start a new scene. Makes `video` keep more frames cached, see SOURCE_CACHE_SHARE.
+    `spread` is how many of its frames go into each output frame."""
+    needed = 4 * REACH + core.num_threads * math.ceil(spread)
+    budget = core.max_cache_size * (1 << 20) // SOURCE_CACHE_SHARE // _frame_bytes(video)
+    _cached(video, max(2 * REACH, min(budget, needed)))
 
     metrics = _metrics(video, full_range)
     window = [retime.shifted(metrics, offset) for offset in range(-REACH, REACH + 1)]
