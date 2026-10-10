@@ -112,6 +112,30 @@ namespace {
 		};
 	}
 
+	bool is_selected(const ui::DropdownElementData& dropdown_data, size_t option_index) {
+		if (!dropdown_data.checked.empty())
+			return *dropdown_data.checked[option_index];
+
+		return dropdown_data.options[option_index] == *dropdown_data.selected;
+	}
+
+	std::string get_selected_text(const ui::DropdownElementData& dropdown_data) {
+		if (dropdown_data.checked.empty())
+			return *dropdown_data.selected;
+
+		std::string text;
+		for (size_t i = 0; i < dropdown_data.options.size(); i++) {
+			if (!*dropdown_data.checked[i])
+				continue;
+
+			if (!text.empty())
+				text += ", ";
+			text += dropdown_data.options[i];
+		}
+
+		return text.empty() ? "none" : text;
+	}
+
 	std::vector<size_t> get_row_actions(const ui::DropdownElementData& dropdown_data, const std::string& option) {
 		std::vector<size_t> indices;
 
@@ -218,12 +242,17 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 	render::rounded_rect_stroke(pos.dropdown_rect, border_color, DROPDOWN_ROUNDING);
 
 	// Get currently selected option text
-	std::string selected_text = *dropdown_data.selected;
+	std::string selected_text = get_selected_text(dropdown_data);
+	bool selected_muted = dropdown_data.checked.empty()
+	                          ? is_muted(*dropdown_data.selected)
+	                          : std::ranges::none_of(dropdown_data.checked, [](const bool* checked) {
+									return *checked;
+								});
 	render::clip_string(selected_text, dropdown_data.font, get_selected_text_width(pos));
 
 	render::text(
 		pos.selected_text_pos,
-		is_muted(*dropdown_data.selected) ? muted_text_color : text_color,
+		selected_muted ? muted_text_color : text_color,
 		selected_text,
 		dropdown_data.font,
 		FONT_CENTERED_Y
@@ -283,7 +312,7 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 			);
 
 			const auto& option = dropdown_data.options[i];
-			bool selected = option == *dropdown_data.selected;
+			bool selected = is_selected(dropdown_data, i);
 			float option_hover_anim = get_hover_animation_value(element, get_option_hover_key(i));
 
 			gfx::Color option_base_colour = is_muted(option) ? muted_text_color : text_color;
@@ -502,6 +531,17 @@ bool ui::update_dropdown(const Container& container, AnimatedElement& element) {
 
 					activated = true;
 				}
+				else if (hovered_row != -1 && !dropdown_data.checked.empty()) {
+					bool* checked = dropdown_data.checked[hovered_row];
+					*checked = !*checked;
+
+					if (dropdown_data.on_change) {
+						std::string option = dropdown_data.options[hovered_row];
+						(*dropdown_data.on_change)(&option);
+					}
+
+					activated = true;
+				}
 				else if (hovered_row != -1) {
 					std::string new_selected = dropdown_data.options[hovered_row];
 					if (new_selected != *dropdown_data.selected) {
@@ -594,6 +634,52 @@ ui::AnimatedElement* ui::add_dropdown(
 			.add_action = std::move(add_action),
 			.hovered_option = "",
 		},
+		render_dropdown,
+		update_dropdown
+	);
+
+	return add_element(
+		container,
+		std::move(element),
+		container.element_gap,
+		{
+			{ hasher("main"), AnimationState(25.f) },
+			{ hasher("hover"), AnimationState(80.f) },
+			{ hasher("expand"), AnimationState(30.f) },
+			{ hasher("scroll"), AnimationState(20.f, 0.f, 0.5f) },
+		}
+	);
+}
+
+ui::AnimatedElement* ui::add_multiselect_dropdown(
+	const std::string& id,
+	Container& container,
+	const std::string& label,
+	const std::vector<std::pair<std::string, bool*>>& options,
+	const render::Font& font,
+	std::optional<std::function<void(std::string*)>> on_change
+) {
+	int height = get_dropdown_box_height(font);
+	if (!label.empty())
+		height += font.height() + LABEL_GAP;
+
+	DropdownElementData data{
+		.label = label,
+		.selected = nullptr,
+		.font = font,
+		.on_change = std::move(on_change),
+	};
+
+	for (const auto& [option, checked] : options) {
+		data.options.push_back(option);
+		data.checked.push_back(checked);
+	}
+
+	Element element(
+		id,
+		ElementType::DROPDOWN,
+		gfx::Rect(container.current_position, gfx::Size(container.get_usable_rect().w, height)),
+		std::move(data),
 		render_dropdown,
 		update_dropdown
 	);

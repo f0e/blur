@@ -389,18 +389,19 @@ namespace ui {
 	struct DropdownElementData {
 		std::string label; // empty omits the label and its vertical spacing
 		std::vector<std::string> options;
-		std::string* selected;
+		std::string* selected; // null when multiselect
 		render::Font font;
 		std::optional<std::function<void(std::string*)>> on_change;
 		std::vector<std::string> muted_options;
 		std::vector<DropdownOptionAction> option_actions;
 		std::optional<DropdownAddAction> add_action;
+		std::vector<bool*> checked; // one per option when multiselect, empty otherwise
 
 		std::string hovered_option;
 
 		bool operator==(const DropdownElementData& other) const {
 			return label == other.label && options == other.options && selected == other.selected &&
-			       font == other.font && muted_options == other.muted_options;
+			       font == other.font && muted_options == other.muted_options && checked == other.checked;
 		}
 	};
 
@@ -1113,6 +1114,16 @@ namespace ui {
 		const std::vector<DropdownOptionAction>& option_actions = {},
 		std::optional<DropdownAddAction> add_action = {},
 		std::optional<int> width = {} // empty fills the container
+	);
+
+	// options toggle on and off, and the list stays open
+	AnimatedElement* add_multiselect_dropdown(
+		const std::string& id,
+		Container& container,
+		const std::string& label,
+		const std::vector<std::pair<std::string, bool*>>& options,
+		const render::Font& font,
+		std::optional<std::function<void(std::string*)>> on_change = {}
 	);
 
 	int get_dropdown_box_height(const render::Font& font);
