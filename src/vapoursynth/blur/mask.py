@@ -11,6 +11,7 @@ import os
 import struct
 import zlib
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from fractions import Fraction
 from pathlib import Path
@@ -1294,20 +1295,57 @@ def composite(
     shows = match(through, interpolated)
     tracked = through.num_frames > 1
     real = [original, separated, shows] if tracked else [original, separated]
-
-    if timeline is not None and ratio is not None:
-        real = retime.nearest(real, timeline, interpolated, ratio)
-    else:
-        real = [match_length(clip, interpolated) for clip in real]
+    real = stretched(real, interpolated, timeline, ratio)
 
     if tracked:
         shows = real.pop()
 
+    return put_back(interpolated, *real, shows)
+
+
+def composite_blurred(
+    interpolated: vs.VideoNode,
+    original: vs.VideoNode,
+    separated: vs.VideoNode,
+    through: vs.VideoNode,
+    timeline: retime.Timeline | None,
+    ratio: Fraction | None,
+    blend: Callable[[vs.VideoNode], vs.VideoNode],
+) -> vs.VideoNode:
+    """`blend(composite(...))` for a mask that's the same on every frame, done the other way round. Putting the
+    overlays back is a per-pixel mix and blending is a weighted average, so blending what goes into the mix gives the
+    same result, and the mix then runs once per output frame instead of on every interpolated one. The real frames are
+    repeated across the interpolated ones, which the blender only reads once. With preserve brightness the blend isn't
+    linear, so it's slightly off where the mask is partly see-through, like its feathered edge."""
+    real = stretched([original] if separated is original else [original, separated], interpolated, timeline, ratio)
+    real = [blend(clip) for clip in real]
+    blurred = blend(interpolated)
+    return put_back(blurred, real[0], real[-1], match(through, blurred))
+
+
+def stretched(
+    clips: list[vs.VideoNode],
+    interpolated: vs.VideoNode,
+    timeline: retime.Timeline | None = None,
+    ratio: Fraction | None = None,
+) -> list[vs.VideoNode]:
+    """Real frames repeated over `interpolated`'s frames, each going by the real frame nearest to it (see
+    `composite`)."""
+    if timeline is not None and ratio is not None:
+        return retime.nearest(clips, timeline, interpolated, ratio)
+
+    return [match_length(clip, interpolated) for clip in clips]
+
+
+def put_back(
+    interpolated: vs.VideoNode, original: vs.VideoNode, separated: vs.VideoNode, shows: vs.VideoNode
+) -> vs.VideoNode:
+    """`composite` on clips already lined up frame for frame."""
     fmt = interpolated.format
     white = (1 << fmt.bits_per_sample) - 1 if fmt.sample_type == vs.INTEGER else 1
 
     # just the interpolated frame where nothing's covered, since separated is the original there
-    return core.std.Expr([interpolated, *real, shows], f"y a {white} / x z - * +")
+    return core.std.Expr([interpolated, original, separated, shows], f"y a {white} / x z - * +")
 
 
 def save(grays: list[vs.VideoNode], clip: vs.VideoNode, path: Path):

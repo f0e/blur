@@ -559,9 +559,19 @@ def main():
         else:
             video, cuts = interpolate_to(method, video, video.fps, cuts, timeline=timeline)
 
+    # a mask that's the same on every frame can put the overlays back after blurring instead, see
+    # blur.mask.composite_blurred. bloom spreads light around, so it has to see them
+    put_back_after_blur = (
+        mask is not None
+        and settings["blur"]
+        and settings["blur_amount"] > 0
+        and not settings["bloom"]
+        and shows_through.num_frames == 1
+    )
     if mask is not None:
         ratio = video.fps / retimed_fps if retimed_by is not None else None
-        video = blur.mask.composite(video, original, separated, shows_through, retimed_by, ratio)
+        if not put_back_after_blur:
+            video = blur.mask.composite(video, original, separated, shows_through, retimed_by, ratio)
 
     # debug: label the frames retiming touched. turn blur off to read it
     if debug_timeline is not None:
@@ -593,15 +603,28 @@ def main():
                     sampling=settings["blur_sampling"],
                 )
 
-                video = blur.blending.blend(
-                    video,
-                    video_info,
-                    weights,
-                    settings["preserve_brightness"],
-                    float(settings["bloom_threshold"]),
-                    float(settings["bloom_strength"]) if settings["bloom"] else None,
-                    cuts=cuts,
-                )
+                def blend(clip: vs.VideoNode) -> vs.VideoNode:
+                    return blur.blending.blend(
+                        clip,
+                        video_info,
+                        weights,
+                        settings["preserve_brightness"],
+                        float(settings["bloom_threshold"]),
+                        float(settings["bloom_strength"]) if settings["bloom"] else None,
+                        cuts=cuts,
+                    )
+
+                if put_back_after_blur:
+                    video = blur.mask.composite_blurred(
+                        video, original, separated, shows_through, retimed_by, ratio, blend
+                    )
+                    put_back_after_blur = False
+                else:
+                    video = blend(video)
+
+        # too little blur to blend any frames, so they're put back as usual
+        if put_back_after_blur:
+            video = blur.mask.composite(video, original, separated, shows_through, retimed_by, ratio)
 
         # set exact fps
         video = blur.interpolate.change_fps(video, settings["blur_output_fps"])
