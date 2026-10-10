@@ -226,6 +226,13 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"SVP GPU search checkbox",
+			{
+				"Finds motion on the GPU, mostly faster at full search size",
+				"(Searches in an order the GPU can run in parallel, so results differ slightly)",
+			},
+		},
+		{
 			"interpolation block size dropdown",
 			{
 				"Block size for interpolation",

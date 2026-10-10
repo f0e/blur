@@ -896,6 +896,10 @@ void configs::options(ui::Container& container) {
 					fonts::dejavu
 				);
 			});
+
+			ui::add_checkbox(
+				"SVP GPU search checkbox", container, "SVP GPU search", settings.advanced.svp_gpu_search, fonts::dejavu
+			);
 		}
 
 		validated_element(config_blur::ValidationField::INTERPOLATION_BLOCKSIZE, "interpolation block size error", [&] {

@@ -35,6 +35,7 @@ struct AdvancedSettings {
 	std::string interpolation_blocksize = "8";
 	int interpolation_mask_area = 0;
 	std::string svp_search_size = "full";
+	bool svp_gpu_search = false;
 
 	AutoMaskSettings auto_mask;
 

@@ -186,6 +186,7 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 
 - interpolation mask area - Mask amount used when interpolating. Higher values can mean static objects are blurred less, but can also result in less smooth output (moving parts of the image can be mistaken for static parts and don't get blurred)
 - svp search size - Size of the copy SVP finds motion on before scaling it back up (`auto`, `full`, `half`, `quarter`). Smaller is faster (SVP runs ~2.7x faster at half, ~4x at quarter) but less accurate, mostly around HUD elements. `auto` uses half below 240fps, where it costs least, and full otherwise
+- svp gpu search - Finds motion on the GPU instead of the CPU, true/false. It searches the larger levels of the motion search in an order a GPU can run in parallel, so the vectors differ slightly from the CPU search (on the 1200fps test recordings, within ~1% on the scene and most HUD elements, worst ~2% on scenery behind HUD during fast flicks). Mostly worth it at full search size
 
 ### Manual SVP override
 

@@ -250,6 +250,7 @@ def generate_svp_strings(
     masking=DEFAULT_MASKING,
     gpu=DEFAULT_GPU,
     scene_detect=False,
+    gpu_search=False,
 ):
     if preset in TUNED_PRESETS:
         overlap = TUNED_OVERLAP
@@ -317,6 +318,10 @@ def generate_svp_strings(
             "mode": 0,
             "limits": {"blocks": 9999999},
         }
+
+    if gpu_search:
+        # open-svpflow searches the large levels in an order the gpu can run in parallel
+        vectors_json.setdefault("main", {}).setdefault("search", {})["gpu"] = True
 
     return [json.dumps(obj) for obj in [super_json, vectors_json, smooth_json]]
 
@@ -455,6 +460,7 @@ def interpolate_svp(
     gpu=DEFAULT_GPU,
     timeline: retime.Timeline | None = None,
     halvings: int = 0,
+    gpu_search: bool = False,
 ):
     preset = preset.lower()
 
@@ -463,7 +469,7 @@ def interpolate_svp(
 
     # generate svp strings
     [super_string, vectors_string, smooth_string] = generate_svp_strings(
-        new_fps, preset, algorithm, blocksize, overlap, speed, masking, gpu
+        new_fps, preset, algorithm, blocksize, overlap, speed, masking, gpu, gpu_search=gpu_search
     )
 
     return svp(

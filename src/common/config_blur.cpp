@@ -326,6 +326,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "interpolation block size: " << settings.advanced.interpolation_blocksize << "\n";
 			output << "interpolation mask area: " << settings.advanced.interpolation_mask_area << "\n";
 			output << "svp search size: " << settings.advanced.svp_search_size << "\n";
+			output << "svp gpu search: " << (settings.advanced.svp_gpu_search ? "true" : "false") << "\n";
 
 			if (!concise || settings.advanced.manual_svp) {
 				output << "\n";
@@ -616,6 +617,7 @@ BlurSettings config_blur::parse_from_map(
 			config_map, "interpolation mask area", settings.advanced.interpolation_mask_area
 		);
 		config_base::extract_config_value(config_map, "svp search size", settings.advanced.svp_search_size);
+		config_base::extract_config_value(config_map, "svp gpu search", settings.advanced.svp_gpu_search);
 		config_base::extract_config_value(config_map, "manual svp", settings.advanced.manual_svp);
 		config_base::extract_config_value(config_map, "super string", settings.advanced.super_string);
 		config_base::extract_config_value(config_map, "vectors string", settings.advanced.vectors_string);
@@ -845,6 +847,7 @@ nlohmann::json BlurSettings::to_json() const {
 	j["interpolation_blocksize"] = this->advanced.interpolation_blocksize;
 	j["interpolation_mask_area"] = this->advanced.interpolation_mask_area;
 	j["svp_search_size"] = this->advanced.svp_search_size;
+	j["svp_gpu_search"] = this->advanced.svp_gpu_search;
 
 	j["rife_model"] = interpolation_models::get_rife_path() / this->rife_model;
 #ifdef TENSORRT
