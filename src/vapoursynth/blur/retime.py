@@ -84,12 +84,27 @@ def decision_index(timeline: Timeline, n: int, ratio: Fraction) -> int:
 
 def over_output(timeline: Timeline, dst_frames: int, ratio: Fraction) -> vs.VideoNode:
     """`timeline.decisions` re-indexed onto the output timeline, for use as a FrameEval prop_src."""
-    decisions = timeline.decisions
+    decision = single_frames(timeline.decisions)
 
     return core.std.FrameEval(
-        core.std.BlankClip(decisions, length=dst_frames, keep=True),
-        lambda n: decisions[decision_index(timeline, n, ratio)],
+        core.std.BlankClip(timeline.decisions, length=dst_frames, keep=True),
+        lambda n: decision(decision_index(timeline, n, ratio)),
     )
+
+
+def single_frames(clip: vs.VideoNode):
+    """A lookup from a frame number to `clip` cut down to that frame, for FrameEval. Each cut is made once, since
+    making a new one for every output frame adds up at high framerates."""
+    cuts: dict[int, vs.VideoNode] = {}
+
+    def frame(n: int) -> vs.VideoNode:
+        n = min(n, clip.num_frames - 1)
+        if n not in cuts:
+            cuts[n] = clip[n]
+
+        return cuts[n]
+
+    return frame
 
 
 def _ints(value) -> list[int]:
@@ -148,19 +163,25 @@ def describe(n: int, time: Fraction, props, at: Bracket) -> str:
     return f"{n} | src {float(time):.3f}{diff} | {where}"
 
 
-def nearest(clip: vs.VideoNode, timeline: Timeline, target: vs.VideoNode, ratio: Fraction) -> vs.VideoNode:
-    """`clip`'s real frames stretched over `target`'s frames (and framerate), each output frame taking whichever
-    real frame it's closest to in time."""
+def nearest(clips: list[vs.VideoNode], timeline: Timeline, target: vs.VideoNode, ratio: Fraction) -> list[vs.VideoNode]:
+    """`clips`' real frames stretched over `target`'s frames (and framerate), each output frame taking whichever
+    real frame it's closest to in time. Which one that is gets worked out once for all of them."""
     decisions = over_output(timeline, target.num_frames, ratio)
+    chosen: dict[int, int] = {}
 
-    def pick(n: int, f: vs.VideoFrame) -> vs.VideoNode:
-        at = bracket(f.props, source_time(n, ratio))
-        frame = at.right if at.timepoint is not None and at.timepoint >= Fraction(1, 2) else at.left
+    def real_frame(n: int, props) -> int:
+        if n not in chosen:
+            at = bracket(props, source_time(n, ratio))
+            chosen[n] = at.right if at.timepoint is not None and at.timepoint >= Fraction(1, 2) else at.left
 
-        return clip[min(frame, clip.num_frames - 1)]
+        return chosen[n]
 
-    holder = core.std.BlankClip(clip, length=target.num_frames, fpsnum=target.fps_num, fpsden=target.fps_den)
-    return core.std.FrameEval(holder, pick, prop_src=decisions)
+    def stretched(clip: vs.VideoNode) -> vs.VideoNode:
+        frame = single_frames(clip)
+        holder = core.std.BlankClip(clip, length=target.num_frames, fpsnum=target.fps_num, fpsden=target.fps_den)
+        return core.std.FrameEval(holder, lambda n, f: frame(real_frame(n, f.props)), prop_src=decisions)
+
+    return [stretched(clip) for clip in clips]
 
 
 def annotate(video: vs.VideoNode, timeline: Timeline, ratio: Fraction) -> vs.VideoNode:
