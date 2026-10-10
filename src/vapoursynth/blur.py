@@ -396,6 +396,7 @@ def main():
                         gpu=settings["gpu_interpolation"],
                         timeline=timeline,
                         halvings=blur.interpolate.search_halvings(settings["svp_search_size"], video.fps),
+                        gpu_search=settings["svp_gpu_search"],
                     )
 
             case "rife":
