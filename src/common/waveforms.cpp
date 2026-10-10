@@ -20,7 +20,7 @@ namespace {
 				"-v",
 				"error",
 				"-i",
-				path.string(),
+				u::path_to_string(path),
 				"-f",
 				"s16le",
 				"-acodec",
@@ -87,7 +87,7 @@ namespace {
 }
 
 std::optional<std::vector<int16_t>> waveforms::get_waveform(const std::filesystem::path& video_path, int target_width) {
-	const auto key = video_path.string();
+	const auto key = u::path_to_string(video_path);
 
 	std::unique_lock lock(waveform_mutex);
 
