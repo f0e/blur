@@ -11,7 +11,7 @@ ui::VideoWaveform* ui::videos::get_waveform(const std::filesystem::path& path, f
 	if (duration <= 0.f)
 		return nullptr;
 
-	auto key = path.string();
+	auto key = u::path_to_string(path);
 
 	auto it = cache.find(key);
 	if (it != cache.end())
