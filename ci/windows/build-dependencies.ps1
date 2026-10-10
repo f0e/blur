@@ -174,18 +174,16 @@ $plugins = @(
         IsDirectDll = $true;
     },
     @{
-        Name         = "SVPFlow";
-        Url          = "https://web.archive.org/web/20190322064557if_/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip";
-        FilePatterns = @(
-            "svpflow-4.2.0.142/lib-windows/vapoursynth/x64/svpflow1_vs64.dll",
-            "svpflow-4.2.0.142/lib-windows/vapoursynth/x64/svpflow2_vs64.dll"
-        );
-    },
-    @{
         Name         = "AVISource";
         Url          = "https://github.com/vapoursynth/vs-avisource-obsolete/releases/download/R1/avisource-r1.7z";
         Sha256       = "f43b6285b90fee682d9f669fe6aedca22592b7ba9d4be77ea5965a0af908d124";
         FilePatterns = @("win64/avisource.dll");
+    },
+    @{
+        Name         = "open-svpflow";
+        Url          = "https://github.com/Z1xus/open-svpflow/releases/download/nightly-20261009-deadbad8d6d2/x86_64-pc-windows-msvc.zip";
+        Sha256       = "296d1087cb19cf450b3211be356abe0e1e98e754f1acc992644ed211e605391f";
+        FilePatterns = @("svpflow1_vs.dll", "svpflow2_vs.dll");
     }
 )
 

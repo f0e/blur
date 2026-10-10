@@ -50,7 +50,6 @@ Each file in the `configs` folder is a separate blur config.
   - Speed: svp >> rife (tensorrt) > rife >> gimm-vfi (tensorrt)
   - `rife (tensorrt)` and `gimm-vfi (tensorrt)` are only available with a supported NVIDIA GPU
   - `gimm-vfi (tensorrt)` follows fast motion far better than rife (mostly matters at 60fps and below), but is around 5x slower than `rife (tensorrt)`. It's best used as the pre-interpolation method, to around 3x the source framerate, with svp doing the rest. Its model is made with `tools/export_gimm_vfi.py`
-  - Note: On macOS, SVP requires SVP Manager to be open or a red border will appear. It provides a 30-day trial, but then costs $24.99 for a lifetime license. RIFE can always be used however, but it is slower than SVP.
 
 ### Pre-interpolation
 

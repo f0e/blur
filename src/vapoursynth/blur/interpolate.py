@@ -53,9 +53,6 @@ DEFAULT_SPEED = "medium"
 DEFAULT_MASKING = 50
 DEFAULT_GPU = True
 
-# svpflow has no cpu renderer on apple silicon
-SVP_REQUIRES_GPU = sys.platform == "darwin"
-
 
 # Retiming
 #
@@ -248,9 +245,6 @@ def generate_svp_strings(
     gpu=DEFAULT_GPU,
     scene_detect=False,
 ):
-    if SVP_REQUIRES_GPU:
-        gpu = True
-
     if preset in TUNED_PRESETS:
         overlap = TUNED_OVERLAP
 
