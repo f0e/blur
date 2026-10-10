@@ -325,6 +325,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "svp interpolation algorithm: " << settings.advanced.svp_interpolation_algorithm << "\n";
 			output << "interpolation block size: " << settings.advanced.interpolation_blocksize << "\n";
 			output << "interpolation mask area: " << settings.advanced.interpolation_mask_area << "\n";
+			output << "svp search size: " << settings.advanced.svp_search_size << "\n";
 
 			if (!concise || settings.advanced.manual_svp) {
 				output << "\n";
@@ -465,6 +466,17 @@ config_blur::ValidationResult config_blur::validate(
 			config.advanced.interpolation_blocksize = DEFAULT_CONFIG.advanced.interpolation_blocksize;
 	}
 
+	if (!u::contains(SVP_SEARCH_SIZES, config.advanced.svp_search_size)) {
+		add_error(
+			ValidationField::SVP_SEARCH_SIZE,
+			std::format("SVP search size ({}) is not a valid option", config.advanced.svp_search_size),
+			true
+		);
+
+		if (fix)
+			config.advanced.svp_search_size = DEFAULT_CONFIG.advanced.svp_search_size;
+	}
+
 	return result;
 }
 
@@ -603,6 +615,7 @@ BlurSettings config_blur::parse_from_map(
 		config_base::extract_config_value(
 			config_map, "interpolation mask area", settings.advanced.interpolation_mask_area
 		);
+		config_base::extract_config_value(config_map, "svp search size", settings.advanced.svp_search_size);
 		config_base::extract_config_value(config_map, "manual svp", settings.advanced.manual_svp);
 		config_base::extract_config_value(config_map, "super string", settings.advanced.super_string);
 		config_base::extract_config_value(config_map, "vectors string", settings.advanced.vectors_string);
@@ -831,6 +844,7 @@ nlohmann::json BlurSettings::to_json() const {
 	j["svp_interpolation_algorithm"] = this->advanced.svp_interpolation_algorithm;
 	j["interpolation_blocksize"] = this->advanced.interpolation_blocksize;
 	j["interpolation_mask_area"] = this->advanced.interpolation_mask_area;
+	j["svp_search_size"] = this->advanced.svp_search_size;
 
 	j["rife_model"] = interpolation_models::get_rife_path() / this->rife_model;
 #ifdef TENSORRT
