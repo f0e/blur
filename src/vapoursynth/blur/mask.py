@@ -151,6 +151,9 @@ STILL_SECONDS = 0.05
 # and in most frames this far either side, so the mask doesn't flicker
 STILL_VOTE_SECONDS = 0.04
 
+# the most memory the source's frames are kept in for tracking to read back
+SOURCE_CACHE_BYTES = 1 << 30
+
 # still pixels are dropped unless this much of the box around them is still too
 STILL_CLUSTER_COVERAGE = 0.25
 
@@ -748,6 +751,16 @@ def track(clip: vs.VideoNode, static: vs.VideoNode | None, params: Params = DEFA
 
     # compared against frames this far away on each side, the ends of the span and the middle
     span = min(max(1, round(STILL_SECONDS * fps)), analysed.num_frames - 1)
+    vote = round(STILL_VOTE_SECONDS * fps)
+
+    # vapoursynth's automatic caching drops frames before the vote's window is done with them, and long gop
+    # sources seek back and decode again for each one
+    reach = span + vote
+    chroma = (clip.format.num_planes - 1) / (1 << (clip.format.subsampling_w + clip.format.subsampling_h))
+    frame_bytes = int(clip.width * clip.height * clip.format.bytes_per_sample * (1 + chroma))
+    core.std.SetVideoCache(
+        clip, mode=1, fixedsize=1, maxsize=min(4 * reach, max(2 * reach, SOURCE_CACHE_BYTES // frame_bytes))
+    )
     offsets = sorted({1, max(1, span // 2), span})
 
     # how much the area around each pixel changes over the span, in brightness
@@ -803,14 +816,19 @@ def track(clip: vs.VideoNode, static: vs.VideoNode | None, params: Params = DEFA
         f"x.FoundAverage y.DetailAverage 0.000001 + / {MAX_STILL_DETAIL} > 0 x ?",
     )
 
-    vote = round(STILL_VOTE_SECONDS * fps)
     if vote > 0:
         found = core.frameblender.FrameBlend(found, weights=[1] * (2 * vote + 1))
 
-    protected = core.std.Expr(found, f"x {peak / 2} >= 1 0 ?", format=vs.GRAYS)
+    # grown like _grown, but counting the fade in whole steps so it stays at the analysis' depth until the end
+    steps = min(feather, padding) + 1
+    protected = core.std.Expr(found, f"x {peak / 2} >= {steps} 0 ?")
+    grown = protected
+    for ring in range(1, padding + 1):
+        grown = core.std.Maximum(grown)
+        protected = core.std.Expr([protected, grown], f"x y 0 > {min(steps, padding - ring + 1)} 0 ? max")
 
     # without the analysis' yuv matrix, which stops it being resized into an rgb clip
-    gray = core.std.RemoveFrameProps(core.std.Expr(_grown(protected, padding, feather), "1 x -"), "_Matrix")
+    gray = core.std.RemoveFrameProps(core.std.Expr(protected, f"1 x {steps} / -", format=vs.GRAYS), "_Matrix")
 
     if static is None:
         return gray
@@ -1071,9 +1089,9 @@ def match_length(src: vs.VideoNode, target: vs.VideoNode) -> vs.VideoNode:
         raise u.BlurException("Can't apply a mask to an empty clip")
 
     factor = target.num_frames / src.num_frames
-    last = src.num_frames - 1
+    frame = retime.single_frames(src)
 
-    return core.std.FrameEval(core.std.BlankClip(target), lambda n: src[min(round(n / factor), last)])
+    return core.std.FrameEval(core.std.BlankClip(target), lambda n: frame(round(n / factor)))
 
 
 def combine(grays: list[vs.VideoNode]) -> vs.VideoNode:
@@ -1114,42 +1132,95 @@ def fill(clip: vs.VideoNode, gray: vs.VideoNode) -> vs.VideoNode:
     """Paint over anything the mask protects with the scene around it. Otherwise interpolation drags overlays
     along with the scene, and the copies land just outside the mask."""
     fmt = clip.format
-    working = core.query_video_format(fmt.color_family, vs.FLOAT, 32, fmt.subsampling_w, fmt.subsampling_h)
+    white = (1 << fmt.bits_per_sample) - 1 if fmt.sample_type == vs.INTEGER else 1
+    plane_format = core.query_video_format(vs.GRAY, fmt.sample_type, fmt.bits_per_sample, 0, 0).id
 
     # only pixels the mask leaves completely alone count as scene
-    white = (1 << fmt.bits_per_sample) - 1 if fmt.sample_type == vs.INTEGER else 1
-    scene = core.std.Expr(match(gray, clip), f"x {white * 0.999} >= 1 0 ?", format=working.id)
+    scene = core.std.Expr(match(gray, clip), f"x {white * 0.999} >= {white} 0 ?")
 
     # push-pull: halve the scene (weighted by `scene`) until the holes are gone, then fill each level's holes
-    # from the one below it
-    colour = core.resize.Point(clip, format=working.id)
-    levels = [(core.std.Expr([colour, scene], "x y *"), scene)]
-
+    # from the one below it. full size only ever holds the scene or the fill, so it stays at the clip's own depth
+    # and the levels start at half size
     width_step, height_step = 1 << fmt.subsampling_w, 1 << fmt.subsampling_h
     width, height = clip.width, clip.height
-    while height > FILL_MIN_HEIGHT:
+    sizes = []
+    while height > FILL_MIN_HEIGHT or not sizes:
         width = max(width_step, width // 2 // width_step * width_step)
         height = max(height_step, height // 2 // height_step * height_step)
+        sizes.append((width, height))
 
-        premultiplied, weight = levels[-1]
-        levels.append(
-            (
-                core.resize.Bilinear(premultiplied, width=width, height=height),
-                core.resize.Bilinear(weight, width=width, height=height),
-            )
+    # each plane on its own, so integer values convert to float without the yuv offsets (which would stop 0
+    # meaning no scene). planes the same size share their weights
+    weights = {}
+    planes = []
+    for index in range(fmt.num_planes):
+        plane, weight = _plane(clip, index), _plane(scene, index)
+        shift_w, shift_h = (fmt.subsampling_w, fmt.subsampling_h) if index else (0, 0)
+        level_sizes = [(w >> shift_w, h >> shift_h) for w, h in sizes]
+
+        if (plane.width, plane.height) not in weights:
+            weight_levels = [_to_float(weight, *level_sizes[0])]
+            for size in level_sizes[1:]:
+                weight_levels.append(core.resize.Bilinear(weight_levels[-1], *size))
+            weights[plane.width, plane.height] = weight_levels
+
+        weight_levels = weights[plane.width, plane.height]
+
+        premultiplied = [_to_float(core.std.Expr([plane, weight], "y 0 > x 0 ?"), *level_sizes[0])]
+        for size in level_sizes[1:]:
+            premultiplied.append(core.resize.Bilinear(premultiplied[-1], *size))
+
+        filled = core.std.Expr([premultiplied[-1], weight_levels[-1]], "y 0.000001 > x y / 0 ?")
+        for level, level_weight in reversed(list(zip(premultiplied[:-1], weight_levels[:-1]))):
+            below = core.resize.Bilinear(filled, width=level.width, height=level.height)
+            filled = core.std.Expr([level, level_weight, below], "x 1 y - z * +")
+
+        filled = core.resize.Bilinear(
+            _unranged(filled),
+            width=plane.width,
+            height=plane.height,
+            format=plane_format,
+            dither_type="none",
+            range_in_s="full",
+            range_s="full",
         )
 
-    premultiplied, weight = levels[-1]
-    filled = core.std.Expr([premultiplied, weight], "y 0.000001 > x y / 0 ?")
+        # scene pixels go back exactly as they were
+        planes.append(core.std.Expr([plane, filled, weight], "z 0 > x y ?"))
 
-    for premultiplied, weight in reversed(levels[:-1]):
-        below = core.resize.Bilinear(filled, width=premultiplied.width, height=premultiplied.height)
-        filled = core.std.Expr([premultiplied, weight, below], "x 1 y - z * +")
+    return core.std.ShufflePlanes(planes, [0] * fmt.num_planes, fmt.color_family)
 
-    filled = core.resize.Point(filled, format=fmt.id, dither_type="none")
 
-    # scene pixels go back exactly as they were
-    return core.std.Expr([clip, filled, scene], "z 0 > x y ?")
+def _unranged(clip: vs.VideoNode) -> vs.VideoNode:
+    """`clip` without a range, which resize would take over the range it's told."""
+    return core.std.RemoveFrameProps(clip, ["_Range", "_ColorRange"])
+
+
+def _float_scale(fmt: vs.VideoFormat, index: int) -> str:
+    """akarin expression storing S and O, which take plane `index` of x from float (as resize converts it, going
+    by x's range) to `fmt`'s values: value = float * S + O."""
+    if fmt.sample_type == vs.FLOAT:
+        return "1 S! 0 O!"
+
+    step = 1 << (fmt.bits_per_sample - 8)
+    peak = (1 << fmt.bits_per_sample) - 1
+    if fmt.color_family == vs.YUV and index > 0:
+        full, limited = (peak, 128 * step), (224 * step, 128 * step)
+    elif fmt.color_family == vs.RGB:
+        full = limited = (peak, 0)
+    else:
+        full, limited = (peak, 0), (219 * step, 16 * step)
+
+    # a missing range counts as limited, like resize. akarin compares a missing property as equal to anything
+    is_limited = "x._Range 0 ="
+    return f"{is_limited} {limited[0]} {full[0]} ? S! {is_limited} {limited[1]} {full[1]} ? O!"
+
+
+def _to_float(plane: vs.VideoNode, width: int, height: int) -> vs.VideoNode:
+    """A GRAY plane resized to GRAYS, with integer values mapped straight to 0-1."""
+    return core.resize.Bilinear(
+        _unranged(plane), width=width, height=height, format=vs.GRAYS, range_in_s="full", range_s="full"
+    )
 
 
 def _per_plane(gray: vs.VideoNode, like: vs.VideoNode) -> vs.VideoNode:
@@ -1177,21 +1248,24 @@ def separate(clip: vs.VideoNode, gray: vs.VideoNode, layer: Layer | None = None)
 
     fmt = clip.format
     working = core.query_video_format(fmt.color_family, vs.FLOAT, 32, fmt.subsampling_w, fmt.subsampling_h)
-    as_float = core.resize.Point(clip, format=working.id)
 
     b = core.resize.Bilinear(layer.b, width=clip.width, height=clip.height)
 
     # inpainted where too little of the scene shows through to work it back out
-    inpainted = core.resize.Point(fill(clip, core.std.Expr(b, "x 0.999 >= 1 0 ?")), format=working.id)
+    inpainted = fill(clip, core.std.Expr(b, "x 0.999 >= 1 0 ?"))
 
     a = core.resize.Bilinear(layer.a, width=clip.width, height=clip.height, format=working.id)
     lowest, full = LAYER_UNMIX_FROM, LAYER_UNMIX_FULL
     weight = f"z {lowest} - {full - lowest} / 0 max 1 min"
-    taken_out = core.std.Expr(
-        [as_float, a, _per_plane(b, as_float), inpainted],
-        f"z 0.999 >= x x y - z {lowest} max / {weight} * a 1 {weight} - * + ?",
-    )
-    separated = core.resize.Point(taken_out, format=fmt.id, dither_type="none")
+
+    # the layer is in float, the clip's values are converted to and from it inside the expression
+    expressions = []
+    for index in range(fmt.num_planes):
+        to_float = _float_scale(fmt, index)
+        unmixed = f"X@ y - z {lowest} max / {weight} * a O@ - S@ / 1 {weight} - * +"
+        expressions.append(f"{to_float} x O@ - S@ / X! z 0.999 >= X@ {unmixed} ? S@ * O@ +")
+
+    separated = core.akarin.Expr([clip, a, _per_plane(b, a), inpainted], expressions)
 
     # what the rest of the mask protects more than the layer does (tracking, a mask preset) is inpainted as before
     sized = core.resize.Bilinear(gray, width=clip.width, height=clip.height, format=vs.GRAYS)
@@ -1212,25 +1286,24 @@ def composite(
     much of the scene shows through moving on since. With the `timeline` `interpolated` was retimed onto (`ratio`
     output frames to each of `original`'s), each output frame goes by the real frame nearest to it."""
 
-    def stretched(clip: vs.VideoNode) -> vs.VideoNode:
-        if timeline is not None and ratio is not None:
-            return retime.nearest(clip, timeline, interpolated, ratio)
-
-        return match_length(clip, interpolated)
-
     # a tracked mask follows `original`'s frames, a one frame mask is just repeated
     shows = match(through, interpolated)
-    if through.num_frames > 1:
-        shows = stretched(shows)
+    tracked = through.num_frames > 1
+    real = [original, separated, shows] if tracked else [original, separated]
+
+    if timeline is not None and ratio is not None:
+        real = retime.nearest(real, timeline, interpolated, ratio)
+    else:
+        real = [match_length(clip, interpolated) for clip in real]
+
+    if tracked:
+        shows = real.pop()
 
     fmt = interpolated.format
     white = (1 << fmt.bits_per_sample) - 1 if fmt.sample_type == vs.INTEGER else 1
 
     # just the interpolated frame where nothing's covered, since separated is the original there
-    return core.std.Expr(
-        [interpolated, stretched(original), stretched(separated), shows],
-        f"y a {white} / x z - * +",
-    )
+    return core.std.Expr([interpolated, *real, shows], f"y a {white} / x z - * +")
 
 
 def save(grays: list[vs.VideoNode], clip: vs.VideoNode, path: Path):
