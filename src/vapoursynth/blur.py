@@ -349,7 +349,8 @@ def main():
     # where the video cuts to another scene, moved along with it as it's interpolated
     cuts = detected_cuts = None
     if settings["scene_detection"] and (settings["interpolate"] or retiming or settings["blur"]):
-        cuts = detected_cuts = blur.scenes.detect(video, video_info.is_full_color_range)
+        spread = video.fps / settings["blur_output_fps"] if settings["blur"] else 1
+        cuts = detected_cuts = blur.scenes.detect(video, video_info.is_full_color_range, spread)
 
     # after deduplication and scene detection, which need to see the frames as they are
     if mask is not None:
