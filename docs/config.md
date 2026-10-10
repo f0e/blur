@@ -78,7 +78,10 @@ Each file in the `configs` folder is a separate blur config.
 Masks protect regions of the frame (like a HUD) from interpolation and deduplication. Black is protected, white is interpolated as normal.
 
 - mask - Image in the `masks` folder (inside your [config folder](#config-files-explained)) to use as a mask, empty for none
-- auto mask - Generates an extra mask per video from the parts that never move, plus anything that holds still in each frame (kill feeds, ammo counts), applied on top of `mask`. Tuned in the advanced section
+- auto mask - Generates an extra mask per video from the parts that never move, applied on top of `mask`. Tuned in the advanced section
+- auto mask tracking - Also protects overlays that come and go (kill feeds, ammo counts, scoreboards), found frame by frame. Slowest, renders take around 65% longer
+- auto mask layer - Treats what the auto mask covers as a layer over the scene, so the scene seen through translucent overlays and their soft edges is still interpolated. Renders take around 20% longer
+- auto mask inpainting - Paints over what's masked with the scene around it before interpolating, so overlays aren't dragged out past the mask. Renders take around 15% longer
 
 ### Rendering
 

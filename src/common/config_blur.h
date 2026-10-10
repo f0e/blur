@@ -72,6 +72,10 @@ struct BlurSettings {
 
 	// generate a mask from the parts of each video that never move, applied on top of `mask`
 	bool auto_mask = false;
+	// what the auto mask does past that, each one slower
+	bool auto_mask_tracking = false;
+	bool auto_mask_layer = false;
+	bool auto_mask_inpainting = false;
 
 	bool scene_detection = true;
 

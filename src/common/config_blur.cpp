@@ -191,6 +191,11 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "- masking" << "\n";
 		output << "mask: " << settings.mask << "\n";
 		output << "auto mask: " << (settings.auto_mask ? "true" : "false") << "\n";
+		if (!concise || settings.auto_mask) {
+			output << "auto mask tracking: " << (settings.auto_mask_tracking ? "true" : "false") << "\n";
+			output << "auto mask layer: " << (settings.auto_mask_layer ? "true" : "false") << "\n";
+			output << "auto mask inpainting: " << (settings.auto_mask_inpainting ? "true" : "false") << "\n";
+		}
 	}
 
 	// Rendering section (always included)
@@ -353,7 +358,8 @@ bool config_blur::masking_possible(const BlurSettings& settings) {
 }
 
 bool config_blur::same_masking(const BlurSettings& a, const BlurSettings& b) {
-	if (a.mask != b.mask || a.auto_mask != b.auto_mask || a.advanced.auto_mask != b.advanced.auto_mask)
+	if (a.mask != b.mask || a.auto_mask != b.auto_mask || a.auto_mask_tracking != b.auto_mask_tracking ||
+	    a.advanced.auto_mask != b.advanced.auto_mask)
 		return false;
 
 	if (a.interpolate != b.interpolate || a.deduplicate != b.deduplicate ||
@@ -510,6 +516,9 @@ BlurSettings config_blur::parse_from_map(
 	if (settings.mask == masks::NONE_OPTION)
 		settings.mask.clear();
 	config_base::extract_config_value(config_map, "auto mask", settings.auto_mask);
+	config_base::extract_config_value(config_map, "auto mask tracking", settings.auto_mask_tracking);
+	config_base::extract_config_value(config_map, "auto mask layer", settings.auto_mask_layer);
+	config_base::extract_config_value(config_map, "auto mask inpainting", settings.auto_mask_inpainting);
 
 	config_base::extract_config_value(config_map, "pre-interpolate", settings.pre_interpolate);
 	config_base::extract_config_value(
@@ -756,6 +765,9 @@ nlohmann::json BlurSettings::to_json() const {
 	j["scene_detection"] = this->scene_detection;
 	j["mask"] = this->mask;
 	j["auto_mask"] = this->auto_mask;
+	j["auto_mask_tracking"] = this->auto_mask_tracking;
+	j["auto_mask_layer"] = this->auto_mask_layer;
+	j["auto_mask_inpainting"] = this->auto_mask_inpainting;
 
 	j["pre_interpolate"] = this->pre_interpolate;
 	j["pre_interpolated_minimum_fps"] = this->pre_interpolated_minimum_fps;

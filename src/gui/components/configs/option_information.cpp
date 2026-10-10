@@ -98,6 +98,15 @@ void configs::option_information(ui::Container& container) {
 				"Configured in the advanced section",
 			},
 		},
+		{
+			"auto mask extras dropdown",
+			{
+				"What the auto mask does past protecting the parts that never move. Each one slows rendering down",
+				"tracking: also protects overlays that come and go (kill feeds, ammo counts, scoreboards), found frame by frame. Slowest, renders take around 65% longer",
+				"layer: treats what the mask covers as a layer over the scene, so the scene seen through translucent overlays and their soft edges is still interpolated. Around 20% longer",
+				"inpainting: paints over what's masked with the scene around it before interpolating, so overlays aren't dragged out past the mask. Around 15% longer",
+			},
+		},
 
 		// Automatic mask tuning
 		{
