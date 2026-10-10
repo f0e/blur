@@ -3,6 +3,10 @@ import vapoursynth as vs
 from blur import scenes
 from vapoursynth import core
 
+# frameblender takes yuv in for the squared blend from this version, with these matrices
+YUV_SQUARED_VERSION = (3, 1)
+BLENDER_MATRICES = {vs.MATRIX_BT709, vs.MATRIX_BT470_BG, vs.MATRIX_ST170_M, vs.MATRIX_BT2020_NCL}
+
 
 def average(
     clip: vs.VideoNode,
@@ -72,6 +76,22 @@ def blend(
             vs.RGBS,  # bloom adds light, so highlights need room above white
             process,
         )
+
+    matrix = vs.MATRIX_UNSPECIFIED
+    if _video.format.color_family == vs.YUV and tuple(core.frameblender.version) >= YUV_SQUARED_VERSION:
+        matrix = _video.get_frame(0).props.get("_Matrix", vs.MATRIX_UNSPECIFIED)
+        if matrix == vs.MATRIX_UNSPECIFIED:
+            matrix = u.guess_matrix(_video.width, _video.height)
+
+    if matrix in BLENDER_MATRICES and _video.format.subsampling_w <= 1 and _video.format.subsampling_h <= 1:
+        # the blender converts to rgb for the curve itself, which saves converting every interpolated frame there
+        # and back. it reads black, white and the matrix from the props
+        _video = core.std.SetFrameProps(
+            _video,
+            _Matrix=matrix,
+            _ColorRange=vs.RANGE_FULL if video_info.is_full_color_range else vs.RANGE_LIMITED,
+        )
+        return average(_video, weights, divisor, squared=True, cuts=cuts)
 
     return u.with_format(
         _video,
