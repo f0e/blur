@@ -83,9 +83,11 @@ def _retimed(
     timeline: retime.Timeline,
     dst_fps: Fraction,
     build: Callable[[vs.VideoNode, int], vs.VideoNode],
+    regular: vs.VideoNode | None = None,
 ) -> vs.VideoNode:
     """Interpolate `video` to `dst_fps`, filling the timeline's gaps in the same pass. `build(clip, fps)` is the
-    interpolation call, run on a 1fps clip so `fps` is a multiplier.
+    interpolation call, run on a 1fps clip so `fps` is a multiplier. `regular` is `video` interpolated to `dst_fps`
+    as it is, used wherever the timeline just moves from one frame to the next.
 
     Interpolates a clip of pairs (frame 2j is the real frame before decision j, 2j + 1 the one after) by `steps`,
     then each output frame picks its nearest step. Frames between unrelated pairs are never requested so never
@@ -122,6 +124,10 @@ def _retimed(
 
         if at.timepoint is None:
             return video[at.left]
+
+        # the pairs clip searches motion between unrelated pairs too, so it costs about twice as much per frame
+        if regular is not None and at.right == at.left + 1 and at.left_time == at.left and at.right_time == at.right:
+            return regular
 
         step = min(round(at.timepoint * steps), steps)
         pair = retime.decision_index(timeline, n, ratio) * timeline.slots + at.slot
@@ -373,17 +379,22 @@ def svp(
     """`new_fps` is only needed alongside `timeline`, since retiming replaces the rate in `smooth_str`."""
     _video = core.fmtc.bitdepth(_video, bits=8)
 
+    def regular(video):
+        # SmoothFps stops one source frame short, so pad with a repeat of the last frame and trim back
+        smooth = SVP(video + video[-1], super_string, vectors_string, smooth_str)
+        return smooth[: int(video.num_frames * smooth.fps / video.fps)]
+
     def process(video):
         if timeline is None:
-            # SmoothFps stops one source frame short, so pad with a repeat of the last frame and trim back
-            smooth = SVP(video + video[-1], super_string, vectors_string, smooth_str)
-            return smooth[: int(video.num_frames * smooth.fps / video.fps)]
+            return regular(video)
 
         return _retimed(
             video,
             timeline,
             _fps(new_fps),
             lambda pairs, steps: SVP(pairs, super_string, vectors_string, _with_rate(smooth_str, steps)),
+            # filling gaps without interpolating lands every output frame on a real one
+            regular(video) if _fps(new_fps) > video.fps else None,
         )
 
     if _video.format.id == vs.YUV444P8:
