@@ -885,6 +885,17 @@ void configs::options(ui::Container& container) {
 					);
 				}
 			);
+
+			validated_element(config_blur::ValidationField::SVP_SEARCH_SIZE, "SVP search size error", [&] {
+				ui::add_dropdown(
+					"SVP search size dropdown",
+					container,
+					"SVP search size",
+					config_blur::SVP_SEARCH_SIZES,
+					settings.advanced.svp_search_size,
+					fonts::dejavu
+				);
+			});
 		}
 
 		validated_element(config_blur::ValidationField::INTERPOLATION_BLOCKSIZE, "interpolation block size error", [&] {

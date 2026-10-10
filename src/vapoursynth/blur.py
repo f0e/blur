@@ -377,6 +377,7 @@ def main():
                         smooth_str=json.dumps(smooth_json),
                         timeline=timeline,
                         new_fps=new_fps,
+                        halvings=blur.interpolate.search_halvings(settings["svp_search_size"], video.fps),
                     )
                 else:
                     result = blur.interpolate.interpolate_svp(
@@ -394,6 +395,7 @@ def main():
                         masking=interpolation_mask_area,
                         gpu=settings["gpu_interpolation"],
                         timeline=timeline,
+                        halvings=blur.interpolate.search_halvings(settings["svp_search_size"], video.fps),
                     )
 
             case "rife":

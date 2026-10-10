@@ -10,7 +10,7 @@ from typing import Any
 
 import blur.utils as u
 import vapoursynth as vs
-from blur import retime
+from blur import log, retime
 from vapoursynth import core
 
 # in the filename of RIFE models made by tools/export_rife_large_motion.py
@@ -47,6 +47,12 @@ DEFAULT_ALGORITHM = 23
 # 23 follows large motion better, 13 smears static things like a hud less. from this framerate up the motion between
 # frames is small enough that 13 loses nothing visible
 AUTO_ALGORITHM_MIN_FPS = 240
+
+SEARCH_SIZE_HALVINGS = {"full": 0, "half": 1, "quarter": 2}
+
+# searching at half size costs little below this, where the motion between frames is big next to the precision it
+# loses. svp itself runs about 2.7x faster either way
+AUTO_HALF_SEARCH_MAX_FPS = 240
 DEFAULT_BLOCKSIZE = 8
 DEFAULT_OVERLAP = 2
 DEFAULT_SPEED = "medium"
@@ -320,16 +326,37 @@ def SVP(
     super_string: str,
     vectors_string: str,
     smooth_str: str,
+    halvings: int = 0,
 ):
+    """`halvings` finds the motion on a copy halved that many times, which is a lot faster for some loss in
+    quality."""
     # svp only takes 4:2:0. for 4:4:4 the motion is found once on a 4:2:0 copy, then each plane is rendered as the
     # luma of its own clip along those vectors so none of them lose resolution. upscaling the luma to match the
     # chroma instead makes svp do about 3x the work
     planes = video.format.id == vs.YUV444P8
     analysed = core.resize.Bilinear(video, format=vs.YUV420P8) if planes else video
 
+    # each halving needs a size that divides by 4
+    while halvings and (analysed.width % 2 ** (halvings + 1) or analysed.height % 2 ** (halvings + 1)):
+        halvings -= 1
+        log.info(f"the video's size can't be halved that many times, searching at 1/{2**halvings} size")
+
     try:
-        super = core.svp1.Super(analysed, super_string)
-        vectors = core.svp1.Analyse(super["clip"], super["data"], analysed, vectors_string)
+        searched = analysed
+        for _ in range(halvings):
+            searched = core.svp1.Halve(searched)
+
+        super = core.svp1.Super(searched, super_string)
+        vectors = core.svp1.Analyse(super["clip"], super["data"], searched, vectors_string)
+
+        if halvings:
+            for _ in range(halvings):
+                vectors = core.svp1.DoubleVectors(vectors["clip"], vectors["data"])
+
+            # the doubled vectors are pel 1 whatever the search used, and rendering needs a super that matches them.
+            # same as open-svpflow's own c api, which reads gpu back out of the small super's data
+            gpu = (super["data"] >> 48) & 0xFF
+            super = core.svp1.Super(analysed, json.dumps({"pel": 1, "gpu": gpu}))
 
         def smooth(clip: vs.VideoNode):
             return core.svp2.SmoothFps(
@@ -369,13 +396,14 @@ def svp(
     smooth_str: str,
     timeline: retime.Timeline | None = None,
     new_fps=None,
+    halvings: int = 0,
 ):
     """`new_fps` is only needed alongside `timeline`, since retiming replaces the rate in `smooth_str`."""
     _video = core.fmtc.bitdepth(_video, bits=8)
 
     def regular(video):
         # SmoothFps stops one source frame short, so pad with a repeat of the last frame and trim back
-        smooth = SVP(video + video[-1], super_string, vectors_string, smooth_str)
+        smooth = SVP(video + video[-1], super_string, vectors_string, smooth_str, halvings)
         return smooth[: int(video.num_frames * smooth.fps / video.fps)]
 
     def process(video):
@@ -386,7 +414,7 @@ def svp(
             video,
             timeline,
             _fps(new_fps),
-            lambda pairs, steps: SVP(pairs, super_string, vectors_string, _with_rate(smooth_str, steps)),
+            lambda pairs, steps: SVP(pairs, super_string, vectors_string, _with_rate(smooth_str, steps), halvings),
             # filling gaps without interpolating lands every output frame on a real one
             regular(video) if _fps(new_fps) > video.fps else None,
         )
@@ -399,6 +427,14 @@ def svp(
         vs.YUV420P8,
         process,
     )
+
+
+def search_halvings(search_size: str, fps) -> int:
+    """How many times svp halves footage reaching it at `fps` before searching it."""
+    if search_size == "auto":
+        return 1 if round(fps) < AUTO_HALF_SEARCH_MAX_FPS else 0
+
+    return SEARCH_SIZE_HALVINGS[search_size]
 
 
 def auto_algorithm(fps) -> int:
@@ -418,6 +454,7 @@ def interpolate_svp(
     masking=DEFAULT_MASKING,
     gpu=DEFAULT_GPU,
     timeline: retime.Timeline | None = None,
+    halvings: int = 0,
 ):
     preset = preset.lower()
 
@@ -437,6 +474,7 @@ def interpolate_svp(
         smooth_string,
         timeline=timeline,
         new_fps=new_fps,
+        halvings=halvings,
     )
 
 
