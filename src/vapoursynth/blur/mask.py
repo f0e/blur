@@ -52,8 +52,8 @@ def load(path: Path) -> vs.VideoNode:
 # a sample only counts towards the first two when the area around the pixel changed since the previous sample.
 # otherwise a clip that spends most of its time looking at one spot makes that spot look static
 #
-# `track` then adds whatever holds still in each frame on top, for overlays that come and go (kill feeds, ammo
-# counts, scoreboards) and so never make it into the whole clip mask
+# with tracking on, `track` adds whatever holds still in each frame on top, for overlays that come and go (kill
+# feeds, ammo counts, scoreboards) and so never make it into the whole clip mask
 #
 # the mask is kept tight to the overlay, since masked background stutters and looks worse than the artifacts
 
@@ -1240,11 +1240,14 @@ def _per_plane(gray: vs.VideoNode, like: vs.VideoNode) -> vs.VideoNode:
     return core.std.ShufflePlanes([luma, chroma, chroma], planes=[0, 0, 0], colorfamily=fmt.color_family)
 
 
-def separate(clip: vs.VideoNode, gray: vs.VideoNode, layer: Layer | None = None) -> tuple[vs.VideoNode, vs.VideoNode]:
+def separate(
+    clip: vs.VideoNode, gray: vs.VideoNode, layer: Layer | None = None, inpaint: bool = True
+) -> tuple[vs.VideoNode, vs.VideoNode]:
     """`clip` with its overlays taken out for interpolating, and how much of the scene shows through at each pixel
-    (GRAYS, 1 where there's no overlay) for `composite` to put them back with."""
+    (GRAYS, 1 where there's no overlay) for `composite` to put them back with. Without `inpaint` what can't be
+    worked back out of the layer is left as it is."""
     if layer is None:
-        return fill(clip, gray), gray
+        return fill(clip, gray) if inpaint else clip, gray
 
     fmt = clip.format
     working = core.query_video_format(fmt.color_family, vs.FLOAT, 32, fmt.subsampling_w, fmt.subsampling_h)
@@ -1252,7 +1255,7 @@ def separate(clip: vs.VideoNode, gray: vs.VideoNode, layer: Layer | None = None)
     b = core.resize.Bilinear(layer.b, width=clip.width, height=clip.height)
 
     # inpainted where too little of the scene shows through to work it back out
-    inpainted = fill(clip, core.std.Expr(b, "x 0.999 >= 1 0 ?"))
+    inpainted = fill(clip, core.std.Expr(b, "x 0.999 >= 1 0 ?")) if inpaint else clip
 
     a = core.resize.Bilinear(layer.a, width=clip.width, height=clip.height, format=working.id)
     lowest, full = LAYER_UNMIX_FROM, LAYER_UNMIX_FULL
@@ -1269,7 +1272,8 @@ def separate(clip: vs.VideoNode, gray: vs.VideoNode, layer: Layer | None = None)
 
     # what the rest of the mask protects more than the layer does (tracking, a mask preset) is inpainted as before
     sized = core.resize.Bilinear(gray, width=clip.width, height=clip.height, format=vs.GRAYS)
-    separated = fill(separated, core.std.Expr([sized, b], "x y 0.05 - < x 1 ?"))
+    if inpaint:
+        separated = fill(separated, core.std.Expr([sized, b], "x y 0.05 - < x 1 ?"))
 
     return separated, core.std.Expr([sized, b], "x y min")
 

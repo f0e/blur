@@ -53,10 +53,12 @@ def build_mask_clips(
     settings_path: Path,
     mask_start: int,
     mask_end: int,
+    tracking: bool = False,
     layered: bool = False,
 ) -> tuple[list[vs.VideoNode], list[vs.VideoNode], blur.mask.Layer | None]:
     """The masks to render with, the ones that are the same for every frame (what's worth saving as a mask
-    preset), and with `layered`, what the auto mask covers as a layer over the scene."""
+    preset), and with `layered`, what the auto mask covers as a layer over the scene. `tracking` adds overlays
+    found frame by frame."""
     mask_clips = []
     fixed = []
     layer = None
@@ -90,8 +92,13 @@ def build_mask_clips(
                     params,
                 )
 
-        # overlays that come and go are found frame by frame in what's being rendered. the layer covers the rest
-        mask_clips.append(blur.mask.track(video, None if layer else generated, auto_mask_params))
+        # the layer covers the whole clip mask
+        static = None if layer else generated
+        if tracking:
+            # overlays that come and go are found frame by frame in what's being rendered
+            mask_clips.append(blur.mask.track(video, static, auto_mask_params))
+        elif static is not None:
+            mask_clips.append(static)
 
     return mask_clips, fixed, layer
 
@@ -235,6 +242,7 @@ def main():
     mask_name = settings["mask"] if apply_masks else ""
     auto_mask = settings["auto_mask"] if apply_masks else False
     auto_mask_params = blur.mask.Params.from_settings(settings)
+    auto_mask_tracking = auto_mask and settings["auto_mask_tracking"]
 
     if globals().get("preview_mask") == "true":
         mask_clips, fixed, _ = build_mask_clips(
@@ -247,6 +255,7 @@ def main():
             settings_path,
             mask_start,
             mask_end,
+            tracking=auto_mask_tracking,
         )
 
         # the gui saves this rather than the frame on screen, which would bake in whatever was tracked on it
@@ -302,11 +311,14 @@ def main():
             settings_path,
             mask_start,
             mask_end,
-            layered=True,
+            tracking=auto_mask_tracking,
+            layered=auto_mask and settings["auto_mask_layer"],
         )
 
         if mask_clips:
             mask = blur.mask.combine(mask_clips)
+        elif layer is not None:
+            mask = core.std.BlankClip(video, format=vs.GRAYS, color=1.0, length=1)
 
     # input timescale
     if settings["timescale"]:
@@ -341,7 +353,8 @@ def main():
 
     # after deduplication and scene detection, which need to see the frames as they are
     if mask is not None:
-        video, shows_through = blur.mask.separate(video, mask, layer)
+        inpaint = auto_mask and settings["auto_mask_inpainting"]
+        video, shows_through = blur.mask.separate(video, mask, layer, inpaint)
         separated = video
 
     def interpolate_to(method: str, video: vs.VideoNode, new_fps, cuts, timeline=None):

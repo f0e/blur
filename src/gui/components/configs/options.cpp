@@ -447,6 +447,20 @@ void configs::options(ui::Container& container) {
 		ui::add_checkbox(
 			"default auto mask checkbox", container, "default auto mask", settings.auto_mask, fonts::dejavu
 		);
+
+		if (settings.auto_mask) {
+			ui::add_multiselect_dropdown(
+				"auto mask extras dropdown",
+				container,
+				"auto mask extras",
+				{
+					{ "tracking", &settings.auto_mask_tracking },
+					{ "layer", &settings.auto_mask_layer },
+					{ "inpainting", &settings.auto_mask_inpainting },
+				},
+				fonts::dejavu
+			);
+		}
 	}
 
 	/*
