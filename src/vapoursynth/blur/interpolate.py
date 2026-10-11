@@ -53,7 +53,8 @@ AUTO_ALGORITHM_MIN_FPS = 240
 SEARCH_SIZE_HALVINGS = {"full": 0, "half": 1, "quarter": 2}
 
 # searching at half size costs little below this, where the motion between frames is big next to the precision it
-# loses. svp itself runs about 2.7x faster either way
+# loses. svp itself runs about 2.7x faster either way. above it, half size tears hud text unless peel takes the hud
+# out first, and with peel it's as good as full size
 AUTO_HALF_SEARCH_MAX_FPS = 240
 DEFAULT_BLOCKSIZE = 8
 DEFAULT_OVERLAP = 2
@@ -273,10 +274,11 @@ def generate_svp_strings(
         case "test":
             vectors_json["main"] = {"search": {"type": 3, "satd": True, "coarse": {"type": 3}}}
         case _ if preset in TUNED_PRESETS:
-            # weak, with the coarse search covering the whole frame and reaching a little further
+            # weak, with the coarse search covering the whole frame and reaching a little further, and the last level
+            # searching around its predictors instead of just picking one. that costs 7-17% for a cleaner world and
+            # hud at every framerate, and is what makes searching at half size hold up
             vectors_json["main"] = {
                 "search": {
-                    "distance": 0,
                     "coarse": {
                         "distance": -4,
                         "width": 4000,
@@ -437,10 +439,10 @@ def svp(
     )
 
 
-def search_halvings(search_size: str, fps) -> int:
+def search_halvings(search_size: str, fps, peel: bool = False) -> int:
     """How many times svp halves footage reaching it at `fps` before searching it."""
     if search_size == "auto":
-        return 1 if round(fps) < AUTO_HALF_SEARCH_MAX_FPS else 0
+        return 1 if peel or round(fps) < AUTO_HALF_SEARCH_MAX_FPS else 0
 
     return SEARCH_SIZE_HALVINGS[search_size]
 

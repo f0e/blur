@@ -185,7 +185,7 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
   - 2 - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - 11 - _[Explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
   - 21 - _[Explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
-- svp search size - Size of the copy SVP finds motion on before scaling it back up (`auto`, `full`, `half`, `quarter`). Smaller is faster (SVP runs ~2.7x faster at half, ~4x at quarter) but less accurate, mostly around HUD elements. `auto` uses half below 240fps, where it costs least, and full otherwise
+- svp search size - Size of the copy SVP finds motion on before scaling it back up (`auto`, `full`, `half`, `quarter`). Smaller is faster (SVP runs ~2.7x faster at half, ~4x at quarter) but less accurate, mostly around HUD elements. `auto` uses half below 240fps, where it costs least, and from 240fps up only with svp peel on, which keeps the HUD from tearing at half size (on the 1200fps test recordings that renders 1.5-1.7x faster than full size with no loss). Otherwise full
 - svp block overlap - How far SVP's motion search blocks overlap their neighbours (`auto`, `0`, `1`, `2`, `3`). Higher is more accurate but slower. `auto` uses 3 for the quality preset below 240fps and 2 from 240fps up (where 3 is ~1.4x slower for ~1.5% less HUD error), 3 for max, and 0 for the other presets
 
 ### Advanced interpolation

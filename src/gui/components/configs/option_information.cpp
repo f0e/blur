@@ -222,7 +222,7 @@ void configs::option_information(ui::Container& container) {
 			"SVP search size dropdown",
 			{
 				"Finds motion on a smaller copy of the video, then scales it back up",
-				"(Smaller = faster but less accurate. Auto uses half below 240fps, where it costs least)",
+				"(Smaller = faster but less accurate. Auto uses half below 240fps, or always with svp peel on)",
 			},
 		},
 		{
