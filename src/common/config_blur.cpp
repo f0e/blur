@@ -9,12 +9,12 @@
 #include "encoding.h"
 
 namespace {
-	void verify_gpu_interpolation(BlurSettings& settings) {
+	void verify_svp_gpu_rendering(BlurSettings& settings) {
 		if (!blur.initialised)
 			return;
 
-		if (settings.gpu_interpolation && !devices::wait_svp_gpu_supported())
-			settings.gpu_interpolation = false;
+		if (settings.svp_gpu_rendering && !devices::wait_svp_gpu_supported())
+			settings.svp_gpu_rendering = false;
 	}
 
 	bool deduplicate_threshold_valid(const std::string& threshold) {
@@ -119,6 +119,21 @@ namespace {
 					return true;
 				},
 		},
+		{
+			.version = "3.0.0",
+			.description = "'gpu interpolation' -> 'svp gpu rendering'",
+			.apply =
+				[](config_base::ConfigMap& config) {
+					auto it = config.find("gpu interpolation");
+					if (it == config.end())
+						return false;
+
+					config.try_emplace("svp gpu rendering", it->second);
+
+					config.erase(it);
+					return true;
+				},
+		},
 	});
 }
 
@@ -216,22 +231,28 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "upscale: " << (settings.upscale ? "true" : "false") << "\n";
 	}
 
-	// Interpolation models section
-	bool uses_rife = settings.uses_interpolation_method("rife");
+	// SVP section
+	if (!concise || settings.uses_interpolation_method("svp")) {
+		output << "\n";
+		output << "- svp" << "\n";
+		output << "svp gpu search: " << (settings.svp_gpu_search ? "true" : "false") << "\n";
+		output << "svp gpu rendering: " << (settings.svp_gpu_rendering ? "true" : "false") << "\n";
+	}
+
+	// RIFE section
+	if (!concise || settings.uses_interpolation_method("rife")) {
+		output << "\n";
+		output << "- rife" << "\n";
+		output << "rife model: " << settings.rife_model << "\n";
+	}
+
+	// TensorRT section
 #ifdef TENSORRT
 	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
 	bool uses_gimm = settings.uses_interpolation_method("gimm-vfi (tensorrt)");
-#else
-	bool uses_rife_trt = false;
-	bool uses_gimm = false;
-#endif
-	if (!concise || uses_rife || uses_rife_trt || uses_gimm) {
+	if (!concise || uses_rife_trt || uses_gimm) {
 		output << "\n";
-		output << "- interpolation models" << "\n";
-		if (!concise || uses_rife) {
-			output << "rife model: " << settings.rife_model << "\n";
-		}
-#ifdef TENSORRT
+		output << "- tensorrt" << "\n";
 		if (!concise || uses_rife_trt) {
 			output << "rife (tensorrt) model: " << settings.rife_trt_model << "\n";
 			output << "rife (tensorrt) ensemble: " << (settings.rife_trt_ensemble ? "true" : "false") << "\n";
@@ -239,15 +260,14 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		if (!concise || uses_gimm) {
 			output << "gimm-vfi (tensorrt) model: " << settings.gimm_trt_model << "\n";
 		}
-#endif
 	}
+#endif
 
 	// GPU acceleration section
-	if (!concise || settings.gpu_decoding || settings.gpu_interpolation || settings.gpu_encoding) {
+	if (!concise || settings.gpu_decoding || settings.gpu_encoding) {
 		output << "\n";
 		output << "- gpu acceleration" << "\n";
 		output << "gpu decoding: " << (settings.gpu_decoding ? "true" : "false") << "\n";
-		output << "gpu interpolation: " << (settings.gpu_interpolation ? "true" : "false") << "\n";
 		output << "gpu encoding: " << (settings.gpu_encoding ? "true" : "false") << "\n";
 	}
 
@@ -320,13 +340,15 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "blur weighting gaussian bound: " << settings.advanced.blur_weighting_gaussian_bound << "\n";
 
 			output << "\n";
-			output << "- advanced interpolation" << "\n";
+			output << "- advanced svp" << "\n";
 			output << "svp interpolation preset: " << settings.advanced.svp_interpolation_preset << "\n";
 			output << "svp interpolation algorithm: " << settings.advanced.svp_interpolation_algorithm << "\n";
+			output << "svp search size: " << settings.advanced.svp_search_size << "\n";
+
+			output << "\n";
+			output << "- advanced interpolation" << "\n";
 			output << "interpolation block size: " << settings.advanced.interpolation_blocksize << "\n";
 			output << "interpolation mask area: " << settings.advanced.interpolation_mask_area << "\n";
-			output << "svp search size: " << settings.advanced.svp_search_size << "\n";
-			output << "svp gpu search: " << (settings.advanced.svp_gpu_search ? "true" : "false") << "\n";
 
 			if (!concise || settings.advanced.manual_svp) {
 				output << "\n";
@@ -553,8 +575,10 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "copy dates", settings.copy_dates);
 	config_base::extract_config_value(config_map, "upscale", settings.upscale);
 
+	config_base::extract_config_value(config_map, "svp gpu search", settings.svp_gpu_search);
+	config_base::extract_config_value(config_map, "svp gpu rendering", settings.svp_gpu_rendering);
+
 	config_base::extract_config_value(config_map, "gpu decoding", settings.gpu_decoding);
-	config_base::extract_config_value(config_map, "gpu interpolation", settings.gpu_interpolation);
 	config_base::extract_config_value(config_map, "gpu encoding", settings.gpu_encoding);
 
 	config_base::extract_config_value(config_map, "timescale", settings.timescale);
@@ -617,7 +641,6 @@ BlurSettings config_blur::parse_from_map(
 			config_map, "interpolation mask area", settings.advanced.interpolation_mask_area
 		);
 		config_base::extract_config_value(config_map, "svp search size", settings.advanced.svp_search_size);
-		config_base::extract_config_value(config_map, "svp gpu search", settings.advanced.svp_gpu_search);
 		config_base::extract_config_value(config_map, "manual svp", settings.advanced.manual_svp);
 		config_base::extract_config_value(config_map, "super string", settings.advanced.super_string);
 		config_base::extract_config_value(config_map, "vectors string", settings.advanced.vectors_string);
@@ -625,7 +648,7 @@ BlurSettings config_blur::parse_from_map(
 	}
 
 	encoding::verify_gpu_encoding(settings);
-	verify_gpu_interpolation(settings);
+	verify_svp_gpu_rendering(settings);
 
 	return settings;
 }
@@ -811,7 +834,8 @@ nlohmann::json BlurSettings::to_json() const {
 	// j["copy_dates"] = this->copy_dates;
 
 	j["gpu_decoding"] = this->gpu_decoding;
-	j["gpu_interpolation"] = this->gpu_interpolation;
+	j["svp_gpu_search"] = this->svp_gpu_search;
+	j["svp_gpu_rendering"] = this->svp_gpu_rendering;
 	j["gpu_encoding"] = this->gpu_encoding;
 
 	j["filters"] = this->filters;
@@ -847,7 +871,6 @@ nlohmann::json BlurSettings::to_json() const {
 	j["interpolation_blocksize"] = this->advanced.interpolation_blocksize;
 	j["interpolation_mask_area"] = this->advanced.interpolation_mask_area;
 	j["svp_search_size"] = this->advanced.svp_search_size;
-	j["svp_gpu_search"] = this->advanced.svp_gpu_search;
 
 	j["rife_model"] = interpolation_models::get_rife_path() / this->rife_model;
 #ifdef TENSORRT
@@ -866,7 +889,7 @@ nlohmann::json BlurSettings::to_json() const {
 
 BlurSettings::BlurSettings() {
 	encoding::verify_gpu_encoding(*this);
-	verify_gpu_interpolation(*this);
+	verify_svp_gpu_rendering(*this);
 }
 
 bool BlurSettings::uses_interpolation_method(const std::string& method) const {

@@ -68,7 +68,7 @@ namespace {
 
 	bool test_svp_gpu() {
 #ifdef __APPLE__
-		// there's no cpu svp on macos, so gpu interpolation can't be turned off anyway
+		// there's no cpu svp on macos, so svp gpu rendering can't be turned off anyway
 		return true;
 #else
 		namespace bp = boost::process;
@@ -320,7 +320,7 @@ void devices::initialise() {
 	svp_gpu_tested.notify_all();
 
 	if (!svp_gpu_works)
-		u::log("svp gpu interpolation doesn't work on this system, using cpu interpolation instead");
+		u::log("svp gpu rendering doesn't work on this system, using cpu rendering instead");
 
 	rife = list_devices("rife");
 #ifdef TENSORRT

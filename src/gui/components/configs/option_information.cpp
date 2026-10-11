@@ -226,13 +226,6 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
-			"SVP GPU search checkbox",
-			{
-				"Finds motion on the GPU, mostly faster at full search size",
-				"(Searches in an order the GPU can run in parallel, so results differ slightly)",
-			},
-		},
-		{
 			"interpolation block size dropdown",
 			{
 				"Block size for interpolation",
@@ -338,6 +331,21 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 
+		// svp
+		{
+			"svp gpu search checkbox",
+			{
+				"Finds motion on the GPU, mostly faster at full search size",
+				"(Searches in an order the GPU can run in parallel, so results differ slightly)",
+			},
+		},
+		{
+			"svp gpu rendering checkbox",
+			{
+				"Renders the interpolated frames on the GPU",
+			},
+		},
+
 		// gpu acceleration
 		{
 			"gpu decoding",
@@ -379,7 +387,6 @@ void configs::option_information(ui::Container& container) {
 		// { "contrast", { "Adjusts contrast of the output video", }, },
 
 		// Advanced rendering
-		// { "gpu interpolation checkbox", { "Uses GPU for interpolation", }, },
 		// { "gpu encoding checkbox", { "Uses GPU for rendering", }, },
 		// { "gpu encoding type dropdown", { "Select GPU type", }, },
 		{

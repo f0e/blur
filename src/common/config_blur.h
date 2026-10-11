@@ -35,7 +35,6 @@ struct AdvancedSettings {
 	std::string interpolation_blocksize = "8";
 	int interpolation_mask_area = 0;
 	std::string svp_search_size = "full";
-	bool svp_gpu_search = false;
 
 	AutoMaskSettings auto_mask;
 
@@ -114,8 +113,10 @@ struct BlurSettings {
 	bool copy_dates = false;
 
 	bool gpu_decoding = false;
-	bool gpu_interpolation = true;
 	bool gpu_encoding = false;
+
+	bool svp_gpu_search = false;
+	bool svp_gpu_rendering = true;
 
 	std::string rife_model = "rife-v4.26_ensembleFalse";
 	std::string rife_trt_model = "rife_v4.26";
