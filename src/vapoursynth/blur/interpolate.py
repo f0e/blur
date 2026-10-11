@@ -253,6 +253,7 @@ def generate_svp_strings(
     gpu=DEFAULT_GPU,
     scene_detect=False,
     gpu_search=False,
+    peel=False,
 ):
     # build super json
     super_json = {
@@ -309,6 +310,9 @@ def generate_svp_strings(
             "area_sharp": 1.2,  # test if this does anything
         },
     }
+
+    if peel:
+        smooth_json["mask"]["peel"] = True
 
     if not scene_detect:
         # dont want any scene detection stuff when normally blurring (i think?)
@@ -474,6 +478,7 @@ def interpolate_svp(
     timeline: retime.Timeline | None = None,
     halvings: int = 0,
     gpu_search: bool = False,
+    peel: bool = False,
 ):
     preset = preset.lower()
 
@@ -482,7 +487,7 @@ def interpolate_svp(
 
     # generate svp strings
     [super_string, vectors_string, smooth_string] = generate_svp_strings(
-        new_fps, preset, algorithm, blocksize, overlap, speed, masking, gpu, gpu_search=gpu_search
+        new_fps, preset, algorithm, blocksize, overlap, speed, masking, gpu, gpu_search=gpu_search, peel=peel
     )
 
     return svp(

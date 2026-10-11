@@ -594,6 +594,8 @@ void configs::options(ui::Container& container) {
 				"svp gpu rendering checkbox", container, "svp gpu rendering", settings.svp_gpu_rendering, fonts::dejavu
 			);
 		}
+
+		ui::add_checkbox("svp peel checkbox", container, "svp peel", settings.svp_peel, fonts::dejavu);
 	}
 
 	/*
