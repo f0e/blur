@@ -218,7 +218,7 @@ Presets are grouped by encoder (`nvidia`, `amd`, `intel`, `mac`, `cpu`), each a 
 - output prefix - Folder rendered videos are saved to, relative to the input video's folder
 - gpu type (nvidia/amd/intel) - GPU used for GPU encoding, picks which group of encode presets is used
 - rife gpu - GPU used by `rife` (auto = fastest)
-- rife (tensorrt) gpu - GPU used by `rife (tensorrt)` (auto = fastest)
+- tensorrt gpu - GPU used by `rife (tensorrt)` and `gimm-vfi (tensorrt)` (auto = fastest)
 
 ### GUI
 

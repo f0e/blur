@@ -15,7 +15,7 @@ std::string config_app::generate_config_string(const GlobalAppSettings& settings
 		output << "rife gpu: " << settings.rife_device << "\n";
 
 #ifdef TENSORRT
-		output << "rife (tensorrt) gpu: " << settings.tensorrt_device << "\n";
+		output << "tensorrt gpu: " << settings.tensorrt_device << "\n";
 #endif
 	}
 
@@ -119,7 +119,7 @@ GlobalAppSettings config_app::parse_from_map(const std::map<std::string, std::st
 	config_base::extract_config_value(config_map, "rife gpu", settings.rife_device);
 
 #ifdef TENSORRT
-	config_base::extract_config_value(config_map, "rife (tensorrt) gpu", settings.tensorrt_device);
+	config_base::extract_config_value(config_map, "tensorrt gpu", settings.tensorrt_device);
 #endif
 
 #ifdef BLUR_COLOR_THEMES
