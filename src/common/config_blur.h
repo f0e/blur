@@ -35,6 +35,7 @@ struct AdvancedSettings {
 	std::string interpolation_blocksize = "8";
 	int interpolation_mask_area = 0;
 	std::string svp_search_size = "full";
+	std::string svp_block_overlap = "auto";
 
 	AutoMaskSettings auto_mask;
 
@@ -153,6 +154,8 @@ namespace config_blur {
 
 	inline const std::vector<std::string> SVP_SEARCH_SIZES = { "auto", "full", "half", "quarter" };
 
+	inline const std::vector<std::string> SVP_BLOCK_OVERLAPS = { "auto", "0", "1", "2", "3" };
+
 	inline const std::vector<std::string> BLUR_SAMPLING_METHODS = { "rectangle", "trapezoid", "round up" };
 
 	inline const std::vector<std::string> SOURCE_PLUGINS = { "LWLibavSource", "BestSource" };
@@ -183,6 +186,7 @@ namespace config_blur {
 		SVP_INTERPOLATION_ALGORITHM,
 		INTERPOLATION_BLOCKSIZE,
 		SVP_SEARCH_SIZE,
+		SVP_BLOCK_OVERLAP,
 		BLUR_SAMPLING,
 	};
 

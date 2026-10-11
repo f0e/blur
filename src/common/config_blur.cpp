@@ -344,6 +344,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "svp interpolation preset: " << settings.advanced.svp_interpolation_preset << "\n";
 			output << "svp interpolation algorithm: " << settings.advanced.svp_interpolation_algorithm << "\n";
 			output << "svp search size: " << settings.advanced.svp_search_size << "\n";
+			output << "svp block overlap: " << settings.advanced.svp_block_overlap << "\n";
 
 			output << "\n";
 			output << "- advanced interpolation" << "\n";
@@ -500,6 +501,17 @@ config_blur::ValidationResult config_blur::validate(
 			config.advanced.svp_search_size = DEFAULT_CONFIG.advanced.svp_search_size;
 	}
 
+	if (!u::contains(SVP_BLOCK_OVERLAPS, config.advanced.svp_block_overlap)) {
+		add_error(
+			ValidationField::SVP_BLOCK_OVERLAP,
+			std::format("SVP block overlap ({}) is not a valid option", config.advanced.svp_block_overlap),
+			true
+		);
+
+		if (fix)
+			config.advanced.svp_block_overlap = DEFAULT_CONFIG.advanced.svp_block_overlap;
+	}
+
 	return result;
 }
 
@@ -641,6 +653,7 @@ BlurSettings config_blur::parse_from_map(
 			config_map, "interpolation mask area", settings.advanced.interpolation_mask_area
 		);
 		config_base::extract_config_value(config_map, "svp search size", settings.advanced.svp_search_size);
+		config_base::extract_config_value(config_map, "svp block overlap", settings.advanced.svp_block_overlap);
 		config_base::extract_config_value(config_map, "manual svp", settings.advanced.manual_svp);
 		config_base::extract_config_value(config_map, "super string", settings.advanced.super_string);
 		config_base::extract_config_value(config_map, "vectors string", settings.advanced.vectors_string);
@@ -871,6 +884,7 @@ nlohmann::json BlurSettings::to_json() const {
 	j["interpolation_blocksize"] = this->advanced.interpolation_blocksize;
 	j["interpolation_mask_area"] = this->advanced.interpolation_mask_area;
 	j["svp_search_size"] = this->advanced.svp_search_size;
+	j["svp_block_overlap"] = this->advanced.svp_block_overlap;
 
 	j["rife_model"] = interpolation_models::get_rife_path() / this->rife_model;
 #ifdef TENSORRT

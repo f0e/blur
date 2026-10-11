@@ -904,6 +904,17 @@ void configs::options(ui::Container& container) {
 					fonts::dejavu
 				);
 			});
+
+			validated_element(config_blur::ValidationField::SVP_BLOCK_OVERLAP, "SVP block overlap error", [&] {
+				ui::add_dropdown(
+					"SVP block overlap dropdown",
+					container,
+					"SVP block overlap",
+					config_blur::SVP_BLOCK_OVERLAPS,
+					settings.advanced.svp_block_overlap,
+					fonts::dejavu
+				);
+			});
 		}
 
 		/*
