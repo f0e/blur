@@ -91,9 +91,17 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 - copy dates - Copies over the modified date from the input file to the output file
 - upscale - Upscales to 4K using nearest-neighbour interpolation
 
-### Interpolation models
+### SVP
+
+- svp gpu search - Finds motion on the GPU instead of the CPU, true/false. It searches the larger levels of the motion search in an order a GPU can run in parallel, so the vectors differ slightly from the CPU search (on the 1200fps test recordings, within ~1% on the scene and most HUD elements, worst ~2% on scenery behind HUD during fast flicks). Mostly worth it at full search size. Falls back to the same search order on the CPU if no GPU is available
+- svp gpu rendering - Renders the interpolated frames on the GPU
+
+### RIFE
 
 - rife model - Model used by `rife`. Models are read from the `models` folder where blur is installed (`lib/models` on Windows), drop new ones in to use them
+
+### TensorRT
+
 - rife (tensorrt) model - Model used by `rife (tensorrt)`
   - rife_v4.26_large_motion - 4.26 estimating motion at half resolution. Follows fast motion at low framerates much better and is faster than rife_v4.26, but loses a little fine detail at high input framerates (240+). Made with `tools/export_rife_large_motion.py`
 - rife (tensorrt) ensemble - Runs RIFE a second time with the frames swapped and averages the two. Cleaner on fast motion, around twice as slow
@@ -103,7 +111,6 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 ### GPU acceleration
 
 - gpu decoding - Uses GPU when decoding. Can cause issues
-- gpu interpolation - Uses GPU when interpolating
 - gpu encoding - Uses GPU when rendering. The GPU type used is set in [`app.cfg`](#appcfg)
 
 ### Timescale
@@ -158,7 +165,7 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 - blur weighting gaussian mean - Mean used in the gaussian weighting
 - blur weighting gaussian bound - Bound used in the gaussian weighting
 
-### Advanced interpolation
+### Advanced SVP
 
 - svp interpolation preset - Preset used for framerate interpolation when using SVP, one of:
   - quality (default) - Tuned against real high framerate footage. Fewer doubled edges on fast motion than weak, at around twice the cost
@@ -177,6 +184,11 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
   - 2 - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - 11 - _[Explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
   - 21 - _[Explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
+- svp search size - Size of the copy SVP finds motion on before scaling it back up (`auto`, `full`, `half`, `quarter`). Smaller is faster (SVP runs ~2.7x faster at half, ~4x at quarter) but less accurate, mostly around HUD elements. `auto` uses half below 240fps, where it costs least, and full otherwise
+
+### Advanced interpolation
+
+Used by `svp` and `mvtools`.
 
 - interpolation block size - Block size used for framerate interpolation. Higher block size = less accurate blur, will result in spaces around non-moving objects of the frame, also renders faster. Lower block size = more accurate blur, but can result in artifacting, also slower. For higher framerate input videos lower block size can be better. Options:
   - 4
@@ -185,8 +197,6 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
   - 32
 
 - interpolation mask area - Mask amount used when interpolating. Higher values can mean static objects are blurred less, but can also result in less smooth output (moving parts of the image can be mistaken for static parts and don't get blurred)
-- svp search size - Size of the copy SVP finds motion on before scaling it back up (`auto`, `full`, `half`, `quarter`). Smaller is faster (SVP runs ~2.7x faster at half, ~4x at quarter) but less accurate, mostly around HUD elements. `auto` uses half below 240fps, where it costs least, and full otherwise
-- svp gpu search - Finds motion on the GPU instead of the CPU, true/false. It searches the larger levels of the motion search in an order a GPU can run in parallel, so the vectors differ slightly from the CPU search (on the 1200fps test recordings, within ~1% on the scene and most HUD elements, worst ~2% on scenery behind HUD during fast flicks). Mostly worth it at full search size
 
 ### Manual SVP override
 

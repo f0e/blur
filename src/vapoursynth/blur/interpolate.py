@@ -388,7 +388,7 @@ def SVP(
         return core.std.ShufflePlanes([smooth_plane(plane) for plane in range(3)], planes=[0, 0, 0], colorfamily=vs.YUV)
     except vs.Error as e:
         raise u.BlurException(
-            user_error="Failed to initialise SVP. Ensure your GPU drivers are up to date. You may need to disable 'gpu interpolation'.",
+            user_error="Failed to initialise SVP. Ensure your GPU drivers are up to date. You may need to disable 'svp gpu rendering'.",
             original_exception=e,
         )
 

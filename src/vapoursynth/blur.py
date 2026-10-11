@@ -393,7 +393,7 @@ def main():
                         blocksize=interpolation_blocksize,
                         overlap=0,
                         masking=interpolation_mask_area,
-                        gpu=settings["gpu_interpolation"],
+                        gpu=settings["svp_gpu_rendering"],
                         timeline=timeline,
                         halvings=blur.interpolate.search_halvings(settings["svp_search_size"], video.fps),
                         gpu_search=settings["svp_gpu_search"],

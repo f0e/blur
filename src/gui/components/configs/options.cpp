@@ -547,108 +547,6 @@ void configs::options(ui::Container& container) {
 
 	ui::add_checkbox("upscale checkbox", container, "upscale", settings.upscale, fonts::dejavu);
 
-	/*
-	    Interpolation Models
-	*/
-	bool uses_rife = settings.uses_interpolation_method("rife");
-#ifdef TENSORRT
-	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
-	bool uses_gimm = settings.uses_interpolation_method("gimm-vfi (tensorrt)");
-#else
-	bool uses_rife_trt = false;
-	bool uses_gimm = false;
-#endif
-
-	if (uses_rife || uses_rife_trt || uses_gimm) {
-		section_component("interpolation models");
-
-		// the folders are listed every frame so models dropped in show up straight away
-		if (uses_rife)
-			model_dropdown(
-				"rife model",
-				interpolation_models::list_rife(),
-				settings.rife_model,
-				interpolation_models::get_rife_path()
-			);
-
-#ifdef TENSORRT
-		if (uses_rife_trt) {
-			model_dropdown(
-				"rife (tensorrt) model",
-				interpolation_models::list_rife_trt(),
-				settings.rife_trt_model,
-				interpolation_models::get_rife_trt_path()
-			);
-
-			ui::add_checkbox(
-				"rife (tensorrt) ensemble checkbox",
-				container,
-				"rife (tensorrt) ensemble",
-				settings.rife_trt_ensemble,
-				fonts::dejavu
-			);
-		}
-
-		if (uses_gimm) {
-			model_dropdown(
-				"gimm-vfi (tensorrt) model",
-				interpolation_models::list_gimm_trt(),
-				settings.gimm_trt_model,
-				interpolation_models::get_gimm_trt_path()
-			);
-		}
-#endif
-	}
-
-	/*
-	    GPU Acceleration
-	*/
-	section_component("gpu acceleration");
-
-	ui::add_checkbox("gpu decoding checkbox", container, "gpu decoding", settings.gpu_decoding, fonts::dejavu);
-
-	if (devices::get_svp_gpu_supported() == false) {
-		ui::add_text(
-			"gpu interpolation unsupported warning",
-			container,
-			"gpu interpolation isn't supported by your gpu",
-			WARNING_COLOR,
-			fonts::dejavu
-		);
-	}
-	else {
-		ui::add_checkbox(
-			"gpu interpolation checkbox", container, "gpu interpolation", settings.gpu_interpolation, fonts::dejavu
-		);
-	}
-
-	if (settings.advanced.ffmpeg_override.empty()) {
-		ui::add_checkbox("gpu encoding checkbox", container, "gpu encoding", settings.gpu_encoding, fonts::dejavu);
-
-		if (settings.gpu_encoding) {
-			auto gpu_types = encoding::get_available_gpu_types();
-			if (gpu_types.size() > 1) {
-				ui::add_dropdown(
-					"gpu encoding type dropdown",
-					container,
-					"gpu encoding device",
-					gpu_types,
-					app_settings.gpu_type,
-					fonts::dejavu
-				);
-			}
-		}
-	}
-	else {
-		ui::add_text(
-			"ffmpeg override gpu encoding warning",
-			container,
-			"gpu encoding overridden by custom ffmpeg filters",
-			WARNING_COLOR,
-			fonts::dejavu
-		);
-	}
-
 	auto device_dropdown = [&](const std::string& label,
 	                           const std::map<int, std::string>& device_list,
 	                           std::string& device,
@@ -696,21 +594,129 @@ void configs::options(ui::Container& container) {
 		);
 	};
 
-	static std::string rife_device;
-	device_dropdown(
-		"rife device", devices::rife, app_settings.rife_device, devices::get_auto_rife_device(), rife_device
-	);
+	/*
+	    SVP
+	*/
+	if (settings.uses_interpolation_method("svp")) {
+		section_component("svp");
 
+		ui::add_checkbox(
+			"svp gpu search checkbox", container, "svp gpu search", settings.svp_gpu_search, fonts::dejavu
+		);
+
+		if (devices::get_svp_gpu_supported() == false) {
+			ui::add_text(
+				"svp gpu rendering unsupported warning",
+				container,
+				"svp gpu rendering isn't supported by your gpu",
+				WARNING_COLOR,
+				fonts::dejavu
+			);
+		}
+		else {
+			ui::add_checkbox(
+				"svp gpu rendering checkbox", container, "svp gpu rendering", settings.svp_gpu_rendering, fonts::dejavu
+			);
+		}
+	}
+
+	/*
+	    RIFE
+	*/
+	if (settings.uses_interpolation_method("rife")) {
+		section_component("rife");
+
+		// the folders are listed every frame so models dropped in show up straight away
+		model_dropdown(
+			"rife model", interpolation_models::list_rife(), settings.rife_model, interpolation_models::get_rife_path()
+		);
+
+		static std::string rife_device;
+		device_dropdown(
+			"rife device", devices::rife, app_settings.rife_device, devices::get_auto_rife_device(), rife_device
+		);
+	}
+
+	/*
+	    TensorRT
+	*/
 #ifdef TENSORRT
-	static std::string tensorrt_device;
-	device_dropdown(
-		"rife (tensorrt) device",
-		devices::tensorrt,
-		app_settings.tensorrt_device,
-		devices::get_auto_tensorrt_device(),
-		tensorrt_device
-	);
+	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
+	bool uses_gimm = settings.uses_interpolation_method("gimm-vfi (tensorrt)");
+
+	if (uses_rife_trt || uses_gimm) {
+		section_component("tensorrt");
+
+		if (uses_rife_trt) {
+			model_dropdown(
+				"rife (tensorrt) model",
+				interpolation_models::list_rife_trt(),
+				settings.rife_trt_model,
+				interpolation_models::get_rife_trt_path()
+			);
+
+			ui::add_checkbox(
+				"rife (tensorrt) ensemble checkbox",
+				container,
+				"rife (tensorrt) ensemble",
+				settings.rife_trt_ensemble,
+				fonts::dejavu
+			);
+		}
+
+		if (uses_gimm) {
+			model_dropdown(
+				"gimm-vfi (tensorrt) model",
+				interpolation_models::list_gimm_trt(),
+				settings.gimm_trt_model,
+				interpolation_models::get_gimm_trt_path()
+			);
+		}
+
+		static std::string tensorrt_device;
+		device_dropdown(
+			"tensorrt device",
+			devices::tensorrt,
+			app_settings.tensorrt_device,
+			devices::get_auto_tensorrt_device(),
+			tensorrt_device
+		);
+	}
 #endif
+
+	/*
+	    GPU Acceleration
+	*/
+	section_component("gpu acceleration");
+
+	ui::add_checkbox("gpu decoding checkbox", container, "gpu decoding", settings.gpu_decoding, fonts::dejavu);
+
+	if (settings.advanced.ffmpeg_override.empty()) {
+		ui::add_checkbox("gpu encoding checkbox", container, "gpu encoding", settings.gpu_encoding, fonts::dejavu);
+
+		if (settings.gpu_encoding) {
+			auto gpu_types = encoding::get_available_gpu_types();
+			if (gpu_types.size() > 1) {
+				ui::add_dropdown(
+					"gpu encoding type dropdown",
+					container,
+					"gpu encoding device",
+					gpu_types,
+					app_settings.gpu_type,
+					fonts::dejavu
+				);
+			}
+		}
+	}
+	else {
+		ui::add_text(
+			"ffmpeg override gpu encoding warning",
+			container,
+			"gpu encoding overridden by custom ffmpeg filters",
+			WARNING_COLOR,
+			fonts::dejavu
+		);
+	}
 
 	/*
 	    Timescale
@@ -855,11 +861,13 @@ void configs::options(ui::Container& container) {
 		);
 
 		/*
-		    Advanced Interpolation
+		    Advanced SVP
 		*/
-		section_component("advanced interpolation");
+		bool uses_svp = settings.uses_interpolation_method("svp");
 
-		if (settings.interpolation_method == "svp") {
+		if (uses_svp) {
+			section_component("advanced svp");
+
 			validated_element(
 				config_blur::ValidationField::SVP_INTERPOLATION_PRESET, "SVP interpolation preset error", [&] {
 					ui::add_dropdown(
@@ -896,32 +904,37 @@ void configs::options(ui::Container& container) {
 					fonts::dejavu
 				);
 			});
-
-			ui::add_checkbox(
-				"SVP GPU search checkbox", container, "SVP GPU search", settings.advanced.svp_gpu_search, fonts::dejavu
-			);
 		}
 
-		validated_element(config_blur::ValidationField::INTERPOLATION_BLOCKSIZE, "interpolation block size error", [&] {
-			ui::add_dropdown(
-				"interpolation block size dropdown",
+		/*
+		    Advanced Interpolation
+		*/
+		if (uses_svp || settings.uses_interpolation_method("mvtools")) {
+			section_component("advanced interpolation");
+
+			validated_element(
+				config_blur::ValidationField::INTERPOLATION_BLOCKSIZE, "interpolation block size error", [&] {
+					ui::add_dropdown(
+						"interpolation block size dropdown",
+						container,
+						"interpolation block size",
+						config_blur::INTERPOLATION_BLOCK_SIZES,
+						settings.advanced.interpolation_blocksize,
+						fonts::dejavu
+					);
+				}
+			);
+
+			ui::add_slider(
+				"interpolation mask area slider",
 				container,
-				"interpolation block size",
-				config_blur::INTERPOLATION_BLOCK_SIZES,
-				settings.advanced.interpolation_blocksize,
+				0,
+				500,
+				&settings.advanced.interpolation_mask_area,
+				"interpolation mask area: {}",
 				fonts::dejavu
 			);
-		});
-
-		ui::add_slider(
-			"interpolation mask area slider",
-			container,
-			0,
-			500,
-			&settings.advanced.interpolation_mask_area,
-			"interpolation mask area: {}",
-			fonts::dejavu
-		);
+		}
 
 		/*
 		    Advanced Masking
