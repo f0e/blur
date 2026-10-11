@@ -400,7 +400,7 @@ def main():
                         masking=interpolation_mask_area,
                         gpu=settings["svp_gpu_rendering"],
                         timeline=timeline,
-                        halvings=blur.interpolate.search_halvings(settings["svp_search_size"], video.fps),
+                        halvings=blur.interpolate.search_halvings(settings["svp_search_size"], video.fps, peel),
                         gpu_search=settings["svp_gpu_search"],
                         peel=peel,
                     )
