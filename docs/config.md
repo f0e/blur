@@ -95,6 +95,7 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 
 - svp gpu search - Finds motion on the GPU instead of the CPU, true/false. It searches the larger levels of the motion search in an order a GPU can run in parallel, so the vectors differ slightly from the CPU search (on the 1200fps test recordings, within ~1% on the scene and most HUD elements, worst ~2% on scenery behind HUD during fast flicks). Mostly worth it at full search size. Falls back to the same search order on the CPU if no GPU is available
 - svp gpu rendering - Renders the interpolated frames on the GPU
+- svp peel - Takes the HUD off the scene before interpolating it, true/false. open-svpflow learns how see-through each pixel of the HUD is from how the scene moves behind it, interpolates the scene on its own and puts the HUD back over it. On the 1200fps test recordings it cuts error on HUD elements by 4-10% for 10-20% more render time, without changing the scene. Only works with svp gpu rendering on
 
 ### RIFE
 

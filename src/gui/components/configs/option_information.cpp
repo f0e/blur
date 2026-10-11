@@ -347,6 +347,13 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"svp peel checkbox",
+			{
+				"Takes the HUD off the scene before interpolating it and puts it back after",
+				"(Keeps HUD elements cleaner for ~10-20% more render time. Needs svp gpu rendering)",
+			},
+		},
+		{
 			"svp gpu rendering checkbox",
 			{
 				"Renders the interpolated frames on the GPU",

@@ -93,9 +93,9 @@ download_model_files() {
 ## open-svpflow
 mkdir -p download/open-svpflow "$out_dir/vapoursynth-plugins"
 if [ ! -f download/open-svpflow/libsvpflow1_vs.so ]; then
-  wget -q "https://github.com/Z1xus/open-svpflow/releases/download/nightly-20261009-deadbad8d6d2/x86_64-unknown-linux-gnu.zip" \
+  wget -q "https://github.com/Z1xus/open-svpflow/releases/download/nightly-20261011-deadbadae0d9/x86_64-unknown-linux-gnu.zip" \
     -O download/open-svpflow/open-svpflow.zip
-  echo "fed6c0f22a111346d463f7bbdb34ecffbb7ddcf34726f36623bb09ef54d06aa7  download/open-svpflow/open-svpflow.zip" |
+  echo "040744513dcad567f43bb53667bbde5c90fb1c7b453ca1fb93ecfcaf6cd2a4d4  download/open-svpflow/open-svpflow.zip" |
     sha256sum -c --quiet -
   unzip -o download/open-svpflow/open-svpflow.zip libsvpflow1_vs.so libsvpflow2_vs.so -d download/open-svpflow
   rm download/open-svpflow/open-svpflow.zip

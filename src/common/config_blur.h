@@ -118,6 +118,7 @@ struct BlurSettings {
 
 	bool svp_gpu_search = false;
 	bool svp_gpu_rendering = true;
+	bool svp_peel = true;
 
 	std::string rife_model = "rife-v4.26_ensembleFalse";
 	std::string rife_trt_model = "rife_v4.26";
