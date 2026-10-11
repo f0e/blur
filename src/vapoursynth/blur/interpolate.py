@@ -38,8 +38,10 @@ LEGACY_PRESETS = ["weak", "film", "smooth", "animation"]
 TUNED_PRESETS = ["quality", "max"]
 NEW_PRESETS = ["default", "test", *TUNED_PRESETS]
 
-# tuned against real 1200fps footage blended down. they set their own block overlap
+# tuned against real 1200fps footage blended down. auto overlap drops quality's to 2 from this framerate up, where 3
+# costs ~1.4x the render time for ~1.5% less hud error. below it 3 is about free and clearly better
 TUNED_OVERLAP = 3
+AUTO_REDUCED_OVERLAP_MIN_FPS = 240
 
 DEFAULT_PRESET = "quality"
 DEFAULT_ALGORITHM = 23
@@ -252,9 +254,6 @@ def generate_svp_strings(
     scene_detect=False,
     gpu_search=False,
 ):
-    if preset in TUNED_PRESETS:
-        overlap = TUNED_OVERLAP
-
     # build super json
     super_json = {
         "pel": 1,
@@ -440,6 +439,20 @@ def search_halvings(search_size: str, fps) -> int:
         return 1 if round(fps) < AUTO_HALF_SEARCH_MAX_FPS else 0
 
     return SEARCH_SIZE_HALVINGS[search_size]
+
+
+def block_overlap(setting: str, preset: str, fps) -> int:
+    """The svp block overlap for footage reaching svp at `fps` with `preset`."""
+    if setting != "auto":
+        return int(setting)
+
+    match preset.lower():
+        case "max":
+            return TUNED_OVERLAP
+        case "quality":
+            return TUNED_OVERLAP if round(fps) < AUTO_REDUCED_OVERLAP_MIN_FPS else TUNED_OVERLAP - 1
+        case _:
+            return 0
 
 
 def auto_algorithm(fps) -> int:

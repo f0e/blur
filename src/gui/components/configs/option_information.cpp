@@ -226,6 +226,13 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"SVP block overlap dropdown",
+			{
+				"How far motion search blocks overlap their neighbours",
+				"(Higher = more accurate, slower. Auto uses 3 for quality, dropping to 2 from 240fps up, 3 for max and 0 otherwise)",
+			},
+		},
+		{
 			"interpolation block size dropdown",
 			{
 				"Block size for interpolation",

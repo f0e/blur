@@ -391,7 +391,9 @@ def main():
                             else svp_interpolation_algorithm
                         ),
                         blocksize=interpolation_blocksize,
-                        overlap=0,
+                        overlap=blur.interpolate.block_overlap(
+                            settings["svp_block_overlap"], settings["svp_interpolation_preset"], video.fps
+                        ),
                         masking=interpolation_mask_area,
                         gpu=settings["svp_gpu_rendering"],
                         timeline=timeline,
