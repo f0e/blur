@@ -89,7 +89,6 @@ namespace {
 		float frame_period = 1.f / static_cast<float>(std::max(graph_data.source_fps, 1));
 
 		float half = static_cast<float>(count - 1) / 2;
-		auto center = static_cast<float>(graph_data.window_center);
 		auto gap = static_cast<float>(graph_data.frame_gap);
 
 		// the scale fits every visible window, or MIN_TIMELINE_SPAN if that's wider. the timeline is then cut to the
@@ -98,7 +97,7 @@ namespace {
 		auto columns = static_cast<float>(count);
 		auto span_columns = columns;
 		if (gap > 0) {
-			float needed = 2 * (std::abs(center) + half + 0.5f + gap);
+			float needed = 2 * (half + 0.5f + gap);
 			float max_columns = std::floor(static_cast<float>(width) / MIN_COLUMN_WIDTH);
 			columns = std::max(needed, std::min(MIN_TIMELINE_SPAN / frame_period, max_columns));
 			span_columns = ((2 * std::floor(((columns / gap) - 1) / 2)) + 1) * gap;
@@ -115,8 +114,8 @@ namespace {
 			column_width = std::floor(column_width);
 
 		Geometry geometry{
-			.window_start = (center - half) * column_width,
-			.window_end = (center + half) * column_width,
+			.window_start = -half * column_width,
+			.window_end = half * column_width,
 			.frame_period = column_width,
 			.frame_interval = gap * column_width,
 			.span = span_columns * column_width,
@@ -277,7 +276,6 @@ ui::AnimatedElement* ui::add_weighting_graph(
 	const std::string& id,
 	Container& container,
 	const std::vector<double>& weights,
-	double window_center,
 	double frame_gap,
 	int source_fps,
 	bool fps_known
@@ -303,7 +301,6 @@ ui::AnimatedElement* ui::add_weighting_graph(
 		),
 		WeightingGraphElementData{
 			.weights = weights,
-			.window_center = window_center,
 			.frame_gap = frame_gap,
 			.source_fps = source_fps,
 			.fps_known = fps_known,

@@ -552,7 +552,6 @@ void configs::preview(ui::Container& container, float delta_time) {
 				"weighting graph",
 				container,
 				weights_res.weights,
-				weights_res.window_center,
 				weights_res.frame_gap,
 				weights_res.source_fps,
 				weights_res.fps_known

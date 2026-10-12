@@ -10,7 +10,8 @@ namespace {
 
 	const std::filesystem::path PYTHON_WEIGHTING_PATH = CURRENT_DIR / "../../src/vapoursynth/blur/weighting.py";
 
-	constexpr int MAX_FRAMES = 40;
+	// exposures in quarter frames up to 40 frames, which floats hold exactly
+	constexpr int MAX_QUARTERS = 160;
 
 	const std::vector<std::string> WEIGHTINGS = {
 		"equal",     "cosine",     "gaussian_sym",     "pyramid", "gaussian",
@@ -33,13 +34,13 @@ weighting = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(weighting)
 
 with open(sys.argv[2]) as f:
-    max_frames, weightings, samplings, std_dev, mean, bound = json.load(f)
+    max_quarters, weightings, samplings, std_dev, mean, bound = json.load(f)
 result = {}
-for frames in range(1, max_frames + 1):
+for quarters in range(1, max_quarters + 1):
     for weighting_type in weightings:
         for sampling in samplings:
-            weights = weighting.parse(frames, weighting_type, std_dev, mean, bound, sampling)
-            result[f"{frames}|{weighting_type}|{sampling}"] = list(weights)
+            weights = weighting.parse(1, quarters / 4, weighting_type, std_dev, mean, bound, sampling)
+            result[f"{quarters}|{weighting_type}|{sampling}"] = list(weights)
 
 print(json.dumps(result))
 )";
@@ -65,21 +66,17 @@ print(json.dumps(result))
 		return {};
 	}
 
-	std::vector<double> get_cpp_weights(int frames, const std::string& weighting_type, const std::string& sampling) {
+	std::vector<double> get_cpp_weights(int quarters, const std::string& weighting_type, const std::string& sampling) {
 		BlurSettings settings;
 		settings.blur = true;
-		settings.blur_amount = 1.f;
+		settings.blur_amount = static_cast<float>(quarters) / 4;
 		settings.blur_output_fps = 1;
 		settings.blur_weighting = weighting_type;
 		settings.blur_sampling = sampling;
 
-		// one output fps and a video fps of `frames` blends exactly that many frames
-		auto res = weighting::get_weights(settings, frames);
+		// one output fps and one video fps make the exposure the blur amount
+		auto res = weighting::get_weights(settings, 1);
 		EXPECT_TRUE(res.error.empty()) << res.error;
-
-		// the render pads an even rectangle window with a zero after it, which get_weights leaves off
-		if (res.window_center == -0.5)
-			res.weights.push_back(0.0);
 
 		return res.weights;
 	}
@@ -93,7 +90,7 @@ TEST(Weighting, PythonMatchesCpp) {
 	const BlurSettings defaults;
 
 	nlohmann::json args = {
-		MAX_FRAMES,
+		MAX_QUARTERS,
 		WEIGHTINGS,
 		config_blur::BLUR_SAMPLING_METHODS,
 		defaults.advanced.blur_weighting_gaussian_std_dev,
@@ -131,12 +128,12 @@ TEST(Weighting, PythonMatchesCpp) {
 
 	auto python_weights = nlohmann::json::parse(output);
 
-	for (int frames = 1; frames <= MAX_FRAMES; frames++) {
+	for (int quarters = 1; quarters <= MAX_QUARTERS; quarters++) {
 		for (const auto& weighting_type : WEIGHTINGS) {
 			for (const auto& sampling : config_blur::BLUR_SAMPLING_METHODS) {
-				auto key = std::format("{}|{}|{}", frames, weighting_type, sampling);
+				auto key = std::format("{}|{}|{}", quarters, weighting_type, sampling);
 				auto expected = python_weights.at(key).get<std::vector<double>>();
-				auto actual = get_cpp_weights(frames, weighting_type, sampling);
+				auto actual = get_cpp_weights(quarters, weighting_type, sampling);
 
 				ASSERT_EQ(actual.size(), expected.size()) << key;
 				for (size_t i = 0; i < expected.size(); i++)

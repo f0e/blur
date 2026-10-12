@@ -1,9 +1,10 @@
 # thanks to: https://github.com/couleur-tweak-tips/smoothie-rs/blob/f1681afe3629bd7b8e3d12a109c89a8e00873248/target/scripts/weighting.py
 #            https://github.com/dwiandhikaap/HFR-Resampler/blob/d8f4adddc554161ebd4ebb04ca804eb046036c08/Weights.py
 
+import itertools
 import math
 import warnings
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from numbers import Number
 
 import blur.utils as u
@@ -38,21 +39,13 @@ def equal(frames: int) -> list[float]:
     return [1 / frames] * frames
 
 
-def cosine(frames: int, rectangle: bool = False) -> list[float]:
+def cosine(frames: int) -> list[float]:
     """
     Raised cosine (hann) shutter. At blur amount 2 neighbouring output frames' windows sum to a constant, so fast motion
-    leaves one continuous trail. With rectangle sampling each frame holds for its slice of time, so it gets the
-    window's area over that slice rather than a point sample (which would be zero at both ends).
+    leaves one continuous trail.
     """
     if frames <= 1:
         return [1.0] * frames
-
-    if rectangle:
-
-        def area(x: float) -> float:
-            return x - math.sin(2 * math.pi * x) / (2 * math.pi)
-
-        return normalize([area((i + 1) / frames) - area(i / frames) for i in range(frames)])
 
     return normalize([1 - math.cos(2 * math.pi * i / (frames - 1)) for i in range(frames)])
 
@@ -135,39 +128,138 @@ def divide(frames: int, weights: list[float]) -> list[float]:
 
 
 def parse(
-    blur_frames: int,
+    frame_gap: float,
+    blur_amount: float,
     weighting_type: str,
     gaussian_std_dev: float,
     gaussian_mean: float,
     gaussian_bound: str,
     sampling: str = "rectangle",
-):
-    # weights must be centred on a frame, so an even count needs one more weight.
-    # rectangle (like sourcedemorender and advancedfx's rectangle mode): each frame holds for its slice of time, so the
-    # window stays that many frames and the extra weight is zero, putting it half a frame off centre.
-    # trapezoid (like advancedfx's default): frames are points the window interpolates between, so it gains a frame
-    # and its two ends are shared with the neighbouring output frames, halved so every source frame counts once in
-    # total.
-    # round up (like smoothie): gains a frame like trapezoid but keeps its ends whole, blending a frame more than asked
-    shared_ends = blur_frames % 2 == 0
+) -> list[float]:
+    """
+    Weights for the source frames around an output frame, centred on it. `frame_gap` is source frames per output frame.
 
-    if sampling == "rectangle":
-        weights = get_type_weights(
-            blur_frames, weighting_type, gaussian_std_dev, gaussian_mean, gaussian_bound, rectangle=True
-        )
-        return weights + [0.0] if shared_ends else weights
+    rectangle (like sourcedemorender) holds each frame for the frame of time around it, trapezoid (like advancedfx)
+    draws straight lines between frames. both keep the shutter exactly `frame_gap * blur_amount` frames long, so the
+    frames at the ends get part of a weight. the rest blend a whole, odd number of frames: round up (like smoothie)
+    rounds the exposure and adds a frame when it's even, legacy is blur up to 2.45, which truncated the frame gap and
+    the exposure before adding one.
+    """
+    exposure = frame_gap * blur_amount
 
-    if shared_ends:
-        blur_frames += 1
+    if sampling in ("round up", "legacy"):
+        frames = int(exposure + 0.5) if sampling == "round up" else int(int(frame_gap) * blur_amount)
+        if frames <= 0:
+            return []
+        if frames % 2 == 0:
+            frames += 1
+        return get_type_weights(frames, weighting_type, gaussian_std_dev, gaussian_mean, gaussian_bound)
 
-    weights = get_type_weights(blur_frames, weighting_type, gaussian_std_dev, gaussian_mean, gaussian_bound)
+    curve, corners = get_type_curve(weighting_type, gaussian_std_dev, gaussian_mean, gaussian_bound)
+    return integrate(exposure, curve, corners, trapezoid=sampling == "trapezoid")
 
-    if shared_ends and sampling == "trapezoid":
-        weights[0] /= 2
-        weights[-1] /= 2
-        weights = normalize(weights)
 
-    return weights
+# 5 point gauss-legendre on [0, 1], exact for polynomials up to degree 9
+_NODES = [0.5 + 0.5 * x for x in (-0.906179845938664, -0.5384693101056831, 0, 0.5384693101056831, 0.906179845938664)]
+_NODE_WEIGHTS = [
+    0.5 * w
+    for w in (0.2369268850561891, 0.4786286704993665, 0.5688888888888889, 0.4786286704993665, 0.2369268850561891)
+]
+
+
+def integrate(exposure: float, curve: Callable[[float], float], corners: list[float], trapezoid: bool) -> list[float]:
+    """
+    Each frame's share of `curve` over a shutter `exposure` frames long centred on frame 0: the area under its slice of
+    time for rectangle, or under its slice weighted by a hat reaching the neighbouring frames for trapezoid.
+    `corners` are where the curve bends, in shutter positions, split on so every piece is smooth.
+    """
+    half = exposure / 2
+    reach = 1 if trapezoid else 0.5
+    last = math.ceil(half + reach)
+
+    weights = []
+    for i in range(-last, last + 1):
+        start, end = max(-half, i - reach), min(half, i + reach)
+        if end <= start:
+            weights.append(0.0)
+            continue
+
+        cuts = {start, end}
+        if trapezoid and start < i < end:
+            cuts.add(i)
+        cuts.update(t for t in (-half + c * exposure for c in corners) if start < t < end)
+        cuts = sorted(cuts)
+
+        area = 0.0
+        for a, b in itertools.pairwise(cuts):
+            for node, node_weight in zip(_NODES, _NODE_WEIGHTS):
+                t = a + (b - a) * node
+                hat = 1 - abs(t - i) if trapezoid else 1
+                area += node_weight * (b - a) * hat * curve((t + half) / exposure)
+        weights.append(area)
+
+    while len(weights) > 1 and weights[0] == 0 and weights[-1] == 0:
+        weights = weights[1:-1]
+
+    return normalize(weights)
+
+
+def get_type_curve(
+    weighting_type: str,
+    gaussian_std_dev: float,
+    gaussian_mean: float,
+    gaussian_bound: str,
+) -> tuple[Callable[[float], float], list[float]]:
+    """The weighting as a curve across the shutter from 0 (opening) to 1 (closing), and where it bends."""
+    match weighting_type:
+        case "equal" | "vegas":
+            return lambda _: 1.0, []
+
+        case "cosine":
+            return lambda x: 1 - math.cos(2 * math.pi * x), []
+
+        case "ascending":
+            return lambda x: x, []
+
+        case "descending":
+            return lambda x: 1 - x, []
+
+        case "pyramid":
+            return lambda x: 1 - abs(2 * x - 1), [0.5]
+
+        case "gaussian" | "gaussian_reverse" | "gaussian_sym":
+            if len(gaussian_bound) < 2:
+                raise ValueError(f"bound must have length 2, got {gaussian_bound}")
+
+            start, end = gaussian_bound[0], gaussian_bound[1]
+            mean = gaussian_mean
+            if weighting_type == "gaussian_sym":
+                end = max(abs(start), abs(end))
+                start, mean = -end, 0
+
+            def bell(x: float) -> float:
+                if weighting_type == "gaussian_reverse":
+                    x = 1 - x
+                return math.exp(-((start + x * (end - start) - mean) ** 2) / (2 * gaussian_std_dev**2))
+
+            return bell, []
+
+        case _:
+            try:
+                steps = [int(x) for x in weighting_type.split(",")]
+            except (ValueError, AttributeError):
+                raise u.BlurException(INVALID_WEIGHTING.format(weighting_type))
+
+            if min(steps) < 0:
+                steps = [s - min(steps) + 1 for s in steps]
+            corners = [i / len(steps) for i in range(1, len(steps))]
+            return lambda x: steps[min(int(x * len(steps)), len(steps) - 1)], corners
+
+
+INVALID_WEIGHTING = (
+    "Invalid blur weighting type: {}. Valid options are: 'equal', 'cosine', 'gaussian_sym', 'pyramid', 'gaussian', "
+    "'ascending', 'descending', 'gaussian_reverse', or a comma-separated list of custom weights (e.g. '1, 2, 3, 2, 1')."
+)
 
 
 def get_type_weights(
@@ -176,7 +268,6 @@ def get_type_weights(
     gaussian_std_dev: float,
     gaussian_mean: float,
     gaussian_bound: str,
-    rectangle: bool = False,
 ) -> list[float]:
     match weighting_type:
         # vegas was equal with the shared ends halved, which every weighting does now
@@ -184,7 +275,7 @@ def get_type_weights(
             return equal(blur_frames)
 
         case "cosine":
-            return cosine(blur_frames, rectangle)
+            return cosine(blur_frames)
 
         case "ascending":
             return ascending(blur_frames)
@@ -223,6 +314,4 @@ def get_type_weights(
                 weights = [int(x) for x in weighting_type.split(",")]
                 return divide(blur_frames, weights)
             except (ValueError, AttributeError):
-                raise u.BlurException(
-                    f"Invalid blur weighting type: {weighting_type}. Valid options are: 'equal', 'cosine', 'gaussian_sym', 'pyramid', 'gaussian', 'ascending', 'descending', 'gaussian_reverse', or a comma-separated list of custom weights (e.g. '1, 2, 3, 2, 1')."
-                )
+                raise u.BlurException(INVALID_WEIGHTING.format(weighting_type))

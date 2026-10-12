@@ -157,7 +157,7 @@ namespace config_blur {
 
 	inline const std::vector<std::string> SVP_BLOCK_OVERLAPS = { "auto", "0", "1", "2", "3" };
 
-	inline const std::vector<std::string> BLUR_SAMPLING_METHODS = { "rectangle", "trapezoid", "round up" };
+	inline const std::vector<std::string> BLUR_SAMPLING_METHODS = { "rectangle", "trapezoid", "round up", "legacy" };
 
 	inline const std::vector<std::string> SOURCE_PLUGINS = { "LWLibavSource", "BestSource" };
 
