@@ -601,18 +601,17 @@ def main():
     # blurring
     if settings["blur"]:
         if settings["blur_amount"] > 0:
-            # rounded once from the exposure, rounding the frame gap first made it jitter by a frame between output fps
-            blur_frames = int(video.fps * settings["blur_amount"] / settings["blur_output_fps"] + 0.5)
+            weights = blur.weighting.parse(
+                float(video.fps / settings["blur_output_fps"]),
+                settings["blur_amount"],
+                weighting_type=settings["blur_weighting"],
+                gaussian_std_dev=settings["blur_weighting_gaussian_std_dev"],
+                gaussian_mean=settings["blur_weighting_gaussian_mean"],
+                gaussian_bound=json.loads(settings["blur_weighting_gaussian_bound"]),
+                sampling=settings["blur_sampling"],
+            )
 
-            if blur_frames > 0:
-                weights = blur.weighting.parse(
-                    blur_frames,
-                    weighting_type=settings["blur_weighting"],
-                    gaussian_std_dev=settings["blur_weighting_gaussian_std_dev"],
-                    gaussian_mean=settings["blur_weighting_gaussian_mean"],
-                    gaussian_bound=json.loads(settings["blur_weighting_gaussian_bound"]),
-                    sampling=settings["blur_sampling"],
-                )
+            if weights:
 
                 def blend(clip: vs.VideoNode) -> vs.VideoNode:
                     return blur.blending.blend(

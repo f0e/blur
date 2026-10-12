@@ -28,10 +28,11 @@ void configs::option_information(ui::Container& container) {
 		{
 			"blur sampling dropdown",
 			{
-				"How the first and last frames blended into each output frame are handled",
-				"rectangle: every frame counts equally. With an even number of blur frames, the blur sits half a frame before the output frame instead of centred on it (like SourceDemoRender and HLAE's rectangle method)",
-				"trapezoid: with an even number of blur frames, one more is added and the first and last count half, keeping the blur centred on the output frame (like HLAE's trapezoid method, its default)",
-				"round up: with an even number of blur frames, one more is added at full strength, keeping the blur centred but blending one more frame than the blur amount asks for (like smoothie)",
+				"How frames are counted towards the blur. Rectangle and trapezoid blur for exactly as long as the blur amount asks, centred on the output frame, so the first and last frames can count partly",
+				"rectangle: each frame stands for the time around it until the next (like SourceDemoRender and HLAE's rectangle method)",
+				"trapezoid: motion between frames is a smooth fade from one to the next, so each frame also counts a little towards the blur around its neighbours (like HLAE's trapezoid method, its default)",
+				"round up: blends a whole, odd number of frames at full strength, rounding the blur amount to frames and adding one if that's even (like smoothie)",
+				"legacy: how blur counted frames up to 2.45, rounding the frame gap and blur amount down to whole frames and adding one if that's even",
 			},
 		},
 		{

@@ -32,10 +32,11 @@ Each file in the `configs` folder is a separate blur config.
   - descending
   - gaussian_reverse
   - custom weights - Custom comma-separated frame weights, e.g. 5, 3, 3, 2, 1. Higher numbers indicate frames being more visible when blending, lower numbers mean they are less so.
-- blur sampling - How the first and last frames blended into each output frame are handled.
-  - rectangle (default) - Every frame counts equally. With an even number of blur frames, the blur sits half a frame before the output frame instead of centred on it. Used by [SourceDemoRender](https://github.com/crashfort/SourceDemoRender) and [HLAE](https://github.com/advancedfx/advancedfx) (its rectangle method)
-  - trapezoid - With an even number of blur frames, one more frame is added and the first and last count half, keeping the blur centred on the output frame. Used by [HLAE](https://github.com/advancedfx/advancedfx) (its trapezoid method, the default)
-  - round up - With an even number of blur frames, one more frame is added at full strength, keeping the blur centred but blending one more frame than the blur amount asks for. Used by [smoothie](https://github.com/couleur-tweak-tips/smoothie-rs)
+- blur sampling - How frames are counted towards the blur. Rectangle and trapezoid blur for exactly as long as the blur amount asks, centred on the output frame, so the first and last frames can count partly.
+  - rectangle (default) - Each frame stands for the time around it until the next. Used by [SourceDemoRender](https://github.com/crashfort/SourceDemoRender) and [HLAE](https://github.com/advancedfx/advancedfx) (its rectangle method)
+  - trapezoid - Motion between frames is treated as a smooth fade from one to the next, so each frame also counts a little towards the blur around its neighbours. Used by [HLAE](https://github.com/advancedfx/advancedfx) (its trapezoid method, the default)
+  - round up - Blends a whole, odd number of frames at full strength: the blur amount is rounded to frames, and one more is added if that's even. Used by [smoothie](https://github.com/couleur-tweak-tips/smoothie-rs)
+  - legacy - How blur counted frames up to 2.45: the frame gap and blur amount are rounded down to whole frames, and one more is added if that's even
 - preserve brightness - Blends frames by how much light they hold rather than averaging the stored values. Produces a more natural-looking blur
 - bloom - Makes bright areas glow, brightening the pixels around them
 - bloom threshold - How bright something has to be before it glows (0 = everything glows, 1 = only the very brightest)

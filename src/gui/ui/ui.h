@@ -434,7 +434,6 @@ namespace ui {
 
 	struct WeightingGraphElementData {
 		std::vector<double> weights;
-		double window_center; // source frames from the output frame to the middle of the weights
 		double frame_gap;
 		int source_fps;
 		bool fps_known;
@@ -1144,7 +1143,6 @@ namespace ui {
 		const std::string& id,
 		Container& container,
 		const std::vector<double>& weights,
-		double window_center,
 		double frame_gap,
 		int source_fps,
 		bool fps_known
