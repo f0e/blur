@@ -77,7 +77,7 @@ struct BlurSettings {
 	// what the auto mask does past that, each one slower
 	bool auto_mask_tracking = false;
 	bool auto_mask_layer = false;
-	bool auto_mask_inpainting = false;
+	bool auto_mask_inpainting = true;
 
 	bool scene_detection = true;
 
