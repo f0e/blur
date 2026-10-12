@@ -438,6 +438,7 @@ namespace ui {
 		double frame_gap;
 		int source_fps;
 		bool fps_known;
+		int bars_height;
 
 		bool operator==(const WeightingGraphElementData& other) const = default;
 	};
