@@ -9,7 +9,12 @@ import traceback
 from pathlib import Path
 
 import blur.utils
+import vapoursynth as vs
 from vapoursynth import core
+
+# how many times the first frame's cache use the cache can grow to, and the least it's capped to (mb)
+CACHE_HEADROOM = 2
+MIN_CACHE_CAP = 1024
 
 
 class _StderrRouter:
@@ -71,6 +76,22 @@ def _raise_blur_exception(e: blur.utils.BlurException):
     raise RuntimeError(e.to_json()) from e
 
 
+def _cap_cache(output: vs.VideoNode) -> vs.VideoNode:
+    """vapoursynth only evicts once its cache reaches max_cache_size, half the ram by default, so a preview's grows
+    with every seek though frames from earlier seeks don't make later ones any faster. capping it below what one frame
+    needs makes every frame render its inputs several times, so the cap comes from what the first frame used"""
+    capped = threading.Event()
+
+    def cap(n: int, f: vs.VideoFrame) -> vs.VideoFrame:
+        if not capped.is_set():
+            capped.set()
+            needed = max(MIN_CACHE_CAP, CACHE_HEADROOM * core.used_cache_size // 2**20)
+            core.max_cache_size = min(core.max_cache_size, needed)
+        return f
+
+    return core.std.ModifyFrame(output, output, cap)
+
+
 def run(script_path: str, script_args: dict[str, str], plugins_path: str, log_path: str):
     # the host's environment might not reach vapoursynth, so plugins it'd normally autoload are loaded here
     if plugins_path:
@@ -97,6 +118,10 @@ def run(script_path: str, script_args: dict[str, str], plugins_path: str, log_pa
         # vspipe hands script arguments over as globals
         script_globals = {"__name__": "__vapoursynth__", "__file__": str(script), **script_args}
         exec(compile(script.read_text(encoding="utf-8"), str(script), "exec"), script_globals)  # noqa: S102 - running blur.py is the point
+
+        output = vs.get_output(0)
+        if isinstance(output, vs.VideoOutputTuple):
+            _cap_cache(output.clip).set_output(0, alpha=output.alpha, alt_output=output.alt_output)
     except BaseException:
         # the host only reports that the script failed to load, so the reason goes in the log for the gui to find.
         # vspipe prints this itself, which is where renders get it from
