@@ -54,7 +54,7 @@ struct BlurSettings {
 	std::string blur_weighting = "equal";
 	std::string blur_sampling = "rectangle";
 
-	bool preserve_brightness = false;
+	bool preserve_brightness = true;
 
 	bool bloom = false;
 	float bloom_threshold = 0.75f;
