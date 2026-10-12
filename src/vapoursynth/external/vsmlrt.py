@@ -20,10 +20,12 @@ import contextlib
 import copy
 from dataclasses import dataclass, field
 import enum
+import json # blur
 from fractions import Fraction
 import math
 import os
 import os.path
+import re # blur
 import subprocess
 import sys
 import tempfile
@@ -91,6 +93,62 @@ _builder_job = None
 # blur: checked while a builder runs, and true stops it. the gui's preview sets this so a preview that's been closed
 # doesn't keep building
 builder_cancelled: typing.Callable[[], bool] = lambda: False
+
+
+def _engine_device_memory(engine_path: str) -> typing.Optional[int]:
+    """blur: the memory each of an engine's streams needs, which varies several times over between models, gpus and
+    tensorrt versions. trtexec reads it from the engine, and it's kept next to it since that takes a second or so"""
+    stat = os.stat(engine_path)
+    cache_path = engine_path + ".memory"
+
+    try:
+        with open(cache_path) as f:
+            cached = json.load(f)
+        if cached["size"] == stat.st_size and cached["mtime"] == stat.st_mtime_ns:
+            return cached["device_memory"]
+    except (OSError, ValueError, KeyError):
+        pass
+
+    try:
+        output = subprocess.run(
+            [trtexec_path, f"--loadEngine={engine_path}", "--iterations=1", "--warmUp=0", "--duration=0",
+             "--noDataTransfers"],
+            capture_output=True, text=True, timeout=120,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        ).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+    match = re.search(r"device memory size: ([\d.]+) MiB", output)
+    if match is None:
+        return None
+
+    device_memory = int(float(match[1]) * 2**20)
+    with contextlib.suppress(OSError), open(cache_path, "w") as f:
+        json.dump({"size": stat.st_size, "mtime": stat.st_mtime_ns, "device_memory": device_memory}, f)
+
+    return device_memory
+
+
+def _fit_streams(engine_path: str, device_id: int, num_streams: int) -> int:
+    """blur: each stream holds its own copy of the engine's working memory, and spilling out of vram is far slower
+    than a stream or two less. streams are only added while they all fit in half the card, leaving the rest for svp
+    and the like"""
+    device_memory = _engine_device_memory(engine_path)
+    if not device_memory:
+        return num_streams
+
+    vram = core.trt.DeviceProperties(device_id)["total_global_memory"]
+    fitted = max(1, min(num_streams, vram // 2 // device_memory))
+
+    if fitted < num_streams:
+        print(
+            f"[blur] running {fitted} of {num_streams} tensorrt streams, each needs "
+            f"{device_memory / 2**30:.1f} GB of the gpu's {vram / 2**30:.1f} GB",
+            file=sys.stderr
+        )
+
+    return fitted
 
 
 def _run_builder(args, env, check: bool) -> subprocess.CompletedProcess:
@@ -3094,7 +3152,7 @@ def _inference(
             clips, engine_path,
             device_id=backend.device_id,
             use_cuda_graph=backend.use_cuda_graph,
-            num_streams=backend.num_streams,
+            num_streams=_fit_streams(engine_path, backend.device_id, backend.num_streams), # blur
             verbosity=4 if backend.verbose else 2,
             **kwargs
         )
