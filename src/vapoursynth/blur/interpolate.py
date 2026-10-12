@@ -765,6 +765,9 @@ def interpolate_gimm_vsmlrt(
         backend.fp16 = False
         backend.output_format = 0
         backend.custom_args.append("--stronglyTyped")
+        # one stream keeps the gpu ~90% busy and a second fills the gaps between inferences, more aren't any faster
+        # from 720p to 1440p. each holds up to ~3 GB though, so it's fewer than rife's
+        backend.num_streams = 2
 
         def merge(before, after, timepoint):
             # generic inference, RIFEMerge adds tensorrt flags that only make sense for rife
