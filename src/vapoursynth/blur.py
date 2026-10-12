@@ -294,6 +294,7 @@ def main():
         is_full_color_range=color_range == "pc",
         orig_width=video.width,
         orig_height=video.height,
+        transfer=video.get_frame(0).props.get("_Transfer", vs.TRANSFER_UNSPECIFIED),
     )
 
     # what masked regions get put back to. before deduplication since that interpolates too
