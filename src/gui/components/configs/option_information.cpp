@@ -222,7 +222,7 @@ void configs::option_information(ui::Container& container) {
 			"SVP search size dropdown",
 			{
 				"Finds motion on a smaller copy of the video, then scales it back up",
-				"(Smaller = faster but less accurate. Auto uses half below 240fps, or always with svp peel on)",
+				"(Smaller = faster but less accurate. Auto uses half below 240fps, or always with svp hud mask on)",
 			},
 		},
 		{
@@ -347,7 +347,7 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
-			"svp peel checkbox",
+			"svp hud mask checkbox",
 			{
 				"Takes the HUD off the scene before interpolating it and puts it back after",
 				"(Keeps HUD elements cleaner for ~10-20% more render time. Needs svp gpu rendering)",

@@ -53,8 +53,8 @@ AUTO_ALGORITHM_MIN_FPS = 240
 SEARCH_SIZE_HALVINGS = {"full": 0, "half": 1, "quarter": 2}
 
 # searching at half size costs little below this, where the motion between frames is big next to the precision it
-# loses. svp itself runs about 2.7x faster either way. above it, half size tears hud text unless peel takes the hud
-# out first, and with peel it's as good as full size
+# loses. svp itself runs about 2.7x faster either way. above it, half size tears hud text unless the hud mask takes the hud
+# out first, and with it's as good as full size
 AUTO_HALF_SEARCH_MAX_FPS = 240
 DEFAULT_BLOCKSIZE = 8
 DEFAULT_OVERLAP = 2
@@ -254,7 +254,7 @@ def generate_svp_strings(
     gpu=DEFAULT_GPU,
     scene_detect=False,
     gpu_search=False,
-    peel=False,
+    hud_mask=False,
 ):
     # build super json
     super_json = {
@@ -313,7 +313,7 @@ def generate_svp_strings(
         },
     }
 
-    if peel:
+    if hud_mask:
         smooth_json["mask"]["peel"] = True
 
     if not scene_detect:
@@ -439,10 +439,10 @@ def svp(
     )
 
 
-def search_halvings(search_size: str, fps, peel: bool = False) -> int:
+def search_halvings(search_size: str, fps, hud_mask: bool = False) -> int:
     """How many times svp halves footage reaching it at `fps` before searching it."""
     if search_size == "auto":
-        return 1 if peel or round(fps) < AUTO_HALF_SEARCH_MAX_FPS else 0
+        return 1 if hud_mask or round(fps) < AUTO_HALF_SEARCH_MAX_FPS else 0
 
     return SEARCH_SIZE_HALVINGS[search_size]
 
@@ -480,7 +480,7 @@ def interpolate_svp(
     timeline: retime.Timeline | None = None,
     halvings: int = 0,
     gpu_search: bool = False,
-    peel: bool = False,
+    hud_mask: bool = False,
 ):
     preset = preset.lower()
 
@@ -489,7 +489,7 @@ def interpolate_svp(
 
     # generate svp strings
     [super_string, vectors_string, smooth_string] = generate_svp_strings(
-        new_fps, preset, algorithm, blocksize, overlap, speed, masking, gpu, gpu_search=gpu_search, peel=peel
+        new_fps, preset, algorithm, blocksize, overlap, speed, masking, gpu, gpu_search=gpu_search, hud_mask=hud_mask
     )
 
     return svp(

@@ -95,7 +95,7 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 
 - svp gpu search - Finds motion on the GPU instead of the CPU, true/false. It searches the larger levels of the motion search in an order a GPU can run in parallel, so the vectors differ slightly from the CPU search (on the 1200fps test recordings, within ~1% on the scene and most HUD elements, worst ~2% on scenery behind HUD during fast flicks). Mostly worth it at full search size. Falls back to the same search order on the CPU if no GPU is available
 - svp gpu rendering - Renders the interpolated frames on the GPU
-- svp peel - Takes the HUD off the scene before interpolating it, true/false. open-svpflow learns how see-through each pixel of the HUD is from how the scene moves behind it, interpolates the scene on its own and puts the HUD back over it. On the 1200fps test recordings it cuts error on HUD elements by 4-10% for 10-20% more render time, without changing the scene. Only works with svp gpu rendering on
+- svp hud mask - Takes the HUD off the scene before interpolating it, true/false. open-svpflow learns how see-through each pixel of the HUD is from how the scene moves behind it, interpolates the scene on its own and puts the HUD back over it. On the 1200fps test recordings it cuts error on HUD elements by 4-10% for 10-20% more render time, without changing the scene. Only works with svp gpu rendering on
 
 ### RIFE
 
@@ -185,7 +185,7 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
   - 2 - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - 11 - _[Explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
   - 21 - _[Explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
-- svp search size - Size of the copy SVP finds motion on before scaling it back up (`auto`, `full`, `half`, `quarter`). Smaller is faster (SVP runs ~2.7x faster at half, ~4x at quarter) but less accurate, mostly around HUD elements. `auto` uses half below 240fps, where it costs least, and from 240fps up only with svp peel on, which keeps the HUD from tearing at half size (on the 1200fps test recordings that renders 1.5-1.7x faster than full size with no loss). Otherwise full
+- svp search size - Size of the copy SVP finds motion on before scaling it back up (`auto`, `full`, `half`, `quarter`). Smaller is faster (SVP runs ~2.7x faster at half, ~4x at quarter) but less accurate, mostly around HUD elements. `auto` uses half below 240fps, where it costs least, and from 240fps up only with svp hud mask on, which keeps the HUD from tearing at half size (on the 1200fps test recordings that renders 1.5-1.7x faster than full size with no loss). Otherwise full
 - svp block overlap - How far SVP's motion search blocks overlap their neighbours (`auto`, `0`, `1`, `2`, `3`). Higher is more accurate but slower. `auto` uses 3 for the quality preset below 240fps and 2 from 240fps up (where 3 is ~1.4x slower for ~1.5% less HUD error), 3 for max, and 0 for the other presets
 
 ### Advanced interpolation

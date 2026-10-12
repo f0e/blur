@@ -237,7 +237,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "- svp" << "\n";
 		output << "svp gpu search: " << (settings.svp_gpu_search ? "true" : "false") << "\n";
 		output << "svp gpu rendering: " << (settings.svp_gpu_rendering ? "true" : "false") << "\n";
-		output << "svp peel: " << (settings.svp_peel ? "true" : "false") << "\n";
+		output << "svp hud mask: " << (settings.svp_hud_mask ? "true" : "false") << "\n";
 	}
 
 	// RIFE section
@@ -590,7 +590,7 @@ BlurSettings config_blur::parse_from_map(
 
 	config_base::extract_config_value(config_map, "svp gpu search", settings.svp_gpu_search);
 	config_base::extract_config_value(config_map, "svp gpu rendering", settings.svp_gpu_rendering);
-	config_base::extract_config_value(config_map, "svp peel", settings.svp_peel);
+	config_base::extract_config_value(config_map, "svp hud mask", settings.svp_hud_mask);
 
 	config_base::extract_config_value(config_map, "gpu decoding", settings.gpu_decoding);
 	config_base::extract_config_value(config_map, "gpu encoding", settings.gpu_encoding);
@@ -851,7 +851,7 @@ nlohmann::json BlurSettings::to_json() const {
 	j["gpu_decoding"] = this->gpu_decoding;
 	j["svp_gpu_search"] = this->svp_gpu_search;
 	j["svp_gpu_rendering"] = this->svp_gpu_rendering;
-	j["svp_peel"] = this->svp_peel;
+	j["svp_hud_mask"] = this->svp_hud_mask;
 	j["gpu_encoding"] = this->gpu_encoding;
 
 	j["filters"] = this->filters;
