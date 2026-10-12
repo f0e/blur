@@ -26,7 +26,7 @@ namespace {
 		       settings.uses_interpolation_method("gimm-vfi (tensorrt)");
 	}
 
-	// the first is the default, everything on the gpu that's allowed to be
+	// the first is everything on the gpu that's allowed to be
 	// gpu_rendering_supported is passed in so the ui can avoid waiting on the startup test
 	std::vector<GpuSettings> get_candidates(
 		const BlurSettings& settings, [[maybe_unused]] bool gpu_rendering_supported
@@ -62,6 +62,14 @@ namespace {
 		}
 
 		return candidates;
+	}
+
+	// what's used when nothing's been measured. rife and gimm want the whole gpu, and svp's gpu rendering next to them
+	// can run out of vram, which spills into system memory and crawls or takes the system down with it. cpu rendering
+	// can be slower on a weak cpu, but it's always safe
+	const GpuSettings& fallback(const std::vector<GpuSettings>& candidates) {
+		auto cpu_rendering = std::ranges::find(candidates, false, &GpuSettings::svp_gpu_rendering);
+		return cpu_rendering != candidates.end() ? *cpu_rendering : candidates.front();
 	}
 
 	BlurSettings apply(BlurSettings settings, const GpuSettings& gpu_settings) {
@@ -418,7 +426,7 @@ BlurSettings rendering::optimise::for_render(
 
 	// the timings would be measuring the other render as much as this one
 	if (detail::running_pipelines > 0)
-		return skip(settings, candidates.front(), state, "blur was busy with another render");
+		return skip(settings, fallback(candidates), state, "blur was busy with another render");
 
 	state->set_init_stage(RenderState::InitStage::OPTIMISING);
 
@@ -465,20 +473,20 @@ BlurSettings rendering::optimise::for_render(
 			case Measurement::Outcome::FAILED:
 				break;
 			case Measurement::Outcome::STOPPED:
-				return apply(settings, candidates.front());
+				return apply(settings, fallback(candidates));
 			case Measurement::Outcome::PAUSED:
 				state->set_init_stage(RenderState::InitStage::NONE);
-				return skip(settings, candidates.front(), state, "the render was paused while they were tested");
+				return skip(settings, fallback(candidates), state, "the render was paused while they were tested");
 			case Measurement::Outcome::TOO_SHORT:
 				state->set_init_stage(RenderState::InitStage::NONE);
-				return skip(settings, candidates.front(), state, "the video is too short to test them");
+				return skip(settings, fallback(candidates), state, "the video is too short to test them");
 		}
 	}
 
 	state->set_init_stage(RenderState::InitStage::NONE);
 
 	if (results.empty())
-		return skip(settings, candidates.front(), state, "none of them could be tested");
+		return skip(settings, fallback(candidates), state, "none of them could be tested");
 
 	auto best = std::ranges::max_element(results, {}, &std::pair<GpuSettings, float>::second)->first;
 
@@ -501,7 +509,7 @@ BlurSettings rendering::optimise::for_preview(
 
 	auto saved = find_saved(hardware_key(app_settings), settings_key(settings, app_settings), video_key(video_info));
 
-	return apply(settings, saved.value_or(candidates.front()));
+	return apply(settings, saved.value_or(fallback(candidates)));
 }
 
 std::vector<rendering::optimise::SavedPick> rendering::optimise::list_saved(
