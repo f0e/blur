@@ -7,21 +7,35 @@ from vapoursynth import core
 YUV_SQUARED_VERSION = (3, 1)
 BLENDER_MATRICES = {vs.MATRIX_BT709, vs.MATRIX_BT470_BG, vs.MATRIX_ST170_M, vs.MATRIX_BT2020_NCL}
 
+# and blends hdr under its own curve from this one
+HDR_VERSION = (3, 2)
+
+# the square is within ~7 of 255 levels of srgb, so it's used for all sdr footage (an exact srgb curve made a whole
+# 1080p render 15-20% slower). on pq it's off by up to 224 of 1023 levels, so hdr gets its real curve
+HDR_TRANSFERS = {vs.TRANSFER_ST2084: "pq", vs.TRANSFER_ARIB_B67: "hlg"}
+
+
+def curve_args(video_info: u.VideoInfo) -> dict:
+    """FrameBlend's arguments for blending the light the source's values encode."""
+    transfer = HDR_TRANSFERS.get(video_info.transfer)
+    if transfer and tuple(core.frameblender.version) >= HDR_VERSION:
+        return {"transfer": transfer}
+
+    return {"squared": True}
+
 
 def average(
     clip: vs.VideoNode,
     weights: list[float],
     divisor: float | None = None,
-    squared: bool = False,
+    curve: dict | None = None,
     cuts: vs.VideoNode | None = None,
 ):
     assert len(weights) % 2 == 1, "An odd number of weights is required."
 
-    kwargs = {}
+    kwargs = dict(curve or {})
     if divisor is not None:
         kwargs["scale"] = divisor
-    if squared:
-        kwargs["squared"] = True
 
     def frame_blend(clip: vs.VideoNode) -> vs.VideoNode:
         return core.frameblender.FrameBlend(clip, weights, **kwargs)
@@ -67,7 +81,7 @@ def blend(
         if bloom_strength is not None:
             video = bloom(video, bloom_threshold, bloom_strength)
 
-        return average(video, weights, divisor, preserve_brightness, cuts)
+        return average(video, weights, divisor, curve_args(video_info) if preserve_brightness else None, cuts)
 
     if bloom_strength is not None:
         return u.with_format(
@@ -91,7 +105,7 @@ def blend(
             _Matrix=matrix,
             _ColorRange=vs.RANGE_FULL if video_info.is_full_color_range else vs.RANGE_LIMITED,
         )
-        return average(_video, weights, divisor, squared=True, cuts=cuts)
+        return average(_video, weights, divisor, curve_args(video_info), cuts)
 
     return u.with_format(
         _video,

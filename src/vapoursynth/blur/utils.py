@@ -60,6 +60,7 @@ class VideoInfo:
     is_full_color_range: bool
     orig_width: int
     orig_height: int
+    transfer: int = vs.TRANSFER_UNSPECIFIED  # the source's _Transfer
 
 
 def load_plugins(extension: str):
