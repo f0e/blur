@@ -341,6 +341,28 @@ void configs::option_information(ui::Container& container) {
 
 		// svp
 		{
+			"optimise gpu settings checkbox",
+			{
+				"Picks svp's gpu settings by timing each combination on the first render of each video format",
+				"Only needed when rife or gimm-vfi shares the gpu with svp, otherwise svp just uses the gpu",
+				"Adds a short test (under a minute) to the first render, then the pick is saved",
+			},
+		},
+		{
+			"prioritise speed checkbox",
+			{
+				"WARNING: the output can look worse with this on",
+				"Lets optimising pick settings that are faster but less accurate, like svp gpu search",
+			},
+		},
+		{
+			"clear optimised settings button",
+			{
+				"Forgets the picks for this config, so they're timed again on the next render",
+				"Useful if something else was using the pc while they were timed",
+			},
+		},
+		{
 			"svp gpu search checkbox",
 			{
 				"Finds motion on the GPU, mostly faster at full search size",

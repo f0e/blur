@@ -344,6 +344,9 @@ void devices::initialise() {
 		// write new json
 		std::ofstream(cache_path) << cache.dump(1, '\t');
 	}
+
+	// read now so previews looking up optimised gpu settings don't wait on it
+	get_hardware();
 }
 
 std::optional<std::string> devices::get_auto_rife_device() {
@@ -368,6 +371,41 @@ std::optional<bool> devices::get_svp_gpu_supported() {
 bool devices::wait_svp_gpu_supported() {
 	svp_gpu_tested.wait(false);
 	return svp_gpu_works;
+}
+
+const nlohmann::json& devices::get_hardware() {
+	static const nlohmann::json hardware = [] {
+		namespace bp = boost::process;
+
+		bp::ipstream out_stream;
+
+		auto c = u::run_command(
+			blur.vspipe_path,
+			vspipe::get_args({ "--info" }, "get_devices.py", { "type=hardware" }, "--"),
+			bp::std_out > out_stream,
+			bp::std_err.null(),
+			vspipe::setup_environment()
+		);
+
+		if (!c) {
+			u::log_error("failed to read hardware: {}", c.error());
+			return nlohmann::json();
+		}
+
+		std::string output(std::istreambuf_iterator<char>(out_stream), {});
+
+		c->wait();
+
+		auto result = nlohmann::json::parse(output, nullptr, false);
+		if (c->exit_code() != 0 || !result.is_object()) {
+			u::log_error("failed to read hardware (exit code {})", c->exit_code());
+			return nlohmann::json();
+		}
+
+		return result;
+	}();
+
+	return hardware;
 }
 
 devices::DeviceIndices devices::get_device_indices(const GlobalAppSettings& app_settings) {

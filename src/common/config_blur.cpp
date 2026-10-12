@@ -235,6 +235,8 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 	if (!concise || settings.uses_interpolation_method("svp")) {
 		output << "\n";
 		output << "- svp" << "\n";
+		output << "optimise gpu settings: " << (settings.optimise_gpu_settings ? "true" : "false") << "\n";
+		output << "prioritise speed: " << (settings.optimise_prioritise_speed ? "true" : "false") << "\n";
 		output << "svp gpu search: " << (settings.svp_gpu_search ? "true" : "false") << "\n";
 		output << "svp gpu rendering: " << (settings.svp_gpu_rendering ? "true" : "false") << "\n";
 		output << "svp hud mask: " << (settings.svp_hud_mask ? "true" : "false") << "\n";
@@ -588,6 +590,8 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "copy dates", settings.copy_dates);
 	config_base::extract_config_value(config_map, "upscale", settings.upscale);
 
+	config_base::extract_config_value(config_map, "optimise gpu settings", settings.optimise_gpu_settings);
+	config_base::extract_config_value(config_map, "prioritise speed", settings.optimise_prioritise_speed);
 	config_base::extract_config_value(config_map, "svp gpu search", settings.svp_gpu_search);
 	config_base::extract_config_value(config_map, "svp gpu rendering", settings.svp_gpu_rendering);
 	config_base::extract_config_value(config_map, "svp hud mask", settings.svp_hud_mask);

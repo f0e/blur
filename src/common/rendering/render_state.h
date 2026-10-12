@@ -8,6 +8,7 @@ namespace rendering {
 			NONE,
 			GENERATING_MASK,
 			BUILDING_ENGINE,
+			OPTIMISING,
 		};
 
 		struct Progress {
@@ -26,6 +27,9 @@ namespace rendering {
 			InitStage init_stage = InitStage::NONE;
 
 			std::string frame_timing_log;
+
+			// something about how it's rendering the user should know, e.g. why the gpu settings weren't optimised
+			std::string note;
 		};
 
 		// -- control (called from the UI thread) --
@@ -86,6 +90,22 @@ namespace rendering {
 
 		void report_frame_progress(int current_frame, int total_frames);
 
+		void set_init_stage(InitStage stage) {
+			std::lock_guard lock(m_mutex);
+			m_progress.init_stage = stage;
+		}
+
+		void set_note(std::string note) {
+			std::lock_guard lock(m_mutex);
+			m_progress.note = std::move(note);
+		}
+
+		// stages this reports are reported to that state too, so a benchmark run inside a render can show it's
+		// building an engine
+		void forward_init_stages_to(std::shared_ptr<RenderState> state) {
+			m_forward_init_stages = std::move(state);
+		}
+
 		// look for the markers blur's scripts print before slow steps, for more specific loading messages
 		void report_log_line(const std::string& line);
 
@@ -113,6 +133,8 @@ namespace rendering {
 		mutable std::mutex m_mutex;
 		Progress m_progress;
 		bool m_paused = false;
+
+		std::shared_ptr<RenderState> m_forward_init_stages;
 
 		std::atomic<bool> m_to_pause = false;
 		std::atomic<bool> m_to_stop = false;

@@ -61,5 +61,10 @@ match list_type:
         for n in range(svp_video.num_frames):
             svp_video.get_frame(n)
 
+    case "hardware":
+        import blur.hardware
+
+        print(json.dumps({"cpu": blur.hardware.cpu_name(), "gpus": blur.hardware.gpus()}))
+
     case _:
         raise u.BlurException("Invalid list type")
