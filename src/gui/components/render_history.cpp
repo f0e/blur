@@ -237,6 +237,8 @@ namespace {
 					return { .detail = "Generating mask..." };
 				case rendering::RenderState::InitStage::BUILDING_ENGINE:
 					return { .detail = "Building TensorRT engine..." };
+				case rendering::RenderState::InitStage::OPTIMISING:
+					return { .detail = "Optimising GPU settings..." };
 				case rendering::RenderState::InitStage::NONE:
 					return { .detail = "Initialising..." };
 			}

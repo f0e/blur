@@ -242,6 +242,11 @@ tl::expected<rendering::detail::PipelineResult, rendering::RenderError> renderin
 	bool audio,
 	const std::function<void()>& progress_callback
 ) {
+	running_pipelines++;
+	std::shared_ptr<void> running_guard(nullptr, [](void*) {
+		running_pipelines--;
+	});
+
 	try {
 		auto env = vspipe::setup_environment();
 

@@ -299,6 +299,7 @@ std::optional<std::string> PreviewState::status_text(std::optional<std::string> 
 			return "analysing video to generate a mask...";
 		case rendering::RenderState::InitStage::BUILDING_ENGINE:
 			return "building tensorrt engine, this may take a few minutes...";
+		case rendering::RenderState::InitStage::OPTIMISING:
 		case rendering::RenderState::InitStage::NONE:
 			break;
 	}

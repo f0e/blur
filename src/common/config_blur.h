@@ -116,6 +116,11 @@ struct BlurSettings {
 	bool gpu_decoding = false;
 	bool gpu_encoding = false;
 
+	// picks the svp gpu settings by benchmarking, the two below are only used when it's off
+	bool optimise_gpu_settings = true;
+	// lets it pick settings that change the output, like svp gpu search
+	bool optimise_prioritise_speed = false;
+
 	bool svp_gpu_search = false;
 	bool svp_gpu_rendering = true;
 	bool svp_hud_mask = true;

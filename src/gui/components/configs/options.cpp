@@ -11,6 +11,7 @@
 #include "common/devices.h"
 #include "common/interpolation_models.h"
 #include "common/encoding.h"
+#include "common/rendering/render_optimise.h"
 
 namespace configs = gui::components::configs;
 
@@ -601,22 +602,90 @@ void configs::options(ui::Container& container) {
 		section_component("svp");
 
 		ui::add_checkbox(
-			"svp gpu search checkbox", container, "svp gpu search", settings.svp_gpu_search, fonts::dejavu
+			"optimise gpu settings checkbox",
+			container,
+			"optimise gpu settings",
+			settings.optimise_gpu_settings,
+			fonts::dejavu
 		);
 
-		if (devices::get_svp_gpu_supported() == false) {
-			ui::add_text(
-				"svp gpu rendering unsupported warning",
+		if (settings.optimise_gpu_settings) {
+			ui::add_checkbox(
+				"prioritise speed checkbox",
 				container,
-				"svp gpu rendering isn't supported by your gpu",
-				WARNING_COLOR,
+				"prioritise speed",
+				settings.optimise_prioritise_speed,
 				fonts::dejavu
 			);
+
+			auto saved = rendering::optimise::list_saved(settings, app_settings);
+			if (!rendering::optimise::benchmarks(settings)) {
+				ui::add_text(
+					"optimised gpu settings unneeded text",
+					container,
+					"nothing else uses the gpu, so svp renders on it",
+					gfx::Color::white(renderer::MUTED_SHADE),
+					fonts::dejavu
+				);
+			}
+			else if (saved.empty()) {
+				ui::add_text(
+					"optimised gpu settings none text",
+					container,
+					"picked on each video format's first render",
+					gfx::Color::white(renderer::MUTED_SHADE),
+					fonts::dejavu
+				);
+			}
+			else {
+				for (const auto& pick : saved) {
+					std::string text = std::format(
+						"{}: svp gpu rendering {}", pick.video, pick.settings.svp_gpu_rendering ? "on" : "off"
+					);
+
+					// search is only picked with prioritise speed
+					if (settings.optimise_prioritise_speed)
+						text += std::format(", svp gpu search {}", pick.settings.svp_gpu_search ? "on" : "off");
+
+					ui::add_text(
+						"optimised gpu settings text " + pick.video,
+						container,
+						text,
+						gfx::Color::white(renderer::MUTED_SHADE),
+						fonts::dejavu
+					);
+				}
+
+				ui::add_button(
+					"clear optimised settings button", container, "clear optimised settings", fonts::dejavu, [] {
+						rendering::optimise::clear_saved(settings, app_settings);
+					}
+				);
+			}
 		}
 		else {
 			ui::add_checkbox(
-				"svp gpu rendering checkbox", container, "svp gpu rendering", settings.svp_gpu_rendering, fonts::dejavu
+				"svp gpu search checkbox", container, "svp gpu search", settings.svp_gpu_search, fonts::dejavu
 			);
+
+			if (devices::get_svp_gpu_supported() == false) {
+				ui::add_text(
+					"svp gpu rendering unsupported warning",
+					container,
+					"svp gpu rendering isn't supported by your gpu",
+					WARNING_COLOR,
+					fonts::dejavu
+				);
+			}
+			else {
+				ui::add_checkbox(
+					"svp gpu rendering checkbox",
+					container,
+					"svp gpu rendering",
+					settings.svp_gpu_rendering,
+					fonts::dejavu
+				);
+			}
 		}
 
 		ui::add_checkbox("svp hud mask checkbox", container, "svp hud mask", settings.svp_hud_mask, fonts::dejavu);

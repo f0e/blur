@@ -6,15 +6,22 @@ void rendering::RenderState::report_log_line(const std::string& line) {
 	if (!status)
 		return;
 
-	std::lock_guard lock(m_mutex);
-
 	if (status->key == "stage") {
+		std::optional<InitStage> stage;
 		if (status->value == "mask") // blur/mask.py
-			m_progress.init_stage = InitStage::GENERATING_MASK;
+			stage = InitStage::GENERATING_MASK;
 		else if (status->value == "tensorrt-engine") // external/vsmlrt.py
-			m_progress.init_stage = InitStage::BUILDING_ENGINE;
+			stage = InitStage::BUILDING_ENGINE;
+
+		if (stage) {
+			set_init_stage(*stage);
+
+			if (m_forward_init_stages)
+				m_forward_init_stages->set_init_stage(*stage);
+		}
 	}
 	else if (status->key == "frame-timing-log") {
+		std::lock_guard lock(m_mutex);
 		m_progress.frame_timing_log = status->value;
 	}
 }

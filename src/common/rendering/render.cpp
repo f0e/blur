@@ -2,6 +2,7 @@
 #include "render_commands.h"
 #include "output.h"
 #include "render_pipeline.h"
+#include "render_optimise.h"
 #include "common/devices.h"
 #ifdef TENSORRT
 #	include "common/interpolation_models.h"
@@ -59,7 +60,11 @@ tl::expected<std::string, std::string> rendering::build_preview_script(
 	if (auto error = check_tensorrt_installed(settings))
 		return tl::unexpected(*error);
 
-	auto merged_settings = detail::merge_settings(settings, app_settings, devices::get_device_indices(app_settings));
+	auto merged_settings = detail::merge_settings(
+		optimise::for_preview(settings, app_settings, video_info),
+		app_settings,
+		devices::get_device_indices(app_settings)
+	);
 
 	auto vspipe_args =
 		detail::build_vspipe_video_args(input_path, merged_settings, video_info, { .preview_mask = preview_mask });
@@ -130,7 +135,11 @@ tl::expected<rendering::RenderResult, rendering::RenderError> rendering::pre_ren
 	if (auto error = check_tensorrt_installed(settings))
 		return tl::unexpected(RenderError{ .user_message = *error });
 
-	auto merged_settings = detail::merge_settings(settings, app_settings, devices::get_device_indices(app_settings));
+	auto merged_settings = detail::merge_settings(
+		optimise::for_preview(settings, app_settings, video_info),
+		app_settings,
+		devices::get_device_indices(app_settings)
+	);
 
 	detail::FrameRange range{ .start = start_frame, .end = end_frame };
 
@@ -213,8 +222,6 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 	if (auto error = check_tensorrt_installed(settings))
 		return tl::unexpected(*error);
 
-	auto merged_settings = detail::merge_settings(settings, app_settings, devices::get_device_indices(app_settings));
-
 	std::filesystem::path output_path;
 	if (output_path_override) {
 		output_path = *output_path_override;
@@ -256,25 +263,40 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 
 	detail::FrameRange range{ .start = start_frame, .end = end_frame };
 
-	auto ffmpeg_args =
-		detail::build_ffmpeg_video_args(input_path, video_info, settings, app_settings, output_path, range, trimmed);
-	if (!ffmpeg_args)
-		return tl::unexpected(ffmpeg_args.error());
+	auto build_commands = [&](
+							  const BlurSettings& command_settings, const std::filesystem::path& command_output_path
+						  ) -> tl::expected<RenderCommands, std::string> {
+		auto ffmpeg_args = detail::build_ffmpeg_video_args(
+			input_path, video_info, command_settings, app_settings, command_output_path, range, trimmed
+		);
+		if (!ffmpeg_args)
+			return tl::unexpected(ffmpeg_args.error());
 
-	RenderCommands commands = {
-		.vspipe_video = detail::build_vspipe_video_args(
-			input_path,
-			merged_settings,
-			video_info,
-			{
-				.range = range,
-				// untrimmed renders use the whole video like previews do, so they share a cached mask
-				.mask_range = trimmed ? std::optional{ range } : std::nullopt,
-				.skipped_frames = get_skipped_frames(settings, app_settings, video_info),
-			}
-		),
-		.ffmpeg = *ffmpeg_args,
+		return RenderCommands{
+			.vspipe_video = detail::build_vspipe_video_args(
+				input_path,
+				detail::merge_settings(command_settings, app_settings, devices::get_device_indices(app_settings)),
+				video_info,
+				{
+					.range = range,
+					// untrimmed renders use the whole video like previews do, so they share a cached mask
+					.mask_range = trimmed ? std::optional{ range } : std::nullopt,
+					.skipped_frames = get_skipped_frames(command_settings, app_settings, video_info),
+				}
+			),
+			.ffmpeg = *ffmpeg_args,
+		};
 	};
+
+	auto render_settings = optimise::for_render(
+		settings, app_settings, video_info, state, u::path_to_string(output_path.extension()), build_commands
+	);
+
+	auto commands_res = build_commands(render_settings, output_path);
+	if (!commands_res)
+		return tl::unexpected(commands_res.error());
+
+	auto& commands = *commands_res;
 
 	// add preview pipe if needed
 	if (settings.preview && blur.using_preview) {

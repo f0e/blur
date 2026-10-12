@@ -18,6 +18,9 @@ namespace devices {
 	std::optional<bool> get_svp_gpu_supported();
 	bool wait_svp_gpu_supported();
 
+	// cpu and gpus with their driver versions, read the first time it's asked for. null if it couldn't be read
+	const nlohmann::json& get_hardware();
+
 	struct DeviceIndices {
 		int rife = -1;
 		int tensorrt = -1;

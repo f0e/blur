@@ -10,6 +10,9 @@ namespace rendering::detail {
 		bool stopped;
 	};
 
+	// renders and pre-renders running right now
+	inline std::atomic<int> running_pipelines = 0;
+
 	tl::expected<PipelineResult, RenderError> execute_pipeline(
 		const RenderCommands& commands,
 		const std::shared_ptr<RenderState>& state,

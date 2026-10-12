@@ -270,6 +270,17 @@ void main::render_progress(
 			);
 		}
 
+		if (!progress.note.empty()) {
+			ui::add_text(
+				"render note text",
+				container,
+				progress.note,
+				gfx::Color::white(renderer::MUTED_SHADE),
+				fonts::dejavu,
+				FONT_CENTERED_X
+			);
+		}
+
 		is_progress_shown = true;
 	}
 	else {
@@ -293,6 +304,9 @@ void main::render_progress(
 					break;
 				case rendering::RenderState::InitStage::BUILDING_ENGINE:
 					initialising_text = "Building TensorRT engine. This may take a few minutes...";
+					break;
+				case rendering::RenderState::InitStage::OPTIMISING:
+					initialising_text = "Testing which GPU settings render fastest...";
 					break;
 				case rendering::RenderState::InitStage::NONE:
 					break;
