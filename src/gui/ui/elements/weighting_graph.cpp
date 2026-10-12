@@ -1,9 +1,13 @@
 #include "../ui.h"
 #include "../../render/render.h"
 
-constexpr int GRAPH_WIDTH = 300;
 constexpr int LABEL_PADDING = 5;
-constexpr int BARS_HEIGHT = 45;
+
+// the graph fills the container's width with bars this tall per pixel of width, within these bounds. the most is a
+// share of the container's height so the whole graph fits without scrolling
+constexpr float BARS_HEIGHT_RATIO = 0.12f;
+constexpr int MIN_BARS_HEIGHT = 45;
+constexpr float MAX_BARS_HEIGHT_SHARE = 0.25f;
 
 // the timeline's scale fits at least this many seconds, so settings with the same exposure (like blur amount tied to
 // fps) draw the same window and only the spacing between output frames changes
@@ -15,6 +19,10 @@ constexpr int TICK_HEIGHT = 5;
 
 // columns at least this wide get a pixel gap between bars, narrower ones are drawn edge to edge
 constexpr float MIN_GAPPED_COLUMN_WIDTH = 3.f;
+
+// MIN_TIMELINE_SPAN gives way rather than drawing columns narrower than this, so bars stay countable at high fps. the
+// visible windows always fit though
+constexpr float MIN_COLUMN_WIDTH = 4.f;
 
 // resolution the window's shape is resampled to, so shapes with different frame counts can be blended between
 constexpr int SHAPE_SAMPLES = 257;
@@ -70,9 +78,9 @@ namespace {
 
 	// the current window's bars point up from a baseline and with a known frame gap the previous and next windows'
 	// point down from it, or once those overlap each other the three get a row each in the same space
-	int get_graph_height(double frame_gap) {
+	int get_graph_height(double frame_gap, int bars_height) {
 		int ruler_height = frame_gap > 0 ? TICK_HEIGHT + LABEL_PADDING : 0;
-		return BARS_HEIGHT + (frame_gap > 0 ? BARS_HEIGHT + 1 : 0) + LABEL_PADDING + ruler_height +
+		return bars_height + (frame_gap > 0 ? bars_height + 1 : 0) + LABEL_PADDING + ruler_height +
 		       fonts::dejavu.height();
 	}
 
@@ -91,7 +99,8 @@ namespace {
 		auto span_columns = columns;
 		if (gap > 0) {
 			float needed = 2 * (std::abs(center) + half + 0.5f + gap);
-			columns = std::max(needed, MIN_TIMELINE_SPAN / frame_period);
+			float max_columns = std::floor(static_cast<float>(width) / MIN_COLUMN_WIDTH);
+			columns = std::max(needed, std::min(MIN_TIMELINE_SPAN / frame_period, max_columns));
 			span_columns = ((2 * std::floor(((columns / gap) - 1) / 2)) + 1) * gap;
 
 			if (span_columns < needed) {
@@ -213,17 +222,19 @@ void ui::render_weighting_graph(const Container& container, const AnimatedElemen
 	// the previous and next windows only overlap each other above blur amount 2
 	bool neighbours_overlap = count - 1 > 2 * frame_gap;
 
+	int bars_height = graph_data.bars_height;
+
 	if (!show_neighbours) {
-		draw_window(0, rect.y + BARS_HEIGHT, BARS_HEIGHT, false, current_color);
+		draw_window(0, rect.y + bars_height, bars_height, false, current_color);
 	}
 	else if (!neighbours_overlap) {
-		int baseline = rect.y + BARS_HEIGHT;
-		draw_window(-1, baseline + 1, BARS_HEIGHT, true, neighbour_color);
-		draw_window(1, baseline + 1, BARS_HEIGHT, true, neighbour_color);
-		draw_window(0, baseline, BARS_HEIGHT, false, current_color);
+		int baseline = rect.y + bars_height;
+		draw_window(-1, baseline + 1, bars_height, true, neighbour_color);
+		draw_window(1, baseline + 1, bars_height, true, neighbour_color);
+		draw_window(0, baseline, bars_height, false, current_color);
 	}
 	else {
-		int row_height = ((BARS_HEIGHT * 2) + 1) / 3;
+		int row_height = ((bars_height * 2) + 1) / 3;
 		for (int row = 0; row < 3; row++) {
 			int window = row - 1;
 			draw_window(
@@ -271,14 +282,23 @@ ui::AnimatedElement* ui::add_weighting_graph(
 	int source_fps,
 	bool fps_known
 ) {
+	gfx::Rect usable_rect = container.get_usable_rect();
+	int bars_height = std::max(
+		static_cast<int>(std::min(
+			static_cast<float>(usable_rect.w) * BARS_HEIGHT_RATIO,
+			static_cast<float>(usable_rect.h) * MAX_BARS_HEIGHT_SHARE
+		)),
+		MIN_BARS_HEIGHT
+	);
+
 	Element element(
 		id,
 		ElementType::WEIGHTING_GRAPH,
 		gfx::Rect(
 			container.current_position,
 			gfx::Size{
-				std::min(GRAPH_WIDTH, container.get_usable_rect().w),
-				get_graph_height(frame_gap),
+				usable_rect.w,
+				get_graph_height(frame_gap, bars_height),
 			}
 		),
 		WeightingGraphElementData{
@@ -287,6 +307,7 @@ ui::AnimatedElement* ui::add_weighting_graph(
 			.frame_gap = frame_gap,
 			.source_fps = source_fps,
 			.fps_known = fps_known,
+			.bars_height = bars_height,
 		},
 		render_weighting_graph,
 		std::nullopt,
