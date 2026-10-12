@@ -619,7 +619,7 @@ void configs::options(ui::Container& container) {
 			);
 		}
 
-		ui::add_checkbox("svp peel checkbox", container, "svp peel", settings.svp_peel, fonts::dejavu);
+		ui::add_checkbox("svp hud mask checkbox", container, "svp hud mask", settings.svp_hud_mask, fonts::dejavu);
 	}
 
 	/*

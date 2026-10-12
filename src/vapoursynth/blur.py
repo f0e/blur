@@ -380,8 +380,8 @@ def main():
                         halvings=blur.interpolate.search_halvings(settings["svp_search_size"], video.fps),
                     )
                 else:
-                    # peel only runs on the gpu
-                    peel = settings["svp_peel"] and settings["svp_gpu_rendering"]
+                    # the hud mask only runs on the gpu
+                    hud_mask = settings["svp_hud_mask"] and settings["svp_gpu_rendering"]
 
                     result = blur.interpolate.interpolate_svp(
                         video,
@@ -400,9 +400,9 @@ def main():
                         masking=interpolation_mask_area,
                         gpu=settings["svp_gpu_rendering"],
                         timeline=timeline,
-                        halvings=blur.interpolate.search_halvings(settings["svp_search_size"], video.fps, peel),
+                        halvings=blur.interpolate.search_halvings(settings["svp_search_size"], video.fps, hud_mask),
                         gpu_search=settings["svp_gpu_search"],
-                        peel=peel,
+                        hud_mask=hud_mask,
                     )
 
             case "rife":
