@@ -340,11 +340,11 @@ def SVP(
 ):
     """`halvings` finds the motion on a copy halved that many times, which is a lot faster for some loss in
     quality."""
-    # svp only takes 4:2:0. for 4:4:4 the motion is found once on a 4:2:0 copy, then each plane is rendered as the
-    # luma of its own clip along those vectors so none of them lose resolution. upscaling the luma to match the
-    # chroma instead makes svp do about 3x the work
-    planes = video.format.id == vs.YUV444P8
-    analysed = core.resize.Bilinear(video, format=vs.YUV420P8) if planes else video
+    # for 4:4:4 the motion is found on a 4:2:0 copy, which is cheaper and finds the same luma motion, then rendered at
+    # full chroma resolution along those vectors. that needs open-svpflow's native 4:4:4 rendering (f054c86 in the
+    # fork), upstream's leaves most of each chroma plane empty
+    full_chroma = video.format.id == vs.YUV444P8
+    analysed = core.resize.Bilinear(video, format=vs.YUV420P8) if full_chroma else video
 
     # each halving needs a size that divides by 4
     while halvings and (analysed.width % 2 ** (halvings + 1) or analysed.height % 2 ** (halvings + 1)):
@@ -366,31 +366,18 @@ def SVP(
             # the doubled vectors are pel 1 whatever the search used, and rendering needs a super that matches them.
             # same as open-svpflow's own c api, which reads gpu back out of the small super's data
             gpu = (super["data"] >> 48) & 0xFF
-            super = core.svp1.Super(analysed, json.dumps({"pel": 1, "gpu": gpu}))
+            super = core.svp1.Super(video, json.dumps({"pel": 1, "gpu": gpu}))
+        elif full_chroma:
+            super = core.svp1.Super(video, super_string)
 
-        def smooth(clip: vs.VideoNode):
-            return core.svp2.SmoothFps(
-                clip,
-                super["clip"],
-                super["data"],
-                vectors["clip"],
-                vectors["data"],
-                smooth_str,
-            )
-
-        if not planes:
-            return smooth(video)
-
-        neutral = core.std.BlankClip(
-            analysed, format=vs.GRAY8, width=analysed.width // 2, height=analysed.height // 2, color=128
+        return core.svp2.SmoothFps(
+            video,
+            super["clip"],
+            super["data"],
+            vectors["clip"],
+            vectors["data"],
+            smooth_str,
         )
-
-        def smooth_plane(plane: int):
-            luma = core.std.ShufflePlanes(video, planes=plane, colorfamily=vs.GRAY)
-            clip = core.std.ShufflePlanes([luma, neutral, neutral], planes=[0, 0, 0], colorfamily=vs.YUV)
-            return core.std.ShufflePlanes(smooth(clip), planes=0, colorfamily=vs.GRAY)
-
-        return core.std.ShufflePlanes([smooth_plane(plane) for plane in range(3)], planes=[0, 0, 0], colorfamily=vs.YUV)
     except vs.Error as e:
         raise u.BlurException(
             user_error="Failed to initialise SVP. Ensure your GPU drivers are up to date. You may need to disable 'svp gpu rendering'.",
