@@ -1,20 +1,20 @@
 #include "config_blur.h"
 #include "masks.h"
-#include "rife_models.h"
+#include "interpolation_models.h"
 #include "config_base.h"
 #include "config_app.h"
 #include "config_rules.h"
-#include "rendering/render_commands.h"
+#include "rendering/output.h"
 #include "devices.h"
 #include "encoding.h"
 
 namespace {
-	void verify_gpu_interpolation(BlurSettings& settings) {
+	void verify_svp_gpu_rendering(BlurSettings& settings) {
 		if (!blur.initialised)
 			return;
 
-		if (settings.gpu_interpolation && !devices::wait_svp_gpu_supported())
-			settings.gpu_interpolation = false;
+		if (settings.svp_gpu_rendering && !devices::wait_svp_gpu_supported())
+			settings.svp_gpu_rendering = false;
 	}
 
 	bool deduplicate_threshold_valid(const std::string& threshold) {
@@ -81,6 +81,59 @@ namespace {
 					return true;
 				},
 		},
+		{
+			.version = "3.0.0",
+			.description = "'pre-interpolated fps' -> 'pre-interpolated minimum fps' or 'minimum multiplier'",
+			.apply =
+				[](config_base::ConfigMap& config) {
+					auto it = config.find("pre-interpolated fps");
+					if (it == config.end())
+						return false;
+
+					auto value = u::trim(it->second);
+					if (value.ends_with("x")) {
+						config.try_emplace("pre-interpolated minimum fps", "0");
+						config.try_emplace("pre-interpolated minimum multiplier", value.substr(0, value.size() - 1));
+					}
+					else {
+						config.try_emplace("pre-interpolated minimum fps", value);
+						config.try_emplace("pre-interpolated minimum multiplier", "1");
+					}
+
+					config.erase(it);
+					return true;
+				},
+		},
+		{
+			.version = "3.0.0",
+			.description = "'deduplicate method' -> 'retime method'",
+			.apply =
+				[](config_base::ConfigMap& config) {
+					auto it = config.find("deduplicate method");
+					if (it == config.end())
+						return false;
+
+					config.try_emplace("retime method", it->second);
+
+					config.erase(it);
+					return true;
+				},
+		},
+		{
+			.version = "3.0.0",
+			.description = "'gpu interpolation' -> 'svp gpu rendering'",
+			.apply =
+				[](config_base::ConfigMap& config) {
+					auto it = config.find("gpu interpolation");
+					if (it == config.end())
+						return false;
+
+					config.try_emplace("svp gpu rendering", it->second);
+
+					config.erase(it);
+					return true;
+				},
+		},
 	});
 }
 
@@ -98,6 +151,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "blur amount: " << settings.blur_amount << "\n";
 			output << "blur output fps: " << settings.blur_output_fps << "\n";
 			output << "blur weighting: " << settings.blur_weighting << "\n";
+			output << "blur sampling: " << settings.blur_sampling << "\n";
 			output << "preserve brightness: " << (settings.preserve_brightness ? "true" : "false") << "\n";
 			output << "bloom: " << (settings.bloom ? "true" : "false") << "\n";
 			if (!concise || settings.bloom) {
@@ -124,19 +178,26 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "- pre-interpolation" << "\n";
 		output << "pre-interpolate: " << (settings.pre_interpolate ? "true" : "false") << "\n";
 		if (!concise || settings.pre_interpolate) {
-			output << "pre-interpolated fps: " << settings.pre_interpolated_fps << "\n";
+			output << "pre-interpolated minimum fps: " << settings.pre_interpolated_minimum_fps << "\n";
+			output << "pre-interpolated minimum multiplier: " << settings.pre_interpolated_minimum_multiplier << "\n";
 			output << "pre-interpolation method: " << settings.pre_interpolation_method << "\n";
 		}
 	}
 
-	// Deduplication section
-	if (!concise || settings.deduplicate) {
+	// Retiming section
+	if (!concise || settings.deduplicate || settings.frame_timing_logs) {
 		output << "\n";
-		output << "- deduplication" << "\n";
+		output << "- retiming" << "\n";
 		output << "deduplicate: " << (settings.deduplicate ? "true" : "false") << "\n";
-		if (!concise || settings.deduplicate) {
-			output << "deduplicate method: " << settings.deduplicate_method << "\n";
-		}
+		output << "use frame timing logs: " << (settings.frame_timing_logs ? "true" : "false") << "\n";
+		output << "retime method: " << settings.retime_method << "\n";
+	}
+
+	// Scene detection section
+	if (!concise || !settings.scene_detection) {
+		output << "\n";
+		output << "- scene detection" << "\n";
+		output << "scene detection: " << (settings.scene_detection ? "true" : "false") << "\n";
 	}
 
 	// Masking section
@@ -145,6 +206,11 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "- masking" << "\n";
 		output << "mask: " << settings.mask << "\n";
 		output << "auto mask: " << (settings.auto_mask ? "true" : "false") << "\n";
+		if (!concise || settings.auto_mask) {
+			output << "auto mask tracking: " << (settings.auto_mask_tracking ? "true" : "false") << "\n";
+			output << "auto mask layer: " << (settings.auto_mask_layer ? "true" : "false") << "\n";
+			output << "auto mask inpainting: " << (settings.auto_mask_inpainting ? "true" : "false") << "\n";
+		}
 	}
 
 	// Rendering section (always included)
@@ -165,32 +231,46 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "upscale: " << (settings.upscale ? "true" : "false") << "\n";
 	}
 
-	// Rife models section
-	bool uses_rife = settings.uses_interpolation_method("rife");
-#ifdef TENSORRT
-	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
-#else
-	bool uses_rife_trt = false;
-#endif
-	if (!concise || uses_rife || uses_rife_trt) {
+	// SVP section
+	if (!concise || settings.uses_interpolation_method("svp")) {
 		output << "\n";
-		output << "- rife models" << "\n";
-		if (!concise || uses_rife) {
-			output << "rife model: " << settings.rife_model << "\n";
-		}
-#ifdef TENSORRT
-		if (!concise || uses_rife_trt) {
-			output << "rife (tensorrt) model: " << settings.rife_trt_model << "\n";
-		}
-#endif
+		output << "- svp" << "\n";
+		output << "optimise gpu settings: " << (settings.optimise_gpu_settings ? "true" : "false") << "\n";
+		output << "prioritise speed: " << (settings.optimise_prioritise_speed ? "true" : "false") << "\n";
+		output << "svp gpu search: " << (settings.svp_gpu_search ? "true" : "false") << "\n";
+		output << "svp gpu rendering: " << (settings.svp_gpu_rendering ? "true" : "false") << "\n";
+		output << "svp hud mask: " << (settings.svp_hud_mask ? "true" : "false") << "\n";
 	}
 
+	// RIFE section
+	if (!concise || settings.uses_interpolation_method("rife")) {
+		output << "\n";
+		output << "- rife" << "\n";
+		output << "rife model: " << settings.rife_model << "\n";
+	}
+
+	// TensorRT section
+#ifdef TENSORRT
+	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
+	bool uses_gimm = settings.uses_interpolation_method("gimm-vfi (tensorrt)");
+	if (!concise || uses_rife_trt || uses_gimm) {
+		output << "\n";
+		output << "- tensorrt" << "\n";
+		if (!concise || uses_rife_trt) {
+			output << "rife (tensorrt) model: " << settings.rife_trt_model << "\n";
+			output << "rife (tensorrt) ensemble: " << (settings.rife_trt_ensemble ? "true" : "false") << "\n";
+		}
+		if (!concise || uses_gimm) {
+			output << "gimm-vfi (tensorrt) model: " << settings.gimm_trt_model << "\n";
+		}
+	}
+#endif
+
 	// GPU acceleration section
-	if (!concise || settings.gpu_decoding || settings.gpu_interpolation || settings.gpu_encoding) {
+	if (!concise || settings.gpu_decoding || settings.gpu_encoding) {
 		output << "\n";
 		output << "- gpu acceleration" << "\n";
 		output << "gpu decoding: " << (settings.gpu_decoding ? "true" : "false") << "\n";
-		output << "gpu interpolation: " << (settings.gpu_interpolation ? "true" : "false") << "\n";
 		output << "gpu encoding: " << (settings.gpu_encoding ? "true" : "false") << "\n";
 	}
 
@@ -236,10 +316,6 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "deduplicate max future checks: " << settings.advanced.max_future_checks << "\n";
 
 			output << "\n";
-			output << "- advanced frame timing" << "\n";
-			output << "use frame timing logs: " << (settings.advanced.frame_timing_logs ? "true" : "false") << "\n";
-
-			output << "\n";
 			output << "- advanced rendering" << "\n";
 			output << "video container: " << settings.advanced.video_container << "\n";
 			if (!concise || !settings.advanced.ffmpeg_override.empty()) {
@@ -257,6 +333,8 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "auto mask fill: " << settings.advanced.auto_mask.fill << "\n";
 			output << "auto mask padding: " << settings.advanced.auto_mask.padding << "\n";
 			output << "auto mask feather: " << settings.advanced.auto_mask.feather << "\n";
+			output << "auto mask enclosed: " << (settings.advanced.auto_mask.enclosed ? "true" : "false") << "\n";
+			output << "auto mask enclosed max fps: " << settings.advanced.auto_mask.enclosed_max_fps << "\n";
 
 			output << "\n";
 			output << "- advanced blur" << "\n";
@@ -265,9 +343,14 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "blur weighting gaussian bound: " << settings.advanced.blur_weighting_gaussian_bound << "\n";
 
 			output << "\n";
-			output << "- advanced interpolation" << "\n";
+			output << "- advanced svp" << "\n";
 			output << "svp interpolation preset: " << settings.advanced.svp_interpolation_preset << "\n";
 			output << "svp interpolation algorithm: " << settings.advanced.svp_interpolation_algorithm << "\n";
+			output << "svp search size: " << settings.advanced.svp_search_size << "\n";
+			output << "svp block overlap: " << settings.advanced.svp_block_overlap << "\n";
+
+			output << "\n";
+			output << "- advanced interpolation" << "\n";
 			output << "interpolation block size: " << settings.advanced.interpolation_blocksize << "\n";
 			output << "interpolation mask area: " << settings.advanced.interpolation_mask_area << "\n";
 
@@ -297,12 +380,18 @@ void config_blur::create(const std::filesystem::path& filepath, const BlurSettin
 	config_base::write_config_string(filepath, generate_config_string(current_settings, false));
 }
 
+bool config_blur::masking_possible(const BlurSettings& settings) {
+	return settings.interpolate || (settings.deduplicate && settings.advanced.deduplicate_range != 0) ||
+	       settings.frame_timing_logs;
+}
+
 bool config_blur::same_masking(const BlurSettings& a, const BlurSettings& b) {
-	if (a.mask != b.mask || a.auto_mask != b.auto_mask || a.advanced.auto_mask != b.advanced.auto_mask)
+	if (a.mask != b.mask || a.auto_mask != b.auto_mask || a.auto_mask_tracking != b.auto_mask_tracking ||
+	    a.advanced.auto_mask != b.advanced.auto_mask)
 		return false;
 
 	if (a.interpolate != b.interpolate || a.deduplicate != b.deduplicate ||
-	    a.advanced.deduplicate_range != b.advanced.deduplicate_range)
+	    a.advanced.deduplicate_range != b.advanced.deduplicate_range || a.frame_timing_logs != b.frame_timing_logs)
 		return false;
 
 	return a.advanced.source_plugin == b.advanced.source_plugin && a.gpu_decoding == b.gpu_decoding;
@@ -335,7 +424,7 @@ config_blur::ValidationResult config_blur::validate(
 	};
 
 	bool timescaling = config.timescale && config.output_timescale != config.input_timescale;
-	if (timescaling && rendering::detail::copies_audio(config, app_settings, presets)) {
+	if (timescaling && rendering::copies_audio(config, app_settings, presets)) {
 		if (!config.advanced.ffmpeg_override.empty()) {
 			add_error(ValidationField::FFMPEG_OVERRIDE, "cannot use -c:a copy while using timescale");
 		}
@@ -382,6 +471,17 @@ config_blur::ValidationResult config_blur::validate(
 			config.advanced.svp_interpolation_algorithm = DEFAULT_CONFIG.advanced.svp_interpolation_algorithm;
 	}
 
+	if (!u::contains(BLUR_SAMPLING_METHODS, config.blur_sampling)) {
+		add_error(
+			ValidationField::BLUR_SAMPLING,
+			std::format("Blur sampling ({}) is not a valid option", config.blur_sampling),
+			true
+		);
+
+		if (fix)
+			config.blur_sampling = DEFAULT_CONFIG.blur_sampling;
+	}
+
 	if (!u::contains(INTERPOLATION_BLOCK_SIZES, config.advanced.interpolation_blocksize)) {
 		add_error(
 			ValidationField::INTERPOLATION_BLOCKSIZE,
@@ -391,6 +491,28 @@ config_blur::ValidationResult config_blur::validate(
 
 		if (fix)
 			config.advanced.interpolation_blocksize = DEFAULT_CONFIG.advanced.interpolation_blocksize;
+	}
+
+	if (!u::contains(SVP_SEARCH_SIZES, config.advanced.svp_search_size)) {
+		add_error(
+			ValidationField::SVP_SEARCH_SIZE,
+			std::format("SVP search size ({}) is not a valid option", config.advanced.svp_search_size),
+			true
+		);
+
+		if (fix)
+			config.advanced.svp_search_size = DEFAULT_CONFIG.advanced.svp_search_size;
+	}
+
+	if (!u::contains(SVP_BLOCK_OVERLAPS, config.advanced.svp_block_overlap)) {
+		add_error(
+			ValidationField::SVP_BLOCK_OVERLAP,
+			std::format("SVP block overlap ({}) is not a valid option", config.advanced.svp_block_overlap),
+			true
+		);
+
+		if (fix)
+			config.advanced.svp_block_overlap = DEFAULT_CONFIG.advanced.svp_block_overlap;
 	}
 
 	return result;
@@ -422,6 +544,7 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "blur amount", settings.blur_amount);
 	config_base::extract_config_value(config_map, "blur output fps", settings.blur_output_fps);
 	config_base::extract_config_value(config_map, "blur weighting", settings.blur_weighting);
+	config_base::extract_config_value(config_map, "blur sampling", settings.blur_sampling);
 
 	config_base::extract_config_value(config_map, "preserve brightness", settings.preserve_brightness);
 
@@ -432,21 +555,33 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "interpolate", settings.interpolate);
 	config_base::extract_config_value(config_map, "interpolated fps", settings.interpolated_fps);
 	config_base::extract_config_value(config_map, "interpolation method", settings.interpolation_method);
+	config_base::extract_config_value(config_map, "scene detection", settings.scene_detection);
 	config_base::extract_config_value(config_map, "rife model", settings.rife_model);
 #ifdef TENSORRT
 	config_base::extract_config_value(config_map, "rife (tensorrt) model", settings.rife_trt_model);
+	config_base::extract_config_value(config_map, "rife (tensorrt) ensemble", settings.rife_trt_ensemble);
+	config_base::extract_config_value(config_map, "gimm-vfi (tensorrt) model", settings.gimm_trt_model);
 #endif
 	config_base::extract_config_value(config_map, "mask", settings.mask);
 	if (settings.mask == masks::NONE_OPTION)
 		settings.mask.clear();
 	config_base::extract_config_value(config_map, "auto mask", settings.auto_mask);
+	config_base::extract_config_value(config_map, "auto mask tracking", settings.auto_mask_tracking);
+	config_base::extract_config_value(config_map, "auto mask layer", settings.auto_mask_layer);
+	config_base::extract_config_value(config_map, "auto mask inpainting", settings.auto_mask_inpainting);
 
 	config_base::extract_config_value(config_map, "pre-interpolate", settings.pre_interpolate);
-	config_base::extract_config_value(config_map, "pre-interpolated fps", settings.pre_interpolated_fps);
+	config_base::extract_config_value(
+		config_map, "pre-interpolated minimum fps", settings.pre_interpolated_minimum_fps
+	);
+	config_base::extract_config_value(
+		config_map, "pre-interpolated minimum multiplier", settings.pre_interpolated_minimum_multiplier
+	);
 	config_base::extract_config_value(config_map, "pre-interpolation method", settings.pre_interpolation_method);
 
+	config_base::extract_config_value(config_map, "use frame timing logs", settings.frame_timing_logs);
 	config_base::extract_config_value(config_map, "deduplicate", settings.deduplicate);
-	config_base::extract_config_value(config_map, "deduplicate method", settings.deduplicate_method);
+	config_base::extract_config_value(config_map, "retime method", settings.retime_method);
 
 	config_base::extract_config_value(config_map, "encode preset", settings.encode_preset);
 	config_base::extract_config_value(config_map, "quality", settings.quality);
@@ -455,8 +590,13 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "copy dates", settings.copy_dates);
 	config_base::extract_config_value(config_map, "upscale", settings.upscale);
 
+	config_base::extract_config_value(config_map, "optimise gpu settings", settings.optimise_gpu_settings);
+	config_base::extract_config_value(config_map, "prioritise speed", settings.optimise_prioritise_speed);
+	config_base::extract_config_value(config_map, "svp gpu search", settings.svp_gpu_search);
+	config_base::extract_config_value(config_map, "svp gpu rendering", settings.svp_gpu_rendering);
+	config_base::extract_config_value(config_map, "svp hud mask", settings.svp_hud_mask);
+
 	config_base::extract_config_value(config_map, "gpu decoding", settings.gpu_decoding);
-	config_base::extract_config_value(config_map, "gpu interpolation", settings.gpu_interpolation);
 	config_base::extract_config_value(config_map, "gpu encoding", settings.gpu_encoding);
 
 	config_base::extract_config_value(config_map, "timescale", settings.timescale);
@@ -481,8 +621,6 @@ BlurSettings config_blur::parse_from_map(
 			config_map, "deduplicate max future checks", settings.advanced.max_future_checks
 		);
 
-		config_base::extract_config_value(config_map, "use frame timing logs", settings.advanced.frame_timing_logs);
-
 		config_base::extract_config_value(config_map, "video container", settings.advanced.video_container);
 		config_base::extract_config_value(config_map, "custom ffmpeg filters", settings.advanced.ffmpeg_override);
 		config_base::extract_config_value(config_map, "debug", settings.advanced.debug);
@@ -493,6 +631,10 @@ BlurSettings config_blur::parse_from_map(
 		config_base::extract_config_value(config_map, "auto mask fill", settings.advanced.auto_mask.fill);
 		config_base::extract_config_value(config_map, "auto mask padding", settings.advanced.auto_mask.padding);
 		config_base::extract_config_value(config_map, "auto mask feather", settings.advanced.auto_mask.feather);
+		config_base::extract_config_value(config_map, "auto mask enclosed", settings.advanced.auto_mask.enclosed);
+		config_base::extract_config_value(
+			config_map, "auto mask enclosed max fps", settings.advanced.auto_mask.enclosed_max_fps
+		);
 
 		config_base::extract_config_value(
 			config_map, "blur weighting gaussian std dev", settings.advanced.blur_weighting_gaussian_std_dev
@@ -516,6 +658,8 @@ BlurSettings config_blur::parse_from_map(
 		config_base::extract_config_value(
 			config_map, "interpolation mask area", settings.advanced.interpolation_mask_area
 		);
+		config_base::extract_config_value(config_map, "svp search size", settings.advanced.svp_search_size);
+		config_base::extract_config_value(config_map, "svp block overlap", settings.advanced.svp_block_overlap);
 		config_base::extract_config_value(config_map, "manual svp", settings.advanced.manual_svp);
 		config_base::extract_config_value(config_map, "super string", settings.advanced.super_string);
 		config_base::extract_config_value(config_map, "vectors string", settings.advanced.vectors_string);
@@ -523,7 +667,7 @@ BlurSettings config_blur::parse_from_map(
 	}
 
 	encoding::verify_gpu_encoding(settings);
-	verify_gpu_interpolation(settings);
+	verify_svp_gpu_rendering(settings);
 
 	return settings;
 }
@@ -666,6 +810,7 @@ nlohmann::json BlurSettings::to_json() const {
 	j["blur_amount"] = this->blur_amount;
 	j["blur_output_fps"] = this->blur_output_fps;
 	j["blur_weighting"] = this->blur_weighting;
+	j["blur_sampling"] = this->blur_sampling;
 	j["preserve_brightness"] = this->preserve_brightness;
 	j["bloom"] = this->bloom;
 	j["bloom_threshold"] = this->bloom_threshold;
@@ -674,15 +819,21 @@ nlohmann::json BlurSettings::to_json() const {
 	j["interpolate"] = this->interpolate;
 	j["interpolated_fps"] = this->interpolated_fps;
 	j["interpolation_method"] = this->interpolation_method;
+	j["scene_detection"] = this->scene_detection;
 	j["mask"] = this->mask;
 	j["auto_mask"] = this->auto_mask;
+	j["auto_mask_tracking"] = this->auto_mask_tracking;
+	j["auto_mask_layer"] = this->auto_mask_layer;
+	j["auto_mask_inpainting"] = this->auto_mask_inpainting;
 
 	j["pre_interpolate"] = this->pre_interpolate;
-	j["pre_interpolated_fps"] = this->pre_interpolated_fps;
+	j["pre_interpolated_minimum_fps"] = this->pre_interpolated_minimum_fps;
+	j["pre_interpolated_minimum_multiplier"] = this->pre_interpolated_minimum_multiplier;
 	j["pre_interpolation_method"] = this->pre_interpolation_method;
 
 	j["deduplicate"] = this->deduplicate;
-	j["deduplicate_method"] = this->deduplicate_method;
+	j["retime_method"] = this->retime_method;
+	j["frame_timing_logs"] = this->frame_timing_logs;
 
 	j["timescale"] = this->timescale;
 	j["input_timescale"] = this->input_timescale;
@@ -702,7 +853,9 @@ nlohmann::json BlurSettings::to_json() const {
 	// j["copy_dates"] = this->copy_dates;
 
 	j["gpu_decoding"] = this->gpu_decoding;
-	j["gpu_interpolation"] = this->gpu_interpolation;
+	j["svp_gpu_search"] = this->svp_gpu_search;
+	j["svp_gpu_rendering"] = this->svp_gpu_rendering;
+	j["svp_hud_mask"] = this->svp_hud_mask;
 	j["gpu_encoding"] = this->gpu_encoding;
 
 	j["filters"] = this->filters;
@@ -715,7 +868,6 @@ nlohmann::json BlurSettings::to_json() const {
 	j["deduplicate_threshold"] = this->advanced.deduplicate_threshold;
 	j["duplicate_timing"] = this->advanced.duplicate_timing;
 	j["max_future_checks"] = this->advanced.max_future_checks;
-	j["frame_timing_logs"] = this->advanced.frame_timing_logs;
 
 	// j["video_container"] = this->advanced.video_container;
 	// j["ffmpeg_override"] = this->advanced.ffmpeg_override;
@@ -727,6 +879,8 @@ nlohmann::json BlurSettings::to_json() const {
 	j["auto_mask_fill"] = this->advanced.auto_mask.fill;
 	j["auto_mask_padding"] = this->advanced.auto_mask.padding;
 	j["auto_mask_feather"] = this->advanced.auto_mask.feather;
+	j["auto_mask_enclosed"] = this->advanced.auto_mask.enclosed;
+	j["auto_mask_enclosed_max_fps"] = this->advanced.auto_mask.enclosed_max_fps;
 
 	j["blur_weighting_gaussian_std_dev"] = this->advanced.blur_weighting_gaussian_std_dev;
 	j["blur_weighting_gaussian_mean"] = this->advanced.blur_weighting_gaussian_mean;
@@ -736,11 +890,15 @@ nlohmann::json BlurSettings::to_json() const {
 	j["svp_interpolation_algorithm"] = this->advanced.svp_interpolation_algorithm;
 	j["interpolation_blocksize"] = this->advanced.interpolation_blocksize;
 	j["interpolation_mask_area"] = this->advanced.interpolation_mask_area;
+	j["svp_search_size"] = this->advanced.svp_search_size;
+	j["svp_block_overlap"] = this->advanced.svp_block_overlap;
 
-	j["rife_model"] = rife_models::get_path() / this->rife_model;
+	j["rife_model"] = interpolation_models::get_rife_path() / this->rife_model;
 #ifdef TENSORRT
-	j["rife_trt_model"] = rife_models::get_trt_path() / (this->rife_trt_model + ".onnx");
+	j["rife_trt_model"] = interpolation_models::get_rife_trt_path() / (this->rife_trt_model + ".onnx");
+	j["gimm_trt_model"] = interpolation_models::get_gimm_trt_path() / (this->gimm_trt_model + ".onnx");
 #endif
+	j["rife_trt_ensemble"] = this->rife_trt_ensemble;
 
 	j["manual_svp"] = this->advanced.manual_svp;
 	j["super_string"] = this->advanced.super_string;
@@ -752,7 +910,7 @@ nlohmann::json BlurSettings::to_json() const {
 
 BlurSettings::BlurSettings() {
 	encoding::verify_gpu_encoding(*this);
-	verify_gpu_interpolation(*this);
+	verify_svp_gpu_rendering(*this);
 }
 
 bool BlurSettings::uses_interpolation_method(const std::string& method) const {
@@ -760,5 +918,5 @@ bool BlurSettings::uses_interpolation_method(const std::string& method) const {
 		return this->interpolation_method == method ||
 		       (this->pre_interpolate && this->pre_interpolation_method == method);
 
-	return this->deduplicate && this->deduplicate_method == method;
+	return (this->deduplicate || this->frame_timing_logs) && this->retime_method == method;
 }

@@ -14,6 +14,7 @@ import blur.frame_timing
 import blur.interpolate
 import blur.mask
 import blur.retime
+import blur.scenes
 import blur.utils as u
 import blur.weighting
 from blur import log
@@ -47,31 +48,59 @@ def build_mask_clips(
     auto_mask: bool,
     auto_mask_params: blur.mask.Params,
     mask_source: vs.VideoNode,
+    video: vs.VideoNode,
     video_path: Path,
     settings_path: Path,
     mask_start: int,
     mask_end: int,
-) -> list[vs.VideoNode]:
+    tracking: bool = False,
+    layered: bool = False,
+) -> tuple[list[vs.VideoNode], list[vs.VideoNode], blur.mask.Layer | None]:
+    """The masks to render with, the ones that are the same for every frame (what's worth saving as a mask
+    preset), and with `layered`, what the auto mask covers as a layer over the scene. `tracking` adds overlays
+    found frame by frame."""
     mask_clips = []
+    fixed = []
+    layer = None
 
     if mask_name:
         log.info(f"applying mask {mask_name}")
         mask_clips.append(blur.mask.load(settings_path / "masks" / mask_name))
+        fixed.append(mask_clips[-1])
 
     if auto_mask:
+        params = auto_mask_params.for_clip(mask_source)
         generated = blur.mask.cached(
             mask_source,
             video_path,
             settings_path / blur.mask.CACHE_FOLDER,
             settings_path / blur.mask.SCORE_CACHE_FOLDER,
             (mask_start, mask_end),
-            auto_mask_params,
+            params,
         )
 
         if generated is not None:
-            mask_clips.append(generated)
+            fixed.append(generated)
 
-    return mask_clips
+            if layered:
+                layer = blur.mask.cached_layer(
+                    mask_source,
+                    generated,
+                    video_path,
+                    settings_path / blur.mask.SCORE_CACHE_FOLDER,
+                    (mask_start, mask_end),
+                    params,
+                )
+
+        # the layer covers the whole clip mask
+        static = None if layer else generated
+        if tracking:
+            # overlays that come and go are found frame by frame in what's being rendered
+            mask_clips.append(blur.mask.track(video, static, auto_mask_params))
+        elif static is not None:
+            mask_clips.append(static)
+
+    return mask_clips, fixed, layer
 
 
 def main():
@@ -205,6 +234,7 @@ def main():
             video.num_frames,
             video_path,
             hold=hold,
+            nearest=source_plugin == "BestSource",
         )
 
     retiming = (settings["deduplicate"] and settings["deduplicate_range"] != 0) or logged_timing is not None
@@ -212,27 +242,39 @@ def main():
     mask_name = settings["mask"] if apply_masks else ""
     auto_mask = settings["auto_mask"] if apply_masks else False
     auto_mask_params = blur.mask.Params.from_settings(settings)
+    auto_mask_tracking = auto_mask and settings["auto_mask_tracking"]
 
     if globals().get("preview_mask") == "true":
-        mask_clips = build_mask_clips(
+        mask_clips, fixed, _ = build_mask_clips(
             mask_name,
             auto_mask,
             auto_mask_params,
             mask_source,
+            video,
             video_path,
             settings_path,
             mask_start,
             mask_end,
+            tracking=auto_mask_tracking,
         )
+
+        # the gui saves this rather than the frame on screen, which would bake in whatever was tracked on it
+        if savable_mask_path := globals().get("savable_mask_path"):
+            blur.mask.save(fixed, video, Path(savable_mask_path))
 
         preview = blur.mask.preview(video, mask_clips)
         preview.set_output()
         return
 
     # validate some settings
-    svp_interpolation_algorithm = u.coalesce(
-        u.safe_int(settings["svp_interpolation_algorithm"]),
-        blur.interpolate.DEFAULT_ALGORITHM,
+    # none picks one per interpolation from the framerate reaching svp
+    svp_interpolation_algorithm = (
+        None
+        if settings["svp_interpolation_algorithm"] == "auto"
+        else u.coalesce(
+            u.safe_int(settings["svp_interpolation_algorithm"]),
+            blur.interpolate.DEFAULT_ALGORITHM,
+        )
     )
 
     interpolation_blocksize = u.coalesce(
@@ -252,10 +294,32 @@ def main():
         is_full_color_range=color_range == "pc",
         orig_width=video.width,
         orig_height=video.height,
+        transfer=video.get_frame(0).props.get("_Transfer", vs.TRANSFER_UNSPECIFIED),
     )
 
     # what masked regions get put back to. before deduplication since that interpolates too
     original = video
+
+    mask = layer = None
+    if mask_name or auto_mask:
+        mask_clips, _, layer = build_mask_clips(
+            mask_name,
+            auto_mask,
+            auto_mask_params,
+            mask_source,
+            video,
+            video_path,
+            settings_path,
+            mask_start,
+            mask_end,
+            tracking=auto_mask_tracking,
+            layered=auto_mask and settings["auto_mask_layer"],
+        )
+
+        if mask_clips:
+            mask = blur.mask.combine(mask_clips)
+        elif layer is not None:
+            mask = core.std.BlankClip(video, format=vs.GRAYS, color=1.0, length=1)
 
     # input timescale
     if settings["timescale"]:
@@ -280,8 +344,24 @@ def main():
         debug_timeline = timeline
         debug_source_fps = video.fps
 
-    def interpolate_to(method: str, video: vs.VideoNode, new_fps, timeline=None):
-        """Interpolate `video` up to `new_fps`, filling `timeline`'s gaps on the way if it was given any."""
+    # masked regions are put back from whichever real frame each output frame is nearest, which retiming moves
+    retimed_by, retimed_fps = timeline, video.fps
+
+    # where the video cuts to another scene, moved along with it as it's interpolated
+    cuts = detected_cuts = None
+    if settings["scene_detection"] and (settings["interpolate"] or retiming or settings["blur"]):
+        spread = video.fps / settings["blur_output_fps"] if settings["blur"] else 1
+        cuts = detected_cuts = blur.scenes.detect(video, video_info.is_full_color_range, spread)
+
+    # after deduplication and scene detection, which need to see the frames as they are
+    if mask is not None:
+        inpaint = auto_mask and settings["auto_mask_inpainting"]
+        video, shows_through = blur.mask.separate(video, mask, layer, inpaint)
+        separated = video
+
+    def interpolate_to(method: str, video: vs.VideoNode, new_fps, cuts, timeline=None):
+        """Interpolate `video` up to `new_fps`, filling `timeline`'s gaps on the way if it was given any. Holds
+        rather than interpolates across `cuts`, and gives them back on the new timeline."""
         match method:
             case "svp":
                 if settings["manual_svp"]:
@@ -290,7 +370,7 @@ def main():
                     if "rate" not in smooth_json:
                         smooth_json["rate"] = {"num": int(new_fps), "abs": True}
 
-                    return blur.interpolate.svp(
+                    result = blur.interpolate.svp(
                         video,
                         video_info=video_info,
                         super_string=settings["super_string"],
@@ -298,23 +378,36 @@ def main():
                         smooth_str=json.dumps(smooth_json),
                         timeline=timeline,
                         new_fps=new_fps,
+                        halvings=blur.interpolate.search_halvings(settings["svp_search_size"], video.fps),
+                    )
+                else:
+                    # the hud mask only runs on the gpu
+                    hud_mask = settings["svp_hud_mask"] and settings["svp_gpu_rendering"]
+
+                    result = blur.interpolate.interpolate_svp(
+                        video,
+                        video_info=video_info,
+                        new_fps=new_fps,
+                        preset=settings["svp_interpolation_preset"],
+                        algorithm=(
+                            blur.interpolate.auto_algorithm(video.fps)
+                            if svp_interpolation_algorithm is None
+                            else svp_interpolation_algorithm
+                        ),
+                        blocksize=interpolation_blocksize,
+                        overlap=blur.interpolate.block_overlap(
+                            settings["svp_block_overlap"], settings["svp_interpolation_preset"], video.fps
+                        ),
+                        masking=interpolation_mask_area,
+                        gpu=settings["svp_gpu_rendering"],
+                        timeline=timeline,
+                        halvings=blur.interpolate.search_halvings(settings["svp_search_size"], video.fps, hud_mask),
+                        gpu_search=settings["svp_gpu_search"],
+                        hud_mask=hud_mask,
                     )
 
-                return blur.interpolate.interpolate_svp(
-                    video,
-                    video_info=video_info,
-                    new_fps=new_fps,
-                    preset=settings["svp_interpolation_preset"],
-                    algorithm=svp_interpolation_algorithm,
-                    blocksize=interpolation_blocksize,
-                    overlap=0,
-                    masking=interpolation_mask_area,
-                    gpu=settings["gpu_interpolation"],
-                    timeline=timeline,
-                )
-
             case "rife":
-                return blur.interpolate.interpolate_rife(
+                result = blur.interpolate.interpolate_rife(
                     video,
                     video_info=video_info,
                     new_fps=new_fps,
@@ -324,7 +417,7 @@ def main():
                 )
 
             case "rife (tensorrt)":
-                return blur.interpolate.interpolate_rife_vsmlrt(
+                result = blur.interpolate.interpolate_rife_vsmlrt(
                     video,
                     video_info=video_info,
                     new_fps=new_fps,
@@ -332,10 +425,22 @@ def main():
                     device_index=settings["tensorrt_device_index"],
                     settings_path=settings_path,
                     timeline=timeline,
+                    ensemble=settings["rife_trt_ensemble"],
+                )
+
+            case "gimm-vfi (tensorrt)":
+                result = blur.interpolate.interpolate_gimm_vsmlrt(
+                    video,
+                    video_info=video_info,
+                    new_fps=new_fps,
+                    model_path=settings["gimm_trt_model"],
+                    device_index=settings["tensorrt_device_index"],
+                    settings_path=settings_path,
+                    timeline=timeline,
                 )
 
             case "mvtools":
-                return blur.interpolate.interpolate_mvtools(
+                result = blur.interpolate.interpolate_mvtools(
                     video,
                     new_fps,
                     blocksize=interpolation_blocksize,
@@ -346,13 +451,16 @@ def main():
             case _:
                 raise u.BlurException(
                     f"Invalid interpolation method: '{method}'. Should be one of: 'svp', 'rife', "
-                    "'rife (tensorrt)', 'mvtools'"
+                    "'rife (tensorrt)', 'gimm-vfi (tensorrt)', 'mvtools'"
                 )
 
+        if cuts is None:
+            return result, None
+
+        return blur.scenes.hold(result, video, cuts, timeline)
+
     # interpolation
-    interpolated = False
     if settings["interpolate"]:
-        frames_before_interpolation = video.num_frames
 
         def parse_fps_setting(setting_key):
             fps_value = settings[setting_key].strip()
@@ -386,7 +494,13 @@ def main():
         interpolated_fps = parse_fps_setting("interpolated_fps")
 
         if settings["interpolation_method"] != settings["pre_interpolation_method"] and settings["pre_interpolate"]:
-            pre_interpolated_fps = parse_fps_setting("pre_interpolated_fps")
+            pre_interpolated_fps = min(
+                max(
+                    settings["pre_interpolated_minimum_fps"],
+                    video.fps * settings["pre_interpolated_minimum_multiplier"],
+                ),
+                interpolated_fps,
+            )
 
             if (
                 video.fps < pre_interpolated_fps
@@ -398,16 +512,19 @@ def main():
                 if settings["pre_interpolation_method"] not in [
                     "rife",
                     "rife (tensorrt)",
+                    "gimm-vfi (tensorrt)",
                 ]:
                     raise u.BlurException(
-                        f"Invalid pre-interpolation method: '{settings['pre_interpolation_method']}'. Should be one of: 'rife', 'rife (tensorrt)'"
+                        f"Invalid pre-interpolation method: '{settings['pre_interpolation_method']}'. Should be one of: "
+                        "'rife', 'rife (tensorrt)', 'gimm-vfi (tensorrt)'"
                     )
 
                 # the first interpolation pass fills deduplication's gaps
-                video = interpolate_to(
+                video, cuts = interpolate_to(
                     settings["pre_interpolation_method"],
                     video,
                     pre_interpolated_fps,
+                    cuts,
                     timeline=timeline,
                 )
                 timeline = None
@@ -421,10 +538,11 @@ def main():
             log.info(f"interpolating to {interpolated_fps} with {settings['interpolation_method']}")
             old_fps = video.fps
 
-            video = interpolate_to(
+            video, cuts = interpolate_to(
                 settings["interpolation_method"],
                 video,
                 interpolated_fps,
+                cuts,
                 timeline=timeline,
             )
             timeline = None
@@ -432,11 +550,9 @@ def main():
             fps_added = video.fps - old_fps
             log.info(f"added {fps_added} (interp: {interpolated_fps}. video.fps: {video.fps}/{interpolated_fps})")
 
-        interpolated = video.num_frames != frames_before_interpolation
-
     if timeline is not None:
-        # no interpolation, so deduplication fills its own gaps using 'deduplicate method'
-        method = settings["deduplicate_method"]
+        # no interpolation, so retiming fills its own gaps using 'retime method'
+        method = settings["retime_method"]
         log.info(f"filling duplicate frames with {method}")
 
         if method == "old" and logged_timing is not None:
@@ -445,34 +561,36 @@ def main():
 
         if method == "old":
             # the only method that doesn't use the timeline
+            retimed_by = None
             video = blur.deduplicate.fill_drops_old(
                 video,
                 threshold=deduplicate_threshold,
                 debug=settings["debug"],
             )
         else:
-            video = interpolate_to(method, video, video.fps, timeline=timeline)
+            video, cuts = interpolate_to(method, video, video.fps, cuts, timeline=timeline)
 
-    # masking, only needed if something was interpolated
-    mask_clips = []
-    if (mask_name or auto_mask) and (retiming or interpolated):
-        mask_clips = build_mask_clips(
-            mask_name,
-            auto_mask,
-            auto_mask_params,
-            mask_source,
-            video_path,
-            settings_path,
-            mask_start,
-            mask_end,
-        )
-
-    if mask_clips:
-        video = blur.mask.protect(video, original, blur.mask.combine(mask_clips))
+    # a mask that's the same on every frame can put the overlays back after blurring instead, see
+    # blur.mask.composite_blurred. bloom spreads light around, so it has to see them
+    put_back_after_blur = (
+        mask is not None
+        and settings["blur"]
+        and settings["blur_amount"] > 0
+        and not settings["bloom"]
+        and shows_through.num_frames == 1
+    )
+    if mask is not None:
+        ratio = video.fps / retimed_fps if retimed_by is not None else None
+        if not put_back_after_blur:
+            video = blur.mask.composite(video, original, separated, shows_through, retimed_by, ratio)
 
     # debug: label the frames retiming touched. turn blur off to read it
     if debug_timeline is not None:
         video = blur.retime.annotate(video, debug_timeline, video.fps / debug_source_fps)
+
+    # debug: label frames near scene cuts. turn blur off to read it
+    if cuts is not None and settings["debug"]:
+        video = blur.scenes.annotate(video, cuts, detected_cuts)
 
     # output timescale
     if settings["timescale"]:
@@ -483,33 +601,46 @@ def main():
     # blurring
     if settings["blur"]:
         if settings["blur_amount"] > 0:
-            frame_gap = int(video.fps / settings["blur_output_fps"])
-            blur_frames = int(frame_gap * settings["blur_amount"])
+            weights = blur.weighting.parse(
+                float(video.fps / settings["blur_output_fps"]),
+                settings["blur_amount"],
+                weighting_type=settings["blur_weighting"],
+                gaussian_std_dev=settings["blur_weighting_gaussian_std_dev"],
+                gaussian_mean=settings["blur_weighting_gaussian_mean"],
+                gaussian_bound=json.loads(settings["blur_weighting_gaussian_bound"]),
+                sampling=settings["blur_sampling"],
+            )
 
-            if blur_frames > 0:
-                # number of weights must be odd
-                if blur_frames % 2 == 0:
-                    blur_frames += 1
+            if weights:
 
-                weights = blur.weighting.parse(
-                    blur_frames,
-                    weighting_type=settings["blur_weighting"],
-                    gaussian_std_dev=settings["blur_weighting_gaussian_std_dev"],
-                    gaussian_mean=settings["blur_weighting_gaussian_mean"],
-                    gaussian_bound=json.loads(settings["blur_weighting_gaussian_bound"]),
-                )
+                def blend(clip: vs.VideoNode) -> vs.VideoNode:
+                    return blur.blending.blend(
+                        clip,
+                        video_info,
+                        weights,
+                        settings["preserve_brightness"],
+                        float(settings["bloom_threshold"]),
+                        float(settings["bloom_strength"]) if settings["bloom"] else None,
+                        cuts=cuts,
+                    )
 
-                video = blur.blending.blend(
-                    video,
-                    video_info,
-                    weights,
-                    settings["preserve_brightness"],
-                    float(settings["bloom_threshold"]),
-                    float(settings["bloom_strength"]) if settings["bloom"] else None,
-                )
+                if put_back_after_blur:
+                    video = blur.mask.composite_blurred(
+                        video, original, separated, shows_through, retimed_by, ratio, blend
+                    )
+                    put_back_after_blur = False
+                else:
+                    video = blend(video)
+
+        # too little blur to blend any frames, so they're put back as usual
+        if put_back_after_blur:
+            video = blur.mask.composite(video, original, separated, shows_through, retimed_by, ratio)
 
         # set exact fps
         video = blur.interpolate.change_fps(video, settings["blur_output_fps"])
+
+        if cuts is not None and settings["debug"]:
+            video = blur.scenes.annotate_blur(video)
 
         skip_frames = int(globals().get("skip_frames", 0))
         if skip_frames > 0:

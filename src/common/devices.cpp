@@ -1,5 +1,5 @@
 #include "devices.h"
-#include "rife_models.h"
+#include "interpolation_models.h"
 #include "script_status.h"
 #include "vspipe.h"
 
@@ -68,7 +68,7 @@ namespace {
 
 	bool test_svp_gpu() {
 #ifdef __APPLE__
-		// there's no cpu svp on macos, so gpu interpolation can't be turned off anyway
+		// there's no cpu svp on macos, so svp gpu rendering can't be turned off anyway
 		return true;
 #else
 		namespace bp = boost::process;
@@ -180,27 +180,31 @@ namespace {
 	}
 
 	std::optional<int> find_fastest_rife_device() {
-		auto model = get_benchmark_model(rife_models::list(), config_blur::DEFAULT_CONFIG.rife_model);
+		auto model = get_benchmark_model(interpolation_models::list_rife(), config_blur::DEFAULT_CONFIG.rife_model);
 		if (!model)
 			return {};
 
 		return find_fastest_device(
 			devices::rife,
 			"rife",
-			std::format("rife_model_path={}", u::path_to_string(rife_models::get_path() / *model))
+			std::format("rife_model_path={}", u::path_to_string(interpolation_models::get_rife_path() / *model))
 		);
 	}
 
 #ifdef TENSORRT
 	std::optional<int> find_fastest_tensorrt_device() {
-		auto model = get_benchmark_model(rife_models::list_trt(), config_blur::DEFAULT_CONFIG.rife_trt_model);
+		auto model =
+			get_benchmark_model(interpolation_models::list_rife_trt(), config_blur::DEFAULT_CONFIG.rife_trt_model);
 		if (!model)
 			return {};
 
 		return find_fastest_device(
 			devices::tensorrt,
 			"rife (tensorrt)",
-			std::format("rife_trt_model_path={}", u::path_to_string(rife_models::get_trt_path() / (*model + ".onnx")))
+			std::format(
+				"rife_trt_model_path={}",
+				u::path_to_string(interpolation_models::get_rife_trt_path() / (*model + ".onnx"))
+			)
 		);
 	}
 #endif
@@ -316,7 +320,7 @@ void devices::initialise() {
 	svp_gpu_tested.notify_all();
 
 	if (!svp_gpu_works)
-		u::log("svp gpu interpolation doesn't work on this system, using cpu interpolation instead");
+		u::log("svp gpu rendering doesn't work on this system, using cpu rendering instead");
 
 	rife = list_devices("rife");
 #ifdef TENSORRT
@@ -340,6 +344,9 @@ void devices::initialise() {
 		// write new json
 		std::ofstream(cache_path) << cache.dump(1, '\t');
 	}
+
+	// read now so previews looking up optimised gpu settings don't wait on it
+	get_hardware();
 }
 
 std::optional<std::string> devices::get_auto_rife_device() {
@@ -364,6 +371,41 @@ std::optional<bool> devices::get_svp_gpu_supported() {
 bool devices::wait_svp_gpu_supported() {
 	svp_gpu_tested.wait(false);
 	return svp_gpu_works;
+}
+
+const nlohmann::json& devices::get_hardware() {
+	static const nlohmann::json hardware = [] {
+		namespace bp = boost::process;
+
+		bp::ipstream out_stream;
+
+		auto c = u::run_command(
+			blur.vspipe_path,
+			vspipe::get_args({ "--info" }, "get_devices.py", { "type=hardware" }, "--"),
+			bp::std_out > out_stream,
+			bp::std_err.null(),
+			vspipe::setup_environment()
+		);
+
+		if (!c) {
+			u::log_error("failed to read hardware: {}", c.error());
+			return nlohmann::json();
+		}
+
+		std::string output(std::istreambuf_iterator<char>(out_stream), {});
+
+		c->wait();
+
+		auto result = nlohmann::json::parse(output, nullptr, false);
+		if (c->exit_code() != 0 || !result.is_object()) {
+			u::log_error("failed to read hardware (exit code {})", c->exit_code());
+			return nlohmann::json();
+		}
+
+		return result;
+	}();
+
+	return hardware;
 }
 
 devices::DeviceIndices devices::get_device_indices(const GlobalAppSettings& app_settings) {

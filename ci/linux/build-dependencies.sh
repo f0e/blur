@@ -9,49 +9,6 @@ echo "Building dependencies for Linux"
 mkdir -p $out_dir
 find $out_dir -mindepth 1 -delete
 
-download_archive() {
-  local url="$1"
-  local dir_name="$2"
-  local out_path="$3"
-  local subfolder="$4"
-
-  original_dir=$(pwd)
-
-  mkdir -p download
-  cd download
-
-  if [ -d "$dir_name" ]; then
-    echo "$dir_name already exists. Skipping download."
-    cd "$dir_name"
-  else
-    mkdir -p "$dir_name" && cd "$dir_name"
-
-    echo "Downloading $dir_name"
-
-    if [[ "$url" == *.zip ]]; then
-      wget -q "$url" -O "$dir_name.zip"
-      unzip "$dir_name.zip"
-      rm "$dir_name.zip"
-    elif [[ "$url" == *.tar.xz ]]; then
-      wget -q "$url" -O "$dir_name.tar.xz"
-      tar -xf "$dir_name.tar.xz"
-      rm "$dir_name.tar.xz"
-    else
-      echo "Unsupported archive format: $url"
-      cd "$original_dir"
-      return 1
-    fi
-  fi
-
-  dest_path="$original_dir/$out_dir/$out_path"
-
-  echo "Copying files from $subfolder to $dest_path"
-
-  cp -r "${subfolder:=.}" "$dest_path"
-
-  cd "$original_dir"
-}
-
 download_library() {
   local url="$1"
   local filename="$2"
@@ -133,12 +90,17 @@ download_model_files() {
   echo "Model $model_name download completed"
 }
 
-## svpflow
-download_archive \
-  "https://web.archive.org/web/20190322064557if_/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip" \
-  "svpflow" \
-  "vapoursynth-plugins" \
-  "svpflow-4.2.0.142/lib-linux"
+## open-svpflow
+mkdir -p download/open-svpflow "$out_dir/vapoursynth-plugins"
+if [ ! -f download/open-svpflow/libsvpflow1_vs.so ]; then
+  wget -q "https://github.com/Z1xus/open-svpflow/releases/download/nightly-20261011-deadbadae0d9/x86_64-unknown-linux-gnu.zip" \
+    -O download/open-svpflow/open-svpflow.zip
+  echo "040744513dcad567f43bb53667bbde5c90fb1c7b453ca1fb93ecfcaf6cd2a4d4  download/open-svpflow/open-svpflow.zip" |
+    sha256sum -c --quiet -
+  unzip -o download/open-svpflow/open-svpflow.zip libsvpflow1_vs.so libsvpflow2_vs.so -d download/open-svpflow
+  rm download/open-svpflow/open-svpflow.zip
+fi
+cp download/open-svpflow/libsvpflow1_vs.so download/open-svpflow/libsvpflow2_vs.so "$out_dir/vapoursynth-plugins"
 
 ## python for vapoursynth
 download_tarball \

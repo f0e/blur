@@ -10,6 +10,8 @@ struct AutoMaskSettings {
 	int fill = 24;
 	int padding = 1;
 	int feather = 1;
+	bool enclosed = true;
+	int enclosed_max_fps = 180;
 
 	bool operator==(const AutoMaskSettings& other) const = default;
 };
@@ -20,7 +22,6 @@ struct AdvancedSettings {
 	std::string deduplicate_threshold = "0.003";
 	std::string duplicate_timing = "first";
 	int max_future_checks = 3;
-	bool frame_timing_logs = true;
 	std::string ffmpeg_override;
 	bool debug = false;
 	std::string source_plugin = "LWLibavSource";
@@ -29,10 +30,12 @@ struct AdvancedSettings {
 	float blur_weighting_gaussian_mean = 2.f;
 	std::string blur_weighting_gaussian_bound = "[0,2]";
 
-	std::string svp_interpolation_preset = "weak";
-	std::string svp_interpolation_algorithm = "13";
+	std::string svp_interpolation_preset = "quality";
+	std::string svp_interpolation_algorithm = "auto";
 	std::string interpolation_blocksize = "8";
 	int interpolation_mask_area = 0;
+	std::string svp_search_size = "full";
+	std::string svp_block_overlap = "auto";
 
 	AutoMaskSettings auto_mask;
 
@@ -49,8 +52,9 @@ struct BlurSettings {
 	float blur_amount = 1.f;
 	int blur_output_fps = 60;
 	std::string blur_weighting = "equal";
+	std::string blur_sampling = "rectangle";
 
-	bool preserve_brightness = false;
+	bool preserve_brightness = true;
 
 	bool bloom = false;
 	float bloom_threshold = 0.75f;
@@ -70,9 +74,17 @@ struct BlurSettings {
 
 	// generate a mask from the parts of each video that never move, applied on top of `mask`
 	bool auto_mask = false;
+	// what the auto mask does past that, each one slower
+	bool auto_mask_tracking = false;
+	bool auto_mask_layer = false;
+	bool auto_mask_inpainting = true;
+
+	bool scene_detection = true;
 
 	bool pre_interpolate = false;
-	std::string pre_interpolated_fps = "360";
+	// pre-interpolates to whichever of these is higher
+	int pre_interpolated_minimum_fps = 360;
+	float pre_interpolated_minimum_multiplier = 1.f;
 	std::string pre_interpolation_method = "rife";
 
 	bool timescale = false;
@@ -89,11 +101,12 @@ struct BlurSettings {
 	int quality = 16;
 	bool upscale = false;
 
+	bool frame_timing_logs = true;
 	bool deduplicate = true;
 #ifdef __APPLE__
-	std::string deduplicate_method = "rife";
+	std::string retime_method = "rife";
 #else
-	std::string deduplicate_method = "svp";
+	std::string retime_method = "svp";
 #endif
 
 	bool preview = true;
@@ -101,11 +114,21 @@ struct BlurSettings {
 	bool copy_dates = false;
 
 	bool gpu_decoding = false;
-	bool gpu_interpolation = true;
 	bool gpu_encoding = false;
+
+	// picks the svp gpu settings by benchmarking, the two below are only used when it's off
+	bool optimise_gpu_settings = true;
+	// lets it pick settings that change the output, like svp gpu search
+	bool optimise_prioritise_speed = false;
+
+	bool svp_gpu_search = false;
+	bool svp_gpu_rendering = true;
+	bool svp_hud_mask = true;
 
 	std::string rife_model = "rife-v4.26_ensembleFalse";
 	std::string rife_trt_model = "rife_v4.26";
+	bool rife_trt_ensemble = false;
+	std::string gimm_trt_model = "gimm_vfi_r_sharp";
 
 	bool override_advanced = false;
 	AdvancedSettings advanced;
@@ -126,14 +149,20 @@ namespace config_blur {
 	inline const BlurSettings DEFAULT_CONFIG;
 
 	inline const std::vector<std::string> SVP_INTERPOLATION_PRESETS = {
-		"weak", "film", "smooth", "animation", "default", "test",
+		"quality", "max", "weak", "film", "smooth", "animation", "default", "test",
 	};
 
 	inline const std::vector<std::string> SVP_INTERPOLATION_ALGORITHMS = {
-		"1", "2", "11", "13", "21", "23",
+		"auto", "1", "2", "11", "13", "21", "23",
 	};
 
 	inline const std::vector<std::string> INTERPOLATION_BLOCK_SIZES = { "4", "8", "16", "32" };
+
+	inline const std::vector<std::string> SVP_SEARCH_SIZES = { "auto", "full", "half", "quarter" };
+
+	inline const std::vector<std::string> SVP_BLOCK_OVERLAPS = { "auto", "0", "1", "2", "3" };
+
+	inline const std::vector<std::string> BLUR_SAMPLING_METHODS = { "rectangle", "trapezoid", "round up", "legacy" };
 
 	inline const std::vector<std::string> SOURCE_PLUGINS = { "LWLibavSource", "BestSource" };
 
@@ -148,6 +177,9 @@ namespace config_blur {
 
 	bool same_masking(const BlurSettings& a, const BlurSettings& b);
 
+	// whether a render could use masks. with frame timing logs it depends on the video having one
+	bool masking_possible(const BlurSettings& settings);
+
 	void create(const std::filesystem::path& filepath, const BlurSettings& current_settings = BlurSettings());
 
 	std::string export_concise(const BlurSettings& settings);
@@ -159,6 +191,9 @@ namespace config_blur {
 		SVP_INTERPOLATION_PRESET,
 		SVP_INTERPOLATION_ALGORITHM,
 		INTERPOLATION_BLOCKSIZE,
+		SVP_SEARCH_SIZE,
+		SVP_BLOCK_OVERLAP,
+		BLUR_SAMPLING,
 	};
 
 	struct ValidationError {

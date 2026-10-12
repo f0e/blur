@@ -17,12 +17,24 @@ void configs::option_information(ui::Container& container) {
 			{
 				"Amount of motion blur",
 				"(0 = no blur, 1 = fully blend all frames, >1 = blend extra frames (ghosting))",
+				"",
+				"The angle next to it is the shutter angle.",
 			},
 		},
 		// { "output fps",
 		//   {
 		// 	  "FPS of the output video",
 		//   }, },
+		{
+			"blur sampling dropdown",
+			{
+				"How frames are counted towards the blur. Rectangle and trapezoid blur for exactly as long as the blur amount asks, centred on the output frame, so the first and last frames can count partly",
+				"rectangle: each frame stands for the time around it until the next (like SourceDemoRender and HLAE's rectangle method)",
+				"trapezoid: motion between frames is a smooth fade from one to the next, so each frame also counts a little towards the blur around its neighbours (like HLAE's trapezoid method, its default)",
+				"round up: blends a whole, odd number of frames at full strength, rounding the blur amount to frames and adding one if that's even (like smoothie)",
+				"legacy: how blur counted frames up to 2.45, rounding the frame gap and blur amount down to whole frames and adding one if that's even",
+			},
+		},
 		{
 			"preserve brightness checkbox",
 			{
@@ -87,6 +99,15 @@ void configs::option_information(ui::Container& container) {
 				"Configured in the advanced section",
 			},
 		},
+		{
+			"auto mask extras dropdown",
+			{
+				"What the auto mask does past protecting the parts that never move. Each one slows rendering down",
+				"tracking: also protects overlays that come and go (kill feeds, ammo counts, scoreboards), found frame by frame. Slowest, renders take around 65% longer",
+				"layer: treats what the mask covers as a layer over the scene, so the scene seen through translucent overlays and their soft edges is still interpolated. Around 20% longer",
+				"inpainting: paints over what's masked with the scene around it before interpolating, so overlays aren't dragged out past the mask. Around 15% longer",
+			},
+		},
 
 		// Automatic mask tuning
 		{
@@ -114,6 +135,20 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"auto mask enclosed checkbox",
+			{
+				"Also masks areas the mask surrounds, like the inside of a translucent panel",
+				"Stops interpolation smearing them, but leaves what's seen through them unblurred",
+			},
+		},
+		{
+			"auto mask enclosed max fps slider",
+			{
+				"Only masks enclosed areas for sources at or below this framerate",
+				"(at high framerates interpolation barely smears them, and the scene behind looks better blurred)",
+			},
+		},
+		{
 			"auto mask samples slider",
 			{
 				"How many frames are sampled to find the parts that never move",
@@ -125,8 +160,9 @@ void configs::option_information(ui::Container& container) {
 			{
 #ifdef TENSORRT
 				// todo: update with mvtools
-				"Quality: rife = rife (tensorrt) > svp",
-				"Speed: svp >> rife (tensorrt) > rife",
+				"Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt) > svp",
+				"Speed: svp >> rife (tensorrt) > rife >> gimm-vfi (tensorrt)",
+				"(gimm-vfi is best as a pre-interpolation method, it follows fast motion far better but is slow)",
 #else
 				// todo: update with mvtools
 				"Quality: rife > svp",
@@ -142,24 +178,32 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
-			"pre-interpolated fps mult",
+			"pre-interpolated minimum fps",
 			{
-				"Multiplier for FPS pre-interpolation",
-				"The input video will be interpolated to this FPS (before main interpolation and blurring)",
+				"Pre-interpolates to whichever of the minimum fps and minimum multiplier is higher",
+				"0 to only use the multiplier",
 			},
 		},
 		{
-			"pre-interpolated fps",
+			"pre-interpolated minimum multiplier",
 			{
-				"FPS to pre-interpolate input video to (before blurring)",
+				"Pre-interpolates to whichever of the minimum fps and minimum multiplier is higher",
+				"1x to only use the minimum fps",
 			},
 		},
 #ifdef TENSORRT
 		{
+			"rife (tensorrt) ensemble checkbox",
+			{
+				"Runs RIFE a second time with the frames swapped and averages the two",
+				"Cleaner on fast motion, around twice as slow",
+			},
+		},
+		{
 			"pre-interpolation method dropdown",
 			{
-				"Quality: rife = rife (tensorrt)",
-				"Speed: rife (tensorrt) > rife",
+				"Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt)",
+				"Speed: rife (tensorrt) > rife >> gimm-vfi (tensorrt)",
 			},
 		},
 #endif
@@ -176,6 +220,20 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
+			"SVP search size dropdown",
+			{
+				"Finds motion on a smaller copy of the video, then scales it back up",
+				"(Smaller = faster but less accurate. Auto uses half below 240fps, or always with svp hud mask on)",
+			},
+		},
+		{
+			"SVP block overlap dropdown",
+			{
+				"How far motion search blocks overlap their neighbours",
+				"(Higher = more accurate, slower. Auto uses 3 for quality, dropping to 2 from 240fps up, 3 for max and 0 otherwise)",
+			},
+		},
+		{
 			"interpolation block size dropdown",
 			{
 				"Block size for interpolation",
@@ -187,6 +245,14 @@ void configs::option_information(ui::Container& container) {
 			{
 				"Mask amount for interpolation",
 				"(Higher reduces blur on static objects but can affect smoothness)",
+			},
+		},
+
+		{
+			"section scene detection checkbox",
+			{
+				"Finds cuts between scenes and doesn't interpolate or blur across them",
+				"(Stops the two scenes smearing into each other at a cut)",
 			},
 		},
 
@@ -234,13 +300,14 @@ void configs::option_information(ui::Container& container) {
 			{
 				"For use with the obs-frame-timing-recorder OBS plugin",
 				"Uses the .frametiming files it generates to work out when each frame was really drawn, resulting in much smoother blur",
-				"This also replaces deduplication, as it's more accurate",
+				"This replaces deduplication for videos that have a log, as it's more accurate",
 			},
 		},
 		{
-			"deduplicate method dropdown",
+			"retime method dropdown",
 			{
-				"Method used to replace duplicate frames (only used when interpolation is off)",
+				"Method used to replace duplicate frames and fill the gaps frame timing logs leave (only used when "
+				"interpolation is off)",
 				// todo: update with mvtools
 				"Quality: rife = rife (tensorrt) > svp",
 				"Speed: old > svp >>> rife",
@@ -248,9 +315,9 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
-			"deduplicate method interpolation note",
+			"retime method interpolation note",
 			{
-				"Duplicates are replaced by the interpolation method while interpolation is on",
+				"Duplicates and gaps are filled by the interpolation method while interpolation is on",
 			},
 		},
 		{
@@ -269,6 +336,50 @@ void configs::option_information(ui::Container& container) {
 			"detailed filenames checkbox",
 			{
 				"Adds blur settings to generated filenames",
+			},
+		},
+
+		// svp
+		{
+			"optimise gpu settings checkbox",
+			{
+				"Picks svp's gpu settings by timing each combination on the first render of each video format",
+				"Only needed when rife or gimm-vfi shares the gpu with svp, otherwise svp just uses the gpu",
+				"Adds a short test (under a minute) to the first render, then the pick is saved",
+			},
+		},
+		{
+			"prioritise speed checkbox",
+			{
+				"WARNING: the output can look worse with this on",
+				"Lets optimising pick settings that are faster but less accurate, like svp gpu search",
+			},
+		},
+		{
+			"clear optimised settings button",
+			{
+				"Forgets the picks for this config, so they're timed again on the next render",
+				"Useful if something else was using the pc while they were timed",
+			},
+		},
+		{
+			"svp gpu search checkbox",
+			{
+				"Finds motion on the GPU, mostly faster at full search size",
+				"(Searches in an order the GPU can run in parallel, so results differ slightly)",
+			},
+		},
+		{
+			"svp hud mask checkbox",
+			{
+				"Takes the HUD off the scene before interpolating it and puts it back after",
+				"(Keeps HUD elements cleaner for ~10-20% more render time. Needs svp gpu rendering)",
+			},
+		},
+		{
+			"svp gpu rendering checkbox",
+			{
+				"Renders the interpolated frames on the GPU",
 			},
 		},
 
@@ -313,7 +424,6 @@ void configs::option_information(ui::Container& container) {
 		// { "contrast", { "Adjusts contrast of the output video", }, },
 
 		// Advanced rendering
-		// { "gpu interpolation checkbox", { "Uses GPU for interpolation", }, },
 		// { "gpu encoding checkbox", { "Uses GPU for rendering", }, },
 		// { "gpu encoding type dropdown", { "Select GPU type", }, },
 		{
@@ -354,6 +464,13 @@ void configs::option_information(ui::Container& container) {
 			{
 				"Decodes previewed videos (in the queue and config preview) on the GPU. Will usually be faster, but not always",
 				"Try toggling it if the preview is choppy",
+			},
+		},
+		{
+			"pre-render output encoding checkbox",
+			{
+				"Encodes pre-renders (shift+space in the previews) with the config's encoding settings, so they look like the output will",
+				"Slower encoders make pre-rendering slower",
 			},
 		},
 		{
@@ -401,6 +518,10 @@ void configs::option_information(ui::Container& container) {
 		},
 #endif
 	};
+
+	// an open dropdown is previewing its options in the same space
+	if (!temp_tab_owner.empty())
+		return;
 
 	std::string hovered = ui::get_hovered_id();
 

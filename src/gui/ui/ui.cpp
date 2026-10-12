@@ -173,6 +173,11 @@ bool ui::is_dragging_scrollbar(const void* owner) {
 	return owner != nullptr && scrollbar_drag.owner == owner;
 }
 
+void ui::clear_containers() {
+	for (auto* container : Container::instances)
+		container->elements.clear();
+}
+
 void ui::reset_container(
 	Container& container,
 	SDL_Window* window,

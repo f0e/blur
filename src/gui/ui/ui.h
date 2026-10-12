@@ -2,6 +2,7 @@
 
 #include "../render/render.h"
 #include "../thumbnails.h"
+#include "frame.h"
 #include "helpers/text_input.h"
 #include "common/media.h"
 
@@ -151,9 +152,11 @@ namespace ui {
 		std::shared_ptr<render::Texture> texture;
 		std::string image_id;
 		gfx::Color image_color;
+		std::optional<std::function<void()>> on_click;
 
 		bool operator==(const ImageElementData& other) const {
-			return texture == other.texture && image_id == other.image_id && image_color == other.image_color;
+			return texture == other.texture && image_id == other.image_id && image_color == other.image_color &&
+			       on_click.has_value() == other.on_click.has_value();
 		}
 	};
 
@@ -184,8 +187,11 @@ namespace ui {
 	};
 
 	struct VideoOverlay {
-		// null until it's ready, the video's shown faded meanwhile
-		std::shared_ptr<VideoPlayer> player;
+		// nothing until it's ready, the video's shown faded meanwhile
+		std::optional<Frame> frame;
+
+		// the stretch of the video it covers, marked on the timeline. as fractions of the container's duration
+		std::optional<std::pair<float, float>> range;
 
 		bool operator==(const VideoOverlay& other) const = default;
 	};
@@ -209,14 +215,21 @@ namespace ui {
 	};
 
 	struct TimelineElementData {
+		// the range grabs only show when it has a start and end
 		UIVideo video;
+		std::shared_ptr<VideoPlayer> player;
 		VideoWaveform* waveform = nullptr;
+
+		// a stretch to mark, like what a pre-render covers. as fractions of the duration
+		std::optional<std::pair<float, float>> highlight;
+
 		bool active = false;
 		float fade = 0.f;
 		bool interactive = false;
 
 		bool operator==(const TimelineElementData& other) const {
-			return video == other.video && waveform == other.waveform && active == other.active && fade == other.fade &&
+			return video == other.video && player == other.player && waveform == other.waveform &&
+			       highlight == other.highlight && active == other.active && fade == other.fade &&
 			       interactive == other.interactive;
 		}
 	};
@@ -311,6 +324,7 @@ namespace ui {
 		bool* is_tied;
 		std::optional<std::variant<int*, float*>> tied_value;
 		std::string tied_text;
+		std::string label_note;
 
 		std::string editing_text;
 		helpers::text_input::TextInputData text_input;
@@ -319,7 +333,8 @@ namespace ui {
 			return min_value == other.min_value && max_value == other.max_value &&
 			       current_value == other.current_value && label_format == other.label_format && font == other.font &&
 			       precision == other.precision && tooltip == other.tooltip && is_tied_slider == other.is_tied_slider &&
-			       is_tied == other.is_tied && tied_value == other.tied_value && tied_text == other.tied_text;
+			       is_tied == other.is_tied && tied_value == other.tied_value && tied_text == other.tied_text &&
+			       label_note == other.label_note;
 			// && text_input == other.text_input;
 		}
 	};
@@ -374,18 +389,19 @@ namespace ui {
 	struct DropdownElementData {
 		std::string label; // empty omits the label and its vertical spacing
 		std::vector<std::string> options;
-		std::string* selected;
+		std::string* selected; // null when multiselect
 		render::Font font;
 		std::optional<std::function<void(std::string*)>> on_change;
 		std::vector<std::string> muted_options;
 		std::vector<DropdownOptionAction> option_actions;
 		std::optional<DropdownAddAction> add_action;
+		std::vector<bool*> checked; // one per option when multiselect, empty otherwise
 
 		std::string hovered_option;
 
 		bool operator==(const DropdownElementData& other) const {
 			return label == other.label && options == other.options && selected == other.selected &&
-			       font == other.font && muted_options == other.muted_options;
+			       font == other.font && muted_options == other.muted_options && checked == other.checked;
 		}
 	};
 
@@ -418,11 +434,12 @@ namespace ui {
 
 	struct WeightingGraphElementData {
 		std::vector<double> weights;
-		bool accurate_fps;
+		double frame_gap;
+		int source_fps;
+		bool fps_known;
+		int bars_height;
 
-		bool operator==(const WeightingGraphElementData& other) const {
-			return weights == other.weights && accurate_fps == other.accurate_fps;
-		}
+		bool operator==(const WeightingGraphElementData& other) const = default;
 	};
 
 	struct TabsElementData {
@@ -645,7 +662,22 @@ namespace ui {
 	const inline AnimationState DEFAULT_ANIMATION(25.f);
 
 	struct Container {
-		SDL_Window* window;
+		inline static std::vector<Container*> instances;
+
+		Container() {
+			instances.push_back(this);
+		}
+
+		~Container() {
+			std::erase(instances, this);
+		}
+
+		Container(const Container&) = delete;
+		Container(Container&&) = delete;
+		Container& operator=(const Container&) = delete;
+		Container& operator=(Container&&) = delete;
+
+		SDL_Window* window = nullptr;
 
 		gfx::Rect rect;
 		std::optional<gfx::Color> background_color;
@@ -739,6 +771,7 @@ namespace ui {
 	void render_text(const Container& container, const AnimatedElement& element);
 
 	void render_image(const Container& container, const AnimatedElement& element);
+	bool update_image(const Container& container, AnimatedElement& element);
 
 	void render_video_frame(const Container& container, const AnimatedElement& element);
 	bool update_video_frame(const Container& container, AnimatedElement& element);
@@ -750,6 +783,17 @@ namespace ui {
 
 	void render_timeline(const Container& container, const AnimatedElement& element);
 	bool update_timeline(const Container& container, AnimatedElement& element);
+
+	// a video's timeline laid out like other elements, rather than under a video in a stack
+	// progress is where the playhead starts until the player has a position, as a fraction of the duration
+	AnimatedElement* add_timeline(
+		const std::string& id,
+		Container& container,
+		TimelineElementData data,
+		int height,
+		std::optional<int> width = {},
+		float progress = 0.f
+	);
 
 	void handle_videos_event(const SDL_Event& event, bool& to_render);
 
@@ -815,6 +859,9 @@ namespace ui {
 
 	void render_link(const Container& container, const AnimatedElement& element);
 	bool update_link(const Container& container, AnimatedElement& element);
+
+	// drops every container's elements, for shutdown. they can hold video players and textures
+	void clear_containers();
 
 	void reset_container(
 		Container& container,
@@ -904,7 +951,8 @@ namespace ui {
 		std::shared_ptr<render::Texture> texture,
 		const gfx::Size& max_size,
 		const std::string& image_id = "",
-		gfx::Color image_color = gfx::Color::white()
+		gfx::Color image_color = gfx::Color::white(),
+		std::optional<std::function<void()>> on_click = {}
 	);
 
 	// the player's current frame, sized like add_image. nothing's added until a video is loaded
@@ -1005,7 +1053,8 @@ namespace ui {
 		const render::Font& font,
 		std::optional<std::function<void(const std::variant<int*, float*>&)>> on_change = {},
 		float precision = 0.f,
-		const std::string& tooltip = ""
+		const std::string& tooltip = "",
+		const std::string& label_note = ""
 	);
 
 	int seek_bar_height(const render::Font& font);
@@ -1067,6 +1116,16 @@ namespace ui {
 		std::optional<int> width = {} // empty fills the container
 	);
 
+	// options toggle on and off, and the list stays open
+	AnimatedElement* add_multiselect_dropdown(
+		const std::string& id,
+		Container& container,
+		const std::string& label,
+		const std::vector<std::pair<std::string, bool*>>& options,
+		const render::Font& font,
+		std::optional<std::function<void(std::string*)>> on_change = {}
+	);
+
 	int get_dropdown_box_height(const render::Font& font);
 
 	AnimatedElement* add_color_picker(
@@ -1081,7 +1140,12 @@ namespace ui {
 	);
 
 	AnimatedElement* add_weighting_graph(
-		const std::string& id, Container& container, const std::vector<double>& weights, bool accurate_fps
+		const std::string& id,
+		Container& container,
+		const std::vector<double>& weights,
+		double frame_gap,
+		int source_fps,
+		bool fps_known
 	);
 
 	int tabs_height(const render::Font& font);

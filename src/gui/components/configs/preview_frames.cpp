@@ -76,8 +76,7 @@ namespace {
 	}
 
 	preview_frames::Result update_mask(const preview_frames::Request& request, const media::VideoInfo& info) {
-		if (source_player && !source_player->is_paused())
-			source_player->set_paused(true);
+		preview_frames::pause();
 
 		if (!mask_preview)
 			mask_preview = std::make_unique<MaskPreview>();
@@ -97,18 +96,23 @@ namespace {
 			.failed = state.status.failed,
 			.video_duration = static_cast<float>(info.video_duration),
 			.status = state.status_text(),
+			.timeline_player = source_player,
+			.video_info = info,
 		};
 
-		if (state.overlay)
-			result.frame = preview_frames::Frame{ .player = state.overlay };
+		result.frame = state.frame;
 
 		return result;
 	}
 
 	preview_frames::Result update_blurred(const preview_frames::Request& request, const media::VideoInfo& info) {
-		update_source_player(request, info, request.app_settings.config_preview_seek);
+		update_source_player(request, info, request.position);
 
-		preview_frames::Result result{ .video_duration = static_cast<float>(info.video_duration) };
+		preview_frames::Result result{
+			.video_duration = static_cast<float>(info.video_duration),
+			.timeline_player = source_player,
+			.video_info = info,
+		};
 
 		if (!source_player)
 			return result;
@@ -132,6 +136,7 @@ namespace {
 		result.failed = state.status.failed;
 		result.frame_timing_log = state.status.frame_timing_log;
 		result.status = state.status_text();
+		result.pre_render_range = state.pre_render_range;
 
 		// a seek that's on its way would put the seek bar back where it came from
 		if (source_player->seek_settled()) {
@@ -139,10 +144,10 @@ namespace {
 			result.playback_position = playback_position;
 		}
 
-		if (state.overlay)
-			result.frame = preview_frames::Frame{ .player = state.overlay };
+		if (state.frame)
+			result.frame = state.frame;
 		else if (source_player->has_frame() && source_player->get_video_dimensions())
-			result.frame = preview_frames::Frame{ .player = source_player, .faded = !state.playing };
+			result.frame = ui::Frame{ .player = source_player, .faded = !state.playing };
 
 		return result;
 	}
@@ -187,17 +192,38 @@ preview_frames::Result preview_frames::update(const Request& request) {
 	return update_blurred(request, info);
 }
 
-void preview_frames::handle_key_press(SDL_Keycode key) {
-	if (source_player && !showing_mask)
-		source_player->handle_key_press(key);
+void preview_frames::handle_key_press(SDL_Keycode key, SDL_Keymod mod) {
+	if (!source_player || showing_mask)
+		return;
+
+	if (key == SDLK_SPACE && blurred_preview) {
+		if (blurred_preview->continue_pre_render())
+			return;
+
+		if (mod & SDL_KMOD_SHIFT) {
+			source_player->set_paused(true);
+			blurred_preview->start_pre_render();
+			return;
+		}
+	}
+
+	source_player->handle_key_press(key);
 }
 
 void preview_frames::toggle_playback() {
-	if (source_player && !showing_mask)
-		source_player->cycle_paused();
+	if (!source_player || showing_mask)
+		return;
+
+	if (blurred_preview && blurred_preview->continue_pre_render())
+		return;
+
+	source_player->cycle_paused();
 }
 
 void preview_frames::pause() {
+	if (blurred_preview)
+		blurred_preview->cancel_pre_render();
+
 	if (source_player && !source_player->is_paused())
 		source_player->set_paused(true);
 }

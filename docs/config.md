@@ -24,14 +24,19 @@ Each file in the `configs` folder is a separate blur config.
 - blur output fps - If blur is enabled, this is the FPS the output video will be
 - blur weighting - Weighting function to use when blending frames. Options are listed below. Also: [View weighting comparison graphs](../tests/plot_weighting_functions/weighting_functions.pdf)
   - equal - Each frame is blended equally
+  - cosine
   - gaussian_sym
-  - vegas
   - pyramid
   - gaussian
   - ascending
   - descending
   - gaussian_reverse
   - custom weights - Custom comma-separated frame weights, e.g. 5, 3, 3, 2, 1. Higher numbers indicate frames being more visible when blending, lower numbers mean they are less so.
+- blur sampling - How frames are counted towards the blur. Rectangle and trapezoid blur for exactly as long as the blur amount asks, centred on the output frame, so the first and last frames can count partly.
+  - rectangle (default) - Each frame stands for the time around it until the next. Used by [SourceDemoRender](https://github.com/crashfort/SourceDemoRender) and [HLAE](https://github.com/advancedfx/advancedfx) (its rectangle method)
+  - trapezoid - Motion between frames is treated as a smooth fade from one to the next, so each frame also counts a little towards the blur around its neighbours. Used by [HLAE](https://github.com/advancedfx/advancedfx) (its trapezoid method, the default)
+  - round up - Blends a whole, odd number of frames at full strength: the blur amount is rounded to frames, and one more is added if that's even. Used by [smoothie](https://github.com/couleur-tweak-tips/smoothie-rs)
+  - legacy - How blur counted frames up to 2.45: the frame gap and blur amount are rounded down to whole frames, and one more is added if that's even
 - preserve brightness - Blends frames by how much light they hold rather than averaging the stored values. Produces a more natural-looking blur
 - bloom - Makes bright areas glow, brightening the pixels around them
 - bloom threshold - How bright something has to be before it glows (0 = everything glows, 1 = only the very brightest)
@@ -41,26 +46,32 @@ Each file in the `configs` folder is a separate blur config.
 
 - interpolate - Whether or not the input video file will be interpolated to a higher FPS
 - interpolated fps - If interpolate is enabled, this is the FPS that the input file will be interpolated to (before blurring). Can be a set FPS number or a multiplier (append x to end e.g. `5x`)
-- interpolation method - Method used for interpolation (`svp`, `rife`, `rife (tensorrt)`, `mvtools`):
-  - Quality: rife = rife (tensorrt) > svp
-  - Speed: svp >> rife (tensorrt) > rife
-  - `rife (tensorrt)` is only available with a supported NVIDIA GPU
-  - Note: On macOS, SVP requires SVP Manager to be open or a red border will appear. It provides a 30-day trial, but then costs $24.99 for a lifetime license. RIFE can always be used however, but it is slower than SVP.
+- interpolation method - Method used for interpolation (`svp`, `rife`, `rife (tensorrt)`, `gimm-vfi (tensorrt)`, `mvtools`):
+  - Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt) > svp
+  - Speed: svp >> rife (tensorrt) > rife >> gimm-vfi (tensorrt)
+  - `rife (tensorrt)` and `gimm-vfi (tensorrt)` are only available with a supported NVIDIA GPU
+  - `gimm-vfi (tensorrt)` follows fast motion far better than rife (mostly matters at 60fps and below), but is around 5x slower than `rife (tensorrt)`. It's best used as the pre-interpolation method, to around 3x the source framerate, with svp doing the rest. Its model is made with `tools/export_gimm_vfi.py`
 
 ### Pre-interpolation
 
 - pre-interpolate - Enable pre-interpolation using a more accurate but slower AI model before main interpolation
-- pre-interpolated fps - FPS to pre-interpolate the input video to (before main interpolation and blurring). Can be a set FPS number or a multiplier (append x to end e.g. `5x`)
-- pre-interpolation method - Method used for pre-interpolation (`rife`, `rife (tensorrt)`):
-  - Quality: rife = rife (tensorrt)
-  - Speed: rife (tensorrt) > rife
+- pre-interpolated minimum fps - The input video is pre-interpolated (before main interpolation and blurring) to whichever of this and the minimum multiplier is higher. `0` to only use the multiplier
+- pre-interpolated minimum multiplier - Multiplier of the input video's FPS, e.g. `2` doubles it. `1` to only use the minimum fps
+- pre-interpolation method - Method used for pre-interpolation (`rife`, `rife (tensorrt)`, `gimm-vfi (tensorrt)`):
+  - Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt)
+  - Speed: rife (tensorrt) > rife >> gimm-vfi (tensorrt)
 
-### Deduplication
+### Retiming
 
 - deduplicate - Removes duplicate frames and generates new interpolated frames to take their place. Fixes 'unsmooth' looking output caused by stuttering in recordings
-- deduplicate method - Method used to replace duplicate frames. Only used when interpolation is off, otherwise duplicates are filled by the interpolation method:
+- use frame timing logs - For use with the [obs-frame-timing-recorder](https://github.com/f0e/obs-frame-timing-recorder) OBS plugin. Uses the `.frametiming` files it generates to work out when each frame was really drawn, resulting in much smoother blur. Replaces deduplication for videos that have a log, as it's more accurate.
+- retime method - Method used to replace duplicate frames and fill the gaps frame timing logs leave. Only used when interpolation is off, otherwise they're filled by the interpolation method:
   - Quality: rife = rife (tensorrt) > svp
   - Speed: old > svp >>> rife
+
+### Scene detection
+
+- scene detection - Avoids interpolating or blurring between scene changes (menu opening, switching camera, scoping in, etc.). Enable `debug` and render a video and a text label will be added when scene detections occur.
 
 ### Masking
 
@@ -68,6 +79,9 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 
 - mask - Image in the `masks` folder (inside your [config folder](#config-files-explained)) to use as a mask, empty for none
 - auto mask - Generates an extra mask per video from the parts that never move, applied on top of `mask`. Tuned in the advanced section
+- auto mask tracking - Also protects overlays that come and go (kill feeds, ammo counts, scoreboards), found frame by frame. Slowest, renders take around 65% longer
+- auto mask layer - Treats what the auto mask covers as a layer over the scene, so the scene seen through translucent overlays and their soft edges is still interpolated. Renders take around 20% longer
+- auto mask inpainting - Paints over what's masked with the scene around it before interpolating, so overlays aren't dragged out past the mask. Renders take around 15% longer
 
 ### Rendering
 
@@ -78,15 +92,29 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 - copy dates - Copies over the modified date from the input file to the output file
 - upscale - Upscales to 4K using nearest-neighbour interpolation
 
-### RIFE models
+### SVP
+
+- optimise gpu settings - Picks svp gpu search and svp gpu rendering itself, true/false. When RIFE or GIMM-VFI shares the GPU with SVP, whether SVP should run on the GPU or the CPU depends on the hardware, settings and video (on an RTX 5080 + 9800X3D, GIMM-VFI then SVP rendered 12-21% faster with SVP on the CPU, but with fewer CPU cores it flipped back to the GPU). The first render of each video format times each combination for a few seconds and saves the fastest, keyed on the CPU, GPUs and their drivers, these settings, and the video's resolution, fps and pixel format. It isn't timed while blur is running another render. With nothing else on the GPU, SVP always renders on it. The two settings below are only used when this is off
+- prioritise speed - Lets optimise gpu settings pick settings that can make the output look worse, like svp gpu search, true/false
+- svp gpu search - Finds motion on the GPU instead of the CPU, true/false. It searches the larger levels of the motion search in an order a GPU can run in parallel, so the vectors differ slightly from the CPU search (on the 1200fps test recordings, within ~1% on the scene and most HUD elements, worst ~2% on scenery behind HUD during fast flicks). Mostly worth it at full search size. Falls back to the same search order on the CPU if no GPU is available
+- svp gpu rendering - Renders the interpolated frames on the GPU
+- svp hud mask - Takes the HUD off the scene before interpolating it, true/false. open-svpflow learns how see-through each pixel of the HUD is from how the scene moves behind it, interpolates the scene on its own and puts the HUD back over it. On the 1200fps test recordings it cuts error on HUD elements by 4-10% for 10-20% more render time, without changing the scene. Only works with svp gpu rendering on
+
+### RIFE
 
 - rife model - Model used by `rife`. Models are read from the `models` folder where blur is installed (`lib/models` on Windows), drop new ones in to use them
+
+### TensorRT
+
 - rife (tensorrt) model - Model used by `rife (tensorrt)`
+  - rife_v4.26_large_motion - 4.26 estimating motion at half resolution. Follows fast motion at low framerates much better and is faster than rife_v4.26, but loses a little fine detail at high input framerates (240+). Made with `tools/export_rife_large_motion.py`
+- rife (tensorrt) ensemble - Runs RIFE a second time with the frames swapped and averages the two. Cleaner on fast motion, around twice as slow
+- gimm-vfi (tensorrt) model - Model used by `gimm-vfi (tensorrt)`, made with `tools/export_gimm_vfi.py`
+  - gimm_vfi_r_sharp - Keeps nearly all the fine detail in motion, and holds static HUD elements still instead of dragging them along with the scene behind. Small HUD details like the crosshair still need a mask
 
 ### GPU acceleration
 
 - gpu decoding - Uses GPU when decoding. Can cause issues
-- gpu interpolation - Uses GPU when interpolating
 - gpu encoding - Uses GPU when rendering. The GPU type used is set in [`app.cfg`](#appcfg)
 
 ### Timescale
@@ -110,17 +138,13 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 ### Advanced deduplication
 
 - deduplicate range - How far apart two frames can be and still have frames generated between them (-1 = infinite). Make it higher if your footage is at a lower FPS than it should be (e.g. choppy 120fps gameplay recorded at 240fps), lower it if your blurred footage starts blurring static elements such as menu screens
-- deduplicate threshold - Threshold of movement that triggers deduplication. Turn on debug and render a video to embed text showing the movement in each frame
+- deduplicate threshold - Threshold of movement that triggers deduplication. Turn on `debug` and render a video to embed text showing the movement in each frame
 - deduplicate real frame - Which frame in a run of duplicates is the real one:
   - first - The first frame (default)
   - last - The last frame
   - center - The middle frame
   - surrounding - Ignores all the duplicates and uses the frames either side of them. Gives the smoothest result but can lead to a lot of artifacting
 - deduplicate max future checks - How many following runs of duplicates `surrounding` can skip over (limited by deduplicate range)
-
-### Advanced frame timing
-
-- use frame timing logs - For use with the [obs-frame-timing-recorder](https://github.com/f0e/obs-frame-timing-recorder) OBS plugin. Uses the `.frametiming` files it generates to work out when each frame was really drawn, resulting in much smoother blur. Replaces deduplication, as it's more accurate
 
 ### Advanced rendering
 
@@ -136,6 +160,8 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 - auto mask fill - How far the mask fills into a flat area from the detail around it
 - auto mask padding - How far the mask spreads past what was found
 - auto mask feather - How far the edge of the mask fades out
+- auto mask enclosed - Also masks areas the mask surrounds, like the inside of a translucent panel. Stops interpolation smearing them, but leaves what's seen through them unblurred
+- auto mask enclosed max fps - Only masks enclosed areas for sources at or below this framerate, since at high framerates interpolation barely smears them and the scene behind looks better blurred
 
 ### Advanced blur
 
@@ -143,22 +169,31 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 - blur weighting gaussian mean - Mean used in the gaussian weighting
 - blur weighting gaussian bound - Bound used in the gaussian weighting
 
-### Advanced interpolation
+### Advanced SVP
 
 - svp interpolation preset - Preset used for framerate interpolation when using SVP, one of:
-  - weak (default) - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
+  - quality (default) - Tuned against real high framerate footage. Fewer doubled edges on fast motion than weak, at around twice the cost
+  - max - quality with an extra refinement pass. Around three times slower than quality for a very small gain
+  - weak - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - film - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - smooth - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - animation - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - default _(Default SVP settings)_
   - test
 - svp interpolation algorithm - Algorithm used for framerate interpolation when using SVP, one of:
-  - 13 - Best overall quality and smoothness (default) - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
-  - 23 - Sometimes smoother than 13, but can result in smearing - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
+  - auto (default) - 23 when the video reaches SVP below 240fps, 13 from 240fps up. Pre-interpolation counts, so a 120fps video pre-interpolated to 240fps gets 13
+  - 23 - Smoothest on fast motion, but smears static things like a HUD more - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
+  - 13 - Keeps a HUD cleaner, but leaves blocky gaps and sharp copies in the blur on fast motion at low framerates - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - 1 - _[Explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
   - 2 - _[Explained further here](https://www.spirton.com/uploads/InterFrame/InterFrame2.html)_
   - 11 - _[Explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
   - 21 - _[Explained further here](https://www.svp-team.com/wiki/Manual:SVPflow)_
+- svp search size - Size of the copy SVP finds motion on before scaling it back up (`auto`, `full`, `half`, `quarter`). Smaller is faster (SVP runs ~2.7x faster at half, ~4x at quarter) but less accurate, mostly around HUD elements. `auto` uses half below 240fps, where it costs least, and from 240fps up only with svp hud mask on, which keeps the HUD from tearing at half size (on the 1200fps test recordings that renders 1.5-1.7x faster than full size with no loss). Otherwise full
+- svp block overlap - How far SVP's motion search blocks overlap their neighbours (`auto`, `0`, `1`, `2`, `3`). Higher is more accurate but slower. `auto` uses 3 for the quality preset below 240fps and 2 from 240fps up (where 3 is ~1.4x slower for ~1.5% less HUD error), 3 for max, and 0 for the other presets
+
+### Advanced interpolation
+
+Used by `svp` and `mvtools`.
 
 - interpolation block size - Block size used for framerate interpolation. Higher block size = less accurate blur, will result in spaces around non-moving objects of the frame, also renders faster. Lower block size = more accurate blur, but can result in artifacting, also slower. For higher framerate input videos lower block size can be better. Options:
   - 4
@@ -198,7 +233,7 @@ Presets are grouped by encoder (`nvidia`, `amd`, `intel`, `mac`, `cpu`), each a 
 - output prefix - Folder rendered videos are saved to, relative to the input video's folder
 - gpu type (nvidia/amd/intel) - GPU used for GPU encoding, picks which group of encode presets is used
 - rife gpu - GPU used by `rife` (auto = fastest)
-- rife (tensorrt) gpu - GPU used by `rife (tensorrt)` (auto = fastest)
+- tensorrt gpu - GPU used by `rife (tensorrt)` and `gimm-vfi (tensorrt)` (auto = fastest)
 
 ### GUI
 

@@ -11,6 +11,7 @@ be short if OBS died mid-recording.
 - `GAME`  - which process OBS was capturing, how, and its hook's copy interval
 """
 
+import json
 import os
 import shutil
 import struct
@@ -31,6 +32,9 @@ MATCH_SHARE = 0.98
 # packet size steps in a row that have to agree before an offset is checked, and how many places they're taken from
 MATCH_RUN = 8
 MATCH_ANCHORS = 3
+
+# how far past a frame's slot a packet's timestamp can be and still count as at it, in frames
+PTS_LEEWAY = 0.25
 
 # other logs beside a video tried when looking for the one it was cut from
 MATCH_CANDIDATES = 16
@@ -347,8 +351,8 @@ def game_presents(sidecar: Sidecar, first: float, last: float) -> tuple[Presents
 
 
 def render_ticks(sidecar: Sidecar, sizes: np.ndarray, first: int | None = None) -> np.ndarray:
-    """For each frame of the video, the tick that rendered it, matched through the packet's `cts`. `first` is where
-    the video's packets start in the log."""
+    """For each of the video's packets in presentation order, the tick that rendered it, matched through the
+    packet's `cts`. `first` is where the video's packets start in the log."""
     if first is None:
         first = match_packets(sidecar, sizes)
     packets = sidecar.packets[first : first + len(sizes)]
@@ -500,7 +504,8 @@ def _mp4_sample_sizes(path: Path) -> np.ndarray | None:
         return None
 
 
-def _ffprobe_sample_sizes(path: Path) -> np.ndarray | None:
+def _ffprobe_packets(path: Path) -> tuple[np.ndarray, np.ndarray] | None:
+    """The video track's packet sizes in decode order, and their presentation times in seconds."""
     ffprobe = shutil.which("ffprobe")
     bundled = Path(__file__).parent.parent / "ffmpeg" / "ffprobe.exe"
     if bundled.exists():
@@ -516,39 +521,66 @@ def _ffprobe_sample_sizes(path: Path) -> np.ndarray | None:
             "-select_streams",
             "v:0",
             "-show_entries",
-            "packet=dts,size",
+            "packet=pts_time,dts,size",
             "-of",
-            "csv=p=0",
+            "json",
             str(path),
         ],
         capture_output=True,
         text=True,
         check=False,
+        # avoid console window flashing
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     if out.returncode != 0:
         return None
 
-    packets = []
-    for line in out.stdout.splitlines():
-        dts, size = line.split(",")[:2]
-        packets.append((int(dts), int(size)))
-    packets.sort()
-    return np.array([size for _, size in packets], dtype=np.int64)
+    try:
+        packets = json.loads(out.stdout).get("packets", [])
+        packets = sorted((int(p["dts"]), int(p["size"]), float(p["pts_time"])) for p in packets)
+    except (ValueError, KeyError, TypeError):
+        return None
+
+    sizes = np.array([size for _, size, _ in packets], dtype=np.int64)
+    pts = np.array([pts for _, _, pts in packets], dtype=np.float64)
+    return sizes, pts
 
 
-def packet_sizes(video_path: Path, frames: int) -> np.ndarray:
-    """The size of every encoded packet in a video. Reads the mp4 sample table directly when possible since
-    it's much faster than ffprobe."""
+def shown_packets(pts: np.ndarray, frames: int, fps: Fraction, nearest: bool) -> np.ndarray:
+    """Which packet (in presentation order) each frame of a source forced to a framerate shows. Gaps in the
+    timestamps get padded with repeats and packets landing too close together get dropped, so frames and packets
+    don't line up one to one. LSMASH shows the last packet at or before each frame's slot, BestSource the nearest
+    one. Packets before zero are preroll, which the source skips."""
+    order = np.sort(pts)
+    shown = order[order >= 0]
+    begin = shown[0] if len(shown) else order[0]
+    slots = begin + np.arange(frames) / float(fps)
+
+    if nearest:
+        at = np.searchsorted((order[1:] + order[:-1]) / 2, slots, "right")
+    else:
+        # leeway for timestamps rounded to the container's timebase
+        at = np.searchsorted(order, slots + PTS_LEEWAY / float(fps), "right") - 1
+    return np.clip(at, 0, len(order) - 1)
+
+
+def video_packets(video_path: Path, frames: int, fps: Fraction, nearest: bool) -> tuple[np.ndarray, np.ndarray]:
+    """The size of every encoded packet in a video, and which packet (in presentation order) each of its `frames`
+    shows. Reads the mp4 sample table directly when possible since it's much faster than ffprobe."""
     sizes = _mp4_sample_sizes(video_path)
-    if sizes is None or len(sizes) != frames:
-        sizes = _ffprobe_sample_sizes(video_path)
+    if sizes is not None and len(sizes) == frames:
+        return sizes, np.arange(frames)
 
-    if sizes is None:
+    probed = _ffprobe_packets(video_path)
+    if probed is None or len(probed[0]) == 0:
         raise LogError("couldn't read the video's packet sizes")
-    if len(sizes) != frames:
-        raise LogError(f"the video has {len(sizes)} packets but {frames} frames")
 
-    return sizes
+    sizes, pts = probed
+    if len(sizes) == frames:
+        return sizes, np.arange(frames)
+    if fps <= 0:
+        raise LogError(f"the video has {len(sizes)} packets but {frames} frames")
+    return sizes, shown_packets(pts, frames, fps, nearest)
 
 
 def match_packets(sidecar: Sidecar, sizes: np.ndarray) -> int:

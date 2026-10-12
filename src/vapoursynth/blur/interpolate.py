@@ -10,8 +10,11 @@ from typing import Any
 
 import blur.utils as u
 import vapoursynth as vs
-from blur import retime
+from blur import log, retime
 from vapoursynth import core
+
+# in the filename of RIFE models made by tools/export_rife_large_motion.py
+LARGE_MOTION_MARKER = "large_motion"
 
 TENSORRT_NOT_INSTALLED = (
     'TensorRT RIFE isn\'t installed. Rerun the installer and select "NVIDIA TensorRT RIFE interpolation", '
@@ -32,18 +35,32 @@ def _vsmlrt():
 
 
 LEGACY_PRESETS = ["weak", "film", "smooth", "animation"]
-NEW_PRESETS = ["default", "test"]
+TUNED_PRESETS = ["quality", "max"]
+NEW_PRESETS = ["default", "test", *TUNED_PRESETS]
 
-DEFAULT_PRESET = "weak"
-DEFAULT_ALGORITHM = 13
+# tuned against real 1200fps footage blended down. auto overlap drops quality's to 2 from this framerate up, where 3
+# costs ~1.4x the render time for ~1.5% less hud error. below it 3 is about free and clearly better
+TUNED_OVERLAP = 3
+AUTO_REDUCED_OVERLAP_MIN_FPS = 240
+
+DEFAULT_PRESET = "quality"
+DEFAULT_ALGORITHM = 23
+
+# 23 follows large motion better, 13 smears static things like a hud less. from this framerate up the motion between
+# frames is small enough that 13 loses nothing visible
+AUTO_ALGORITHM_MIN_FPS = 240
+
+SEARCH_SIZE_HALVINGS = {"full": 0, "half": 1, "quarter": 2}
+
+# searching at half size costs little below this, where the motion between frames is big next to the precision it
+# loses. svp itself runs about 2.7x faster either way. above it, half size tears hud text unless the hud mask takes the hud
+# out first, and with it's as good as full size
+AUTO_HALF_SEARCH_MAX_FPS = 240
 DEFAULT_BLOCKSIZE = 8
 DEFAULT_OVERLAP = 2
 DEFAULT_SPEED = "medium"
 DEFAULT_MASKING = 50
 DEFAULT_GPU = True
-
-# svpflow has no cpu renderer on apple silicon
-SVP_REQUIRES_GPU = sys.platform == "darwin"
 
 
 # Retiming
@@ -72,9 +89,11 @@ def _retimed(
     timeline: retime.Timeline,
     dst_fps: Fraction,
     build: Callable[[vs.VideoNode, int], vs.VideoNode],
+    regular: vs.VideoNode | None = None,
 ) -> vs.VideoNode:
     """Interpolate `video` to `dst_fps`, filling the timeline's gaps in the same pass. `build(clip, fps)` is the
-    interpolation call, run on a 1fps clip so `fps` is a multiplier.
+    interpolation call, run on a 1fps clip so `fps` is a multiplier. `regular` is `video` interpolated to `dst_fps`
+    as it is, used wherever the timeline just moves from one frame to the next.
 
     Interpolates a clip of pairs (frame 2j is the real frame before decision j, 2j + 1 the one after) by `steps`,
     then each output frame picks its nearest step. Frames between unrelated pairs are never requested so never
@@ -111,6 +130,10 @@ def _retimed(
 
         if at.timepoint is None:
             return video[at.left]
+
+        # the pairs clip searches motion between unrelated pairs too, so it costs about twice as much per frame
+        if regular is not None and at.right == at.left + 1 and at.left_time == at.left and at.right_time == at.right:
+            return regular
 
         step = min(round(at.timepoint * steps), steps)
         pair = retime.decision_index(timeline, n, ratio) * timeline.slots + at.slot
@@ -165,6 +188,53 @@ def _retimed_rife_merge(
     return core.std.AssumeFPS(out, fpsnum=dst_fps.numerator, fpsden=dst_fps.denominator)
 
 
+def _rife_merge(
+    video: vs.VideoNode,
+    dst_fps: Fraction,
+    merge: Callable[[vs.VideoNode, vs.VideoNode, vs.VideoNode], vs.VideoNode],
+) -> vs.VideoNode:
+    """Interpolate to `dst_fps` by asking `merge` for each output frame's exact time point. Like vs-mlrt's RIFE, but
+    with the merge swappable (for ensemble)."""
+    ratio = dst_fps / video.fps
+    dst_frames = int(video.num_frames * ratio)
+    last = video.num_frames - 1
+
+    base = core.std.BlankClip(video, length=dst_frames, keep=True)
+    gray_format = vs.GRAYS if video.format.bits_per_sample == 32 else vs.GRAYH
+    gray = core.std.BlankClip(base, format=gray_format, keep=True)
+
+    def at(n: int) -> tuple[int, int, Fraction]:
+        pos = Fraction(n) / ratio
+        left = min(int(pos), last)
+        return left, min(left + 1, last), pos - int(pos)
+
+    before = core.std.FrameEval(base, lambda n: video[at(n)[0]])
+    after = core.std.FrameEval(base, lambda n: video[at(n)[1]])
+    timepoint = core.std.FrameEval(gray, lambda n: gray.std.BlankClip(color=float(at(n)[2]), keep=True))
+
+    merged = merge(before, after, timepoint)
+
+    # frames landing on a real frame skip the model
+    held = _vsmlrt().bits_as(before, merged)
+    out = core.std.FrameEval(merged, lambda n: held if at(n)[2] == 0 else merged)
+
+    return core.std.AssumeFPS(out, fpsnum=dst_fps.numerator, fpsden=dst_fps.denominator)
+
+
+def _ensembled(
+    merge: Callable[[vs.VideoNode, vs.VideoNode, vs.VideoNode], vs.VideoNode],
+) -> Callable[[vs.VideoNode, vs.VideoNode, vs.VideoNode], vs.VideoNode]:
+    """`merge` run with the frames both ways round and averaged. RIFE's motion estimate isn't symmetric, so the two
+    disagree where it's unsure, and averaging them evens that out."""
+
+    def both(before: vs.VideoNode, after: vs.VideoNode, timepoint: vs.VideoNode) -> vs.VideoNode:
+        forward = merge(before, after, timepoint)
+        backward = merge(after, before, core.std.Expr(timepoint, "1 x -"))
+        return core.std.Expr([forward, backward], "x y + 2 /")
+
+    return both
+
+
 def _with_rate(smooth_str: str, fps: int) -> str:
     """`smooth_str` asking for `fps` instead of whatever framerate it was built around."""
     smooth_json = json.loads(smooth_str)
@@ -183,10 +253,9 @@ def generate_svp_strings(
     masking=DEFAULT_MASKING,
     gpu=DEFAULT_GPU,
     scene_detect=False,
+    gpu_search=False,
+    hud_mask=False,
 ):
-    if SVP_REQUIRES_GPU:
-        gpu = True
-
     # build super json
     super_json = {
         "pel": 1,
@@ -204,6 +273,24 @@ def generate_svp_strings(
     match preset:
         case "test":
             vectors_json["main"] = {"search": {"type": 3, "satd": True, "coarse": {"type": 3}}}
+        case _ if preset in TUNED_PRESETS:
+            # weak, with the coarse search covering the whole frame and reaching a little further, and the last level
+            # searching around its predictors instead of just picking one. that costs 7-17% for a cleaner world and
+            # hud at every framerate, and is what makes searching at half size hold up
+            vectors_json["main"] = {
+                "search": {
+                    "coarse": {
+                        "distance": -4,
+                        "width": 4000,
+                        "trymany": True,
+                        "bad": {"sad": 2000},
+                    },
+                }
+            }
+
+            if preset == "max":
+                # around 3x slower for a small gain
+                vectors_json["refine"] = [{"thsad": 200}]
         case _ if preset in LEGACY_PRESETS:
             vectors_json["main"] = {"search": {"distance": 0, "coarse": {}}}
 
@@ -226,6 +313,9 @@ def generate_svp_strings(
         },
     }
 
+    if hud_mask:
+        smooth_json["mask"]["peel"] = True
+
     if not scene_detect:
         # dont want any scene detection stuff when normally blurring (i think?)
         smooth_json["scene"] = {
@@ -233,6 +323,10 @@ def generate_svp_strings(
             "mode": 0,
             "limits": {"blocks": 9999999},
         }
+
+    if gpu_search:
+        # open-svpflow searches the large levels in an order the gpu can run in parallel
+        vectors_json.setdefault("main", {}).setdefault("search", {})["gpu"] = True
 
     return [json.dumps(obj) for obj in [super_json, vectors_json, smooth_json]]
 
@@ -242,21 +336,64 @@ def SVP(
     super_string: str,
     vectors_string: str,
     smooth_str: str,
+    halvings: int = 0,
 ):
+    """`halvings` finds the motion on a copy halved that many times, which is a lot faster for some loss in
+    quality."""
+    # svp only takes 4:2:0. for 4:4:4 the motion is found once on a 4:2:0 copy, then each plane is rendered as the
+    # luma of its own clip along those vectors so none of them lose resolution. upscaling the luma to match the
+    # chroma instead makes svp do about 3x the work
+    planes = video.format.id == vs.YUV444P8
+    analysed = core.resize.Bilinear(video, format=vs.YUV420P8) if planes else video
+
+    # each halving needs a size that divides by 4
+    while halvings and (analysed.width % 2 ** (halvings + 1) or analysed.height % 2 ** (halvings + 1)):
+        halvings -= 1
+        log.info(f"the video's size can't be halved that many times, searching at 1/{2**halvings} size")
+
     try:
-        super = core.svp1.Super(video, super_string)
-        vectors = core.svp1.Analyse(super["clip"], super["data"], video, vectors_string)
-        return core.svp2.SmoothFps(
-            video,
-            super["clip"],
-            super["data"],
-            vectors["clip"],
-            vectors["data"],
-            smooth_str,
+        searched = analysed
+        for _ in range(halvings):
+            searched = core.svp1.Halve(searched)
+
+        super = core.svp1.Super(searched, super_string)
+        vectors = core.svp1.Analyse(super["clip"], super["data"], searched, vectors_string)
+
+        if halvings:
+            for _ in range(halvings):
+                vectors = core.svp1.DoubleVectors(vectors["clip"], vectors["data"])
+
+            # the doubled vectors are pel 1 whatever the search used, and rendering needs a super that matches them.
+            # same as open-svpflow's own c api, which reads gpu back out of the small super's data
+            gpu = (super["data"] >> 48) & 0xFF
+            super = core.svp1.Super(analysed, json.dumps({"pel": 1, "gpu": gpu}))
+
+        def smooth(clip: vs.VideoNode):
+            return core.svp2.SmoothFps(
+                clip,
+                super["clip"],
+                super["data"],
+                vectors["clip"],
+                vectors["data"],
+                smooth_str,
+            )
+
+        if not planes:
+            return smooth(video)
+
+        neutral = core.std.BlankClip(
+            analysed, format=vs.GRAY8, width=analysed.width // 2, height=analysed.height // 2, color=128
         )
+
+        def smooth_plane(plane: int):
+            luma = core.std.ShufflePlanes(video, planes=plane, colorfamily=vs.GRAY)
+            clip = core.std.ShufflePlanes([luma, neutral, neutral], planes=[0, 0, 0], colorfamily=vs.YUV)
+            return core.std.ShufflePlanes(smooth(clip), planes=0, colorfamily=vs.GRAY)
+
+        return core.std.ShufflePlanes([smooth_plane(plane) for plane in range(3)], planes=[0, 0, 0], colorfamily=vs.YUV)
     except vs.Error as e:
         raise u.BlurException(
-            user_error="Failed to initialise SVP. Ensure your GPU drivers are up to date. You may need to disable 'gpu interpolation'.",
+            user_error="Failed to initialise SVP. Ensure your GPU drivers are up to date. You may need to disable 'svp gpu rendering'.",
             original_exception=e,
         )
 
@@ -269,28 +406,64 @@ def svp(
     smooth_str: str,
     timeline: retime.Timeline | None = None,
     new_fps=None,
+    halvings: int = 0,
 ):
     """`new_fps` is only needed alongside `timeline`, since retiming replaces the rate in `smooth_str`."""
     _video = core.fmtc.bitdepth(_video, bits=8)
 
+    def regular(video):
+        # SmoothFps stops one source frame short, so pad with a repeat of the last frame and trim back
+        smooth = SVP(video + video[-1], super_string, vectors_string, smooth_str, halvings)
+        return smooth[: int(video.num_frames * smooth.fps / video.fps)]
+
     def process(video):
         if timeline is None:
-            # SmoothFps stops one source frame short, so pad with a repeat of the last frame and trim back
-            smooth = SVP(video + video[-1], super_string, vectors_string, smooth_str)
-            return smooth[: int(video.num_frames * smooth.fps / video.fps)]
+            return regular(video)
 
         return _retimed(
             video,
             timeline,
             _fps(new_fps),
-            lambda pairs, steps: SVP(pairs, super_string, vectors_string, _with_rate(smooth_str, steps)),
+            lambda pairs, steps: SVP(pairs, super_string, vectors_string, _with_rate(smooth_str, steps), halvings),
+            # filling gaps without interpolating lands every output frame on a real one
+            regular(video) if _fps(new_fps) > video.fps else None,
         )
+
+    if _video.format.id == vs.YUV444P8:
+        return process(_video)
 
     return u.with_scaled_luminance(
         _video,
         vs.YUV420P8,
         process,
     )
+
+
+def search_halvings(search_size: str, fps, hud_mask: bool = False) -> int:
+    """How many times svp halves footage reaching it at `fps` before searching it."""
+    if search_size == "auto":
+        return 1 if hud_mask or round(fps) < AUTO_HALF_SEARCH_MAX_FPS else 0
+
+    return SEARCH_SIZE_HALVINGS[search_size]
+
+
+def block_overlap(setting: str, preset: str, fps) -> int:
+    """The svp block overlap for footage reaching svp at `fps` with `preset`."""
+    if setting != "auto":
+        return int(setting)
+
+    match preset.lower():
+        case "max":
+            return TUNED_OVERLAP
+        case "quality":
+            return TUNED_OVERLAP if round(fps) < AUTO_REDUCED_OVERLAP_MIN_FPS else TUNED_OVERLAP - 1
+        case _:
+            return 0
+
+
+def auto_algorithm(fps) -> int:
+    """The svp algorithm for footage reaching svp at `fps`, after any pre-interpolation."""
+    return 13 if round(fps) >= AUTO_ALGORITHM_MIN_FPS else 23
 
 
 def interpolate_svp(
@@ -305,6 +478,9 @@ def interpolate_svp(
     masking=DEFAULT_MASKING,
     gpu=DEFAULT_GPU,
     timeline: retime.Timeline | None = None,
+    halvings: int = 0,
+    gpu_search: bool = False,
+    hud_mask: bool = False,
 ):
     preset = preset.lower()
 
@@ -313,7 +489,7 @@ def interpolate_svp(
 
     # generate svp strings
     [super_string, vectors_string, smooth_string] = generate_svp_strings(
-        new_fps, preset, algorithm, blocksize, overlap, speed, masking, gpu
+        new_fps, preset, algorithm, blocksize, overlap, speed, masking, gpu, gpu_search=gpu_search, hud_mask=hud_mask
     )
 
     return svp(
@@ -324,6 +500,7 @@ def interpolate_svp(
         smooth_string,
         timeline=timeline,
         new_fps=new_fps,
+        halvings=halvings,
     )
 
 
@@ -570,7 +747,7 @@ def prepare_rife_vsmlrt(
     )
 
 
-def interpolate_rife_vsmlrt(
+def interpolate_gimm_vsmlrt(
     video: vs.VideoNode,
     video_info: u.VideoInfo,
     new_fps: int,
@@ -579,17 +756,60 @@ def interpolate_rife_vsmlrt(
     settings_path: Path,
     timeline: retime.Timeline | None = None,
 ):
+    """GIMM-VFI exported by tools/export_gimm_vfi.py. It takes the same inputs as RIFE. The model sets its own
+    precision per layer (fp32 sampling coordinates, fp16 convolutions), so the engine is built strongly typed, and
+    frames stay fp32 since fp16 frames cost it about 1dB."""
     u.check_model_path(model_path)
 
     def process(_video: vs.VideoNode, backend) -> vs.VideoNode:
-        if timeline is None:
-            return RIFE_vsmlrt(_video, new_fps=new_fps, model_path=model_path, backend=backend)
+        backend.fp16 = False
+        backend.output_format = 0
+        backend.custom_args.append("--stronglyTyped")
 
-        return _retimed_rife_merge(
-            _video,
-            timeline,
-            _fps(new_fps),
-            lambda before, after, timepoint: _vsmlrt().RIFEMerge(
+        def merge(before, after, timepoint):
+            # generic inference, RIFEMerge adds tensorrt flags that only make sense for rife
+            return _vsmlrt().inference([before, after, timepoint], model_path, backend=backend)
+
+        if timeline is None:
+            return _rife_merge(_video, _fps(new_fps), merge)
+
+        return _retimed_rife_merge(_video, timeline, _fps(new_fps), merge)
+
+    return prepare_rife_vsmlrt(
+        video=video,
+        video_info=video_info,
+        process_func=process,
+        backend_str="tensorrt",
+        device_index=device_index,
+        settings_path=settings_path,
+        override_format=vs.RGBS,
+    )
+
+
+def is_large_motion_model(model_path: str) -> bool:
+    """RIFE re-exported to estimate motion at reduced resolution (see tools/export_rife_large_motion.py). Its full
+    resolution warp needs fp32, half precision sampling coordinates are off by over half a pixel at 1440p."""
+    return LARGE_MOTION_MARKER in Path(model_path).stem
+
+
+def interpolate_rife_vsmlrt(
+    video: vs.VideoNode,
+    video_info: u.VideoInfo,
+    new_fps: int,
+    model_path: str,
+    device_index: int,
+    settings_path: Path,
+    timeline: retime.Timeline | None = None,
+    ensemble: bool = False,
+):
+    u.check_model_path(model_path)
+
+    def process(_video: vs.VideoNode, backend) -> vs.VideoNode:
+        if is_large_motion_model(model_path):
+            backend.fp16 = False
+
+        def merge(before, after, timepoint):
+            return _vsmlrt().RIFEMerge(
                 clipa=before,
                 clipb=after,
                 mask=timepoint,
@@ -597,8 +817,18 @@ def interpolate_rife_vsmlrt(
                 ensemble=False,
                 backend=backend,
                 _implementation=2,
-            ),
-        )
+            )
+
+        if ensemble:
+            # vs-mlrt's own ensemble option isn't supported for 4.7+ models
+            merge = _ensembled(merge)
+        elif timeline is None:
+            return RIFE_vsmlrt(_video, new_fps=new_fps, model_path=model_path, backend=backend)
+
+        if timeline is None:
+            return _rife_merge(_video, _fps(new_fps), merge)
+
+        return _retimed_rife_merge(_video, timeline, _fps(new_fps), merge)
 
     return prepare_rife_vsmlrt(
         video=video,

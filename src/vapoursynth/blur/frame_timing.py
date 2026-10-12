@@ -275,18 +275,20 @@ def analyse(
     length: int,
     video_path: Path,
     hold: int,
+    nearest: bool,
 ) -> retime.Timeline | None:
     """Set up retiming from a video's frame timing log, or None if it has none that fits. `frames` and `fps` are
-    the whole video's, before timescale. Gaps wider than `hold` frames are held rather than interpolated"""
+    the whole video's, before timescale. Gaps wider than `hold` frames are held rather than interpolated.
+    `nearest` is whether the source pads timestamp gaps with the nearest packet rather than the previous one"""
     logs = timing_log.sidecars_for(video_path)
     if not logs:
         return None
 
     sidecar_path = logs[0]
     try:
-        sizes = timing_log.packet_sizes(video_path, frames)
+        sizes, shown = timing_log.video_packets(video_path, frames, fps, nearest)
         sidecar_path, sidecar, first = timing_log.find_sidecar(logs, sizes)
-        ticks = timing_log.render_ticks(sidecar, sizes, first)
+        ticks = timing_log.render_ticks(sidecar, sizes, first)[shown]
         read, fingerprint, timed_by = timing_log.reads_for(sidecar, ticks)
         clip = slice(start, start + length)
         presents, missing_reason = timing_log.game_presents(sidecar, read[clip][0] - LEAD, read[clip][-1] + LEAD)

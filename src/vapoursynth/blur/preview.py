@@ -1,7 +1,11 @@
 """Runs blur.py inside another process's vapoursynth (the gui's mpv) rather than through vspipe."""
 
+import contextlib
+import io
+import os
 import sys
 import threading
+import traceback
 from pathlib import Path
 
 import blur.utils
@@ -14,14 +18,31 @@ class _StderrRouter:
 
     def __init__(self, fallback):
         self.fallback = fallback
-        self.logs: dict[int, Path] = {}
+        # thread evaluating a script -> its open log
+        self.logs: dict[int, int] = {}
+        # thread evaluating a script -> the file the gui makes when it gives up on it
+        self.cancel_paths: dict[int, str] = {}
+
+    def open(self, log_path: str):
+        thread = threading.get_ident()
+        self.logs[thread] = os.open(log_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT)
+        self.cancel_paths[thread] = log_path + ".cancel"
+
+    def close(self):
+        thread = threading.get_ident()
+        os.close(self.logs.pop(thread))
+        del self.cancel_paths[thread]
+
+    def cancelled(self) -> bool:
+        """Whether the gui has given up on the script this thread is evaluating."""
+        cancel_path = self.cancel_paths.get(threading.get_ident())
+        return cancel_path is not None and os.path.exists(cancel_path)
 
     def write(self, text: str) -> int:
-        log_path = self.logs.get(threading.get_ident())
+        log = self.logs.get(threading.get_ident())
 
-        if log_path is not None:
-            with log_path.open("a", encoding="utf-8") as log_file:
-                log_file.write(text)
+        if log is not None:
+            os.write(log, text.encode("utf-8"))
         elif self.fallback is not None:
             self.fallback.write(text)
 
@@ -30,6 +51,18 @@ class _StderrRouter:
     def flush(self):
         if self.fallback is not None:
             self.fallback.flush()
+
+    def fileno(self) -> int:
+        # subprocesses get handed this rather than going through write, e.g. vs-mlrt's trtexec while it builds an
+        # engine, so their output lands in the script's log too
+        log = self.logs.get(threading.get_ident())
+        if log is not None:
+            return log
+
+        if self.fallback is None:
+            raise io.UnsupportedOperation("no stderr to hand over")
+
+        return self.fallback.fileno()
 
 
 def _raise_blur_exception(e: blur.utils.BlurException):
@@ -49,8 +82,14 @@ def run(script_path: str, script_args: dict[str, str], plugins_path: str, log_pa
         sys.stderr = _StderrRouter(sys.stderr)
 
     router = sys.stderr
-    thread = threading.get_ident()
-    router.logs[thread] = Path(log_path)
+    router.open(log_path)
+
+    # vs-mlrt only fails to import without tensorrt, when there's nothing to build
+    with contextlib.suppress(ImportError, RuntimeError):
+        from external import vsmlrt
+
+        # an engine build can outlast the preview that started it, and nothing else would stop it
+        vsmlrt.builder_cancelled = router.cancelled
 
     try:
         script = Path(script_path)
@@ -58,5 +97,10 @@ def run(script_path: str, script_args: dict[str, str], plugins_path: str, log_pa
         # vspipe hands script arguments over as globals
         script_globals = {"__name__": "__vapoursynth__", "__file__": str(script), **script_args}
         exec(compile(script.read_text(encoding="utf-8"), str(script), "exec"), script_globals)  # noqa: S102 - running blur.py is the point
+    except BaseException:
+        # the host only reports that the script failed to load, so the reason goes in the log for the gui to find.
+        # vspipe prints this itself, which is where renders get it from
+        router.write(traceback.format_exc())
+        raise
     finally:
-        del router.logs[thread]
+        router.close()

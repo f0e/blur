@@ -19,13 +19,13 @@ def plot_analysis(frames: int):
     # Row 1, Col 1: All basic functions comparison
     functions = {
         "Equal": blur.weighting.equal(frames),
+        "Cosine": blur.weighting.cosine(frames),
         "Ascending": blur.weighting.ascending(frames),
         "Descending": blur.weighting.descending(frames),
         "Gaussian": blur.weighting.gaussian(frames, standard_deviation=1),
         "Gaussian Reverse": blur.weighting.gaussian_reverse(frames, standard_deviation=1),
         "Gaussian Sym": blur.weighting.gaussian_sym(frames, standard_deviation=1),
         "Pyramid": blur.weighting.pyramid(frames),
-        "Vegas": blur.weighting.vegas(frames),
     }
     colors = [
         "#1f77b4",

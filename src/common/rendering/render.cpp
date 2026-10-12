@@ -1,28 +1,46 @@
 #include "render.h"
 #include "render_commands.h"
+#include "output.h"
 #include "render_pipeline.h"
+#include "render_optimise.h"
 #include "common/devices.h"
 #ifdef TENSORRT
-#	include "common/rife_models.h"
+#	include "common/interpolation_models.h"
 #endif
 #include "common/media.h"
 
 namespace {
 	std::optional<std::string> check_tensorrt_installed(const BlurSettings& settings) {
 #ifdef TENSORRT
-		if (!settings.uses_interpolation_method("rife (tensorrt)"))
+		bool uses_rife = settings.uses_interpolation_method("rife (tensorrt)");
+		bool uses_gimm = settings.uses_interpolation_method("gimm-vfi (tensorrt)");
+		if (!uses_rife && !uses_gimm)
 			return {};
 
-		if (!rife_models::trt_installed()) {
+		if (!interpolation_models::trt_installed()) {
 			return "TensorRT RIFE isn't installed. Rerun the installer and select \"NVIDIA TensorRT RIFE interpolation\", or use a different interpolation method";
 		}
 
 		std::error_code ec;
-		if (!std::filesystem::exists(rife_models::get_trt_path() / (settings.rife_trt_model + ".onnx"), ec)) {
+		if (uses_gimm && !std::filesystem::exists(
+							 interpolation_models::get_gimm_trt_path() / (settings.gimm_trt_model + ".onnx"), ec
+						 ))
+		{
+			return std::format(
+				"TensorRT GIMM-VFI model '{}' wasn't found in {}",
+				settings.gimm_trt_model,
+				u::path_to_string(interpolation_models::get_gimm_trt_path())
+			);
+		}
+
+		if (uses_rife && !std::filesystem::exists(
+							 interpolation_models::get_rife_trt_path() / (settings.rife_trt_model + ".onnx"), ec
+						 ))
+		{
 			return std::format(
 				"TensorRT RIFE model '{}' wasn't found in {}",
 				settings.rife_trt_model,
-				u::path_to_string(rife_models::get_trt_path())
+				u::path_to_string(interpolation_models::get_rife_trt_path())
 			);
 		}
 #endif
@@ -42,10 +60,14 @@ tl::expected<std::string, std::string> rendering::build_preview_script(
 	if (auto error = check_tensorrt_installed(settings))
 		return tl::unexpected(*error);
 
-	auto merged_settings = detail::merge_settings(settings, app_settings, devices::get_device_indices(app_settings));
+	auto merged_settings = detail::merge_settings(
+		optimise::for_preview(settings, app_settings, video_info),
+		app_settings,
+		devices::get_device_indices(app_settings)
+	);
 
 	auto vspipe_args =
-		detail::build_vspipe_video_args(input_path, merged_settings, video_info, {}, {}, {}, preview_mask);
+		detail::build_vspipe_video_args(input_path, merged_settings, video_info, { .preview_mask = preview_mask });
 
 	// vspipe hands every -a over as a string, so these stay strings too
 	nlohmann::json script_args = nlohmann::json::object();
@@ -58,6 +80,9 @@ tl::expected<std::string, std::string> rendering::build_preview_script(
 		if (split != std::string::npos)
 			script_args[arg.substr(0, split)] = arg.substr(split + 1);
 	}
+
+	if (preview_mask)
+		script_args["savable_mask_path"] = u::path_to_string(savable_mask_path(log_path));
 
 	auto python_path = [](const std::filesystem::path& path) {
 		std::string str = u::path_to_string(path);
@@ -91,6 +116,67 @@ blur.preview.run({}, {}, {}, {})
 		plugins_path,
 		python_path(log_path)
 	);
+}
+
+std::filesystem::path rendering::savable_mask_path(const std::filesystem::path& log_path) {
+	return std::filesystem::path(log_path).replace_extension("png");
+}
+
+tl::expected<rendering::RenderResult, rendering::RenderError> rendering::pre_render(
+	const std::filesystem::path& input_path,
+	const media::VideoInfo& video_info,
+	const BlurSettings& settings,
+	const GlobalAppSettings& app_settings,
+	const std::shared_ptr<RenderState>& state,
+	const std::filesystem::path& output_path,
+	size_t start_frame,
+	size_t end_frame
+) {
+	if (auto error = check_tensorrt_installed(settings))
+		return tl::unexpected(RenderError{ .user_message = *error });
+
+	auto merged_settings = detail::merge_settings(
+		optimise::for_preview(settings, app_settings, video_info),
+		app_settings,
+		devices::get_device_indices(app_settings)
+	);
+
+	detail::FrameRange range{ .start = start_frame, .end = end_frame };
+
+	// a render trimmed to the same stretch would skip these too
+	auto skipped_frames = get_skipped_frames(settings, app_settings, video_info);
+
+	auto ffmpeg_args = detail::build_ffmpeg_pre_render_args(
+		input_path, video_info, settings, app_settings, output_path, range, skipped_frames
+	);
+	if (!ffmpeg_args)
+		return tl::unexpected(RenderError{ .user_message = ffmpeg_args.error() });
+
+	RenderCommands commands = {
+		.vspipe_video = detail::build_vspipe_video_args(
+			input_path,
+			merged_settings,
+			video_info,
+			{
+				.range = range,
+				.skipped_frames = skipped_frames,
+			}
+		),
+		.ffmpeg = *ffmpeg_args,
+	};
+
+	auto preview_args = detail::build_ffmpeg_preview_args(video_info);
+	commands.ffmpeg.insert(commands.ffmpeg.end(), preview_args.begin(), preview_args.end());
+	state->enable_preview_capture();
+
+	auto pipeline_result = detail::execute_pipeline(commands, state, settings.advanced.debug, true, {});
+	if (!pipeline_result)
+		return tl::unexpected(pipeline_result.error());
+
+	return RenderResult{
+		.output_path = output_path,
+		.stopped = pipeline_result->stopped,
+	};
 }
 
 std::pair<size_t, size_t> rendering::get_trim_frame_range(const media::VideoInfo& video_info, float start, float end) {
@@ -136,14 +222,12 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 	if (auto error = check_tensorrt_installed(settings))
 		return tl::unexpected(*error);
 
-	auto merged_settings = detail::merge_settings(settings, app_settings, devices::get_device_indices(app_settings));
-
 	std::filesystem::path output_path;
 	if (output_path_override) {
 		output_path = *output_path_override;
 	}
 	else {
-		auto output_res = detail::build_output_filename(input_path, settings, app_settings);
+		auto output_res = build_output_filename(input_path, settings, app_settings);
 		if (!output_res) {
 			return tl::unexpected(output_res.error());
 		}
@@ -177,30 +261,46 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 		);
 	}
 
-	auto ffmpeg_args = detail::build_ffmpeg_video_args(
-		input_path, video_info, settings, app_settings, output_path, start_frame, end_frame, trimmed
-	);
-	if (!ffmpeg_args)
-		return tl::unexpected(ffmpeg_args.error());
+	detail::FrameRange range{ .start = start_frame, .end = end_frame };
 
-	RenderCommands commands = {
-		.vspipe_video = detail::build_vspipe_video_args(
-			input_path,
-			merged_settings,
-			video_info,
-			start_frame,
-			end_frame,
-			// untrimmed renders use the whole video like previews do, so they share a cached mask
-			trimmed ? std::optional{ std::pair{ start_frame, end_frame } } : std::nullopt,
-			false,
-			detail::get_skipped_frames(settings, app_settings, video_info)
-		),
-		.ffmpeg = *ffmpeg_args,
+	auto build_commands = [&](
+							  const BlurSettings& command_settings, const std::filesystem::path& command_output_path
+						  ) -> tl::expected<RenderCommands, std::string> {
+		auto ffmpeg_args = detail::build_ffmpeg_video_args(
+			input_path, video_info, command_settings, app_settings, command_output_path, range, trimmed
+		);
+		if (!ffmpeg_args)
+			return tl::unexpected(ffmpeg_args.error());
+
+		return RenderCommands{
+			.vspipe_video = detail::build_vspipe_video_args(
+				input_path,
+				detail::merge_settings(command_settings, app_settings, devices::get_device_indices(app_settings)),
+				video_info,
+				{
+					.range = range,
+					// untrimmed renders use the whole video like previews do, so they share a cached mask
+					.mask_range = trimmed ? std::optional{ range } : std::nullopt,
+					.skipped_frames = get_skipped_frames(command_settings, app_settings, video_info),
+				}
+			),
+			.ffmpeg = *ffmpeg_args,
+		};
 	};
+
+	auto render_settings = optimise::for_render(
+		settings, app_settings, video_info, state, u::path_to_string(output_path.extension()), build_commands
+	);
+
+	auto commands_res = build_commands(render_settings, output_path);
+	if (!commands_res)
+		return tl::unexpected(commands_res.error());
+
+	auto& commands = *commands_res;
 
 	// add preview pipe if needed
 	if (settings.preview && blur.using_preview) {
-		auto preview_args = detail::build_ffmpeg_preview_args();
+		auto preview_args = detail::build_ffmpeg_preview_args(video_info);
 		commands.ffmpeg.insert(commands.ffmpeg.end(), preview_args.begin(), preview_args.end());
 
 		state->enable_preview_capture();

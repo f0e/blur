@@ -25,13 +25,16 @@ public:
 		m_preview.handle_event(event, to_render);
 	}
 
-	bool save(const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done) const {
-		return m_preview.save_frame(path, std::move(on_done));
+	bool save(
+		const std::filesystem::path& path, const std::function<void(std::optional<std::string> error)>& on_done
+	) const {
+		return m_preview.save_mask(path, on_done);
 	}
 
 private:
 	BlurPreview m_preview;
 
-	// a mask is worked out from the whole video, so it only needs reloading when the masking settings change
+	// a mask only depends on the video and the masking settings (the frame by frame part included), so it only needs
+	// reloading when those change
 	std::optional<BlurSettings> m_settings;
 };
