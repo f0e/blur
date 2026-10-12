@@ -262,16 +262,27 @@ namespace {
 			FAILED,
 			STOPPED,
 			PAUSED,
+			TOO_SLOW,
 		};
 
 		Outcome outcome = Outcome::FAILED;
 		float fps = 0.f;
+
+		// from starting the render to stopping it, like `limit`
+		std::chrono::steady_clock::duration took{};
 	};
 
+	// stops once it's run for `limit`, e.g. a gpu setting that's spilled out of vram and would otherwise crawl. time
+	// spent generating a mask or building an engine isn't counted, since only the first run does that
 	Measurement measure(
-		const RenderCommands& commands, const std::shared_ptr<rendering::RenderState>& render_state, bool debug
+		const RenderCommands& commands,
+		const std::shared_ptr<rendering::RenderState>& render_state,
+		bool debug,
+		std::optional<std::chrono::steady_clock::duration> limit
 	) {
 		using clock = std::chrono::steady_clock;
+
+		auto started = clock::now();
 
 		auto state = std::make_shared<rendering::RenderState>();
 		state->forward_init_stages_to(render_state);
@@ -280,6 +291,12 @@ namespace {
 		std::optional<clock::time_point> start_time;
 		int start_frame = 0;
 		std::optional<float> fps;
+
+		std::atomic<bool> producing = false;
+		std::atomic<clock::rep> excluded = 0;
+		auto counted = [&](clock::time_point now) {
+			return now - started - clock::duration(excluded.load());
+		};
 
 		auto on_progress = [&] {
 			// a frame means any engine build is done
@@ -290,6 +307,7 @@ namespace {
 
 			if (!first_frame_time) {
 				first_frame_time = now;
+				producing = true;
 				return;
 			}
 
@@ -310,9 +328,25 @@ namespace {
 		// the render being stopped or paused has to reach this run before it's made any frames too, e.g. while an
 		// engine builds
 		std::atomic<bool> done = false;
+		std::atomic<bool> too_slow = false;
 		std::thread watcher([&] {
+			auto last = started;
 			while (!done) {
+				auto now = clock::now();
+
+				auto stage = state->get_progress().init_stage;
+				if (!producing && (stage == rendering::RenderState::InitStage::GENERATING_MASK ||
+				                   stage == rendering::RenderState::InitStage::BUILDING_ENGINE))
+					excluded += (now - last).count();
+				last = now;
+
 				if (render_state->wants_stop() || render_state->wants_pause()) {
+					state->stop();
+					return;
+				}
+
+				if (limit && counted(now) >= *limit) {
+					too_slow = true;
 					state->stop();
 					return;
 				}
@@ -333,7 +367,10 @@ namespace {
 			return { .outcome = Measurement::Outcome::PAUSED };
 
 		if (fps)
-			return { .outcome = Measurement::Outcome::MEASURED, .fps = *fps };
+			return { .outcome = Measurement::Outcome::MEASURED, .fps = *fps, .took = counted(clock::now()) };
+
+		if (too_slow)
+			return { .outcome = Measurement::Outcome::TOO_SLOW };
 
 		if (!result) {
 			u::log_error("gpu settings benchmark failed: {}", result.error().user_message);
@@ -389,14 +426,25 @@ BlurSettings rendering::optimise::for_render(
 
 	std::vector<std::pair<GpuSettings, float>> results;
 
-	for (const auto& candidate : candidates) {
+	// svp's gpu rendering next to rife or gimm can run out of vram, which doesn't fail but spills into system memory
+	// and crawls, so it goes after cpu rendering and is stopped once it's taken twice as long as the best so far did.
+	// not just as long, since startup isn't counted in the fps
+	auto order = candidates;
+	std::ranges::stable_partition(order, [](const GpuSettings& candidate) {
+		return !candidate.svp_gpu_rendering;
+	});
+
+	std::optional<float> best_fps;
+	std::optional<std::chrono::steady_clock::duration> limit;
+
+	for (const auto& candidate : order) {
 		auto commands = build_commands(apply(settings, candidate), output_path);
 		if (!commands) {
 			u::log_error("failed to build gpu settings benchmark: {}", commands.error());
 			continue;
 		}
 
-		auto measurement = measure(*commands, state, settings.advanced.debug);
+		auto measurement = measure(*commands, state, settings.advanced.debug, limit);
 
 		std::error_code ec;
 		std::filesystem::remove(output_path, ec);
@@ -405,6 +453,14 @@ BlurSettings rendering::optimise::for_render(
 			case Measurement::Outcome::MEASURED:
 				u::log("{}: {:.2f} fps", describe(candidate), measurement.fps);
 				results.emplace_back(candidate, measurement.fps);
+
+				if (!best_fps || measurement.fps > *best_fps) {
+					best_fps = measurement.fps;
+					limit = measurement.took * 2;
+				}
+				break;
+			case Measurement::Outcome::TOO_SLOW:
+				u::log("{}: stopped, slower than the best so far", describe(candidate));
 				break;
 			case Measurement::Outcome::FAILED:
 				break;
