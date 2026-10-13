@@ -13,6 +13,7 @@
 #include "../../render/render.h"
 #include "../../ui/ui.h"
 #include "../../mask_preview.h"
+#include "../../video_info_rows.h"
 
 namespace {
 	bool playback_seek_unsaved = false;
@@ -304,7 +305,8 @@ void configs::config_preview(ui::Container& container) {
 
 		container.push_element_gap(DELETE_ICON_GAP);
 
-		int seek_width = container.get_usable_rect().w - seek_bar_height - DELETE_ICON_GAP;
+		int icon_count = preview.video_info ? 2 : 1;
+		int seek_width = container.get_usable_rect().w - ((seek_bar_height + DELETE_ICON_GAP) * icon_count);
 
 		ui::AnimatedElement* seek_bar = nullptr;
 
@@ -369,6 +371,20 @@ void configs::config_preview(ui::Container& container) {
 		}
 
 		ui::set_next_same_line(container);
+
+		if (preview.video_info) {
+			ui::add_info_icon(
+				"preview video info",
+				container,
+				gfx::Size(seek_bar_height, seek_bar_height),
+				u::path_to_string(preview_video_path.filename()),
+				get_video_info_rows(*preview.video_info, false),
+				fonts::dejavu
+			);
+
+			ui::set_next_same_line(container);
+		}
+
 		container.pop_element_gap();
 
 		ui::add_icon_button(

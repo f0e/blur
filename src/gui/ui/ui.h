@@ -52,7 +52,8 @@ namespace ui {
 		SPINNER,
 		UPDATE_NOTICE,
 		LOGO_AND_VERSION,
-		LINK
+		LINK,
+		INFO_ICON
 	};
 
 	struct BarElementData {
@@ -541,6 +542,23 @@ namespace ui {
 		}
 	};
 
+	struct InfoRow {
+		std::string label;
+		std::string value;
+
+		bool operator==(const InfoRow& other) const = default;
+	};
+
+	struct InfoIconElementData {
+		std::string title;
+		std::vector<InfoRow> rows;
+		render::Font font;
+
+		bool operator==(const InfoIconElementData& other) const {
+			return title == other.title && rows == other.rows && font == other.font;
+		}
+	};
+
 	using ElementData = std::variant<
 		BarElementData,
 		TextElementData,
@@ -566,7 +584,8 @@ namespace ui {
 		SpinnerElementData,
 		UpdateNoticeElementData,
 		LogoAndVersionElementData,
-		LinkElementData>;
+		LinkElementData,
+		InfoIconElementData>;
 
 	struct AnimationState {
 		float speed;
@@ -859,6 +878,20 @@ namespace ui {
 
 	void render_link(const Container& container, const AnimatedElement& element);
 	bool update_link(const Container& container, AnimatedElement& element);
+
+	void render_info_icon(const Container& container, const AnimatedElement& element);
+	bool update_info_icon(const Container& container, AnimatedElement& element);
+
+	// the info icon's popover, for elements that draw their own icon. it sits beside anchor with their right edges
+	// lined up
+	void render_info_popover(
+		const gfx::Rect& anchor,
+		const std::string& title,
+		const std::vector<InfoRow>& rows,
+		const render::Font& font,
+		float anim,
+		bool below = false
+	);
 
 	// drops every container's elements, for shutdown. they can hold video players and textures
 	void clear_containers();
@@ -1212,6 +1245,16 @@ namespace ui {
 		std::optional<std::function<void()>> on_press = {},
 		gfx::Color color = gfx::Color::white(105),
 		gfx::Color hover_color = gfx::Color::white()
+	);
+
+	// an (i) icon that shows a title and label/value rows while hovered
+	AnimatedElement* add_info_icon(
+		const std::string& id,
+		Container& container,
+		const gfx::Size& size,
+		const std::string& title,
+		const std::vector<InfoRow>& rows,
+		const render::Font& font
 	);
 
 	void add_spacing(Container& container, int spacing);
