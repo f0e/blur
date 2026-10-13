@@ -579,60 +579,25 @@ void configs::options(ui::Container& container) {
 		section_component("svp");
 
 		ui::add_checkbox(
-			"optimise gpu settings checkbox",
+			"auto svp gpu settings checkbox",
 			container,
-			"optimise gpu settings",
+			"auto svp gpu settings",
 			settings.optimise_gpu_settings,
 			fonts::dejavu
 		);
 
 		if (settings.optimise_gpu_settings) {
 			ui::add_checkbox(
-				"prioritise speed checkbox",
+				"auto svp prioritise speed checkbox",
 				container,
 				"prioritise speed",
 				settings.optimise_prioritise_speed,
 				fonts::dejavu
 			);
 
-			auto saved = rendering::optimise::list_saved(settings, app_settings);
-			if (!rendering::optimise::benchmarks(settings)) {
-				ui::add_text(
-					"optimised gpu settings unneeded text",
-					container,
-					"nothing else uses the gpu, so svp renders on it",
-					gfx::Color::white(renderer::MUTED_SHADE),
-					fonts::dejavu
-				);
-			}
-			else if (saved.empty()) {
-				ui::add_text(
-					"optimised gpu settings none text",
-					container,
-					"picked on each video format's first render",
-					gfx::Color::white(renderer::MUTED_SHADE),
-					fonts::dejavu
-				);
-			}
-			else {
-				for (const auto& pick : saved) {
-					std::string text = std::format(
-						"{}: svp gpu rendering {}", pick.video, pick.settings.svp_gpu_rendering ? "on" : "off"
-					);
-
-					// search is only picked with prioritise speed
-					if (settings.optimise_prioritise_speed)
-						text += std::format(", svp gpu search {}", pick.settings.svp_gpu_search ? "on" : "off");
-
-					ui::add_text(
-						"optimised gpu settings text " + pick.video,
-						container,
-						text,
-						gfx::Color::white(renderer::MUTED_SHADE),
-						fonts::dejavu
-					);
-				}
-
+			if (rendering::optimise::benchmarks(settings) &&
+			    !rendering::optimise::list_saved(settings, app_settings).empty())
+			{
 				ui::add_button(
 					"clear optimised settings button", container, "clear optimised settings", fonts::dejavu, [] {
 						rendering::optimise::clear_saved(settings, app_settings);
