@@ -14,6 +14,10 @@
 #include "pre_render.h"
 #include "ui/elements/videos/videos.h"
 
+#if __has_include("automation.h")
+#	include "automation.h"
+#endif
+
 #define DEBUG_RENDER_LOGGING 0
 
 namespace {
@@ -59,6 +63,9 @@ namespace {
 
 	// video players and textures free gl resources, so they have to go before the gl context does
 	void shutdown() {
+#ifdef BLUR_AUTOMATION
+		automation::shutdown();
+#endif
 		ui::clear_containers();
 		gui::components::configs::preview_frames::reset();
 		gui::components::queue_preview::release();
@@ -73,6 +80,10 @@ namespace {
 }
 
 int gui::run() {
+#ifdef BLUR_AUTOMATION
+	automation::initialise();
+#endif
+
 	auto sdl_init_res = sdl::initialise();
 	if (!sdl_init_res) {
 		u::log_error("Error: {}", sdl_init_res.error());
@@ -95,6 +106,10 @@ int gui::run() {
 		to_render |= sdl::poll_config_reload();
 
 		update_taskbar_progress();
+
+#ifdef BLUR_AUTOMATION
+		to_render |= automation::update();
+#endif
 
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {
@@ -202,6 +217,10 @@ int gui::run() {
 			rendered_last,
 			to_render
 		); // note: rendered isn't true if rendering was forced, it's only if an animation or smth is playing
+
+#ifdef BLUR_AUTOMATION
+		automation::on_frame(rendered);
+#endif
 
 #if DEBUG_RENDER_LOGGING
 		static size_t frame = 0;

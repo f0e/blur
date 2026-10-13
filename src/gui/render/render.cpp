@@ -10,6 +10,9 @@
 #include "../fonts/nv_garamond.h"
 #include "../fonts/icons.h"
 #include "common/waveforms.h"
+#if __has_include("../automation.h")
+#	include "../automation.h"
+#endif
 
 namespace {
 	gfx::Color interpolate_color(const std::vector<gfx::Color>& colors, const std::vector<float>& positions, float t) {
@@ -188,6 +191,9 @@ void render::ImGuiWrap::end(SDL_Window* window) { // NOLINT(readability-convert-
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+#ifdef BLUR_AUTOMATION
+	automation::on_frame_drawn(drawable_width, drawable_height);
+#endif
 	SDL_GL_SwapWindow(window);
 }
 
