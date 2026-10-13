@@ -221,6 +221,7 @@ void ui::add_videos(
 				{ hasher("aspect"), AnimationState(ASPECT_ANIMATION_SPEED, aspect_goal) },
 				{ hasher("hover"), AnimationState(25.f) },
 				{ hasher("remove_hover"), AnimationState(50.f) },
+				{ hasher("info_hover"), AnimationState(40.f) },
 			}
 		);
 
