@@ -439,6 +439,9 @@ void configs::options(ui::Container& container) {
 				fonts::dejavu
 			);
 		}
+
+		if (settings.uses_interpolation_method("svp"))
+			ui::add_checkbox("svp hud mask checkbox", container, "svp hud mask", settings.svp_hud_mask, fonts::dejavu);
 	}
 
 	/*
@@ -629,8 +632,6 @@ void configs::options(ui::Container& container) {
 				);
 			}
 		}
-
-		ui::add_checkbox("svp hud mask checkbox", container, "svp hud mask", settings.svp_hud_mask, fonts::dejavu);
 	}
 
 	/*
