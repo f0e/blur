@@ -106,6 +106,53 @@ void configs::options(ui::Container& container) {
 		);
 	};
 
+	auto device_dropdown = [&](const std::string& label,
+	                           const std::map<int, std::string>& device_list,
+	                           std::string& device,
+	                           const std::optional<std::string>& auto_device,
+	                           std::string& selected) {
+		if (devices::initialised && device_list.empty()) {
+			selected = "none available";
+			ui::add_dropdown(label + " dropdown", container, label, {}, selected, fonts::dejavu);
+			return;
+		}
+
+		std::string auto_option = auto_device ? std::format("auto ({})", *auto_device) : "auto";
+
+		std::vector<std::string> options = { auto_option };
+		if (devices::initialised) {
+			for (const auto& [index, name] : device_list)
+				options.push_back(name);
+		}
+
+		std::vector<std::string> missing;
+		if (device == "auto") {
+			selected = auto_option;
+		}
+		else {
+			selected = device;
+
+			// add the current device as a muted option if its not available anymore
+			if (devices::initialised && !u::contains(options, device)) {
+				options.push_back(device);
+				missing.push_back(device);
+			}
+		}
+
+		ui::add_dropdown(
+			label + " dropdown",
+			container,
+			label,
+			options,
+			selected,
+			fonts::dejavu,
+			[&device, auto_option](std::string* new_value) {
+				device = *new_value == auto_option ? "auto" : *new_value;
+			},
+			missing
+		);
+	};
+
 	/*
 	    Blur
 	*/
@@ -391,6 +438,129 @@ void configs::options(ui::Container& container) {
 	}
 
 	/*
+	    SVP
+	*/
+	if (settings.uses_interpolation_method("svp")) {
+		section_component("svp");
+
+		ui::add_checkbox(
+			"auto svp gpu settings checkbox",
+			container,
+			"auto svp gpu settings",
+			settings.optimise_gpu_settings,
+			fonts::dejavu
+		);
+
+		if (settings.optimise_gpu_settings) {
+			ui::add_checkbox(
+				"auto svp prioritise speed checkbox",
+				container,
+				"prioritise speed",
+				settings.optimise_prioritise_speed,
+				fonts::dejavu
+			);
+
+			if (rendering::optimise::benchmarks(settings) &&
+			    !rendering::optimise::list_saved(settings, app_settings).empty())
+			{
+				ui::add_button(
+					"clear optimised settings button", container, "clear optimised settings", fonts::dejavu, [] {
+						rendering::optimise::clear_saved(settings, app_settings);
+					}
+				);
+			}
+		}
+		else {
+			ui::add_checkbox(
+				"svp gpu search checkbox", container, "svp gpu search", settings.svp_gpu_search, fonts::dejavu
+			);
+
+			if (devices::get_svp_gpu_supported() == false) {
+				ui::add_text(
+					"svp gpu rendering unsupported warning",
+					container,
+					"svp gpu rendering isn't supported by your gpu",
+					WARNING_COLOR,
+					fonts::dejavu
+				);
+			}
+			else {
+				ui::add_checkbox(
+					"svp gpu rendering checkbox",
+					container,
+					"svp gpu rendering",
+					settings.svp_gpu_rendering,
+					fonts::dejavu
+				);
+			}
+		}
+	}
+
+	/*
+	    RIFE
+	*/
+	if (settings.uses_interpolation_method("rife")) {
+		section_component("rife");
+
+		// the folders are listed every frame so models dropped in show up straight away
+		model_dropdown(
+			"rife model", interpolation_models::list_rife(), settings.rife_model, interpolation_models::get_rife_path()
+		);
+
+		static std::string rife_device;
+		device_dropdown(
+			"rife device", devices::rife, app_settings.rife_device, devices::get_auto_rife_device(), rife_device
+		);
+	}
+
+	/*
+	    TensorRT
+	*/
+#ifdef TENSORRT
+	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
+	bool uses_gimm = settings.uses_interpolation_method("gimm-vfi (tensorrt)");
+
+	if (uses_rife_trt || uses_gimm) {
+		section_component("tensorrt");
+
+		if (uses_rife_trt) {
+			model_dropdown(
+				"rife (tensorrt) model",
+				interpolation_models::list_rife_trt(),
+				settings.rife_trt_model,
+				interpolation_models::get_rife_trt_path()
+			);
+
+			ui::add_checkbox(
+				"rife (tensorrt) ensemble checkbox",
+				container,
+				"rife (tensorrt) ensemble",
+				settings.rife_trt_ensemble,
+				fonts::dejavu
+			);
+		}
+
+		if (uses_gimm) {
+			model_dropdown(
+				"gimm-vfi (tensorrt) model",
+				interpolation_models::list_gimm_trt(),
+				settings.gimm_trt_model,
+				interpolation_models::get_gimm_trt_path()
+			);
+		}
+
+		static std::string tensorrt_device;
+		device_dropdown(
+			"tensorrt device",
+			devices::tensorrt,
+			app_settings.tensorrt_device,
+			devices::get_auto_tensorrt_device(),
+			tensorrt_device
+		);
+	}
+#endif
+
+	/*
 	    Scene detection
 	*/
 	if (settings.blur || settings.interpolate || settings.deduplicate)
@@ -527,176 +697,6 @@ void configs::options(ui::Container& container) {
 	ui::add_text_input("output path input", container, app_settings.output_prefix, "output path", fonts::dejavu);
 
 	ui::add_checkbox("upscale checkbox", container, "upscale", settings.upscale, fonts::dejavu);
-
-	auto device_dropdown = [&](const std::string& label,
-	                           const std::map<int, std::string>& device_list,
-	                           std::string& device,
-	                           const std::optional<std::string>& auto_device,
-	                           std::string& selected) {
-		if (devices::initialised && device_list.empty()) {
-			selected = "none available";
-			ui::add_dropdown(label + " dropdown", container, label, {}, selected, fonts::dejavu);
-			return;
-		}
-
-		std::string auto_option = auto_device ? std::format("auto ({})", *auto_device) : "auto";
-
-		std::vector<std::string> options = { auto_option };
-		if (devices::initialised) {
-			for (const auto& [index, name] : device_list)
-				options.push_back(name);
-		}
-
-		std::vector<std::string> missing;
-		if (device == "auto") {
-			selected = auto_option;
-		}
-		else {
-			selected = device;
-
-			// add the current device as a muted option if its not available anymore
-			if (devices::initialised && !u::contains(options, device)) {
-				options.push_back(device);
-				missing.push_back(device);
-			}
-		}
-
-		ui::add_dropdown(
-			label + " dropdown",
-			container,
-			label,
-			options,
-			selected,
-			fonts::dejavu,
-			[&device, auto_option](std::string* new_value) {
-				device = *new_value == auto_option ? "auto" : *new_value;
-			},
-			missing
-		);
-	};
-
-	/*
-	    SVP
-	*/
-	if (settings.uses_interpolation_method("svp")) {
-		section_component("svp");
-
-		ui::add_checkbox(
-			"auto svp gpu settings checkbox",
-			container,
-			"auto svp gpu settings",
-			settings.optimise_gpu_settings,
-			fonts::dejavu
-		);
-
-		if (settings.optimise_gpu_settings) {
-			ui::add_checkbox(
-				"auto svp prioritise speed checkbox",
-				container,
-				"prioritise speed",
-				settings.optimise_prioritise_speed,
-				fonts::dejavu
-			);
-
-			if (rendering::optimise::benchmarks(settings) &&
-			    !rendering::optimise::list_saved(settings, app_settings).empty())
-			{
-				ui::add_button(
-					"clear optimised settings button", container, "clear optimised settings", fonts::dejavu, [] {
-						rendering::optimise::clear_saved(settings, app_settings);
-					}
-				);
-			}
-		}
-		else {
-			ui::add_checkbox(
-				"svp gpu search checkbox", container, "svp gpu search", settings.svp_gpu_search, fonts::dejavu
-			);
-
-			if (devices::get_svp_gpu_supported() == false) {
-				ui::add_text(
-					"svp gpu rendering unsupported warning",
-					container,
-					"svp gpu rendering isn't supported by your gpu",
-					WARNING_COLOR,
-					fonts::dejavu
-				);
-			}
-			else {
-				ui::add_checkbox(
-					"svp gpu rendering checkbox",
-					container,
-					"svp gpu rendering",
-					settings.svp_gpu_rendering,
-					fonts::dejavu
-				);
-			}
-		}
-	}
-
-	/*
-	    RIFE
-	*/
-	if (settings.uses_interpolation_method("rife")) {
-		section_component("rife");
-
-		// the folders are listed every frame so models dropped in show up straight away
-		model_dropdown(
-			"rife model", interpolation_models::list_rife(), settings.rife_model, interpolation_models::get_rife_path()
-		);
-
-		static std::string rife_device;
-		device_dropdown(
-			"rife device", devices::rife, app_settings.rife_device, devices::get_auto_rife_device(), rife_device
-		);
-	}
-
-	/*
-	    TensorRT
-	*/
-#ifdef TENSORRT
-	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
-	bool uses_gimm = settings.uses_interpolation_method("gimm-vfi (tensorrt)");
-
-	if (uses_rife_trt || uses_gimm) {
-		section_component("tensorrt");
-
-		if (uses_rife_trt) {
-			model_dropdown(
-				"rife (tensorrt) model",
-				interpolation_models::list_rife_trt(),
-				settings.rife_trt_model,
-				interpolation_models::get_rife_trt_path()
-			);
-
-			ui::add_checkbox(
-				"rife (tensorrt) ensemble checkbox",
-				container,
-				"rife (tensorrt) ensemble",
-				settings.rife_trt_ensemble,
-				fonts::dejavu
-			);
-		}
-
-		if (uses_gimm) {
-			model_dropdown(
-				"gimm-vfi (tensorrt) model",
-				interpolation_models::list_gimm_trt(),
-				settings.gimm_trt_model,
-				interpolation_models::get_gimm_trt_path()
-			);
-		}
-
-		static std::string tensorrt_device;
-		device_dropdown(
-			"tensorrt device",
-			devices::tensorrt,
-			app_settings.tensorrt_device,
-			devices::get_auto_tensorrt_device(),
-			tensorrt_device
-		);
-	}
-#endif
 
 	/*
 	    GPU Acceleration
