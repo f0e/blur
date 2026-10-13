@@ -353,6 +353,27 @@ def main():
         spread = video.fps / settings["blur_output_fps"] if settings["blur"] else 1
         cuts = detected_cuts = blur.scenes.detect(video, video_info.is_full_color_range, spread)
 
+    # svp finds these overlays itself with 'svp hud mask' (gpu rendering only), so then they're only added for the
+    # passes that aren't svp
+    svp_peels = settings["svp_hud_mask"] and settings["svp_gpu_rendering"]
+    if not svp_peels:
+        unpeeled = True
+    elif settings["interpolate"]:
+        unpeeled = settings["interpolation_method"] != "svp" or (
+            settings["pre_interpolate"]
+            and settings["pre_interpolation_method"] != settings["interpolation_method"]
+            and video.fps
+            < max(settings["pre_interpolated_minimum_fps"], video.fps * settings["pre_interpolated_minimum_multiplier"])
+        )
+    else:
+        unpeeled = timeline is not None and settings["retime_method"] != "svp"
+
+    if auto_mask and settings["auto_mask_peel"] and unpeeled:
+        log.info("finding overlays with peel")
+        if mask is None:
+            mask = core.std.BlankClip(video, format=vs.GRAYS, color=1.0, length=1)
+        mask = blur.mask.with_peel(mask, blur.interpolate.peel(video, settings["svp_gpu_search"]), layer)
+
     # after deduplication and scene detection, which need to see the frames as they are
     if mask is not None:
         inpaint = auto_mask and settings["auto_mask_inpainting"]

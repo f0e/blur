@@ -1241,6 +1241,22 @@ def _per_plane(gray: vs.VideoNode, like: vs.VideoNode) -> vs.VideoNode:
     return core.std.ShufflePlanes([luma, chroma, chroma], planes=[0, 0, 0], colorfamily=fmt.color_family)
 
 
+def with_peel(gray: vs.VideoNode, peeled: vs.VideoNode, layer: Layer | None = None) -> vs.VideoNode:
+    """`gray` also protecting the overlays in `peeled` (interpolate.peel, one frame per frame of the clip), apart
+    from where `layer` covers. peel's guess at how see-through an overlay is comes out patchy over big translucent
+    panels, so it's only taken as found or not, and the layer handles those panels better."""
+    found = core.std.Expr(core.resize.Point(peeled, format=vs.GRAYS, range_in_s="full", range_s="full"), "1 x -")
+    gray = core.resize.Bilinear(
+        gray, width=peeled.width, height=peeled.height, format=vs.GRAYS, range_in_s="full", range_s="full"
+    )
+
+    if layer is None:
+        return core.std.Expr([found, gray], "x y min")
+
+    b = core.resize.Bilinear(layer.b, width=peeled.width, height=peeled.height)
+    return core.std.Expr([found, gray, b], "z 0.99 < y x y min ?")
+
+
 def separate(
     clip: vs.VideoNode, gray: vs.VideoNode, layer: Layer | None = None, inpaint: bool = True
 ) -> tuple[vs.VideoNode, vs.VideoNode]:

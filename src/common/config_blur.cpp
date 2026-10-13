@@ -209,6 +209,7 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		if (!concise || settings.auto_mask) {
 			output << "auto mask tracking: " << (settings.auto_mask_tracking ? "true" : "false") << "\n";
 			output << "auto mask layer: " << (settings.auto_mask_layer ? "true" : "false") << "\n";
+			output << "auto mask peel: " << (settings.auto_mask_peel ? "true" : "false") << "\n";
 			output << "auto mask inpainting: " << (settings.auto_mask_inpainting ? "true" : "false") << "\n";
 		}
 	}
@@ -568,6 +569,7 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "auto mask", settings.auto_mask);
 	config_base::extract_config_value(config_map, "auto mask tracking", settings.auto_mask_tracking);
 	config_base::extract_config_value(config_map, "auto mask layer", settings.auto_mask_layer);
+	config_base::extract_config_value(config_map, "auto mask peel", settings.auto_mask_peel);
 	config_base::extract_config_value(config_map, "auto mask inpainting", settings.auto_mask_inpainting);
 
 	config_base::extract_config_value(config_map, "pre-interpolate", settings.pre_interpolate);
@@ -824,6 +826,7 @@ nlohmann::json BlurSettings::to_json() const {
 	j["auto_mask"] = this->auto_mask;
 	j["auto_mask_tracking"] = this->auto_mask_tracking;
 	j["auto_mask_layer"] = this->auto_mask_layer;
+	j["auto_mask_peel"] = this->auto_mask_peel;
 	j["auto_mask_inpainting"] = this->auto_mask_inpainting;
 
 	j["pre_interpolate"] = this->pre_interpolate;

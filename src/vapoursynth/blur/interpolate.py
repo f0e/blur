@@ -444,6 +444,40 @@ def search_halvings(search_size: str, fps, hud_mask: bool = False) -> int:
     return SEARCH_SIZE_HALVINGS[search_size]
 
 
+def peel(video: vs.VideoNode, gpu_search: bool = False) -> vs.VideoNode:
+    """The overlays open-svpflow's peel (svp's hud mask) finds in `video`, white on GRAY8, one frame per source frame.
+    It learns them from how the scene moves behind each pixel, so it needs svp's motion search even when something
+    else interpolates. The fork's svp2.Peel only keeps what's found in the 12 frames either side too, since a flick
+    the motion search loses makes scenery look like an overlay for a moment."""
+    if video.format.color_family == vs.YUV:
+        analysed = core.resize.Bilinear(core.fmtc.bitdepth(video, bits=8), format=vs.YUV420P8)
+    else:
+        analysed = core.resize.Bilinear(video, format=vs.YUV420P8, matrix_s="709")
+
+    super_string, vectors_string, smooth_string = generate_svp_strings(
+        video.fps * 2,
+        overlap=block_overlap("auto", DEFAULT_PRESET, video.fps),
+        gpu=True,
+        gpu_search=gpu_search,
+        hud_mask=True,
+    )
+
+    if not hasattr(core.svp2, "Peel"):
+        raise u.BlurException("'auto mask peel' needs open-svpflow's svp2.Peel, which this version of SVP doesn't have")
+
+    try:
+        super, vectors = _motion(
+            analysed, analysed, super_string, vectors_string, search_halvings("auto", video.fps, True)
+        )
+        return core.svp2.Peel(analysed, super["clip"], super["data"], vectors["clip"], vectors["data"], smooth_string)
+    except vs.Error as e:
+        raise u.BlurException(
+            user_error="Failed to initialise SVP for 'auto mask peel'. It needs a GPU that supports OpenCL, ensure your "
+            "GPU drivers are up to date.",
+            original_exception=e,
+        )
+
+
 def block_overlap(setting: str, preset: str, fps) -> int:
     """The svp block overlap for footage reaching svp at `fps` with `preset`."""
     if setting != "auto":

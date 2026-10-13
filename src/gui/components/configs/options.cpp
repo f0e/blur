@@ -433,6 +433,7 @@ void configs::options(ui::Container& container) {
 				{
 					{ "tracking", &settings.auto_mask_tracking },
 					{ "layer", &settings.auto_mask_layer },
+					{ "peel", &settings.auto_mask_peel },
 					{ "inpainting", &settings.auto_mask_inpainting },
 				},
 				fonts::dejavu
