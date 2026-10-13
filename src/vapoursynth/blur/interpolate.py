@@ -331,6 +331,37 @@ def generate_svp_strings(
     return [json.dumps(obj) for obj in [super_json, vectors_json, smooth_json]]
 
 
+def _motion(
+    video: vs.VideoNode, analysed: vs.VideoNode, super_string: str, vectors_string: str, halvings: int
+) -> tuple[dict, dict]:
+    """svp's super and vectors for rendering `video`, with the motion found in `analysed` (`video` or a 4:2:0 copy of
+    it)."""
+    # each halving needs a size that divides by 4
+    while halvings and (analysed.width % 2 ** (halvings + 1) or analysed.height % 2 ** (halvings + 1)):
+        halvings -= 1
+        log.info(f"the video's size can't be halved that many times, searching at 1/{2**halvings} size")
+
+    searched = analysed
+    for _ in range(halvings):
+        searched = core.svp1.Halve(searched)
+
+    super = core.svp1.Super(searched, super_string)
+    vectors = core.svp1.Analyse(super["clip"], super["data"], searched, vectors_string)
+
+    if halvings:
+        for _ in range(halvings):
+            vectors = core.svp1.DoubleVectors(vectors["clip"], vectors["data"])
+
+        # the doubled vectors are pel 1 whatever the search used, and rendering needs a super that matches them.
+        # same as open-svpflow's own c api, which reads gpu back out of the small super's data
+        gpu = (super["data"] >> 48) & 0xFF
+        super = core.svp1.Super(video, json.dumps({"pel": 1, "gpu": gpu}))
+    elif video is not analysed:
+        super = core.svp1.Super(video, super_string)
+
+    return super, vectors
+
+
 def SVP(
     video: vs.VideoNode,
     super_string: str,
@@ -346,29 +377,8 @@ def SVP(
     full_chroma = video.format.id == vs.YUV444P8
     analysed = core.resize.Bilinear(video, format=vs.YUV420P8) if full_chroma else video
 
-    # each halving needs a size that divides by 4
-    while halvings and (analysed.width % 2 ** (halvings + 1) or analysed.height % 2 ** (halvings + 1)):
-        halvings -= 1
-        log.info(f"the video's size can't be halved that many times, searching at 1/{2**halvings} size")
-
     try:
-        searched = analysed
-        for _ in range(halvings):
-            searched = core.svp1.Halve(searched)
-
-        super = core.svp1.Super(searched, super_string)
-        vectors = core.svp1.Analyse(super["clip"], super["data"], searched, vectors_string)
-
-        if halvings:
-            for _ in range(halvings):
-                vectors = core.svp1.DoubleVectors(vectors["clip"], vectors["data"])
-
-            # the doubled vectors are pel 1 whatever the search used, and rendering needs a super that matches them.
-            # same as open-svpflow's own c api, which reads gpu back out of the small super's data
-            gpu = (super["data"] >> 48) & 0xFF
-            super = core.svp1.Super(video, json.dumps({"pel": 1, "gpu": gpu}))
-        elif full_chroma:
-            super = core.svp1.Super(video, super_string)
+        super, vectors = _motion(video, analysed, super_string, vectors_string, halvings)
 
         return core.svp2.SmoothFps(
             video,
