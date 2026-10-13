@@ -54,6 +54,17 @@ namespace {
 		return VideoPlayer::frame_seek_target(time, settings.blur_output_fps);
 	}
 
+	// the script carries on after the player lets go of it, and an engine build in it would keep going for minutes.
+	// this tells it to stop (see blur/preview.py)
+	void cancel_script(const std::filesystem::path& log_path) {
+		if (log_path.empty())
+			return;
+
+		auto cancel_path = log_path;
+		cancel_path += ".cancel";
+		std::ofstream cancel(cancel_path);
+	}
+
 	std::vector<std::pair<std::string, std::string>> load_options(float start) {
 		return {
 			{ "demuxer-lavf-format", "vapoursynth" },
@@ -74,13 +85,7 @@ namespace {
 }
 
 BlurPreview::~BlurPreview() {
-	// the script carries on after the player's gone, and an engine build in it would keep going for minutes. this
-	// tells it to stop (see blur/preview.py)
-	if (!m_log_path.empty()) {
-		auto cancel_path = m_log_path;
-		cancel_path += ".cancel";
-		std::ofstream cancel(cancel_path);
-	}
+	cancel_script(m_log_path);
 
 	// mpv has to let go of the script before it's deleted
 	m_player.reset();
@@ -90,6 +95,28 @@ BlurPreview::~BlurPreview() {
 		std::filesystem::remove(m_script_path, ec);
 	if (!m_log_path.empty())
 		std::filesystem::remove(m_log_path, ec);
+}
+
+void BlurPreview::unload() {
+	if (!m_player || !m_loaded)
+		return;
+
+	cancel_script(m_log_path);
+	m_player->stop();
+
+	m_loaded.reset();
+	m_target.reset();
+}
+
+bool BlurPreview::screenshot(
+	const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
+) const {
+	auto player = ready_player();
+	if (!player)
+		return false;
+
+	player->screenshot_to_file(path, std::move(on_done));
+	return true;
 }
 
 void BlurPreview::update(const Request& request) {

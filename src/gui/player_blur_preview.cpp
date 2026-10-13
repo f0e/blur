@@ -1,5 +1,11 @@
 #include "player_blur_preview.h"
+#include "preview_files.h"
+#include "render/render.h"
 #include "ui/helpers/video.h"
+
+namespace {
+	size_t last_held_frame_id = 0;
+}
 
 PreviewState PlayerBlurPreview::update(const Request& request) {
 	if (m_pre_render) {
@@ -19,10 +25,17 @@ PreviewState PlayerBlurPreview::update(const Request& request) {
 		begin_pre_render(request);
 	}
 
-	auto state = update_preview(request);
+	if (!m_pre_render)
+		return update_preview(request);
 
-	if (m_pre_render)
-		update_pre_render(request, state);
+	PreviewState state{ .status = m_preview.status() };
+
+	if (m_held_frame && m_held_frame->texture)
+		state.frame = ui::Frame{ .texture = m_held_frame->texture, .texture_id = m_held_frame->id };
+	else if (auto ready = m_preview.ready_player(); ready && m_held_frame && m_held_frame->pending)
+		state.frame = ui::Frame{ .player = ready };
+
+	update_pre_render(request, state);
 
 	return state;
 }
@@ -109,6 +122,42 @@ void PlayerBlurPreview::begin_pre_render(const Request& request) {
 		.settings = pre_render_settings(request),
 		.player_time = *time,
 	};
+
+	hold_frame_and_unload();
+}
+
+void PlayerBlurPreview::hold_frame_and_unload() {
+	auto held = std::make_shared<HeldFrame>();
+	m_held_frame = held;
+
+	auto path = preview_files::new_path("jpg");
+	std::weak_ptr<HeldFrame> weak = held;
+
+	// the preview's blur.py would hold its own copy of the interpolation models and caches on the gpu alongside the
+	// pre-render's, which can run out of vram
+	held->pending = m_preview.screenshot(path, [this, weak, path](const std::optional<std::string>& error) {
+		// gone if the pre-render ended first, and with it maybe this
+		auto held = weak.lock();
+		if (!held)
+			return;
+
+		held->pending = false;
+
+		if (!error) {
+			std::ifstream file(path, std::ios::binary);
+			std::vector<uint8_t> jpeg((std::istreambuf_iterator<char>(file)), {});
+			held->texture = render::texture_from_jpeg(jpeg);
+			held->id = ++last_held_frame_id;
+		}
+
+		std::error_code ec;
+		std::filesystem::remove(path, ec);
+
+		m_preview.unload();
+	});
+
+	if (!held->pending)
+		m_preview.unload();
 }
 
 void PlayerBlurPreview::rerender(const Request& request, const PreRenderSettings& settings) {
@@ -191,6 +240,7 @@ bool PlayerBlurPreview::continue_pre_render() {
 void PlayerBlurPreview::cancel_pre_render() {
 	m_pre_render_requested = false;
 	m_pre_render.reset();
+	m_held_frame.reset();
 }
 
 std::optional<rendering::RenderError> PlayerBlurPreview::take_error() {

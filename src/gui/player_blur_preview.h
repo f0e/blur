@@ -78,11 +78,24 @@ private:
 	std::optional<ActivePreRender> m_pre_render;
 	std::optional<rendering::RenderError> m_pre_render_error;
 
+	// the blurred frame from when a pre-render started. the preview's unloaded while it renders, so this stands in
+	// until it has a frame of its own
+	struct HeldFrame {
+		std::shared_ptr<render::Texture> texture;
+		size_t id = 0;
+
+		// the screenshot's on its way, and the preview's still showing the frame until then
+		bool pending = false;
+	};
+
+	std::shared_ptr<HeldFrame> m_held_frame;
+
 	static PreRenderSettings pre_render_settings(const Request& request);
 	static std::unique_ptr<PreRender> make_pre_render(const Request& request, size_t start_frame, size_t end_frame);
 
 	PreviewState update_preview(const Request& request);
 	void begin_pre_render(const Request& request);
+	void hold_frame_and_unload();
 	void rerender(const Request& request, const PreRenderSettings& settings);
 	void update_pre_render(const Request& request, PreviewState& state);
 };

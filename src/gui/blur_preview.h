@@ -59,6 +59,15 @@ public:
 
 	void handle_event(const SDL_Event& event, bool& to_render);
 
+	// lets go of blur.py and everything it holds, e.g. its gpu memory while a pre-render needs it. the next update
+	// loads it again
+	void unload();
+
+	// saves the frame it's showing, false if there isn't one
+	bool screenshot(
+		const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
+	) const;
+
 	// how far into the source (from its first frame) the output frame shown for a position is centred, so the source
 	// can be shown at the same point
 	[[nodiscard]] static double source_time(
