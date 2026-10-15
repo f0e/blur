@@ -162,8 +162,12 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 
 		auto& state = helpers::text_input::text_input_map.at(element.element->id);
 
+		auto text_input = slider_data.text_input;
+		text_input.text = &state.owned_text;
+		text_input.font = slider_data.font;
+
 		helpers::text_input::render_text(
-			slider_data.text_input,
+			text_input,
 			state,
 			text_pos,
 			TEXT_COLOR.adjust_alpha(anim),
@@ -305,15 +309,12 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 				if (!helpers::text_input::has_text_edit(element.element->id)) {
 					set_active_element(element, "text input");
 
-					slider_data.editing_text = get_value_string(slider_data.current_value, slider_data.label_format);
-
-					slider_data.text_input = helpers::text_input::TextInputData{
-						.text = &slider_data.editing_text,
-						.font = slider_data.font,
-					};
-
 					auto& state = ui::helpers::text_input::add_text_edit(element.element->id, slider_data.text_input);
 					state.active = true;
+					state.owned_text = get_value_string(slider_data.current_value, slider_data.label_format);
+
+					slider_data.text_input.text = &state.owned_text;
+					slider_data.text_input.font = slider_data.font;
 
 					SDL_StartTextInput(container.window);
 
@@ -333,7 +334,13 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 
 			if (state.active && get_active_element() != &element) {
 				deactivate_slider_text_input();
+				return false;
 			}
+
+			// the element data is replaced whenever the slider's options change, so the text lives in the edit state
+			slider_data.text_input.text = &state.owned_text;
+			slider_data.text_input.font = slider_data.font;
+			helpers::text_input::add_text_edit(element.element->id, slider_data.text_input);
 
 			bool active = get_active_element() == &element;
 
@@ -345,7 +352,7 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 					if (event.type == SDL_EVENT_KEY_DOWN) {
 						if (event.key.scancode == SDL_SCANCODE_ESCAPE || event.key.scancode == SDL_SCANCODE_RETURN) {
 							deactivate_slider_text_input();
-							break;
+							return true;
 						}
 					}
 
@@ -378,7 +385,7 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 							using T = std::remove_pointer_t<decltype(value_ptr)>;
 							T old_value = *value_ptr;
 
-							std::stringstream ss(slider_data.editing_text);
+							std::stringstream ss(state.owned_text);
 							T new_value{};
 							if (ss >> new_value) {
 								*value_ptr = new_value;
@@ -400,10 +407,6 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 
 			// Clamp cursor/selection just in case
 			helpers::text_input::clamp(&slider_data.text_input, &state.edit_state);
-
-			if (!state.active) {
-				slider_data.editing_text = "";
-			}
 
 			return active;
 		}

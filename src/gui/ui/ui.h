@@ -327,7 +327,6 @@ namespace ui {
 		std::string tied_text;
 		std::string label_note;
 
-		std::string editing_text;
 		helpers::text_input::TextInputData text_input;
 
 		bool operator==(const SliderElementData& other) const {
