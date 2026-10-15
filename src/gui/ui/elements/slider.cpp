@@ -542,19 +542,22 @@ ui::AnimatedElement* ui::add_slider_tied(
 	if (is_tied) {
 		float current_tied_val = std::visit(to_float_ptr, tied_value);
 
-		if (observer.init && current_tied_val != observer.last_tied_value) {
-			float proportion = current_tied_val / observer.last_tied_value;
+		// scaling by 0 would lose the value for good, so wait it out and scale from the last non-zero value
+		if (current_tied_val > 0.f) {
+			if (observer.init && current_tied_val != observer.last_tied_value) {
+				float proportion = current_tied_val / observer.last_tied_value;
 
-			std::visit(
-				[proportion](auto&& arg) {
-					*arg = static_cast<std::decay_t<decltype(*arg)>>(*arg * proportion);
-				},
-				value
-			);
+				std::visit(
+					[proportion](auto&& arg) {
+						*arg = static_cast<std::decay_t<decltype(*arg)>>(*arg * proportion);
+					},
+					value
+				);
+			}
+
+			observer.last_tied_value = current_tied_val;
+			observer.init = true;
 		}
-
-		observer.last_tied_value = current_tied_val;
-		observer.init = true;
 	}
 	else {
 		observer.init = false;
