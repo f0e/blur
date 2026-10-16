@@ -1,6 +1,7 @@
 """Runs blur.py inside another process's vapoursynth (the gui's mpv) rather than through vspipe."""
 
 import contextlib
+import ctypes
 import io
 import os
 import sys
@@ -15,6 +16,10 @@ from vapoursynth import core
 # how many times the first frame's cache use the cache can grow to, and the least it's capped to (mb)
 CACHE_HEADROOM = 2
 MIN_CACHE_CAP = 1024
+
+# open-svpflow can't be unloaded safely: svpflow1's rayon threads outlive the dll and crash the host when they wake,
+# and svpflow2 leaks its gpu context. a preview's core unloads them when it's freed, so they're held open for good
+_pinned_plugins: dict[str, ctypes.CDLL] = {}
 
 
 class _StderrRouter:
@@ -92,10 +97,19 @@ def _cap_cache(output: vs.VideoNode) -> vs.VideoNode:
     return core.std.ModifyFrame(output, output, cap)
 
 
+def _pin_svpflow():
+    for namespace in ("svp1", "svp2"):
+        plugin = getattr(core, namespace, None)
+        if plugin is not None and plugin.plugin_path not in _pinned_plugins:
+            _pinned_plugins[plugin.plugin_path] = ctypes.CDLL(plugin.plugin_path)
+
+
 def run(script_path: str, script_args: dict[str, str], plugins_path: str, log_path: str):
     # the host's environment might not reach vapoursynth, so plugins it'd normally autoload are loaded here
     if plugins_path:
         core.std.LoadAllPlugins(plugins_path)
+
+    _pin_svpflow()
 
     blur.utils.handle_blur_exception = _raise_blur_exception
 
