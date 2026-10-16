@@ -8,6 +8,10 @@ namespace {
 }
 
 PreviewState PlayerBlurPreview::update(const Request& request) {
+	// not from the screenshot's callback, since it's the preview's player calling it
+	if (m_held_frame && !m_held_frame->pending)
+		m_preview.unload();
+
 	if (m_pre_render) {
 		auto settings = pre_render_settings(request);
 		bool moved = !request.player.is_paused() || request.player.get_time_pos() != m_pre_render->player_time;
@@ -152,8 +156,6 @@ void PlayerBlurPreview::hold_frame_and_unload() {
 
 		std::error_code ec;
 		std::filesystem::remove(path, ec);
-
-		m_preview.unload();
 	});
 
 	if (!held->pending)

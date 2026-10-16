@@ -102,7 +102,10 @@ void BlurPreview::unload() {
 		return;
 
 	cancel_script(m_log_path);
-	m_player->stop();
+
+	// stopping the file leaves the script's vapoursynth core and everything it holds alive, destroying the player
+	// frees it
+	m_player.reset();
 
 	m_loaded.reset();
 	m_target.reset();
@@ -124,8 +127,10 @@ void BlurPreview::update(const Request& request) {
 		load_vsscript();
 
 		m_player = std::make_shared<VideoPlayer>(0.f, false);
-		m_script_path = preview_files::new_path("vpy");
 	}
+
+	if (m_script_path.empty())
+		m_script_path = preview_files::new_path("vpy");
 
 	Key key{
 		.video_path = request.video_path,
