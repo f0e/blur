@@ -337,8 +337,8 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 
 	// matches weighting.parse in the render
 	WeightingResult res;
-	if (settings.blur_sampling == "round up" || settings.blur_sampling == "legacy") {
-		auto frames = settings.blur_sampling == "round up"
+	if (settings.advanced.blur_sampling == "round up" || settings.advanced.blur_sampling == "legacy") {
+		auto frames = settings.advanced.blur_sampling == "round up"
 		                  ? static_cast<int>(std::lround(exposure))
 		                  : static_cast<int>(std::trunc(frame_gap) * settings.blur_amount);
 		if (frames <= 0)
@@ -353,7 +353,7 @@ weighting::GetWeightsResult weighting::get_weights(const BlurSettings& settings,
 		if (!curve.error.empty())
 			return { .error = curve.error };
 
-		res.weights = integrate(exposure, curve, settings.blur_sampling == "trapezoid");
+		res.weights = integrate(exposure, curve, settings.advanced.blur_sampling == "trapezoid");
 	}
 
 	if (!res.error.empty())

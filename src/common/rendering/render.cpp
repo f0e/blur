@@ -22,24 +22,26 @@ namespace {
 		}
 
 		std::error_code ec;
-		if (uses_gimm && !std::filesystem::exists(
-							 interpolation_models::get_gimm_trt_path() / (settings.gimm_trt_model + ".onnx"), ec
-						 ))
+		if (uses_gimm &&
+		    !std::filesystem::exists(
+				interpolation_models::get_gimm_trt_path() / (settings.advanced.gimm_trt_model + ".onnx"), ec
+			))
 		{
 			return std::format(
 				"TensorRT GIMM-VFI model '{}' wasn't found in {}",
-				settings.gimm_trt_model,
+				settings.advanced.gimm_trt_model,
 				u::path_to_string(interpolation_models::get_gimm_trt_path())
 			);
 		}
 
-		if (uses_rife && !std::filesystem::exists(
-							 interpolation_models::get_rife_trt_path() / (settings.rife_trt_model + ".onnx"), ec
-						 ))
+		if (uses_rife &&
+		    !std::filesystem::exists(
+				interpolation_models::get_rife_trt_path() / (settings.advanced.rife_trt_model + ".onnx"), ec
+			))
 		{
 			return std::format(
 				"TensorRT RIFE model '{}' wasn't found in {}",
-				settings.rife_trt_model,
+				settings.advanced.rife_trt_model,
 				u::path_to_string(interpolation_models::get_rife_trt_path())
 			);
 		}

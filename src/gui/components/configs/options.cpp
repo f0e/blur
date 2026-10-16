@@ -3,7 +3,6 @@
 
 #include "../../ui/ui.h"
 #include "../../render/render.h"
-#include "../../renderer.h"
 
 #include "common/config_encoding_presets.h"
 #include "common/config_app.h"
@@ -180,6 +179,7 @@ void configs::options(ui::Container& container) {
 		);
 
 		ui::add_slider("output fps", container, 1, 120, &settings.blur_output_fps, "output fps: {} fps", fonts::dejavu);
+
 		auto* weighting_dropdown = ui::add_dropdown(
 			"blur weighting",
 			container,
@@ -198,32 +198,12 @@ void configs::options(ui::Container& container) {
 			fonts::dejavu
 		);
 
-		ui::AnimatedElement* sampling_dropdown = nullptr;
-		validated_element(config_blur::ValidationField::BLUR_SAMPLING, "blur sampling error", [&] {
-			sampling_dropdown = ui::add_dropdown(
-				"blur sampling dropdown",
-				container,
-				"blur sampling",
-				config_blur::BLUR_SAMPLING_METHODS,
-				settings.blur_sampling,
-				fonts::dejavu
-			);
-		});
-
 		const auto& dropdown_data = std::get<ui::DropdownElementData>(weighting_dropdown->element->data);
 		hovered_weighting = dropdown_data.hovered_option;
 
 		set_temporary_tab(
 			"blur weighting", weighting_dropdown->animations.at(ui::hasher("expand")).goal > 0, RIGHT_TABS[1]
 		);
-
-		if (sampling_dropdown) {
-			hovered_sampling = std::get<ui::DropdownElementData>(sampling_dropdown->element->data).hovered_option;
-
-			set_temporary_tab(
-				"blur sampling", sampling_dropdown->animations.at(ui::hasher("expand")).goal > 0, RIGHT_TABS[1]
-			);
-		}
 
 		ui::add_checkbox(
 			"preserve brightness checkbox",
@@ -361,163 +341,12 @@ void configs::options(ui::Container& container) {
 				.font = fonts::dejavu,
 			}
 		);
-	}
 
-	/*
-	    Retiming
-	*/
-	section_component("retiming");
+		if (settings.uses_interpolation_method("svp"))
+			ui::add_checkbox("svp hud mask checkbox", container, "svp hud mask", settings.svp_hud_mask, fonts::dejavu);
 
-	ui::add_checkbox("deduplicate checkbox", container, "deduplicate", settings.deduplicate, fonts::dejavu);
-
-	ui::add_checkbox(
-		"frame timing logs checkbox", container, "use frame timing logs", settings.frame_timing_logs, fonts::dejavu
-	);
-
-	if (settings.frame_timing_logs && settings.deduplicate) {
-		ui::add_text(
-			"deduplicate frame timing logs note",
-			container,
-			"deduplication is skipped for videos with a frame timing log",
-			gfx::Color::white(renderer::MUTED_SHADE),
-			fonts::dejavu
-		);
-	}
-
-	if (settings.deduplicate || settings.frame_timing_logs) {
-		// retiming happens as part of interpolation when it's on, so there's no method to pick
-		if (settings.interpolate) {
-			bool pre_interpolation_retimes =
-				settings.pre_interpolate && settings.pre_interpolation_method != settings.interpolation_method;
-
-			ui::add_text(
-				"retime method interpolation note",
-				container,
-				pre_interpolation_retimes ? "retiming uses the pre-interpolation method"
-										  : "retiming uses the interpolation method",
-				gfx::Color::white(renderer::MUTED_SHADE),
-				fonts::dejavu
-			);
-		}
-		else {
-			std::vector<std::string> retime_options = {
-				"svp",
-				"rife",
 #ifdef TENSORRT
-				"rife (tensorrt)",
-#endif
-				"mvtools",
-				"old",
-			};
-
-			if (gimm_installed())
-				retime_options.insert(retime_options.begin() + 3, "gimm-vfi (tensorrt)");
-
-			ui::add_dropdown(
-				"retime method dropdown",
-				container,
-				"retime method",
-				retime_options,
-				settings.retime_method,
-				fonts::dejavu
-			);
-		}
-	}
-
-	/*
-	    SVP
-	*/
-	if (settings.uses_interpolation_method("svp")) {
-		section_component("svp");
-
-		ui::add_checkbox(
-			"auto svp gpu settings checkbox",
-			container,
-			"auto svp gpu settings",
-			settings.optimise_gpu_settings,
-			fonts::dejavu
-		);
-
-		if (settings.optimise_gpu_settings) {
-			ui::add_checkbox(
-				"auto svp prioritise speed checkbox",
-				container,
-				"prioritise speed",
-				settings.optimise_prioritise_speed,
-				fonts::dejavu
-			);
-
-			if (rendering::optimise::benchmarks(settings) &&
-			    !rendering::optimise::list_saved(settings, app_settings).empty())
-			{
-				ui::add_button(
-					"clear optimised settings button", container, "clear optimised settings", fonts::dejavu, [] {
-						rendering::optimise::clear_saved(settings, app_settings);
-					}
-				);
-			}
-		}
-		else {
-			ui::add_checkbox(
-				"svp gpu search checkbox", container, "svp gpu search", settings.svp_gpu_search, fonts::dejavu
-			);
-
-			if (devices::get_svp_gpu_supported() == false) {
-				ui::add_text(
-					"svp gpu rendering unsupported warning",
-					container,
-					"svp gpu rendering isn't supported by your gpu",
-					WARNING_COLOR,
-					fonts::dejavu
-				);
-			}
-			else {
-				ui::add_checkbox(
-					"svp gpu rendering checkbox",
-					container,
-					"svp gpu rendering",
-					settings.svp_gpu_rendering,
-					fonts::dejavu
-				);
-			}
-		}
-	}
-
-	/*
-	    RIFE
-	*/
-	if (settings.uses_interpolation_method("rife")) {
-		section_component("rife");
-
-		// the folders are listed every frame so models dropped in show up straight away
-		model_dropdown(
-			"rife model", interpolation_models::list_rife(), settings.rife_model, interpolation_models::get_rife_path()
-		);
-
-		static std::string rife_device;
-		device_dropdown(
-			"rife device", devices::rife, app_settings.rife_device, devices::get_auto_rife_device(), rife_device
-		);
-	}
-
-	/*
-	    TensorRT
-	*/
-#ifdef TENSORRT
-	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
-	bool uses_gimm = settings.uses_interpolation_method("gimm-vfi (tensorrt)");
-
-	if (uses_rife_trt || uses_gimm) {
-		section_component("tensorrt");
-
-		if (uses_rife_trt) {
-			model_dropdown(
-				"rife (tensorrt) model",
-				interpolation_models::list_rife_trt(),
-				settings.rife_trt_model,
-				interpolation_models::get_rife_trt_path()
-			);
-
+		if (settings.uses_interpolation_method("rife (tensorrt)")) {
 			ui::add_checkbox(
 				"rife (tensorrt) ensemble checkbox",
 				container,
@@ -526,26 +355,41 @@ void configs::options(ui::Container& container) {
 				fonts::dejavu
 			);
 		}
+#endif
+	}
 
-		if (uses_gimm) {
-			model_dropdown(
-				"gimm-vfi (tensorrt) model",
-				interpolation_models::list_gimm_trt(),
-				settings.gimm_trt_model,
-				interpolation_models::get_gimm_trt_path()
-			);
-		}
+	/*
+	    Retiming
+	*/
+	// it's part of interpolation when that's on, otherwise it's its own thing with its own method
+	if (!settings.interpolate)
+		section_component("retiming");
 
-		static std::string tensorrt_device;
-		device_dropdown(
-			"tensorrt device",
-			devices::tensorrt,
-			app_settings.tensorrt_device,
-			devices::get_auto_tensorrt_device(),
-			tensorrt_device
+	ui::add_checkbox("deduplicate checkbox", container, "deduplicate", settings.deduplicate, fonts::dejavu);
+
+	ui::add_checkbox(
+		"frame timing logs checkbox", container, "use frame timing logs", settings.frame_timing_logs, fonts::dejavu
+	);
+
+	// retiming happens as part of interpolation when it's on, so there's only a method to pick when it's off
+	if ((settings.deduplicate || settings.frame_timing_logs) && !settings.interpolate) {
+		std::vector<std::string> retime_options = {
+			"svp",
+			"rife",
+#ifdef TENSORRT
+			"rife (tensorrt)",
+#endif
+			"mvtools",
+			"old",
+		};
+
+		if (gimm_installed())
+			retime_options.insert(retime_options.begin() + 3, "gimm-vfi (tensorrt)");
+
+		ui::add_dropdown(
+			"retime method dropdown", container, "retime method", retime_options, settings.retime_method, fonts::dejavu
 		);
 	}
-#endif
 
 	/*
 	    Scene detection
@@ -596,9 +440,6 @@ void configs::options(ui::Container& container) {
 				fonts::dejavu
 			);
 		}
-
-		if (settings.uses_interpolation_method("svp"))
-			ui::add_checkbox("svp hud mask checkbox", container, "svp hud mask", settings.svp_hud_mask, fonts::dejavu);
 	}
 
 	/*
@@ -717,6 +558,82 @@ void configs::options(ui::Container& container) {
 			WARNING_COLOR,
 			fonts::dejavu
 		);
+	}
+
+	if (settings.uses_interpolation_method("rife")) {
+		static std::string rife_device;
+		device_dropdown(
+			"rife device", devices::rife, app_settings.rife_device, devices::get_auto_rife_device(), rife_device
+		);
+	}
+
+#ifdef TENSORRT
+	if (settings.uses_interpolation_method("rife (tensorrt)") ||
+	    settings.uses_interpolation_method("gimm-vfi (tensorrt)"))
+	{
+		static std::string tensorrt_device;
+		device_dropdown(
+			"tensorrt device",
+			devices::tensorrt,
+			app_settings.tensorrt_device,
+			devices::get_auto_tensorrt_device(),
+			tensorrt_device
+		);
+	}
+#endif
+
+	if (settings.uses_interpolation_method("svp")) {
+		ui::add_checkbox(
+			"auto svp gpu settings checkbox",
+			container,
+			"auto svp gpu settings",
+			settings.optimise_gpu_settings,
+			fonts::dejavu
+		);
+
+		if (settings.optimise_gpu_settings) {
+			ui::add_checkbox(
+				"auto svp prioritise speed checkbox",
+				container,
+				"prioritise speed",
+				settings.optimise_prioritise_speed,
+				fonts::dejavu
+			);
+
+			if (rendering::optimise::benchmarks(settings) &&
+			    !rendering::optimise::list_saved(settings, app_settings).empty())
+			{
+				ui::add_button(
+					"clear optimised settings button", container, "clear optimised settings", fonts::dejavu, [] {
+						rendering::optimise::clear_saved(settings, app_settings);
+					}
+				);
+			}
+		}
+		else {
+			ui::add_checkbox(
+				"svp gpu search checkbox", container, "svp gpu search", settings.svp_gpu_search, fonts::dejavu
+			);
+
+			if (devices::get_svp_gpu_supported() == false) {
+				ui::add_text(
+					"svp gpu rendering unsupported warning",
+					container,
+					"svp gpu rendering isn't supported by your gpu",
+					WARNING_COLOR,
+					fonts::dejavu
+				);
+			}
+			else {
+				ui::add_checkbox(
+					"svp gpu rendering checkbox",
+					container,
+					"svp gpu rendering",
+					settings.svp_gpu_rendering,
+					fonts::dejavu
+				);
+			}
+		}
 	}
 
 	/*
@@ -860,6 +777,46 @@ void configs::options(ui::Container& container) {
 			settings.advanced.source_plugin,
 			fonts::dejavu
 		);
+
+		/*
+		    Advanced interpolation models
+		*/
+		bool uses_rife = settings.uses_interpolation_method("rife");
+		bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
+		bool uses_gimm = settings.uses_interpolation_method("gimm-vfi (tensorrt)");
+
+		if (uses_rife || uses_rife_trt || uses_gimm)
+			section_component("advanced interpolation models");
+
+		// the folders are listed every frame so models dropped in show up straight away
+		if (uses_rife) {
+			model_dropdown(
+				"rife model",
+				interpolation_models::list_rife(),
+				settings.advanced.rife_model,
+				interpolation_models::get_rife_path()
+			);
+		}
+
+#ifdef TENSORRT
+		if (uses_rife_trt) {
+			model_dropdown(
+				"rife (tensorrt) model",
+				interpolation_models::list_rife_trt(),
+				settings.advanced.rife_trt_model,
+				interpolation_models::get_rife_trt_path()
+			);
+		}
+
+		if (uses_gimm) {
+			model_dropdown(
+				"gimm-vfi (tensorrt) model",
+				interpolation_models::list_gimm_trt(),
+				settings.advanced.gimm_trt_model,
+				interpolation_models::get_gimm_trt_path()
+			);
+		}
+#endif
 
 		/*
 		    Advanced SVP
@@ -1032,6 +989,26 @@ void configs::options(ui::Container& container) {
 		*/
 		section_component("advanced blur");
 
+		ui::AnimatedElement* sampling_dropdown = nullptr;
+		validated_element(config_blur::ValidationField::BLUR_SAMPLING, "blur sampling error", [&] {
+			sampling_dropdown = ui::add_dropdown(
+				"blur sampling dropdown",
+				container,
+				"blur sampling",
+				config_blur::BLUR_SAMPLING_METHODS,
+				settings.advanced.blur_sampling,
+				fonts::dejavu
+			);
+		});
+
+		if (sampling_dropdown) {
+			hovered_sampling = std::get<ui::DropdownElementData>(sampling_dropdown->element->data).hovered_option;
+
+			set_temporary_tab(
+				"blur sampling", sampling_dropdown->animations.at(ui::hasher("expand")).goal > 0, RIGHT_TABS[1]
+			);
+		}
+
 		ui::add_slider(
 			"blur weighting gaussian std dev slider",
 			container,
@@ -1058,7 +1035,7 @@ void configs::options(ui::Container& container) {
 			fonts::dejavu
 		);
 	}
-	else {
+	else if (!settings.override_advanced) {
 		// make sure theres no funny business (TODO: is this needed, are there edge cases?)
 		settings.advanced = config_blur::DEFAULT_CONFIG.advanced;
 	}

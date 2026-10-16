@@ -26,9 +26,14 @@ struct AdvancedSettings {
 	bool debug = false;
 	std::string source_plugin = "LWLibavSource";
 
+	std::string blur_sampling = "rectangle";
 	float blur_weighting_gaussian_std_dev = 1.f;
 	float blur_weighting_gaussian_mean = 2.f;
 	std::string blur_weighting_gaussian_bound = "[0,2]";
+
+	std::string rife_model = "rife-v4.26_ensembleFalse";
+	std::string rife_trt_model = "rife_v4.26";
+	std::string gimm_trt_model = "gimm_vfi_r_sharp";
 
 	std::string svp_interpolation_preset = "quality";
 	std::string svp_interpolation_algorithm = "auto";
@@ -52,7 +57,6 @@ struct BlurSettings {
 	float blur_amount = 1.f;
 	int blur_output_fps = 60;
 	std::string blur_weighting = "equal";
-	std::string blur_sampling = "rectangle";
 
 	bool preserve_brightness = true;
 
@@ -126,10 +130,7 @@ struct BlurSettings {
 	bool svp_gpu_rendering = true;
 	bool svp_hud_mask = true;
 
-	std::string rife_model = "rife-v4.26_ensembleFalse";
-	std::string rife_trt_model = "rife_v4.26";
 	bool rife_trt_ensemble = false;
-	std::string gimm_trt_model = "gimm_vfi_r_sharp";
 
 	bool override_advanced = false;
 	AdvancedSettings advanced;

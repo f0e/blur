@@ -72,7 +72,7 @@ print(json.dumps(result))
 		settings.blur_amount = static_cast<float>(quarters) / 4;
 		settings.blur_output_fps = 1;
 		settings.blur_weighting = weighting_type;
-		settings.blur_sampling = sampling;
+		settings.advanced.blur_sampling = sampling;
 
 		// one output fps and one video fps make the exposure the blur amount
 		auto res = weighting::get_weights(settings, 1);

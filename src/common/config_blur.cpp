@@ -173,7 +173,6 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "blur amount: " << settings.blur_amount << "\n";
 			output << "blur output fps: " << settings.blur_output_fps << "\n";
 			output << "blur weighting: " << settings.blur_weighting << "\n";
-			output << "blur sampling: " << settings.blur_sampling << "\n";
 			output << "preserve brightness: " << (settings.preserve_brightness ? "true" : "false") << "\n";
 			output << "bloom: " << (settings.bloom ? "true" : "false") << "\n";
 			if (!concise || settings.bloom) {
@@ -265,27 +264,13 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "svp hud mask: " << (settings.svp_hud_mask ? "true" : "false") << "\n";
 	}
 
-	// RIFE section
-	if (!concise || settings.uses_interpolation_method("rife")) {
-		output << "\n";
-		output << "- rife" << "\n";
-		output << "rife model: " << settings.rife_model << "\n";
-	}
-
 	// TensorRT section
 #ifdef TENSORRT
 	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
-	bool uses_gimm = settings.uses_interpolation_method("gimm-vfi (tensorrt)");
-	if (!concise || uses_rife_trt || uses_gimm) {
+	if (!concise || uses_rife_trt) {
 		output << "\n";
 		output << "- tensorrt" << "\n";
-		if (!concise || uses_rife_trt) {
-			output << "rife (tensorrt) model: " << settings.rife_trt_model << "\n";
-			output << "rife (tensorrt) ensemble: " << (settings.rife_trt_ensemble ? "true" : "false") << "\n";
-		}
-		if (!concise || uses_gimm) {
-			output << "gimm-vfi (tensorrt) model: " << settings.gimm_trt_model << "\n";
-		}
+		output << "rife (tensorrt) ensemble: " << (settings.rife_trt_ensemble ? "true" : "false") << "\n";
 	}
 #endif
 
@@ -361,9 +346,18 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 
 			output << "\n";
 			output << "- advanced blur" << "\n";
+			output << "blur sampling: " << settings.advanced.blur_sampling << "\n";
 			output << "blur weighting gaussian std dev: " << settings.advanced.blur_weighting_gaussian_std_dev << "\n";
 			output << "blur weighting gaussian mean: " << settings.advanced.blur_weighting_gaussian_mean << "\n";
 			output << "blur weighting gaussian bound: " << settings.advanced.blur_weighting_gaussian_bound << "\n";
+
+			output << "\n";
+			output << "- advanced interpolation models" << "\n";
+			output << "rife model: " << settings.advanced.rife_model << "\n";
+#ifdef TENSORRT
+			output << "rife (tensorrt) model: " << settings.advanced.rife_trt_model << "\n";
+			output << "gimm-vfi (tensorrt) model: " << settings.advanced.gimm_trt_model << "\n";
+#endif
 
 			output << "\n";
 			output << "- advanced svp" << "\n";
@@ -491,15 +485,15 @@ config_blur::ValidationResult config_blur::validate(
 			config.advanced.svp_interpolation_algorithm = DEFAULT_CONFIG.advanced.svp_interpolation_algorithm;
 	}
 
-	if (!u::contains(BLUR_SAMPLING_METHODS, config.blur_sampling)) {
+	if (!u::contains(BLUR_SAMPLING_METHODS, config.advanced.blur_sampling)) {
 		add_error(
 			ValidationField::BLUR_SAMPLING,
-			std::format("Blur sampling ({}) is not a valid option", config.blur_sampling),
+			std::format("Blur sampling ({}) is not a valid option", config.advanced.blur_sampling),
 			true
 		);
 
 		if (fix)
-			config.blur_sampling = DEFAULT_CONFIG.blur_sampling;
+			config.advanced.blur_sampling = DEFAULT_CONFIG.advanced.blur_sampling;
 	}
 
 	if (!u::contains(SVP_BLOCK_SIZES, config.advanced.svp_block_size)) {
@@ -564,7 +558,6 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "blur amount", settings.blur_amount);
 	config_base::extract_config_value(config_map, "blur output fps", settings.blur_output_fps);
 	config_base::extract_config_value(config_map, "blur weighting", settings.blur_weighting);
-	config_base::extract_config_value(config_map, "blur sampling", settings.blur_sampling);
 
 	config_base::extract_config_value(config_map, "preserve brightness", settings.preserve_brightness);
 
@@ -576,11 +569,8 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "interpolated fps", settings.interpolated_fps);
 	config_base::extract_config_value(config_map, "interpolation method", settings.interpolation_method);
 	config_base::extract_config_value(config_map, "scene detection", settings.scene_detection);
-	config_base::extract_config_value(config_map, "rife model", settings.rife_model);
 #ifdef TENSORRT
-	config_base::extract_config_value(config_map, "rife (tensorrt) model", settings.rife_trt_model);
 	config_base::extract_config_value(config_map, "rife (tensorrt) ensemble", settings.rife_trt_ensemble);
-	config_base::extract_config_value(config_map, "gimm-vfi (tensorrt) model", settings.gimm_trt_model);
 #endif
 	config_base::extract_config_value(config_map, "mask", settings.mask);
 	if (settings.mask == masks::NONE_OPTION)
@@ -666,6 +656,13 @@ BlurSettings config_blur::parse_from_map(
 		config_base::extract_config_value(
 			config_map, "blur weighting gaussian bound", settings.advanced.blur_weighting_gaussian_bound
 		);
+		config_base::extract_config_value(config_map, "blur sampling", settings.advanced.blur_sampling);
+
+		config_base::extract_config_value(config_map, "rife model", settings.advanced.rife_model);
+#ifdef TENSORRT
+		config_base::extract_config_value(config_map, "rife (tensorrt) model", settings.advanced.rife_trt_model);
+		config_base::extract_config_value(config_map, "gimm-vfi (tensorrt) model", settings.advanced.gimm_trt_model);
+#endif
 
 		config_base::extract_config_value(
 			config_map, "svp interpolation preset", settings.advanced.svp_interpolation_preset
@@ -827,7 +824,7 @@ nlohmann::json BlurSettings::to_json() const {
 	j["blur_amount"] = this->blur_amount;
 	j["blur_output_fps"] = this->blur_output_fps;
 	j["blur_weighting"] = this->blur_weighting;
-	j["blur_sampling"] = this->blur_sampling;
+	j["blur_sampling"] = this->advanced.blur_sampling;
 	j["preserve_brightness"] = this->preserve_brightness;
 	j["bloom"] = this->bloom;
 	j["bloom_threshold"] = this->bloom_threshold;
@@ -911,10 +908,10 @@ nlohmann::json BlurSettings::to_json() const {
 	j["svp_search_size"] = this->advanced.svp_search_size;
 	j["svp_block_overlap"] = this->advanced.svp_block_overlap;
 
-	j["rife_model"] = interpolation_models::get_rife_path() / this->rife_model;
+	j["rife_model"] = interpolation_models::get_rife_path() / this->advanced.rife_model;
 #ifdef TENSORRT
-	j["rife_trt_model"] = interpolation_models::get_rife_trt_path() / (this->rife_trt_model + ".onnx");
-	j["gimm_trt_model"] = interpolation_models::get_gimm_trt_path() / (this->gimm_trt_model + ".onnx");
+	j["rife_trt_model"] = interpolation_models::get_rife_trt_path() / (this->advanced.rife_trt_model + ".onnx");
+	j["gimm_trt_model"] = interpolation_models::get_gimm_trt_path() / (this->advanced.gimm_trt_model + ".onnx");
 #endif
 	j["rife_trt_ensemble"] = this->rife_trt_ensemble;
 

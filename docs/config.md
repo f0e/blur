@@ -32,11 +32,6 @@ Each file in the `configs` folder is a separate blur config.
   - descending
   - gaussian_reverse
   - custom weights - Custom comma-separated frame weights, e.g. 5, 3, 3, 2, 1. Higher numbers indicate frames being more visible when blending, lower numbers mean they are less so.
-- blur sampling - How frames are counted towards the blur. Rectangle and trapezoid blur for exactly as long as the blur amount asks, centred on the output frame, so the first and last frames can count partly.
-  - rectangle (default) - Each frame stands for the time around it until the next. Used by [SourceDemoRender](https://github.com/crashfort/SourceDemoRender) and [HLAE](https://github.com/advancedfx/advancedfx) (its rectangle method)
-  - trapezoid - Motion between frames is treated as a smooth fade from one to the next, so each frame also counts a little towards the blur around its neighbours. Used by [HLAE](https://github.com/advancedfx/advancedfx) (its trapezoid method, the default)
-  - round up - Blends a whole, odd number of frames at full strength: the blur amount is rounded to frames, and one more is added if that's even. Used by [smoothie](https://github.com/couleur-tweak-tips/smoothie-rs)
-  - legacy - How blur counted frames up to 2.45: the frame gap and blur amount are rounded down to whole frames, and one more is added if that's even
 - preserve brightness - Blends frames by how much light they hold rather than averaging the stored values. Produces a more natural-looking blur
 - bloom - Makes bright areas glow, brightening the pixels around them
 - bloom threshold - How bright something has to be before it glows (0 = everything glows, 1 = only the very brightest)
@@ -101,17 +96,9 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 - svp gpu rendering - Renders the interpolated frames on the GPU
 - svp hud mask - Takes the HUD off the scene before interpolating it, true/false. open-svpflow learns how see-through each pixel of the HUD is from how the scene moves behind it, interpolates the scene on its own and puts the HUD back over it. On the 1200fps test recordings it cuts error on HUD elements by 4-10% for 10-20% more render time, without changing the scene. Only works with svp gpu rendering on
 
-### RIFE
-
-- rife model - Model used by `rife`. Models are read from the `models` folder where blur is installed (`lib/models` on Windows), drop new ones in to use them
-
 ### TensorRT
 
-- rife (tensorrt) model - Model used by `rife (tensorrt)`
-  - rife_v4.26_large_motion - 4.26 estimating motion at half resolution. Follows fast motion at low framerates much better and is faster than rife_v4.26, but loses a little fine detail at high input framerates (240+). Made with `tools/export_rife_large_motion.py`
 - rife (tensorrt) ensemble - Runs RIFE a second time with the frames swapped and averages the two. Cleaner on fast motion, around twice as slow
-- gimm-vfi (tensorrt) model - Model used by `gimm-vfi (tensorrt)`, made with `tools/export_gimm_vfi.py`
-  - gimm_vfi_r_sharp - Keeps nearly all the fine detail in motion, and holds static HUD elements still instead of dragging them along with the scene behind. Small HUD details like the crosshair still need a mask
 
 ### GPU acceleration
 
@@ -166,9 +153,22 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 
 ### Advanced blur
 
+- blur sampling - How frames are counted towards the blur. Rectangle and trapezoid blur for exactly as long as the blur amount asks, centred on the output frame, so the first and last frames can count partly.
+  - rectangle (default) - Each frame stands for the time around it until the next. Used by [SourceDemoRender](https://github.com/crashfort/SourceDemoRender) and [HLAE](https://github.com/advancedfx/advancedfx) (its rectangle method)
+  - trapezoid - Motion between frames is treated as a smooth fade from one to the next, so each frame also counts a little towards the blur around its neighbours. Used by [HLAE](https://github.com/advancedfx/advancedfx) (its trapezoid method, the default)
+  - round up - Blends a whole, odd number of frames at full strength: the blur amount is rounded to frames, and one more is added if that's even. Used by [smoothie](https://github.com/couleur-tweak-tips/smoothie-rs)
+  - legacy - How blur counted frames up to 2.45: the frame gap and blur amount are rounded down to whole frames, and one more is added if that's even
 - blur weighting gaussian std dev - Standard deviation used in the gaussian weighting
 - blur weighting gaussian mean - Mean used in the gaussian weighting
 - blur weighting gaussian bound - Bound used in the gaussian weighting
+
+### Advanced interpolation models
+
+- rife model - Model used by `rife`. Models are read from the `models` folder where blur is installed (`lib/models` on Windows), drop new ones in to use them
+- rife (tensorrt) model - Model used by `rife (tensorrt)`
+  - rife_v4.26_large_motion - 4.26 estimating motion at half resolution. Follows fast motion at low framerates much better and is faster than rife_v4.26, but loses a little fine detail at high input framerates (240+). Made with `tools/export_rife_large_motion.py`
+- gimm-vfi (tensorrt) model - Model used by `gimm-vfi (tensorrt)`, made with `tools/export_gimm_vfi.py`
+  - gimm_vfi_r_sharp - Keeps nearly all the fine detail in motion, and holds static HUD elements still instead of dragging them along with the scene behind. Small HUD details like the crosshair still need a mask
 
 ### Advanced SVP
 

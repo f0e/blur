@@ -180,7 +180,8 @@ namespace {
 	}
 
 	std::optional<int> find_fastest_rife_device() {
-		auto model = get_benchmark_model(interpolation_models::list_rife(), config_blur::DEFAULT_CONFIG.rife_model);
+		auto model =
+			get_benchmark_model(interpolation_models::list_rife(), config_blur::DEFAULT_CONFIG.advanced.rife_model);
 		if (!model)
 			return {};
 
@@ -193,8 +194,9 @@ namespace {
 
 #ifdef TENSORRT
 	std::optional<int> find_fastest_tensorrt_device() {
-		auto model =
-			get_benchmark_model(interpolation_models::list_rife_trt(), config_blur::DEFAULT_CONFIG.rife_trt_model);
+		auto model = get_benchmark_model(
+			interpolation_models::list_rife_trt(), config_blur::DEFAULT_CONFIG.advanced.rife_trt_model
+		);
 		if (!model)
 			return {};
 
