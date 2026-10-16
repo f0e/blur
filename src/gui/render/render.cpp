@@ -859,6 +859,15 @@ void render::waveform(
 					segment_color = segment_color.adjust_alpha(0.5f);
 				}
 
+				// the spline's pieces overlap where they join, which a translucent colour shows as dots along a flat
+				// line. so silence is a plain line like when zoomed out
+				if (p0.y == y_center && p1.y == y_center && p2.y == y_center && p3.y == y_center) {
+					// samples can be closer than a pixel apart
+					if (p2.x > p1.x)
+						rect_filled(gfx::Rect(p1.x, y_center, p2.x - p1.x, 1), segment_color);
+					continue;
+				}
+
 				gfx::Point prev = p1;
 				for (int j = 1; j <= 12; ++j) {
 					const float t = j / 12.0f;
