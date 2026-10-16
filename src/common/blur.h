@@ -13,6 +13,9 @@ const std::string BLUR_VERSION = BLUR_VERSION_STRING;
 
 #define BLUR_COLOR_THEMES
 
+// options that need the open-svpflow fork (svp2.Peel and gpu motion search) until they're upstream
+// #define SVPFLOW_FORK
+
 class Blur { // todo: switch all the classes which could be namespaces into namespaces
 public:
 	bool initialised = false;

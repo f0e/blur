@@ -230,7 +230,9 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		if (!concise || settings.auto_mask) {
 			output << "auto mask tracking: " << (settings.auto_mask_tracking ? "true" : "false") << "\n";
 			output << "auto mask layer: " << (settings.auto_mask_layer ? "true" : "false") << "\n";
+#ifdef SVPFLOW_FORK
 			output << "auto mask peel: " << (settings.auto_mask_peel ? "true" : "false") << "\n";
+#endif
 			output << "auto mask inpainting: " << (settings.auto_mask_inpainting ? "true" : "false") << "\n";
 		}
 	}
@@ -258,8 +260,10 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "\n";
 		output << "- svp" << "\n";
 		output << "optimise gpu settings: " << (settings.optimise_gpu_settings ? "true" : "false") << "\n";
+#ifdef SVPFLOW_FORK
 		output << "prioritise speed: " << (settings.optimise_prioritise_speed ? "true" : "false") << "\n";
 		output << "svp gpu search: " << (settings.svp_gpu_search ? "true" : "false") << "\n";
+#endif
 		output << "svp gpu rendering: " << (settings.svp_gpu_rendering ? "true" : "false") << "\n";
 		output << "svp hud mask: " << (settings.svp_hud_mask ? "true" : "false") << "\n";
 	}
@@ -578,7 +582,9 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "auto mask", settings.auto_mask);
 	config_base::extract_config_value(config_map, "auto mask tracking", settings.auto_mask_tracking);
 	config_base::extract_config_value(config_map, "auto mask layer", settings.auto_mask_layer);
+#ifdef SVPFLOW_FORK
 	config_base::extract_config_value(config_map, "auto mask peel", settings.auto_mask_peel);
+#endif
 	config_base::extract_config_value(config_map, "auto mask inpainting", settings.auto_mask_inpainting);
 
 	config_base::extract_config_value(config_map, "pre-interpolate", settings.pre_interpolate);
@@ -602,8 +608,10 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "upscale", settings.upscale);
 
 	config_base::extract_config_value(config_map, "optimise gpu settings", settings.optimise_gpu_settings);
+#ifdef SVPFLOW_FORK
 	config_base::extract_config_value(config_map, "prioritise speed", settings.optimise_prioritise_speed);
 	config_base::extract_config_value(config_map, "svp gpu search", settings.svp_gpu_search);
+#endif
 	config_base::extract_config_value(config_map, "svp gpu rendering", settings.svp_gpu_rendering);
 	config_base::extract_config_value(config_map, "svp hud mask", settings.svp_hud_mask);
 
