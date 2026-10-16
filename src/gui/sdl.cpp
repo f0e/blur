@@ -180,7 +180,7 @@ tl::expected<void, std::string> sdl::initialise() {
 		"Blur",
 		config.gui_width,
 		config.gui_height,
-		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY
+		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN
 	);
 
 	if (!window)
@@ -203,6 +203,10 @@ tl::expected<void, std::string> sdl::initialise() {
 	float initial_content_scale = render::get_content_scale(window);
 	if (initial_content_scale != 1.f) {
 		resize_window_to_scale(window, (float)config.gui_width, (float)config.gui_height, initial_content_scale);
+
+		// sdl centred it at the unscaled size
+		auto centred = SDL_WINDOWPOS_CENTERED_DISPLAY(SDL_GetDisplayForWindow(window));
+		SDL_SetWindowPosition(window, centred, centred);
 	}
 
 	SDL_AddEventWatch(event_watcher, window);
