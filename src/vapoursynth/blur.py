@@ -353,9 +353,8 @@ def main():
         spread = video.fps / settings["blur_output_fps"] if settings["blur"] else 1
         cuts = detected_cuts = blur.scenes.detect(video, video_info.is_full_color_range, spread)
 
-    # svp finds these overlays itself with 'svp hud mask' (gpu rendering only), so then they're only added for the
-    # passes that aren't svp
-    svp_peels = settings["svp_hud_mask"] and settings["svp_gpu_rendering"]
+    # svp finds these overlays itself with 'svp hud mask', so then they're only added for the passes that aren't svp
+    svp_peels = settings["svp_hud_mask"]
     if not svp_peels:
         unpeeled = True
     elif settings["interpolate"]:
@@ -408,8 +407,7 @@ def main():
                         halvings=blur.interpolate.search_halvings(settings["svp_search_size"], video.fps),
                     )
                 else:
-                    # the hud mask only runs on the gpu
-                    hud_mask = settings["svp_hud_mask"] and settings["svp_gpu_rendering"]
+                    hud_mask = settings["svp_hud_mask"]
 
                     result = blur.interpolate.interpolate_svp(
                         video,

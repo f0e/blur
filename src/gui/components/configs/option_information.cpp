@@ -362,7 +362,7 @@ void configs::option_information(ui::Container& container) {
 			"svp hud mask checkbox",
 			{
 				"Takes the HUD off the scene before interpolating it and puts it back after",
-				"(Keeps HUD elements cleaner for ~10-20% more render time. Needs svp gpu rendering)",
+				"(Keeps HUD elements cleaner for ~10-20% more render time, much more with svp gpu rendering off)",
 			},
 		},
 		{

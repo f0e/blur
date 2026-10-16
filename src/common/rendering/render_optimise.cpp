@@ -138,6 +138,8 @@ namespace {
 			{ "svp_block_size", settings.advanced.svp_block_size },
 			{ "svp_mask_area", settings.advanced.svp_mask_area },
 			{ "svp_search_size", settings.advanced.svp_search_size },
+			// much slower on the cpu
+			{ "svp_hud_mask", settings.svp_hud_mask },
 			// a cpu encoder competes with cpu svp
 			{ "encode_preset", settings.encode_preset },
 			{ "gpu_encoding", settings.gpu_encoding },
