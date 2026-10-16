@@ -47,6 +47,11 @@ jobs:
             exit 1
           fi
 
+          prerelease=$(sed -nE 's/^set\(BLUR_PRERELEASE "([^"]*)"\)/\1/p' CMakeLists.txt)
+          if [[ -n "$prerelease" ]]; then
+            version="$version-$prerelease"
+          fi
+
           if [[ "v$version" != "$TAG" ]]; then
             echo "project version '$version' doesn't match tag '$TAG'" >&2
             exit 1
@@ -396,8 +401,14 @@ jobs:
         run: |
           # create it as a draft so it isn't public until every asset is uploaded
           created=false
+          # tags with a pre-release suffix (v3.0.0-beta.1) are only offered to people with beta updates on
+          prerelease=()
+          if [[ "$TAG" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --verify-tag --draft --title "$TAG" --notes ""
+            gh release create "$TAG" --verify-tag --draft "${prerelease[@]}" --title "$TAG" --notes ""
             created=true
           fi
 

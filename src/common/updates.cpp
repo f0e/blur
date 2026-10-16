@@ -1,5 +1,7 @@
 #include "common/updates.h"
 
+#include <charconv>
+
 using json = nlohmann::json;
 namespace bp = boost::process;
 
@@ -9,22 +11,64 @@ const std::string MACOS_INSTALLER_NAME = "blur-macOS-Release-arm64.dmg";
 const std::string LINUX_APPIMAGE_NAME = "blur-Linux-x64.AppImage";
 
 namespace {
+	struct Version {
+		std::vector<int> parts;
+		// what's after the -, e.g. beta.1
+		std::vector<std::string> prerelease;
+	};
+
+	std::optional<int> parse_number(std::string_view text) {
+		int number = 0;
+		auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), number);
+		if (text.empty() || error != std::errc() || end != text.data() + text.size())
+			return {};
+
+		return number;
+	}
+
 	// semver
-	std::optional<std::vector<int>> parse_version(std::string_view version) {
+	std::optional<Version> parse_version(std::string_view version) {
 		if (version.starts_with('v'))
 			version.remove_prefix(1);
 
-		std::vector<int> parts;
+		Version parsed;
 
-		try {
-			for (const auto& part : u::split_string(std::string(version), "."))
-				parts.push_back(std::stoi(part));
-		}
-		catch (const std::exception&) {
-			return {};
+		auto dash = version.find('-');
+		if (dash != std::string_view::npos) {
+			parsed.prerelease = u::split_string(std::string(version.substr(dash + 1)), ".");
+			version = version.substr(0, dash);
 		}
 
-		return parts;
+		for (const auto& part : u::split_string(std::string(version), ".")) {
+			auto number = parse_number(part);
+			if (!number)
+				return {};
+
+			parsed.parts.push_back(*number);
+		}
+
+		return parsed;
+	}
+
+	// numbers sort below words and against each other as numbers
+	bool prerelease_older(const std::vector<std::string>& a, const std::vector<std::string>& b) {
+		for (size_t i = 0; i < std::min(a.size(), b.size()); i++) {
+			auto a_number = parse_number(a[i]);
+			auto b_number = parse_number(b[i]);
+
+			if (a_number && b_number) {
+				if (*a_number != *b_number)
+					return *a_number < *b_number;
+			}
+			else if (a_number || b_number) {
+				return a_number.has_value();
+			}
+			else if (a[i] != b[i]) {
+				return a[i] < b[i];
+			}
+		}
+
+		return a.size() < b.size();
 	}
 }
 
@@ -34,10 +78,21 @@ bool updates::is_version_newer(std::string_view current, std::string_view latest
 	if (!current_version || !latest_version)
 		return false;
 
-	return *current_version < *latest_version;
+	if (current_version->parts != latest_version->parts)
+		return current_version->parts < latest_version->parts;
+
+	// a pre-release comes before its release
+	if (current_version->prerelease.empty() || latest_version->prerelease.empty())
+		return !current_version->prerelease.empty() && latest_version->prerelease.empty();
+
+	return prerelease_older(current_version->prerelease, latest_version->prerelease);
 }
 
 tl::expected<updates::UpdateCheckRes, std::string> updates::is_latest_version(bool include_beta) {
+	// someone on a beta wants the next one
+	if (BLUR_VERSION.find('-') != std::string::npos)
+		include_beta = true;
+
 	std::string url = "https://api.github.com/repos/f0e/blur/releases";
 
 	auto response = cpr::Get(cpr::Url{ url });

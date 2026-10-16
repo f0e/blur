@@ -78,7 +78,14 @@ set(
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-# version comes from project() above, bump it there
+# version comes from project() above, bump it there. a pre-release adds a suffix (3.0.0-beta.1), and is released as a
+# github pre-release. empty for a release
+set(BLUR_PRERELEASE "beta.1")
+set(BLUR_VERSION_STRING "${PROJECT_VERSION}")
+if(BLUR_PRERELEASE)
+  string(APPEND BLUR_VERSION_STRING "-${BLUR_PRERELEASE}")
+endif()
+
 set(BLUR_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
 configure_file(
   "${CMAKE_SOURCE_DIR}/cmake/blur_version.h.in"
