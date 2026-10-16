@@ -116,6 +116,7 @@ $out_dir/python/bin/python3 -m pip install --no-cache-dir --no-warn-script-locat
   vapoursynth==79 \
   vapoursynth-akarin==1.5.0 \
   vapoursynth-bestsource==21.0 \
+  vapoursynth-blur-frameblender==3.2.0 \
   vapoursynth-lsmas==1310.0.0.0 \
   vapoursynth-mvtools==29
 
@@ -184,13 +185,6 @@ sed -i '/^Requires.private:/d; /^Libs.private:/d' "$mpv_prefix/lib/pkgconfig/mpv
 # so the linker finds the ffmpeg libraries it needs when blur links against it
 # shellcheck disable=SC2016 # $ORIGIN is for the loader, not the shell
 patchelf --set-rpath '$ORIGIN/../../../out/ffmpeg/lib' "$mpv_prefix/lib/libmpv.so.2"
-
-# frameblender
-download_library \
-  "https://github.com/f0e/vs-frameblender/releases/download/v2.1/frameblender-linux-x64.so" \
-  "libframeblender.so" \
-  "vapoursynth-plugins" \
-  "624269bbca909d3be6e9437c5b5a2594b59d3135e39609fcc46606f8d4c979ee"
 
 # fmtconv
 # built here rather than downloaded so it runs on the same distros as the rest of the app

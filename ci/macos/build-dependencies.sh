@@ -218,6 +218,7 @@ $out_dir/python/bin/pip install \
   vapoursynth==79 \
   vapoursynth-akarin==1.5.0 \
   vapoursynth-bestsource==21.0 \
+  vapoursynth-blur-frameblender==3.2.0 \
   vapoursynth-lsmas==1310.0.0.0 \
   vapoursynth-mvtools==29
 
@@ -246,13 +247,6 @@ cd build/unix
 make
 cd ../..
 " "build/unix/.libs" "vapoursynth-plugins"
-
-## frameblender
-download_library \
-  "https://github.com/f0e/vs-frameblender/releases/download/v2.1/frameblender-macos-arm64.dylib" \
-  "libframeblender.dylib" \
-  "vapoursynth-plugins" \
-  "dabbf2a507d0a63c30937836afdfb5613c885d70d85c424c19d88e84c3c0368f"
 
 ## open-svpflow
 mkdir -p download/open-svpflow "$out_dir/vapoursynth-plugins"
