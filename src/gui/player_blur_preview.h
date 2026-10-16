@@ -49,6 +49,9 @@ private:
 	// so dragging a slider doesn't start a render every frame
 	static constexpr auto SETTLE_TIME = std::chrono::milliseconds(500);
 
+	// once the same frame's been shown this long, blur.py is unloaded so it isn't holding memory, and the frame's held
+	static constexpr auto IDLE_UNLOAD_TIME = std::chrono::seconds(30);
+
 	// what a pre-render's output depends on, so it's only rendered again when that changes
 	struct PreRenderSettings {
 		BlurSettings blur;
@@ -75,12 +78,24 @@ private:
 
 	std::optional<uint64_t> m_player_frames_at_blur;
 
+	// what the preview was last asked for, and since when it's been showing it
+	struct Shown {
+		std::filesystem::path video_path;
+		BlurSettings settings;
+		float position = 0.f;
+
+		bool operator==(const Shown& other) const = default;
+	};
+
+	std::optional<Shown> m_shown;
+	std::chrono::steady_clock::time_point m_shown_since;
+
 	bool m_pre_render_requested = false;
 	std::optional<ActivePreRender> m_pre_render;
 	std::optional<rendering::RenderError> m_pre_render_error;
 
-	// the blurred frame from when a pre-render started. the preview's unloaded while it renders, so this stands in
-	// until it has a frame of its own
+	// the blurred frame from when a pre-render started or the preview went idle. the preview's unloaded meanwhile, so
+	// this stands in for it
 	struct HeldFrame {
 		std::shared_ptr<render::Texture> texture;
 		size_t id = 0;
@@ -97,6 +112,7 @@ private:
 	PreviewState update_preview(const Request& request);
 	void begin_pre_render(const Request& request);
 	void hold_frame_and_unload();
+	void show_held_frame(PreviewState& state) const;
 	void rerender(const Request& request, const PreRenderSettings& settings);
 	void update_pre_render(const Request& request, PreviewState& state);
 };

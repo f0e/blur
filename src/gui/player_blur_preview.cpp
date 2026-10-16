@@ -33,11 +33,7 @@ PreviewState PlayerBlurPreview::update(const Request& request) {
 		return update_preview(request);
 
 	PreviewState state{ .status = m_preview.status() };
-
-	if (m_held_frame && m_held_frame->texture)
-		state.frame = ui::Frame{ .texture = m_held_frame->texture, .texture_id = m_held_frame->id };
-	else if (auto ready = m_preview.ready_player(); ready && m_held_frame && m_held_frame->pending)
-		state.frame = ui::Frame{ .player = ready };
+	show_held_frame(state);
 
 	update_pre_render(request, state);
 
@@ -54,6 +50,22 @@ PreviewState PlayerBlurPreview::update_preview(const Request& request) {
 	if (!position)
 		return { .status = m_preview.status() };
 
+	Shown shown{ .video_path = request.video_path, .settings = request.settings, .position = *position };
+	auto now = std::chrono::steady_clock::now();
+
+	if (shown != m_shown) {
+		m_shown = shown;
+		m_shown_since = now;
+		m_held_frame.reset();
+	}
+
+	// unloaded while it was idle, and nothing's changed since
+	if (m_held_frame) {
+		PreviewState state{ .status = m_preview.status() };
+		show_held_frame(state);
+		return state;
+	}
+
 	m_preview.update(
 		{
 			.video_path = request.video_path,
@@ -69,11 +81,16 @@ PreviewState PlayerBlurPreview::update_preview(const Request& request) {
 	if (auto ready = m_preview.ready_player()) {
 		m_player_frames_at_blur = request.player.frame_count();
 		state.frame = ui::Frame{ .player = ready };
+
+		if (now - m_shown_since >= IDLE_UNLOAD_TIME)
+			hold_frame_and_unload();
 	}
-	else if (auto previous = m_preview.previous_player();
-	         previous && request.player.frame_count() == m_player_frames_at_blur)
-	{
-		state.frame = ui::Frame{ .player = previous };
+	else {
+		m_shown_since = now;
+
+		if (auto previous = m_preview.previous_player();
+		    previous && request.player.frame_count() == m_player_frames_at_blur)
+			state.frame = ui::Frame{ .player = previous };
 	}
 
 	return state;
@@ -160,6 +177,16 @@ void PlayerBlurPreview::hold_frame_and_unload() {
 
 	if (!held->pending)
 		m_preview.unload();
+}
+
+void PlayerBlurPreview::show_held_frame(PreviewState& state) const {
+	if (!m_held_frame)
+		return;
+
+	if (m_held_frame->texture)
+		state.frame = ui::Frame{ .texture = m_held_frame->texture, .texture_id = m_held_frame->id };
+	else if (auto ready = m_preview.ready_player(); ready && m_held_frame->pending)
+		state.frame = ui::Frame{ .player = ready };
 }
 
 void PlayerBlurPreview::rerender(const Request& request, const PreRenderSettings& settings) {
