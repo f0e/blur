@@ -134,6 +134,28 @@ namespace {
 					return true;
 				},
 		},
+		{
+			.version = "3.0.0",
+			.description = "'interpolation block size' and 'mask area' -> 'svp block size' and 'mask area'",
+			.apply =
+				[](config_base::ConfigMap& config) {
+					bool migrated = false;
+
+					for (auto [from, to] : { std::pair{ "interpolation block size", "svp block size" },
+		                                     std::pair{ "interpolation mask area", "svp mask area" } })
+					{
+						auto it = config.find(from);
+						if (it == config.end())
+							continue;
+
+						config.try_emplace(to, it->second);
+						config.erase(it);
+						migrated = true;
+					}
+
+					return migrated;
+				},
+		},
 	});
 }
 
@@ -349,11 +371,8 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 			output << "svp interpolation algorithm: " << settings.advanced.svp_interpolation_algorithm << "\n";
 			output << "svp search size: " << settings.advanced.svp_search_size << "\n";
 			output << "svp block overlap: " << settings.advanced.svp_block_overlap << "\n";
-
-			output << "\n";
-			output << "- advanced interpolation" << "\n";
-			output << "interpolation block size: " << settings.advanced.interpolation_blocksize << "\n";
-			output << "interpolation mask area: " << settings.advanced.interpolation_mask_area << "\n";
+			output << "svp block size: " << settings.advanced.svp_block_size << "\n";
+			output << "svp mask area: " << settings.advanced.svp_mask_area << "\n";
 
 			if (!concise || settings.advanced.manual_svp) {
 				output << "\n";
@@ -483,15 +502,15 @@ config_blur::ValidationResult config_blur::validate(
 			config.blur_sampling = DEFAULT_CONFIG.blur_sampling;
 	}
 
-	if (!u::contains(INTERPOLATION_BLOCK_SIZES, config.advanced.interpolation_blocksize)) {
+	if (!u::contains(SVP_BLOCK_SIZES, config.advanced.svp_block_size)) {
 		add_error(
-			ValidationField::INTERPOLATION_BLOCKSIZE,
-			std::format("Interpolation block size ({}) is not a valid option", config.advanced.interpolation_blocksize),
+			ValidationField::SVP_BLOCK_SIZE,
+			std::format("SVP block size ({}) is not a valid option", config.advanced.svp_block_size),
 			true
 		);
 
 		if (fix)
-			config.advanced.interpolation_blocksize = DEFAULT_CONFIG.advanced.interpolation_blocksize;
+			config.advanced.svp_block_size = DEFAULT_CONFIG.advanced.svp_block_size;
 	}
 
 	if (!u::contains(SVP_SEARCH_SIZES, config.advanced.svp_search_size)) {
@@ -654,12 +673,8 @@ BlurSettings config_blur::parse_from_map(
 		config_base::extract_config_value(
 			config_map, "svp interpolation algorithm", settings.advanced.svp_interpolation_algorithm
 		);
-		config_base::extract_config_value(
-			config_map, "interpolation block size", settings.advanced.interpolation_blocksize
-		);
-		config_base::extract_config_value(
-			config_map, "interpolation mask area", settings.advanced.interpolation_mask_area
-		);
+		config_base::extract_config_value(config_map, "svp block size", settings.advanced.svp_block_size);
+		config_base::extract_config_value(config_map, "svp mask area", settings.advanced.svp_mask_area);
 		config_base::extract_config_value(config_map, "svp search size", settings.advanced.svp_search_size);
 		config_base::extract_config_value(config_map, "svp block overlap", settings.advanced.svp_block_overlap);
 		config_base::extract_config_value(config_map, "manual svp", settings.advanced.manual_svp);
@@ -891,8 +906,8 @@ nlohmann::json BlurSettings::to_json() const {
 
 	j["svp_interpolation_preset"] = this->advanced.svp_interpolation_preset;
 	j["svp_interpolation_algorithm"] = this->advanced.svp_interpolation_algorithm;
-	j["interpolation_blocksize"] = this->advanced.interpolation_blocksize;
-	j["interpolation_mask_area"] = this->advanced.interpolation_mask_area;
+	j["svp_block_size"] = this->advanced.svp_block_size;
+	j["svp_mask_area"] = this->advanced.svp_mask_area;
 	j["svp_search_size"] = this->advanced.svp_search_size;
 	j["svp_block_overlap"] = this->advanced.svp_block_overlap;
 

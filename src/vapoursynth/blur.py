@@ -277,13 +277,13 @@ def main():
         )
     )
 
-    interpolation_blocksize = u.coalesce(
-        u.safe_int(settings["interpolation_blocksize"]),
+    svp_block_size = u.coalesce(
+        u.safe_int(settings["svp_block_size"]),
         blur.interpolate.DEFAULT_BLOCKSIZE,
     )
 
-    interpolation_mask_area = u.coalesce(
-        u.safe_int(settings["interpolation_mask_area"]),
+    svp_mask_area = u.coalesce(
+        u.safe_int(settings["svp_mask_area"]),
         blur.interpolate.DEFAULT_MASKING,
     )
 
@@ -421,11 +421,11 @@ def main():
                             if svp_interpolation_algorithm is None
                             else svp_interpolation_algorithm
                         ),
-                        blocksize=interpolation_blocksize,
+                        blocksize=svp_block_size,
                         overlap=blur.interpolate.block_overlap(
                             settings["svp_block_overlap"], settings["svp_interpolation_preset"], video.fps
                         ),
-                        masking=interpolation_mask_area,
+                        masking=svp_mask_area,
                         gpu=settings["svp_gpu_rendering"],
                         timeline=timeline,
                         halvings=blur.interpolate.search_halvings(settings["svp_search_size"], video.fps, hud_mask),
@@ -470,8 +470,8 @@ def main():
                 result = blur.interpolate.interpolate_mvtools(
                     video,
                     new_fps,
-                    blocksize=interpolation_blocksize,
-                    masking=interpolation_mask_area,
+                    blocksize=svp_block_size,
+                    masking=svp_mask_area,
                     timeline=timeline,
                 )
 

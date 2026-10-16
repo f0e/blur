@@ -131,8 +131,8 @@ namespace {
 			{ "gimm_trt_model", settings.gimm_trt_model },
 			{ "svp_interpolation_preset", settings.advanced.svp_interpolation_preset },
 			{ "svp_interpolation_algorithm", settings.advanced.svp_interpolation_algorithm },
-			{ "interpolation_blocksize", settings.advanced.interpolation_blocksize },
-			{ "interpolation_mask_area", settings.advanced.interpolation_mask_area },
+			{ "svp_block_size", settings.advanced.svp_block_size },
+			{ "svp_mask_area", settings.advanced.svp_mask_area },
 			{ "svp_search_size", settings.advanced.svp_search_size },
 			// a cpu encoder competes with cpu svp
 			{ "encode_preset", settings.encode_preset },

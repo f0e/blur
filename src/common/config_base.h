@@ -64,8 +64,10 @@ namespace config_base {
 		ConfigMap& config, const std::optional<std::string>& config_version, std::span<const Migration> migrations
 	) {
 		for (const auto& migration : migrations) {
-			// unversioned configs could be from anything, so run every migration
-			bool needed = !config_version || updates::is_version_newer(*config_version, migration.version);
+			// unversioned configs could be from anything, so run every migration. ones from the migration's own version
+			// can be from a dev build before it was added, and migrations only act on the old settings, so those run
+			// too
+			bool needed = !config_version || !updates::is_version_newer(migration.version, *config_version);
 			if (!needed)
 				continue;
 

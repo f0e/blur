@@ -865,10 +865,15 @@ void configs::options(ui::Container& container) {
 		    Advanced SVP
 		*/
 		bool uses_svp = settings.uses_interpolation_method("svp");
+		bool uses_mvtools = settings.uses_interpolation_method("mvtools");
+
+		// block size and mask area are shared with mvtools, so they still show when that's used on its own
+		if (uses_svp)
+			section_component("advanced svp");
+		else if (uses_mvtools)
+			section_component("advanced mvtools");
 
 		if (uses_svp) {
-			section_component("advanced svp");
-
 			validated_element(
 				config_blur::ValidationField::SVP_INTERPOLATION_PRESET, "SVP interpolation preset error", [&] {
 					ui::add_dropdown(
@@ -918,32 +923,27 @@ void configs::options(ui::Container& container) {
 			});
 		}
 
-		/*
-		    Advanced Interpolation
-		*/
-		if (uses_svp || settings.uses_interpolation_method("mvtools")) {
-			section_component("advanced interpolation");
+		if (uses_svp || uses_mvtools) {
+			std::string prefix = uses_svp ? "SVP " : "";
 
-			validated_element(
-				config_blur::ValidationField::INTERPOLATION_BLOCKSIZE, "interpolation block size error", [&] {
-					ui::add_dropdown(
-						"interpolation block size dropdown",
-						container,
-						"interpolation block size",
-						config_blur::INTERPOLATION_BLOCK_SIZES,
-						settings.advanced.interpolation_blocksize,
-						fonts::dejavu
-					);
-				}
-			);
+			validated_element(config_blur::ValidationField::SVP_BLOCK_SIZE, "SVP block size error", [&] {
+				ui::add_dropdown(
+					"svp block size dropdown",
+					container,
+					prefix + "block size",
+					config_blur::SVP_BLOCK_SIZES,
+					settings.advanced.svp_block_size,
+					fonts::dejavu
+				);
+			});
 
 			ui::add_slider(
-				"interpolation mask area slider",
+				"svp mask area slider",
 				container,
 				0,
 				500,
-				&settings.advanced.interpolation_mask_area,
-				"interpolation mask area: {}",
+				&settings.advanced.svp_mask_area,
+				prefix + "mask area: {}",
 				fonts::dejavu
 			);
 		}

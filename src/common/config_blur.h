@@ -32,8 +32,8 @@ struct AdvancedSettings {
 
 	std::string svp_interpolation_preset = "quality";
 	std::string svp_interpolation_algorithm = "auto";
-	std::string interpolation_blocksize = "8";
-	int interpolation_mask_area = 0;
+	std::string svp_block_size = "8";
+	int svp_mask_area = 0;
 	std::string svp_search_size = "full";
 	std::string svp_block_overlap = "auto";
 
@@ -157,7 +157,7 @@ namespace config_blur {
 		"auto", "1", "2", "11", "13", "21", "23",
 	};
 
-	inline const std::vector<std::string> INTERPOLATION_BLOCK_SIZES = { "4", "8", "16", "32" };
+	inline const std::vector<std::string> SVP_BLOCK_SIZES = { "4", "8", "16", "32" };
 
 	inline const std::vector<std::string> SVP_SEARCH_SIZES = { "auto", "full", "half", "quarter" };
 
@@ -191,7 +191,7 @@ namespace config_blur {
 		FFMPEG_OVERRIDE,
 		SVP_INTERPOLATION_PRESET,
 		SVP_INTERPOLATION_ALGORITHM,
-		INTERPOLATION_BLOCKSIZE,
+		SVP_BLOCK_SIZE,
 		SVP_SEARCH_SIZE,
 		SVP_BLOCK_OVERLAP,
 		BLUR_SAMPLING,

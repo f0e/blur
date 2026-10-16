@@ -229,14 +229,14 @@ void configs::option_information(ui::Container& container) {
 			},
 		},
 		{
-			"interpolation block size dropdown",
+			"svp block size dropdown",
 			{
 				"Block size for interpolation",
 				"(Higher = less accurate, faster; lower = more accurate, slower)",
 			},
 		},
 		{
-			"interpolation mask area slider",
+			"svp mask area slider",
 			{
 				"Mask amount for interpolation",
 				"(Higher reduces blur on static objects but can affect smoothness)",
