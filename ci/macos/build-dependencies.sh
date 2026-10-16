@@ -257,9 +257,9 @@ download_library \
 ## open-svpflow
 mkdir -p download/open-svpflow "$out_dir/vapoursynth-plugins"
 if [ ! -f download/open-svpflow/libsvpflow1_vs.dylib ]; then
-  wget -q "https://github.com/Z1xus/open-svpflow/releases/download/nightly-20261011-deadbadae0d9/aarch64-apple-darwin.zip" \
+  wget -q "https://github.com/Z1xus/open-svpflow/releases/download/nightly-20261016-deadbad12b02/aarch64-apple-darwin.zip" \
     -O download/open-svpflow/open-svpflow.zip
-  echo "3821ee82fc6970ce57b9c5eb618355d2d8d247583f7f3aedc2c0e7fa0211bb68  download/open-svpflow/open-svpflow.zip" |
+  echo "7b464074499acd9df997c9ac996cb2fa298754c84f178ce7115db199ddef8aa8  download/open-svpflow/open-svpflow.zip" |
     shasum -a 256 -c --quiet -
   unzip -o download/open-svpflow/open-svpflow.zip libsvpflow1_vs.dylib libsvpflow2_vs.dylib -d download/open-svpflow
   rm download/open-svpflow/open-svpflow.zip
