@@ -19,11 +19,11 @@ Source: "{#DepsDir}\7zip\7z.dll"; DestDir: "{tmp}"; Flags: deleteafterinstall; C
 // made with tools/export_rife_large_motion.py and tools/export_gimm_vfi.py. exports aren't byte for byte repeatable,
 // so the hashes are of the uploaded files
 #define LargeMotionVersion "rife_v4.26_large_motion-1"
-#define LargeMotionUrl ""
+#define LargeMotionUrl "https://github.com/f0e/blur-models/releases/download/models/rife_v4.26_large_motion.onnx"
 #define LargeMotionSha256 "3a8ef88b3ab23475bb93937a71c22c8151adb6706902d6236a79eaba17240f30"
 #define LargeMotionDownloadSize "22752661"
 #define GimmVersion "gimm_vfi_r_sharp-1"
-#define GimmUrl ""
+#define GimmUrl "https://github.com/f0e/blur-models/releases/download/models/gimm_vfi_r_sharp.onnx"
 #define GimmSha256 "13004117fcaa90553a1098310dd7b3a0098f2139b8284a9f7aedd809b0c71a22"
 #define GimmDownloadSize "52925528"
 
