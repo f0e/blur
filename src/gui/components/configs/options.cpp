@@ -24,14 +24,17 @@ namespace {
 		return false;
 #endif
 	}
-}
 
-void configs::set_interpolated_fps() {
-	if (interpolate_scale) {
-		settings.interpolated_fps = std::format("{}x", interpolated_fps_mult);
-	}
-	else {
-		settings.interpolated_fps = std::to_string(interpolated_fps);
+	// the pre-interpolation dropdown's copy of the method, with "none" for off
+	std::string pre_interpolation_choice;
+
+	// the tensorrt names are too long for two methods to fit on one line
+	std::string short_method_name(const std::string& method) {
+		if (method == "gimm-vfi (tensorrt)")
+			return "gimm-vfi";
+		if (method == "rife (tensorrt)")
+			return "rife trt";
+		return method;
 	}
 }
 
@@ -265,119 +268,99 @@ void configs::options(ui::Container& container) {
 	section_component("interpolation", &settings.interpolate);
 
 	if (settings.interpolate) {
-		ui::add_checkbox(
-			"interpolate scale checkbox",
-			container,
-			"interpolate by scaling fps",
-			interpolate_scale,
-			fonts::dejavu,
-			[&](bool new_value) {
-				set_interpolated_fps();
-			}
-		);
-
-		if (interpolate_scale) {
-			ui::add_slider(
-				"interpolated fps mult",
-				container,
-				1.f,
-				10.f,
-				&interpolated_fps_mult,
-				"interpolated fps: {:.1f}x",
-				fonts::dejavu,
-				[&](std::variant<int*, float*> value) {
-					set_interpolated_fps();
-				},
-				0.1f
-			);
-		}
-		else {
-			ui::add_slider(
-				"interpolated fps",
-				container,
-				1,
-				settings.blur_output_fps * 50,
-				&interpolated_fps,
-				"interpolated fps: {} fps",
-				fonts::dejavu,
-				[&](std::variant<int*, float*> value) {
-					set_interpolated_fps();
-				}
-			);
-		}
-
 		std::vector<std::string> interpolation_options = {
 			"svp",
 			"rife",
 			"mvtools",
 		};
 
+		std::vector<std::string> pre_interpolation_options = {
+			"rife",
+		};
+
 		if (devices::initialised && !devices::tensorrt.empty()) {
 			interpolation_options.insert(interpolation_options.begin() + 2, "rife (tensorrt)");
+			pre_interpolation_options.emplace_back("rife (tensorrt)");
 
-			if (gimm_installed())
+			if (gimm_installed()) {
 				interpolation_options.insert(interpolation_options.begin() + 3, "gimm-vfi (tensorrt)");
+				pre_interpolation_options.emplace_back("gimm-vfi (tensorrt)");
+			}
 		}
 
-		ui::add_dropdown(
-			"interpolation method dropdown",
-			container,
-			"interpolation method",
-			interpolation_options,
-			settings.interpolation_method,
-			fonts::dejavu
-		);
-	}
+		// pre-interpolating with the main method is skipped, so it isn't offered
+		std::erase(pre_interpolation_options, settings.interpolation_method);
 
-	/*
-	    Pre-interpolation
-	*/
-	if (settings.interpolate) {
-		section_component("pre-interpolation", &settings.pre_interpolate);
+		bool pre_interpolating = settings.pre_interpolate && !pre_interpolation_options.empty();
 
-		if (settings.pre_interpolate) {
-			ui::add_slider(
-				"pre-interpolated minimum fps",
-				container,
-				0,
-				2400,
-				&settings.pre_interpolated_minimum_fps,
-				"minimum fps: {} fps",
-				fonts::dejavu
-			);
+		bool offer_pre_interpolation = !pre_interpolation_options.empty();
 
-			ui::add_slider(
-				"pre-interpolated minimum multiplier",
-				container,
-				1.f,
-				10.f,
-				&settings.pre_interpolated_minimum_multiplier,
-				"minimum multiplier: {:.1f}x",
-				fonts::dejavu,
-				{},
-				0.1f
-			);
+		if (offer_pre_interpolation) {
+			pre_interpolation_choice = pre_interpolating ? settings.pre_interpolation_method : "none";
 
-			std::vector<std::string> pre_interpolation_options = {
-				"rife",
-			};
+			auto pre_interpolation_choices = pre_interpolation_options;
+			pre_interpolation_choices.emplace_back("none");
 
-			if (devices::initialised && !devices::tensorrt.empty()) {
-				pre_interpolation_options.insert(pre_interpolation_options.end(), "rife (tensorrt)");
-
-				if (gimm_installed())
-					pre_interpolation_options.insert(pre_interpolation_options.end(), "gimm-vfi (tensorrt)");
-			}
-
-			ui::add_dropdown(
+			ui::add_compact_dropdown(
 				"pre-interpolation method dropdown",
 				container,
-				"pre-interpolation method",
-				pre_interpolation_options,
-				settings.pre_interpolation_method,
-				fonts::dejavu
+				pre_interpolation_choices,
+				pre_interpolation_choice,
+				pre_interpolating ? short_method_name(settings.pre_interpolation_method) : "no pre-interp",
+				pre_interpolating ? ui::PRE_INTERPOLATION_COLOR : gfx::Color(125, 125, 125, 255),
+				fonts::dejavu,
+				[](std::string* choice) {
+					settings.pre_interpolate = *choice != "none";
+					if (settings.pre_interpolate)
+						settings.pre_interpolation_method = *choice;
+				},
+				{ "none" }
 			);
+
+			ui::set_next_same_line(container);
 		}
+
+		auto* method_dropdown = ui::add_compact_dropdown(
+			"interpolation method dropdown",
+			container,
+			interpolation_options,
+			settings.interpolation_method,
+			short_method_name(settings.interpolation_method),
+			gfx::Color(255, 100, 100, 255),
+			fonts::dejavu,
+			[pre_interpolation_options](std::string* method) {
+				if (settings.pre_interpolation_method != *method)
+					return;
+
+				// it'd be skipped as the pre-interpolation method too, so that moves to another one
+				auto other = std::ranges::find_if(pre_interpolation_options, [&](const std::string& option) {
+					return option != *method;
+				});
+				if (other != pre_interpolation_options.end())
+					settings.pre_interpolation_method = *other;
+			}
+		);
+
+		// over the end of the track, where the main method's part is
+		if (offer_pre_interpolation) {
+			auto& method_rect = method_dropdown->element->rect;
+			method_rect.x = container.get_usable_rect().x2() - method_rect.w;
+			method_dropdown->element->orig_rect.x = method_rect.x;
+		}
+
+		ui::add_interpolation_track(
+			"interpolation track",
+			container,
+			{
+				.interpolated_fps = &settings.interpolated_fps,
+				.pre_minimum_fps = &settings.pre_interpolated_minimum_fps,
+				.pre_minimum_multiplier = &settings.pre_interpolated_minimum_multiplier,
+				.show_pre = pre_interpolating,
+				// otherwise the config isn't being edited for any particular video
+				.source_fps = queue_video_preview ? preview_video_fps : std::nullopt,
+				.font = fonts::dejavu,
+			}
+		);
 	}
 
 	/*
@@ -1081,37 +1064,6 @@ void configs::options(ui::Container& container) {
 	}
 }
 
-void configs::parse_interp() {
-	auto parse_fps_setting = [&](const std::string& fps_setting,
-	                             int& fps,
-	                             float& fps_mult,
-	                             bool& scale_mode,
-	                             const std::function<void()>& set_function,
-	                             const std::string& log_prefix = "") {
-		try {
-			auto split = u::split_string(fps_setting, "x");
-			if (split.size() > 1) {
-				fps_mult = std::stof(split[0]);
-				scale_mode = true;
-			}
-			else {
-				fps = std::stof(fps_setting);
-				scale_mode = false;
-			}
-
-			u::log("loaded {}interp, scale: {} (fps: {}, mult: {})", log_prefix, scale_mode, fps, fps_mult);
-		}
-		catch (std::exception& e) {
-			u::log("failed to parse {}interpolated fps, setting defaults cos user error", log_prefix);
-			set_function();
-		}
-	};
-
-	parse_fps_setting(
-		settings.interpolated_fps, interpolated_fps, interpolated_fps_mult, interpolate_scale, set_interpolated_fps
-	);
-};
-
 void configs::save_config() {
 	flush_selected_config();
 
@@ -1160,7 +1112,6 @@ void configs::save_config() {
 void configs::on_load() {
 	flush_selected_config();
 	saved_configs = edited_configs;
-	parse_interp();
 
 	current_app_settings = app_settings;
 

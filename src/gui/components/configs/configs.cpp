@@ -162,7 +162,6 @@ void configs::select_config(const std::string& name) {
 
 	// sliders cache their values
 	ui::reset_tied_sliders();
-	parse_interp();
 }
 
 bool configs::has_unsaved_changes() {
@@ -240,7 +239,6 @@ void configs::import_config(const BlurSettings& imported) {
 
 	ui::reset_tied_sliders();
 	settings = imported;
-	parse_interp();
 
 	gui::components::notifications::add(
 		selected_config_name.empty() ? "Imported config"
@@ -322,14 +320,12 @@ void configs::config_actions(ui::Container& container) {
 
 			ui::reset_tied_sliders();
 			settings = imported;
-			parse_interp();
 		};
 
 		if (settings != config_blur::DEFAULT_CONFIG) {
 			do_restore_defaults = [] {
 				ui::reset_tied_sliders();
 				settings = config_blur::DEFAULT_CONFIG;
-				parse_interp();
 			};
 		}
 	}

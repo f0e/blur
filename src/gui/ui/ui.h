@@ -53,7 +53,8 @@ namespace ui {
 		UPDATE_NOTICE,
 		LOGO_AND_VERSION,
 		LINK,
-		INFO_ICON
+		INFO_ICON,
+		INTERPOLATION_TRACK
 	};
 
 	struct BarElementData {
@@ -567,6 +568,28 @@ namespace ui {
 		}
 	};
 
+	// neutral rather than a second colour, so it works with any theme
+	inline constexpr gfx::Color PRE_INTERPOLATION_COLOR = gfx::Color::white();
+
+	// the interpolated fps and where pre-interpolation hands over to it, as two thumbs on one fps track
+	struct InterpolationTrackElementData {
+		std::string* interpolated_fps; // an fps or a multiple of the source, like "5x"
+		int* pre_minimum_fps;
+		float* pre_minimum_multiplier;
+		bool show_pre;
+
+		std::optional<double> source_fps;
+		render::Font font;
+
+		helpers::text_input::TextInputData text_input;
+
+		bool operator==(const InterpolationTrackElementData& other) const {
+			return interpolated_fps == other.interpolated_fps && pre_minimum_fps == other.pre_minimum_fps &&
+			       pre_minimum_multiplier == other.pre_minimum_multiplier && show_pre == other.show_pre &&
+			       source_fps == other.source_fps && font == other.font;
+		}
+	};
+
 	using ElementData = std::variant<
 		BarElementData,
 		TextElementData,
@@ -593,7 +616,8 @@ namespace ui {
 		UpdateNoticeElementData,
 		LogoAndVersionElementData,
 		LinkElementData,
-		InfoIconElementData>;
+		InfoIconElementData,
+		InterpolationTrackElementData>;
 
 	struct AnimationState {
 		float speed;
@@ -890,6 +914,13 @@ namespace ui {
 	void render_info_icon(const Container& container, const AnimatedElement& element);
 	bool update_info_icon(const Container& container, AnimatedElement& element);
 
+	void render_interpolation_track(const Container& container, const AnimatedElement& element);
+	bool update_interpolation_track(const Container& container, AnimatedElement& element);
+	void remove_interpolation_track(AnimatedElement& element);
+
+	// which value is being typed ("handover" or "interpolated fps"), empty when neither
+	std::string get_interpolation_track_edit(const std::string& id);
+
 	// the info icon's popover, for elements that draw their own icon. it sits beside anchor with their right edges
 	// lined up
 	void render_info_popover(
@@ -1180,6 +1211,10 @@ namespace ui {
 		gfx::Color default_color,
 		const std::vector<gfx::Color>& presets = {},
 		std::optional<std::function<void()>> on_change = {}
+	);
+
+	AnimatedElement* add_interpolation_track(
+		const std::string& id, Container& container, InterpolationTrackElementData data
 	);
 
 	// a dropdown just big enough for `text`, drawn in `color`, for picking inline

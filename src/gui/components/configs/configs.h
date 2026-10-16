@@ -55,10 +55,6 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 
 	inline bool show_mask_preview = false;
 
-	inline bool interpolate_scale = true;
-	inline float interpolated_fps_mult = 5.f;
-	inline int interpolated_fps = 1200;
-
 	// of the video in the config preview, for showing what fps settings work out to
 	inline std::optional<double> preview_video_fps;
 
@@ -75,9 +71,6 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	void set_sample_video(const std::filesystem::path& path);
 	void clear_sample_video();
 	void save_preview_app_settings();
-
-	void set_interpolated_fps();
-	void set_pre_interpolated_fps();
 
 	void section(
 		ui::Container& container,
@@ -117,7 +110,6 @@ namespace gui::components::configs { // naming it configs to avoid conflict with
 	std::string& bind_read_only_input(const std::string& id, const std::string& value);
 	bool& bind_checkbox(const std::string& id, bool& value);
 
-	void parse_interp();
 	bool has_unsaved_changes();
 	void enter_screen();
 

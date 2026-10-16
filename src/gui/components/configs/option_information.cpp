@@ -162,7 +162,6 @@ void configs::option_information(ui::Container& container) {
 				// todo: update with mvtools
 				"Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt) > svp",
 				"Speed: svp >> rife (tensorrt) > rife >> gimm-vfi (tensorrt)",
-				"(gimm-vfi is best as a pre-interpolation method, it follows fast motion far better but is slow)",
 #else
 				// todo: update with mvtools
 				"Quality: rife > svp",
@@ -170,25 +169,28 @@ void configs::option_information(ui::Container& container) {
 #endif
 			},
 		},
-		// pre-interp settings
 		{
-			"section pre-interpolation checkbox",
+			"pre-interpolation method dropdown",
 			{
-				"Enable pre-interpolation using a more accurate but slower AI model before main interpolation",
+				"Pre-interpolates using a more accurate but slower AI model before main interpolation",
+#ifdef TENSORRT
+				"Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt)",
+				"Speed: rife (tensorrt) > rife >> gimm-vfi (tensorrt)",
+#endif
 			},
 		},
 		{
-			"pre-interpolated minimum fps",
+			"interpolation track handover",
 			{
-				"Pre-interpolates to whichever of the minimum fps and minimum multiplier is higher",
-				"0 to only use the multiplier",
+				"The FPS the input video is pre-interpolated to, before main interpolation",
+				"You can also add a multiplier of the input's FPS, e.g. 300, 2x, to use whichever is higher",
 			},
 		},
 		{
-			"pre-interpolated minimum multiplier",
+			"interpolation track interpolated fps",
 			{
-				"Pre-interpolates to whichever of the minimum fps and minimum multiplier is higher",
-				"1x to only use the minimum fps",
+				"The FPS the input video is interpolated to, before blurring",
+				"You can also use a multiplier of the input's FPS instead, e.g. 5x",
 			},
 		},
 #ifdef TENSORRT
@@ -197,13 +199,6 @@ void configs::option_information(ui::Container& container) {
 			{
 				"Runs RIFE a second time with the frames swapped and averages the two",
 				"Cleaner on fast motion, around twice as slow",
-			},
-		},
-		{
-			"pre-interpolation method dropdown",
-			{
-				"Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt)",
-				"Speed: rife (tensorrt) > rife >> gimm-vfi (tensorrt)",
 			},
 		},
 #endif
@@ -524,7 +519,9 @@ void configs::option_information(ui::Container& container) {
 	if (!temp_tab_owner.empty())
 		return;
 
-	std::string hovered = ui::get_hovered_id();
+	// while a value on the interpolation track is being typed, explain what it takes
+	std::string track_edit = ui::get_interpolation_track_edit("interpolation track");
+	std::string hovered = track_edit.empty() ? ui::get_hovered_id() : "interpolation track " + track_edit;
 
 	if (hovered.empty())
 		return;
