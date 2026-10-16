@@ -1319,6 +1319,31 @@ namespace ui {
 	void set_cursor(SDL_SystemCursor cursor);
 
 	void set_active_element(AnimatedElement& element, const std::string& type = "");
+
+	// a label that's edited in place when clicked, like a slider's value. the edit is keyed by the element's id since
+	// keys only reach the active element's edit
+	void begin_label_edit(
+		const Container& container,
+		AnimatedElement& element,
+		helpers::text_input::TextInputData& input_data,
+		const std::string& text
+	);
+	// while editing, with on_change getting the text after every edit. false once the edit has ended
+	bool update_label_edit(
+		const Container& container,
+		AnimatedElement& element,
+		helpers::text_input::TextInputData& input_data,
+		const gfx::Rect& rect,
+		const std::function<void(const std::string&)>& on_change
+	);
+	void end_label_edit(AnimatedElement& element);
+	void render_label_edit(
+		const AnimatedElement& element,
+		const helpers::text_input::TextInputData& input_data,
+		const gfx::Rect& rect,
+		const gfx::Color& color,
+		float anim
+	);
 	AnimatedElement* get_active_element();
 	std::string get_active_element_type();
 	bool is_active_element(const AnimatedElement& element, const std::string& type = "");

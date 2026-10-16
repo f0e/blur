@@ -16,12 +16,6 @@ constexpr float TIE_ROUNDING = 4.0f;
 // text input
 constexpr int TEXT_INPUT_GAP = 10;
 
-constexpr gfx::Color TEXT_COLOR(255, 255, 255, 255);
-
-constexpr gfx::Color SELECTION_COLOR(100, 100, 200, 100);
-constexpr gfx::Color COMPOSITION_TEXT_COLOR(200, 200, 255, 255); // For IME
-constexpr gfx::Color COMPOSITION_BG_COLOR(60, 60, 60, 150);      // For IME
-
 namespace {
 	struct SliderPositions {
 		gfx::Rect label_rect;
@@ -155,29 +149,10 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 
 	auto positions = get_slider_positions(container, element, slider_data);
 
-	auto text_input_state = helpers::text_input::has_text_edit(element.element->id);
-	if (text_input_state) {
-		gfx::Rect clip_rect = positions.label_rect;
-		gfx::Point text_pos = clip_rect.origin();
-
-		auto& state = helpers::text_input::text_input_map.at(element.element->id);
-
+	if (helpers::text_input::has_text_edit(element.element->id)) {
 		auto text_input = slider_data.text_input;
-		text_input.text = &state.owned_text;
 		text_input.font = slider_data.font;
-
-		helpers::text_input::render_text(
-			text_input,
-			state,
-			text_pos,
-			TEXT_COLOR.adjust_alpha(anim),
-			clip_rect,
-			"",
-			{},
-			SELECTION_COLOR.adjust_alpha(anim),
-			COMPOSITION_TEXT_COLOR.adjust_alpha(anim),
-			COMPOSITION_BG_COLOR.adjust_alpha(anim)
-		);
+		render_label_edit(element, text_input, positions.label_rect, text_color, anim);
 	}
 	else {
 		std::string label = format_label(slider_data.current_value, slider_data.label_format);
@@ -283,132 +258,43 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 
 	// text input
 	if (get_active_element() != &element || get_active_element_type() != "slider") {
-		label_hovered = positions.label_rect.contains(keys::mouse_pos) && set_hovered_element(element);
-		if (label_hovered) {
-			set_cursor(SDL_SYSTEM_CURSOR_TEXT);
-		}
-
-		auto deactivate_slider_text_input = [&]() {
-			if (helpers::text_input::has_text_edit(element.element->id)) {
-				ui::helpers::text_input::remove_text_edit(element.element->id);
-
-				if (get_active_element() == &element) {
-					reset_active_element();
-				}
-			}
-		};
-
-		// grab this before we claim the press below, which clears it
-		bool pressed = keys::is_mouse_down();
-
-		// text input: handle clicks
-		if (pressed) {
-			if (label_hovered) {
-				keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
-
-				if (!helpers::text_input::has_text_edit(element.element->id)) {
-					set_active_element(element, "text input");
-
-					auto& state = ui::helpers::text_input::add_text_edit(element.element->id, slider_data.text_input);
-					state.active = true;
-					state.owned_text = get_value_string(slider_data.current_value, slider_data.label_format);
-
-					slider_data.text_input.text = &state.owned_text;
-					slider_data.text_input.font = slider_data.font;
-
-					SDL_StartTextInput(container.window);
-
-					helpers::text_input::select_all(&slider_data.text_input, &state.edit_state);
-
-					// so the drag from this press doesn't clear the select-all
-					state.selected_all_mouse_lock = true;
-				}
-			}
-			else {
-				deactivate_slider_text_input();
-			}
-		}
+		slider_data.text_input.font = slider_data.font;
 
 		if (helpers::text_input::has_text_edit(element.element->id)) {
-			auto& state = helpers::text_input::text_input_map.at(element.element->id);
-
-			if (state.active && get_active_element() != &element) {
-				deactivate_slider_text_input();
-				return false;
-			}
-
-			// the element data is replaced whenever the slider's options change, so the text lives in the edit state
-			slider_data.text_input.text = &state.owned_text;
-			slider_data.text_input.font = slider_data.font;
-			helpers::text_input::add_text_edit(element.element->id, slider_data.text_input);
-
-			bool active = get_active_element() == &element;
-
-			if (active) {
-				while (!text_event_queue.empty()) {
-					auto& event = text_event_queue.front();
-
-					// escape/enter to submit
-					if (event.type == SDL_EVENT_KEY_DOWN) {
-						if (event.key.scancode == SDL_SCANCODE_ESCAPE || event.key.scancode == SDL_SCANCODE_RETURN) {
-							deactivate_slider_text_input();
-							return true;
-						}
-					}
-
-					helpers::text_input::handle_text_input_event(slider_data.text_input, state, event);
-					text_event_queue.erase(text_event_queue.begin());
-				}
-
-				gfx::Point text_relative_pos(
-					keys::mouse_pos.x - positions.label_rect.x + static_cast<int>(state.scroll_x),
-					keys::mouse_pos.y - positions.label_rect.y
-				);
-
-				helpers::text_input::handle_mouse(
-					slider_data.text_input,
-					state,
-					text_relative_pos,
-					label_hovered,
-					pressed,
-					keys::get_click_count(),
-					(SDL_GetModState() & SDL_KMOD_SHIFT) != 0u
-				);
-
-				helpers::text_input::update_ime_area(container.window, state, slider_data.font);
-
-				bool value_changed = false;
-
-				std::visit(
-					[&](auto* value_ptr) {
-						if (value_ptr) {
+			return update_label_edit(
+				container, element, slider_data.text_input, positions.label_rect, [&](const std::string& text) {
+					std::visit(
+						[&](auto* value_ptr) {
 							using T = std::remove_pointer_t<decltype(value_ptr)>;
 							T old_value = *value_ptr;
 
-							std::stringstream ss(state.owned_text);
+							std::stringstream ss(text);
 							T new_value{};
-							if (ss >> new_value) {
-								*value_ptr = new_value;
-							}
-							else {
-								*value_ptr = T{ 0 }; // fallback to 0 or 0.0f
-							}
+							*value_ptr = ss >> new_value ? new_value : T{ 0 };
 
-							value_changed = (*value_ptr != old_value);
-						}
-					},
-					slider_data.current_value
-				);
-
-				if (value_changed && slider_data.on_change) {
-					(*slider_data.on_change)(slider_data.current_value);
+							if (*value_ptr != old_value && slider_data.on_change)
+								(*slider_data.on_change)(slider_data.current_value);
+						},
+						slider_data.current_value
+					);
 				}
+			);
+		}
+
+		label_hovered = positions.label_rect.contains(keys::mouse_pos) && set_hovered_element(element);
+		if (label_hovered) {
+			set_cursor(SDL_SYSTEM_CURSOR_TEXT);
+
+			if (keys::is_mouse_down()) {
+				keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
+				begin_label_edit(
+					container,
+					element,
+					slider_data.text_input,
+					get_value_string(slider_data.current_value, slider_data.label_format)
+				);
+				return true;
 			}
-
-			// Clamp cursor/selection just in case
-			helpers::text_input::clamp(&slider_data.text_input, &state.edit_state);
-
-			return active;
 		}
 	}
 
