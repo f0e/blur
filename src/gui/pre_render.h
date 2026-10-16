@@ -56,6 +56,8 @@ public:
 		return m_failed;
 	}
 
+	void set_audio_track(size_t track);
+
 	// the looping player, once it's showing a frame
 	[[nodiscard]] std::shared_ptr<VideoPlayer> player() const;
 
@@ -100,6 +102,7 @@ private:
 
 	float m_volume;
 	bool m_hardware_decoding;
+	size_t m_audio_track = 0;
 
 	size_t m_start_frame;
 	size_t m_end_frame;

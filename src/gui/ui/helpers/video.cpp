@@ -312,6 +312,8 @@ void VideoPlayer::initialize_mpv(float volume) {
 	mpv_set_option_string(m_mpv, "profile", "fast");
 	mpv_set_option_string(m_mpv, "keep-open", "yes"); // dont close when finished
 	mpv_set_option_string(m_mpv, "pause", "yes");
+	// rather than auto, which can pick a different track to the one shown as selected
+	mpv_set_option_string(m_mpv, "aid", "1");
 	mpv_set_option_string(m_mpv, "volume", std::format("{:.2f}", volume).c_str());
 
 	mpv_observe_property(m_mpv, 0, "percent-pos", MPV_FORMAT_DOUBLE);

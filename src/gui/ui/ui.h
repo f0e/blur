@@ -179,11 +179,14 @@ namespace ui {
 		float* end = nullptr;
 		bool trim_disabled = false;
 
+		// which audio track plays
+		size_t* audio_track = nullptr;
+
 		bool operator==(const UIVideo& other) const = default;
 	};
 
 	struct VideoWaveform {
-		std::vector<int16_t> samples;
+		std::vector<std::vector<int16_t>> tracks;
 		int16_t max_sample = 0;
 	};
 
@@ -206,12 +209,14 @@ namespace ui {
 		size_t* index = nullptr;
 		size_t list_index = 0;
 		size_t video_count = 1;
+		int timeline_height = 0;
 		std::function<void(size_t video_id)> on_remove;
 
 		bool operator==(const VideoElementData& other) const {
 			return video == other.video && thumbnail == other.thumbnail && overlay == other.overlay &&
 			       active == other.active && fade == other.fade && index == other.index &&
-			       list_index == other.list_index && video_count == other.video_count;
+			       list_index == other.list_index && video_count == other.video_count &&
+			       timeline_height == other.timeline_height;
 		}
 	};
 
@@ -1000,6 +1005,8 @@ namespace ui {
 	void add_videos(
 		const std::string& id,
 		Container& container,
+		// where the videos can start, below anything drawn over the top of the container
+		int top,
 		const std::vector<UIVideo>& ui_videos,
 		size_t& index,
 		float& start,

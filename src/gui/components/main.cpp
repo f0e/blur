@@ -376,6 +376,7 @@ void main::render_pending(
 				.start = &pv->start,
 				.end = &pv->end,
 				.trim_disabled = is_trim_disabled(*pv),
+				.audio_track = &pv->audio_track,
 			}
 		);
 	}
@@ -400,6 +401,7 @@ void main::render_pending(
 	ui::add_videos(
 		"test video",
 		queue_container,
+		config_container.get_usable_rect().y,
 		ui_videos,
 		pending_index,
 		pending_video->start,

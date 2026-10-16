@@ -9,7 +9,6 @@
 #include "../fonts/dejavu_sans.h"
 #include "../fonts/nv_garamond.h"
 #include "../fonts/icons.h"
-#include "common/waveforms.h"
 #if __has_include("../automation.h")
 #	include "../automation.h"
 #endif
@@ -783,8 +782,6 @@ void render::waveform(
 	const size_t sample_range = end_idx - start_idx;
 	const float samples_per_pixel = static_cast<float>(sample_range) / width;
 
-	int16_t display_max = waveforms::get_audio_percentile_peak(samples, 1.f); // 0.999f);
-
 	if (samples_per_pixel >= 2.0f) {
 		// Zoomed out: draw amplitude envelope
 		for (int x = 0; x < width; ++x) {
@@ -794,7 +791,7 @@ void render::waveform(
 			// Find peak amplitude in this pixel range
 			float peak_amplitude = 0.0f;
 			for (size_t i = pixel_start; i < pixel_end; ++i) {
-				float amplitude = std::abs(static_cast<float>(samples[i])) / display_max;
+				float amplitude = std::abs(static_cast<float>(samples[i])) / max_sample;
 				amplitude = std::min(amplitude, 1.0f);
 				peak_amplitude = std::max(peak_amplitude, amplitude);
 			}
@@ -834,7 +831,7 @@ void render::waveform(
 		points.reserve(sample_range);
 
 		for (size_t i = start_idx; i < end_idx; ++i) {
-			float amplitude = std::abs(static_cast<float>(samples[i])) / display_max;
+			float amplitude = std::abs(static_cast<float>(samples[i])) / max_sample;
 			amplitude = std::min(amplitude, 1.0f);
 
 			const int x = rect.x + static_cast<int>((i - start_idx) * width / static_cast<float>(sample_range));

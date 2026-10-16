@@ -20,6 +20,7 @@ public:
 
 		// the pre-render's, since it plays its own audio
 		float volume = 0.f;
+		size_t audio_track = 0;
 	};
 
 	// after a seek the last blurred frame stays up until the video has a newer frame to stand in with

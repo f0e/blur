@@ -143,6 +143,15 @@ public:
 		run_command_async({ "set", "hwdec", hwdec_option(hardware_decoding) });
 	}
 
+	// 0-based, mpv counts from 1
+	void set_audio_track(size_t track) {
+		if (track == m_audio_track)
+			return;
+
+		m_audio_track = track;
+		run_command_async({ "set", "aid", std::to_string(track + 1) });
+	}
+
 	void set_paused(bool paused) {
 		m_paused = paused;
 		run_command_async({ "set", "pause", paused ? "yes" : "no" });
@@ -228,6 +237,7 @@ private:
 	std::optional<std::filesystem::path> m_loaded_file;
 
 	bool m_hardware_decoding;
+	size_t m_audio_track = 0;
 
 	std::optional<Seek> m_queued_seek;
 	bool m_is_seeking = false;

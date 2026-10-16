@@ -12,6 +12,12 @@ namespace {
 	constexpr gfx::Size GRAB_CLICK_EXPANSION(15, 5);
 	constexpr int PLAYHEAD_WIDTH = 2;
 
+	constexpr gfx::Color TRACK_COLOR(120, 120, 120);
+	constexpr gfx::Color SELECTED_TRACK_COLOR(170, 170, 170);
+	constexpr float UNSELECTED_TRACK_ALPHA = 0.45f;
+	constexpr int TRACK_LANE_GAP = 14;
+	constexpr int MIN_TRACK_HEIGHT = 24;
+
 	constexpr float ZOOM_SPEED = 1.4f;
 	constexpr float MIN_ZOOM_SECS = 0.6f;
 	constexpr float ZOOM_ANIMATION_SPEED = 30.f;
@@ -23,6 +29,9 @@ namespace {
 		std::optional<int> start_mouse_x;
 		std::optional<int> last_pan_x;
 		std::optional<float> last_seek;
+
+		// track labels only take presses that start on them, not drags (like the trim grabs) passing over
+		std::uint64_t last_press_id = 0;
 	} drag;
 
 	struct GrabRects {
@@ -57,6 +66,52 @@ namespace {
 		return { .left = left, .right = right };
 	}
 
+	// each audio track gets its own row, with space between them. rows that would be too short to read keep a minimum
+	// height and scroll instead
+	int track_lane_height(const gfx::Rect& rect, size_t track_count) {
+		auto count = static_cast<int>(track_count);
+		return std::max(MIN_TRACK_HEIGHT, (rect.h - ((count - 1) * TRACK_LANE_GAP)) / count);
+	}
+
+	float max_track_scroll(const gfx::Rect& rect, size_t track_count) {
+		int content_h =
+			(static_cast<int>(track_count) * (track_lane_height(rect, track_count) + TRACK_LANE_GAP)) - TRACK_LANE_GAP;
+		return static_cast<float>(std::max(content_h - rect.h, 0));
+	}
+
+	gfx::Rect track_lane_rect(const gfx::Rect& rect, size_t track, size_t track_count, float scroll) {
+		int lane_h = track_lane_height(rect, track_count);
+		int y = rect.y + (static_cast<int>(track) * (lane_h + TRACK_LANE_GAP)) - static_cast<int>(std::lround(scroll));
+		return { rect.x, y, rect.w, lane_h };
+	}
+
+	std::optional<ui::ScrollbarGeometry> track_scrollbar(const gfx::Rect& rect, size_t track_count, float scroll) {
+		gfx::Rect bounds(rect.x2() + 1, rect.y, ui::videos::TRACK_SCROLLBAR_WIDTH, rect.h);
+		auto visible_h = static_cast<float>(rect.h);
+		return ui::get_scrollbar_geometry(bounds, visible_h, visible_h + max_track_scroll(rect, track_count), scroll);
+	}
+
+	// the track numbers sit to the left of the timeline, clicking one picks the track that plays and scrolling over
+	// them scrolls the tracks
+	gfx::Rect track_labels_rect(const gfx::Rect& rect) {
+		return { rect.x - ui::videos::TRACK_LABEL_GAP - ui::videos::TRACK_LABEL_WIDTH,
+			     rect.y,
+			     ui::videos::TRACK_LABEL_WIDTH,
+			     rect.h };
+	}
+
+	gfx::Rect track_label_rect(const gfx::Rect& rect, size_t track, size_t track_count, float scroll) {
+		auto row = track_lane_rect(rect, track, track_count, scroll);
+		return { rect.x - ui::videos::TRACK_LABEL_GAP - ui::videos::TRACK_LABEL_WIDTH,
+			     row.y,
+			     ui::videos::TRACK_LABEL_WIDTH,
+			     row.h };
+	}
+
+	bool has_track_picker(const ui::TimelineElementData& data) {
+		return data.video.audio_track != nullptr && data.waveform != nullptr && data.waveform->tracks.size() > 1;
+	}
+
 	// prefer the player's duration to metadata
 	float get_duration(const ui::TimelineElementData& data) {
 		if (data.player && data.player->get_duration())
@@ -83,6 +138,8 @@ std::unordered_map<size_t, ui::AnimationState> ui::videos::timeline_animations(f
 		{ hasher("right_grab"), AnimationState(150.f) },
 		{ hasher("zoom_start"), AnimationState(ZOOM_ANIMATION_SPEED, 0.f) },
 		{ hasher("zoom_end"), AnimationState(ZOOM_ANIMATION_SPEED, duration) },
+		{ hasher("track_scroll"), AnimationState(ZOOM_ANIMATION_SPEED, 0.f) },
+		{ hasher("track_scrollbar_hover"), AnimationState(60.f) },
 	};
 }
 
@@ -156,6 +213,7 @@ void ui::render_timeline(const Container& container, const AnimatedElement& elem
 	float anim = element.animations.at(hasher("main")).current * (1.f - data.fade);
 	float left_grab = element.animations.at(hasher("left_grab")).current;
 	float right_grab = element.animations.at(hasher("right_grab")).current;
+	float track_scroll = element.animations.at(hasher("track_scroll")).current;
 
 	float duration = data.video.video_info->duration;
 	float zoom_start = element.animations.at(hasher("zoom_start")).current;
@@ -212,15 +270,28 @@ void ui::render_timeline(const Container& container, const AnimatedElement& elem
 		active_rect.x = grab_rects.left.x;
 		active_rect.w = grab_rects.right.x2() - active_rect.x;
 
-		render::waveform(
-			rect,
-			active_rect,
-			gfx::Color(120, 120, 120, 255 * anim),
-			data.waveform->samples,
-			data.waveform->max_sample,
-			visible_start,
-			visible_end
-		);
+		const auto& tracks = data.waveform->tracks;
+		size_t selected = data.video.audio_track ? *data.video.audio_track : 0;
+
+		render::push_clip_rect(rect, true);
+
+		for (auto [i, samples] : u::enumerate(tracks)) {
+			auto color = TRACK_COLOR;
+			if (tracks.size() > 1)
+				color = i == selected ? SELECTED_TRACK_COLOR : TRACK_COLOR.adjust_alpha(UNSELECTED_TRACK_ALPHA);
+
+			render::waveform(
+				track_lane_rect(rect, i, tracks.size(), track_scroll),
+				active_rect,
+				color.adjust_alpha(anim),
+				samples,
+				data.waveform->max_sample,
+				visible_start,
+				visible_end
+			);
+		}
+
+		render::pop_clip_rect();
 	}
 
 	if (data.active) {
@@ -242,6 +313,32 @@ void ui::render_timeline(const Container& container, const AnimatedElement& elem
 	}
 
 	render::pop_clip_rect();
+
+	if (has_track_picker(data)) {
+		size_t track_count = data.waveform->tracks.size();
+
+		render::push_clip_rect(track_labels_rect(rect), true);
+
+		for (size_t i = 0; i < track_count; i++) {
+			auto label_rect = track_label_rect(rect, i, track_count, track_scroll);
+			bool selected = i == *data.video.audio_track;
+
+			render::text(
+				{ label_rect.x2(), label_rect.center().y },
+				gfx::Color::white((selected ? 230 : 90) * anim),
+				std::to_string(i + 1),
+				fonts::dejavu(fonts::size::SMALL),
+				FONT_RIGHT_ALIGN | FONT_CENTERED_Y
+			);
+		}
+
+		render::pop_clip_rect();
+
+		if (auto scrollbar = track_scrollbar(rect, track_count, track_scroll)) {
+			render_scrollbar(*scrollbar, element.animations.at(hasher("track_scrollbar_hover")).current, anim);
+		}
+	}
+
 	render::pop_clip_rect();
 }
 
@@ -276,6 +373,66 @@ bool ui::update_timeline(const Container& container, AnimatedElement& element) {
 	auto grab_rects = get_grab_rects(data.video, rect, visible_start, visible_range);
 
 	bool updated = false;
+
+	bool new_press = false;
+	if (keys::is_mouse_down()) {
+		auto press_id = keys::get_mouse_press_id();
+		new_press = press_id != drag.last_press_id;
+		drag.last_press_id = press_id;
+	}
+
+	if (has_track_picker(data)) {
+		size_t track_count = data.waveform->tracks.size();
+		auto lanes_rect = rect.shrink(1);
+		auto labels_rect = track_labels_rect(lanes_rect);
+
+		// the timeline can be resized under it
+		auto& scroll_anim = element.animations.at(hasher("track_scroll"));
+		float max_scroll = max_track_scroll(lanes_rect, track_count);
+		if (scroll_anim.goal > max_scroll)
+			scroll_anim.set_goal(max_scroll);
+
+		auto scrollbar = track_scrollbar(lanes_rect, track_count, scroll_anim.current);
+
+		bool over_scrollbar = scrollbar && scrollbar->grab_rect.contains(keys::mouse_pos);
+		if ((labels_rect.contains(keys::mouse_pos) || over_scrollbar) && keys::scroll_delta != 0.f) {
+			float step = static_cast<float>(track_lane_height(lanes_rect, track_count) + TRACK_LANE_GAP);
+			scroll_anim.set_goal(std::clamp(scroll_anim.goal + (keys::scroll_delta * step), 0.f, max_scroll));
+
+			keys::scroll_delta = 0.f;
+			updated = true;
+		}
+
+		float scroll = scroll_anim.current;
+		if (update_scrollbar(
+				container, &element, scrollbar, scroll, element.animations.at(hasher("track_scrollbar_hover"))
+			))
+		{
+			set_hovered_element(element);
+			updated = true;
+		}
+
+		if (is_dragging_scrollbar(&element)) {
+			scroll_anim.current = scroll;
+			scroll_anim.set_goal(scroll);
+		}
+
+		for (size_t i = 0; i < track_count; i++) {
+			auto label_rect = track_label_rect(lanes_rect, i, track_count, scroll_anim.current);
+			if (!labels_rect.contains(keys::mouse_pos) || !label_rect.contains(keys::mouse_pos) ||
+			    !set_hovered_element(element))
+				continue;
+
+			set_cursor(SDL_SYSTEM_CURSOR_POINTER);
+
+			if (new_press && !get_active_element()) {
+				keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
+
+				*data.video.audio_track = i;
+				updated = true;
+			}
+		}
+	}
 
 	struct Grab {
 		gfx::Rect rect;

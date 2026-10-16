@@ -184,6 +184,7 @@ void PlayerBlurPreview::rerender(const Request& request, const PreRenderSettings
 
 void PlayerBlurPreview::update_pre_render(const Request& request, PreviewState& state) {
 	auto& render = *m_pre_render->render;
+	render.set_audio_track(request.audio_track);
 	render.update();
 
 	if (auto error = render.take_error())

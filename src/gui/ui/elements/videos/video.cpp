@@ -185,7 +185,11 @@ bool ui::update_video(const Container& container, AnimatedElement& element) {
 
 	// timeline scroll input waits for the stack to settle
 	bool settled = element.animations.at(hasher("offset")).complete;
-	bool over_timeline = settled && videos::timeline_rect(rect).contains(keys::mouse_pos);
+	// the track numbers and scrollbar scroll the tracks
+	auto timeline_rect = videos::timeline_rect(rect, data.timeline_height);
+	timeline_rect.x -= videos::TRACK_LABEL_GAP + videos::TRACK_LABEL_WIDTH;
+	timeline_rect.w += videos::TRACK_LABEL_GAP + videos::TRACK_LABEL_WIDTH + videos::TRACK_SCROLLBAR_WIDTH;
+	bool over_timeline = settled && timeline_rect.contains(keys::mouse_pos);
 
 	if (data.active && mouse_in_container && !over_timeline && keys::scroll_delta != 0.f) {
 		int direction = keys::scroll_delta > 0.f ? 1 : -1;

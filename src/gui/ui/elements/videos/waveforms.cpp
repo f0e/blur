@@ -7,7 +7,7 @@ namespace {
 	std::unordered_map<std::string, ui::VideoWaveform> cache;
 }
 
-ui::VideoWaveform* ui::videos::get_waveform(const std::filesystem::path& path, float duration) {
+ui::VideoWaveform* ui::videos::get_waveform(const std::filesystem::path& path, size_t track_count, float duration) {
 	if (duration <= 0.f)
 		return nullptr;
 
@@ -18,20 +18,23 @@ ui::VideoWaveform* ui::videos::get_waveform(const std::filesystem::path& path, f
 		return &it->second;
 
 	try {
-		auto samples = waveforms::get_waveform(path, static_cast<int>(duration * SAMPLES_PER_SEC));
-		if (!samples)
+		auto tracks = waveforms::get_waveforms(path, track_count, static_cast<int>(duration * SAMPLES_PER_SEC));
+		if (!tracks)
 			return nullptr;
 
+		// shared between tracks so a quiet one looks quiet
 		int16_t max_sample = 1;
-		for (auto sample : *samples) {
-			max_sample = std::max<int>(std::abs(sample), max_sample);
+		for (const auto& samples : *tracks) {
+			for (auto sample : samples) {
+				max_sample = std::max<int>(std::abs(sample), max_sample);
+			}
 		}
 
 		return &cache
 		            .emplace(
 						key,
 						VideoWaveform{
-							.samples = std::move(*samples),
+							.tracks = std::move(*tracks),
 							.max_sample = max_sample,
 						}
 					)

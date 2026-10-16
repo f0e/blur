@@ -105,6 +105,7 @@ void PreRender::update() {
 		}
 
 		m_player = std::make_shared<VideoPlayer>(m_volume, m_hardware_decoding);
+		m_player->set_audio_track(m_audio_track);
 		m_player->load_file(m_path, {}, { { "loop-file", "inf" } });
 		m_player->set_paused(false);
 	}
@@ -173,4 +174,11 @@ std::shared_ptr<VideoPlayer> PreRender::player() const {
 void PreRender::handle_event(const SDL_Event& event, bool& to_render) {
 	if (m_player)
 		m_player->handle_mpv_event(event, to_render, true);
+}
+
+void PreRender::set_audio_track(size_t track) {
+	m_audio_track = track;
+
+	if (m_player)
+		m_player->set_audio_track(track);
 }
