@@ -65,7 +65,7 @@ Each file in the `configs` folder is a separate blur config.
 
 - deduplicate - Removes duplicate frames and generates new interpolated frames to take their place. Fixes 'unsmooth' looking output caused by stuttering in recordings
 - use frame timing logs - For use with the [obs-frame-timing-recorder](https://github.com/f0e/obs-frame-timing-recorder) OBS plugin. Uses the `.frametiming` files it generates to work out when each frame was really drawn, resulting in much smoother blur. Replaces deduplication for videos that have a log, as it's more accurate.
-- retime method - Method used to replace duplicate frames and fill the gaps frame timing logs leave. Only used when interpolation is off, otherwise they're filled by the interpolation method:
+- retime method - Method used to replace duplicate frames and fill the gaps frame timing logs leave. Only used when interpolation is off, otherwise they're filled by the pre-interpolation method (or the interpolation method if pre-interpolation is off):
   - Quality: rife = rife (tensorrt) > svp
   - Speed: old > svp >>> rife
 

@@ -317,7 +317,8 @@ void configs::option_information(ui::Container& container) {
 		{
 			"retime method interpolation note",
 			{
-				"Duplicates and gaps are filled by the interpolation method while interpolation is on",
+				"Duplicates and gaps are filled by the pre-interpolation method while interpolation is on, or the "
+				"interpolation method if pre-interpolation is off",
 			},
 		},
 		{

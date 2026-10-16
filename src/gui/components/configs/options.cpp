@@ -404,10 +404,14 @@ void configs::options(ui::Container& container) {
 	if (settings.deduplicate || settings.frame_timing_logs) {
 		// retiming happens as part of interpolation when it's on, so there's no method to pick
 		if (settings.interpolate) {
+			bool pre_interpolation_retimes =
+				settings.pre_interpolate && settings.pre_interpolation_method != settings.interpolation_method;
+
 			ui::add_text(
 				"retime method interpolation note",
 				container,
-				"retiming uses the interpolation method",
+				pre_interpolation_retimes ? "retiming uses the pre-interpolation method"
+										  : "retiming uses the interpolation method",
 				gfx::Color::white(renderer::MUTED_SHADE),
 				fonts::dejavu
 			);

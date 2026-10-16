@@ -362,8 +362,14 @@ def main():
         unpeeled = settings["interpolation_method"] != "svp" or (
             settings["pre_interpolate"]
             and settings["pre_interpolation_method"] != settings["interpolation_method"]
-            and video.fps
-            < max(settings["pre_interpolated_minimum_fps"], video.fps * settings["pre_interpolated_minimum_multiplier"])
+            and (
+                timeline is not None
+                or video.fps
+                < max(
+                    settings["pre_interpolated_minimum_fps"],
+                    video.fps * settings["pre_interpolated_minimum_multiplier"],
+                )
+            )
         )
     else:
         unpeeled = timeline is not None and settings["retime_method"] != "svp"
@@ -523,10 +529,11 @@ def main():
                 interpolated_fps,
             )
 
-            if (
-                video.fps < pre_interpolated_fps
-            ):  # if can be while if rife limits the max interpolation fps, but i don't think it does
+            # deduplication's gaps are lower fps than the video, which the pre-interpolation method is better at, so it
+            # fills them even when the video's already fast enough
+            if video.fps < pre_interpolated_fps or timeline is not None:
                 old_fps = video.fps
+                pre_interpolated_fps = max(pre_interpolated_fps, video.fps)
 
                 log.info(f"pre-interpolating to {pre_interpolated_fps}")
 
