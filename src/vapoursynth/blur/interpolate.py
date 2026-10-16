@@ -378,9 +378,7 @@ def SVP(
     analysed = core.resize.Bilinear(video, format=vs.YUV420P8) if planes else video
 
     try:
-        # TODO: render 4:4:4 natively once https://github.com/Z1xus/open-svpflow/issues/8 is fixed, it's faster and
-        # uses less vram than rendering each plane. svp hud mask on the cpu only runs on 4:2:0 though, so it'd need that
-        # too
+        # TODO: render 4:4:4 natively once open-svpflow's peel supports it
         # super, vectors = _motion(video, analysed, super_string, vectors_string, halvings)
         # return core.svp2.SmoothFps(video, super["clip"], super["data"], vectors["clip"], vectors["data"], smooth_str)
 
