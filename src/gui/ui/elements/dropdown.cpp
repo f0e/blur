@@ -15,6 +15,7 @@ const gfx::Size OPTION_ACTION_SIZE(19, 19);
 const int OPTION_ACTION_GAP = 1;
 const int TEXT_ICON_GAP = 5;
 const int MIN_VISIBLE_ROWS = 3;
+const gfx::Size COMPACT_PADDING(7, 3);
 const float SCROLL_ROWS_PER_TICK = 2.f;
 const int SCREEN_PADDING = 6;
 
@@ -74,6 +75,16 @@ namespace {
 
 		gfx::Rect options_rect = element.element->rect;
 		options_rect.h = visible_height * anim;
+
+		// a compact dropdown is only as wide as its text, so the list sizes itself
+		if (dropdown_data.compact) {
+			int widest = 0;
+			for (const auto& option : dropdown_data.options)
+				widest = std::max(widest, dropdown_data.font.calc_size(option).w);
+
+			options_rect.w = std::max(options_rect.w, widest + (OPTIONS_PADDING.w * 2));
+			options_rect.x = std::min(options_rect.x, render::window_size.w - SCREEN_PADDING - options_rect.w);
+		}
 		options_rect.y = open_upwards ? dropdown_rect.y - options_rect.h - OPTIONS_GAP : below_y;
 
 		float max_scroll = content_height - visible_height;
@@ -237,57 +248,83 @@ void ui::render_dropdown(const Container& container, const AnimatedElement& elem
 	if (!dropdown_data.label.empty())
 		render::text(pos.label_pos, text_color, dropdown_data.label, dropdown_data.font);
 
-	// Render dropdown main area
-	render::rounded_rect_filled(pos.dropdown_rect, adjusted_color, DROPDOWN_ROUNDING);
-	render::rounded_rect_stroke(pos.dropdown_rect, border_color, DROPDOWN_ROUNDING);
+	if (dropdown_data.compact) {
+		const auto& [text, color] = *dropdown_data.compact;
 
-	// Get currently selected option text
-	std::string selected_text = get_selected_text(dropdown_data);
-	bool selected_muted = dropdown_data.checked.empty()
-	                          ? is_muted(*dropdown_data.selected)
-	                          : std::ranges::none_of(dropdown_data.checked, [](const bool* checked) {
-									return *checked;
-								});
-	render::clip_string(selected_text, dropdown_data.font, get_selected_text_width(pos));
+		render::rounded_rect_filled(pos.dropdown_rect, adjusted_color, DROPDOWN_ROUNDING);
+		render::rounded_rect_stroke(pos.dropdown_rect, border_color, DROPDOWN_ROUNDING);
 
-	render::text(
-		pos.selected_text_pos,
-		selected_muted ? muted_text_color : text_color,
-		selected_text,
-		dropdown_data.font,
-		FONT_CENTERED_Y
-	);
+		render::text(
+			{ pos.dropdown_rect.x + COMPACT_PADDING.w, pos.dropdown_rect.center().y },
+			color.adjust_alpha(anim),
+			text,
+			dropdown_data.font,
+			FONT_CENTERED_Y
+		);
 
-	// Render dropdown arrow
-	gfx::Point arrow_pos(
-		pos.dropdown_rect.x2() - DROPDOWN_PADDING.w - DROPDOWN_ARROW_PAD, pos.dropdown_rect.center().y
-	);
+		render::text(
+			{ pos.dropdown_rect.x2() - COMPACT_PADDING.w - (fonts::icons.calc_size(icons::DROPDOWN_ARROW).w / 2),
+		      pos.dropdown_rect.center().y },
+			arrow_colour,
+			icons::DROPDOWN_ARROW,
+			fonts::icons,
+			FONT_CENTERED_X | FONT_CENTERED_Y,
+			expand_goal * 180.f
+		);
+	}
+	else {
+		// Render dropdown main area
+		render::rounded_rect_filled(pos.dropdown_rect, adjusted_color, DROPDOWN_ROUNDING);
+		render::rounded_rect_stroke(pos.dropdown_rect, border_color, DROPDOWN_ROUNDING);
 
-	// const float arrow_length = 4.8f;
-	// const float arrow_angle_rad = u::deg_to_rad(46.f);
+		// Get currently selected option text
+		std::string selected_text = get_selected_text(dropdown_data);
+		bool selected_muted = dropdown_data.checked.empty()
+		                          ? is_muted(*dropdown_data.selected)
+		                          : std::ranges::none_of(dropdown_data.checked, [](const bool* checked) {
+										return *checked;
+									});
+		render::clip_string(selected_text, dropdown_data.font, get_selected_text_width(pos));
 
-	// int arrow_offset_x = round(arrow_length * std::cos(arrow_angle_rad));
-	// int arrow_offset_y = round(arrow_length * std::sin(arrow_angle_rad));
+		render::text(
+			pos.selected_text_pos,
+			selected_muted ? muted_text_color : text_color,
+			selected_text,
+			dropdown_data.font,
+			FONT_CENTERED_Y
+		);
 
-	// std::vector<gfx::Point> arrow_points = {
-	// 	{ arrow_pos.x - arrow_offset_x, arrow_pos.y - arrow_offset_y },
-	// 	arrow_pos,
-	// 	{ arrow_pos.x + arrow_offset_x, arrow_pos.y - arrow_offset_y },
-	// };
+		// Render dropdown arrow
+		gfx::Point arrow_pos(
+			pos.dropdown_rect.x2() - DROPDOWN_PADDING.w - DROPDOWN_ARROW_PAD, pos.dropdown_rect.center().y
+		);
 
-	// for (int i = 1; i < arrow_points.size(); i++) {
-	// 	render::line(arrow_points[i - 1], arrow_points[i], arrow_colour, true);
-	// }
+		// const float arrow_length = 4.8f;
+		// const float arrow_angle_rad = u::deg_to_rad(46.f);
 
-	// todo: draw this manually rather than using icon via font but font rendering looks way nicer than lines
-	render::text(
-		arrow_pos,
-		arrow_colour,
-		icons::DROPDOWN_ARROW,
-		fonts::icons,
-		FONT_CENTERED_X | FONT_CENTERED_Y,
-		expand_goal * 180.f
-	);
+		// int arrow_offset_x = round(arrow_length * std::cos(arrow_angle_rad));
+		// int arrow_offset_y = round(arrow_length * std::sin(arrow_angle_rad));
+
+		// std::vector<gfx::Point> arrow_points = {
+		// 	{ arrow_pos.x - arrow_offset_x, arrow_pos.y - arrow_offset_y },
+		// 	arrow_pos,
+		// 	{ arrow_pos.x + arrow_offset_x, arrow_pos.y - arrow_offset_y },
+		// };
+
+		// for (int i = 1; i < arrow_points.size(); i++) {
+		// 	render::line(arrow_points[i - 1], arrow_points[i], arrow_colour, true);
+		// }
+
+		// todo: draw this manually rather than using icon via font but font rendering looks way nicer than lines
+		render::text(
+			arrow_pos,
+			arrow_colour,
+			icons::DROPDOWN_ARROW,
+			fonts::icons,
+			FONT_CENTERED_X | FONT_CENTERED_Y,
+			expand_goal * 180.f
+		);
+	}
 
 	// Render dropdown options
 	if (expand_anim > 0.01f) {
@@ -680,6 +717,53 @@ ui::AnimatedElement* ui::add_multiselect_dropdown(
 		ElementType::DROPDOWN,
 		gfx::Rect(container.current_position, gfx::Size(container.get_usable_rect().w, height)),
 		std::move(data),
+		render_dropdown,
+		update_dropdown
+	);
+
+	return add_element(
+		container,
+		std::move(element),
+		container.element_gap,
+		{
+			{ hasher("main"), AnimationState(25.f) },
+			{ hasher("hover"), AnimationState(80.f) },
+			{ hasher("expand"), AnimationState(30.f) },
+			{ hasher("scroll"), AnimationState(20.f, 0.f, 0.5f) },
+		}
+	);
+}
+
+ui::AnimatedElement* ui::add_compact_dropdown(
+	const std::string& id,
+	Container& container,
+	const std::vector<std::string>& options,
+	std::string& selected,
+	const std::string& text,
+	const gfx::Color& color,
+	const render::Font& font,
+	std::optional<std::function<void(std::string*)>> on_change,
+	const std::vector<std::string>& muted_options
+) {
+	Element element(
+		id,
+		ElementType::DROPDOWN,
+		gfx::Rect(
+			container.current_position,
+			gfx::Size(
+				font.calc_size(text).w + TEXT_ICON_GAP + fonts::icons.calc_size(icons::DROPDOWN_ARROW).w +
+					(COMPACT_PADDING.w * 2),
+				font.height() + (COMPACT_PADDING.h * 2)
+			)
+		),
+		DropdownElementData{
+			.options = options,
+			.selected = &selected,
+			.font = font,
+			.on_change = std::move(on_change),
+			.muted_options = muted_options,
+			.compact = std::make_pair(text, color),
+		},
 		render_dropdown,
 		update_dropdown
 	);

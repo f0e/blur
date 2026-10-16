@@ -402,11 +402,15 @@ namespace ui {
 		std::optional<DropdownAddAction> add_action;
 		std::vector<bool*> checked; // one per option when multiselect, empty otherwise
 
+		// a small box with just this text in this colour, and no label
+		std::optional<std::pair<std::string, gfx::Color>> compact;
+
 		std::string hovered_option;
 
 		bool operator==(const DropdownElementData& other) const {
 			return label == other.label && options == other.options && selected == other.selected &&
-			       font == other.font && muted_options == other.muted_options && checked == other.checked;
+			       font == other.font && muted_options == other.muted_options && checked == other.checked &&
+			       compact == other.compact;
 		}
 	};
 
@@ -1176,6 +1180,19 @@ namespace ui {
 		gfx::Color default_color,
 		const std::vector<gfx::Color>& presets = {},
 		std::optional<std::function<void()>> on_change = {}
+	);
+
+	// a dropdown just big enough for `text`, drawn in `color`, for picking inline
+	AnimatedElement* add_compact_dropdown(
+		const std::string& id,
+		Container& container,
+		const std::vector<std::string>& options,
+		std::string& selected,
+		const std::string& text,
+		const gfx::Color& color,
+		const render::Font& font,
+		std::optional<std::function<void(std::string*)>> on_change = {},
+		const std::vector<std::string>& muted_options = {}
 	);
 
 	AnimatedElement* add_weighting_graph(
