@@ -8,6 +8,7 @@ be short if OBS died mid-recording.
 - `READ`  - when OBS's GPU read the captured picture (from the probe filter), and a hash of it
 - `PCKT`  - every encoded video packet, used to line a saved file up with the log
 - `PRES`  - the captured game's own frames, if the plugin could trace them
+- `MARK`  - the NVIDIA Reflex markers the game sent for them, matched to its frames here
 - `GAME`  - which process OBS was capturing, how, and its hook's copy interval
 """
 
@@ -24,7 +25,7 @@ from pathlib import Path
 import numpy as np
 
 SIDECAR_SUFFIX = ".frametiming"
-SIDECAR_VERSION = 8
+SIDECAR_VERSION = 9
 
 # the share of a video's packets whose size has to differ from the log's by the same amount to match it
 MATCH_SHARE = 0.98
@@ -83,8 +84,6 @@ PRESENT = np.dtype(
         ("flags", "<u8"),
         ("app_sim_start", "<u8"),
         ("app_sim_end", "<u8"),
-        ("reflex_sim_start", "<u8"),
-        ("reflex_sim_end", "<u8"),
         ("screen_time", "<u8"),
         ("frame_type", "<u8"),
         ("window", "<u8"),
@@ -101,7 +100,9 @@ GAME = np.dtype(
     ]
 )
 
-DTYPES = {b"TICK": TICK, b"READ": READ, b"PCKT": PACKET, b"PRES": PRESENT, b"GAME": GAME}
+MARKER = np.dtype([("qpc", "<u8"), ("process_id", "<u8"), ("frame_id", "<u8"), ("marker", "<u8")])
+
+DTYPES = {b"TICK": TICK, b"READ": READ, b"PCKT": PACKET, b"PRES": PRESENT, b"MARK": MARKER, b"GAME": GAME}
 
 HOOK_CAPTURE = 0
 WINDOW_CAPTURE = 1
@@ -113,6 +114,11 @@ PRESENT_FAILED = 1 << 1
 
 # presentdata's FrameType. anything above this was generated rather than drawn
 FRAME_TYPE_APPLICATION = 2
+
+# nvidia's pc latency stats markers, as the plugin logs them
+MARKER_SIMULATION_START = 0
+MARKER_PRESENT_START = 4
+MARKER_OUT_OF_BAND_PRESENT_START = 11
 
 # lining the gpu clock up with qpc: minimum samples, samples per window, minimum windows, and the percentile
 # each window's floor is taken at
@@ -139,6 +145,7 @@ class Sidecar:
     reads: np.ndarray
     packets: np.ndarray
     presents: np.ndarray
+    markers: np.ndarray
     games: np.ndarray
     game_timing: int
 
@@ -250,6 +257,7 @@ def load_sidecar(path: Path) -> Sidecar:
         sections[b"READ"],
         sections[b"PCKT"],
         sections[b"PRES"],
+        sections[b"MARK"],
         sections[b"GAME"],
         game_timing,
     )
@@ -269,6 +277,46 @@ def hook_interval(fps: Fraction, flags: int) -> float:
     if not flags & CAPTURE_LIMIT_FRAMERATE:
         interval //= 2
     return interval / 1e9
+
+
+def reflex_simulation(markers: np.ndarray, process: int, present_qpc: np.ndarray) -> np.ndarray:
+    """When each present's frame started simulating by its reflex markers, 0 where it has none. `present_qpc`
+    is sorted. A frame's present start marker is sent just before its present call, so a frame goes with the
+    first present at or after that marker, as long as it starts before the next frame's marker"""
+    simulated = np.zeros(len(present_qpc), dtype=np.int64)
+    markers = markers[markers["process_id"] == process]
+    if len(markers) == 0 or len(present_qpc) == 0:
+        return simulated
+
+    # games send one of the two present start markers
+    kind = MARKER_PRESENT_START
+    if not np.any(markers["marker"] == kind):
+        kind = MARKER_OUT_OF_BAND_PRESENT_START
+
+    def first_of(marker: int) -> tuple[np.ndarray, np.ndarray]:
+        chosen = markers[markers["marker"] == marker]
+        frames, at = np.unique(chosen["frame_id"].astype(np.int64), return_index=True)
+        return frames, chosen["qpc"].astype(np.int64)[at]
+
+    frames, presented = first_of(kind)
+    sim_frames, sim_qpc = first_of(MARKER_SIMULATION_START)
+    if len(frames) == 0 or len(sim_frames) == 0:
+        return simulated
+
+    order = np.argsort(presented, kind="stable")
+    frames, presented = frames[order], presented[order]
+
+    at = np.searchsorted(present_qpc, presented, "left")
+    following = np.append(presented[1:], np.iinfo(np.int64).max)
+    found = at < len(present_qpc)
+    found[found] &= present_qpc[at[found]] < following[found]
+
+    sim_at = np.searchsorted(sim_frames, frames)
+    found &= sim_at < len(sim_frames)
+    found[found] &= sim_frames[sim_at[found]] == frames[found]
+
+    simulated[at[found]] = sim_qpc[sim_at[found]]
+    return simulated
 
 
 def game_presents(sidecar: Sidecar, first: float, last: float) -> tuple[Presents | None, str]:
@@ -330,8 +378,11 @@ def game_presents(sidecar: Sidecar, first: float, last: float) -> tuple[Presents
     # prefer the game's own simulation times if it reports them
     simulated_qpc = start_qpc
     simulated_by = "frame start"
-    for field, by in (("app_sim_start", "PresentMon markers"), ("reflex_sim_start", "NVIDIA Reflex")):
-        reported = records[field].astype(np.int64)
+    reports = (
+        (records["app_sim_start"].astype(np.int64), "PresentMon markers"),
+        (reflex_simulation(sidecar.markers, process, present_qpc), "NVIDIA Reflex"),
+    )
+    for reported, by in reports:
         if np.mean(reported > 0) >= 0.5:
             simulated_qpc = np.where(reported > 0, reported, start_qpc)
             simulated_by = by
