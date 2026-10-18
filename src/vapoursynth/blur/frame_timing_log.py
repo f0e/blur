@@ -261,6 +261,16 @@ def captured_game(sidecar: Sidecar, process: int) -> np.ndarray | None:
     return captured[-1] if len(captured) else None
 
 
+def hook_interval(fps: Fraction, flags: int) -> float:
+    """The interval in seconds the capture hook skips presents on. Worked out like game-capture.c's
+    `reset_frame_interval` rather than taken from the log, since obs keeps handing the hook a new one as its
+    framerate changes and the log's is from when the game was hooked."""
+    interval = fps.denominator * 1_000_000_000 // fps.numerator
+    if not flags & CAPTURE_LIMIT_FRAMERATE:
+        interval //= 2
+    return interval / 1e9
+
+
 def game_presents(sidecar: Sidecar, first: float, last: float) -> tuple[Presents | None, str]:
     """The game's frames over the seconds from `first` to `last`, or why there aren't any. With game capture a
     frame is readable once the GPU has finished it, with window capture once it reaches the screen."""
@@ -329,7 +339,7 @@ def game_presents(sidecar: Sidecar, first: float, last: float) -> tuple[Presents
 
     visible_qpc = done_qpc if hooked else records["screen_time"].astype(np.int64)
 
-    interval = float(captured["frame_interval"]) / 1e9 if hooked and captured is not None else 0.0
+    interval = hook_interval(sidecar.fps, int(captured["flags"])) if hooked and captured is not None else 0.0
 
     # the first frame has no start time, so it's dropped
     def seconds(qpc: np.ndarray) -> np.ndarray:
