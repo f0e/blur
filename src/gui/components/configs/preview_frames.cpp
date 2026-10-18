@@ -240,9 +240,9 @@ void preview_frames::handle_event(const SDL_Event& event, bool& to_render) {
 }
 
 bool preview_frames::save_mask(
-	const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done
+	const std::filesystem::path& path, const std::function<void(std::optional<std::string> error)>& on_done
 ) {
-	return mask_preview && mask_preview->save(path, std::move(on_done));
+	return mask_preview && mask_preview->save(path, on_done);
 }
 
 void preview_frames::reset() {

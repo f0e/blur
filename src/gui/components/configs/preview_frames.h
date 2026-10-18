@@ -47,7 +47,9 @@ namespace gui::components::configs::preview_frames {
 
 	void pause();
 
-	bool save_mask(const std::filesystem::path& path, std::function<void(std::optional<std::string> error)> on_done);
+	bool save_mask(
+		const std::filesystem::path& path, const std::function<void(std::optional<std::string> error)>& on_done
+	);
 
 	void reset();
 }
