@@ -123,7 +123,8 @@ void ui::add_videos(
 	bool hardware_decoding,
 	bool trim_disabled,
 	const std::function<void(size_t video_id)>& on_remove,
-	const std::optional<VideoOverlay>& active_overlay
+	const std::optional<VideoOverlay>& active_overlay,
+	const std::vector<ContextMenuItem>& active_context_menu
 ) {
 	if (ui_videos.empty() || index >= ui_videos.size())
 		return;
@@ -257,6 +258,9 @@ void ui::add_videos(
 		video_elem->z_index = -distance;
 		video_elem->animations.at(hasher("offset")).set_goal(index_goal);
 		video_elem->animations.at(hasher("aspect")).set_goal(aspect_goal);
+
+		if (active)
+			video_elem->element->context_menu = active_context_menu;
 
 		float duration = ui_video.video_info ? ui_video.video_info->duration : 0.f;
 

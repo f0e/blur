@@ -228,7 +228,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	bool render_corner_update_notice = components::update_notice::is_updating();
 	ui::AnimatedElement* config_back_button = nullptr;
 
-	// built first so it gets escape before the screens do
+	// built first so they get escape before the screens do
+	ui::context_menu::build();
 	ui::dialog::build(sdl::window, rect);
 
 	bool queue_shown =
@@ -457,6 +458,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	ui::stick_element_to_top(config_container, config_back_button);
 
 	want_to_render |= ui::dialog::update_frame(delta_time);
+	want_to_render |= ui::context_menu::update_frame(delta_time);
 	want_to_render |= ui::tooltip::update(delta_time);
 	ui::on_update_frame_end();
 
@@ -514,6 +516,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		components::render_history::draw_panel(history_panel_container, history_button_container);
 
 		ui::dialog::render();
+
+		ui::context_menu::render();
 
 		ui::tooltip::render();
 

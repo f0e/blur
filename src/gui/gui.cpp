@@ -190,23 +190,28 @@ int gui::run() {
 				ui::on_update_input_start();
 				to_render |= ui::update_container_input(renderer::notification_container);
 
-				if (ui::dialog::is_open()) {
-					// modal, nothing behind it gets input
-					to_render |= ui::dialog::update_input();
-				}
-				else {
-					to_render |= ui::update_container_input(renderer::history_panel_container);
-					to_render |= ui::update_container_input(renderer::history_button_container);
-					to_render |= ui::update_container_input(renderer::update_container);
-					to_render |= ui::update_container_input(renderer::navigation_button_container);
-					to_render |= ui::update_container_input(renderer::nav_container);
+				// it's modal, but a right click outside closes it and goes through so it can open another one
+				to_render |= ui::context_menu::update_input();
 
-					to_render |= ui::update_container_input(renderer::main_container);
-					to_render |= ui::update_container_input(renderer::queue_config_container);
-					to_render |= ui::update_container_input(renderer::queue_container);
-					to_render |= ui::update_container_input(renderer::config_container);
-					to_render |= ui::update_container_input(renderer::option_information_container);
-					to_render |= ui::update_container_input(renderer::config_preview_content_container);
+				if (!ui::context_menu::is_open()) {
+					if (ui::dialog::is_open()) {
+						// modal, nothing behind it gets input
+						to_render |= ui::dialog::update_input();
+					}
+					else {
+						to_render |= ui::update_container_input(renderer::history_panel_container);
+						to_render |= ui::update_container_input(renderer::history_button_container);
+						to_render |= ui::update_container_input(renderer::update_container);
+						to_render |= ui::update_container_input(renderer::navigation_button_container);
+						to_render |= ui::update_container_input(renderer::nav_container);
+
+						to_render |= ui::update_container_input(renderer::main_container);
+						to_render |= ui::update_container_input(renderer::queue_config_container);
+						to_render |= ui::update_container_input(renderer::queue_container);
+						to_render |= ui::update_container_input(renderer::config_container);
+						to_render |= ui::update_container_input(renderer::option_information_container);
+						to_render |= ui::update_container_input(renderer::config_preview_content_container);
+					}
 				}
 
 				ui::on_update_input_end();

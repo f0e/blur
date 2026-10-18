@@ -7,6 +7,7 @@
 #include "common/weighting.h"
 
 #include "../../tasks.h"
+#include "../../frame_export.h"
 
 #include "../notifications.h"
 #include "../../renderer.h"
@@ -452,6 +453,11 @@ void configs::config_preview(ui::Container& container) {
 									  on_click
 			)
 			                          .has_value();
+		}
+
+		if (preview_image_added && !showing_hovered_mask && !preview.frame->faded) {
+			container.elements[preview_image_id].element->context_menu =
+				frame_export::menu_items(*preview.frame, preview_video_path, show_mask_preview);
 		}
 
 		container.pop_element_gap();

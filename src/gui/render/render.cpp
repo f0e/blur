@@ -623,6 +623,44 @@ void render::Texture::destroy() {
 	}
 }
 
+bool render::Texture::save_png(const std::filesystem::path& path) const {
+	if (!m_id)
+		return false;
+
+	// gles can't read a texture directly, only a framebuffer it's attached to
+	GLint prev_fbo = 0;
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
+
+	GLuint fbo = 0;
+	glGenFramebuffers(1, &fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_id, 0);
+
+	std::vector<uint8_t> pixels;
+	bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+	if (complete) {
+		// rows come out in the order they were uploaded, top first
+		pixels.resize(static_cast<size_t>(m_width) * m_height * 4);
+		glPixelStorei(GL_PACK_ALIGNMENT, 1);
+		glReadPixels(0, 0, m_width, m_height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
+	glDeleteFramebuffers(1, &fbo);
+
+	if (!complete)
+		return false;
+
+	SDL_Surface* surface = SDL_CreateSurfaceFrom(m_width, m_height, SDL_PIXELFORMAT_RGBA32, pixels.data(), m_width * 4);
+	if (!surface)
+		return false;
+
+	bool saved = IMG_SavePNG(surface, u::path_to_string(path).c_str());
+	SDL_DestroySurface(surface);
+
+	return saved;
+}
+
 void render::Texture::bind() const {
 	glBindTexture(GL_TEXTURE_2D, m_id);
 }

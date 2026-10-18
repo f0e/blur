@@ -11,6 +11,7 @@
 #include "../mask_preview.h"
 #include "../player_blur_preview.h"
 #include "queue_preview.h"
+#include "../frame_export.h"
 #include "configs/configs.h"
 #include "../fonts/icons.h"
 #include "common/masks.h"
@@ -398,6 +399,18 @@ void main::render_pending(
 
 	auto preview_state = queue_preview::update(*pending_video, app_config);
 
+	std::vector<ui::ContextMenuItem> video_context_menu;
+	if (preview_state.overlay) {
+		const auto& frame = preview_state.overlay->frame;
+		if (frame && !frame->faded)
+			video_context_menu =
+				frame_export::menu_items(*frame, pending_video->video_path, queue_preview::mask_enabled);
+	}
+	else if (ui::videos::player && ui::videos::is_loaded(pending_video->video_path) && ui::videos::player->has_frame())
+	{
+		video_context_menu = frame_export::menu_items({ .player = ui::videos::player }, pending_video->video_path);
+	}
+
 	ui::add_videos(
 		"test video",
 		queue_container,
@@ -412,7 +425,8 @@ void main::render_pending(
 		[&](size_t removed_video_id) {
 			tasks::cancel_pending(removed_video_id);
 		},
-		preview_state.overlay
+		preview_state.overlay,
+		video_context_menu
 	);
 
 	{

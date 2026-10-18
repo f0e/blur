@@ -621,6 +621,25 @@ bool ui::update_container_input(Container& container) {
 
 	hover_blocked = false;
 
+	if (keys::is_mouse_down(SDL_BUTTON_RIGHT) && !active_element && container.rect.contains(keys::mouse_pos)) {
+		AnimatedElement* target = nullptr;
+
+		for (const auto& id : container.current_element_ids) {
+			auto& element = container.elements[id];
+			if (element.element->context_menu.empty() || !element.element->rect.contains(keys::mouse_pos))
+				continue;
+
+			if (!target || element.z_index >= target->z_index)
+				target = &element;
+		}
+
+		if (target) {
+			keys::on_mouse_press_handled(SDL_BUTTON_RIGHT);
+			context_menu::open(target->element->context_menu);
+			updated = true;
+		}
+	}
+
 	hovered_id = hovered_element_internal ? hovered_element_internal->element->id : "";
 
 	// scroll

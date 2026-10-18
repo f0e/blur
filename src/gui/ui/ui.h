@@ -652,6 +652,12 @@ namespace ui {
 
 	struct Container;
 
+	struct ContextMenuItem {
+		std::string label;
+		std::optional<std::string> icon;
+		std::function<void()> on_press;
+	};
+
 	struct Element {
 		std::string id;
 		ElementType type;
@@ -665,6 +671,9 @@ namespace ui {
 		bool always_render = false;
 		bool auto_center_horizontal = true;
 		gfx::Rect orig_rect;
+
+		// opened by right clicking the element. it's cleared each time the element's added, so set it after
+		std::vector<ContextMenuItem> context_menu;
 
 		Element(
 			std::string id,
@@ -694,6 +703,7 @@ namespace ui {
 			this->always_render = other.always_render;
 			this->auto_center_horizontal = other.auto_center_horizontal;
 			this->orig_rect = other.orig_rect;
+			this->context_menu = other.context_menu;
 
 			bool updated = this->data != other.data;
 			if (updated) {
@@ -1050,7 +1060,8 @@ namespace ui {
 		bool hardware_decoding,
 		bool trim_disabled,
 		const std::function<void(size_t video_id)>& on_remove,
-		const std::optional<VideoOverlay>& active_overlay = {}
+		const std::optional<VideoOverlay>& active_overlay = {},
+		const std::vector<ContextMenuItem>& active_context_menu = {}
 	);
 
 	AnimatedElement* add_button(
@@ -1415,6 +1426,19 @@ namespace ui {
 		void on_input_end(const std::string& hovered_element_id);
 
 		bool update(float delta_time);
+		void render();
+	}
+
+	namespace context_menu {
+		// opens at the mouse
+		void open(std::vector<ContextMenuItem> items);
+		void close();
+		bool is_open();
+
+		void build();
+
+		bool update_input();
+		bool update_frame(float delta_time);
 		void render();
 	}
 
