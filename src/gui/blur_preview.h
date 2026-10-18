@@ -126,6 +126,7 @@ private:
 
 struct PreviewState {
 	bool playing = false;
+	bool seeking = false;
 
 	// shown over the video, nothing until it's ready
 	std::optional<ui::Frame> frame;

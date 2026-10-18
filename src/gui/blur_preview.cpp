@@ -320,7 +320,7 @@ std::optional<std::string> PreviewState::status_text(std::optional<std::string> 
 	if (playing)
 		return "pause to see blur's output, or shift+space to pre-render from here";
 
-	if (frame)
+	if (frame || seeking)
 		return std::nullopt;
 
 	if (status.failed)

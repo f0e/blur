@@ -1401,6 +1401,9 @@ namespace ui {
 	bool is_active_element(const AnimatedElement& element, const std::string& type = "");
 	void reset_active_element();
 
+	// a seek bar, timeline or trim grab is being dragged, moving the video as it goes
+	bool is_dragging_seek();
+
 	bool set_hovered_element(AnimatedElement& element);
 	std::string get_hovered_id();
 

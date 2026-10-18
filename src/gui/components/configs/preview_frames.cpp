@@ -127,6 +127,7 @@ namespace {
 				.video_info = info,
 				.settings = request.settings,
 				.app_settings = request.app_settings,
+				.seeking = ui::is_dragging_seek(),
 			}
 		);
 

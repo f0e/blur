@@ -549,6 +549,11 @@ bool ui::is_active_element(const AnimatedElement& element, const std::string& ty
 	return active_element == &element && active_element_type == type;
 }
 
+bool ui::is_dragging_seek() {
+	return active_element_type == "seek bar" || active_element_type == "timeline_seek" ||
+	       active_element_type.starts_with("grab_");
+}
+
 void ui::reset_active_element() {
 	active_element = nullptr;
 	active_element_type = "";

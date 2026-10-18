@@ -103,6 +103,7 @@ queue_preview::State queue_preview::update(
 			.app_settings = app_settings,
 			.volume = static_cast<float>(app_settings.preview_volume),
 			.audio_track = pending_video.audio_track,
+			.seeking = ui::is_dragging_seek(),
 		}
 	);
 
