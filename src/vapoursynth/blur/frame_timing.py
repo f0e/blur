@@ -33,10 +33,6 @@ LATENCY_REACH = 1.0
 # hook skip grid phases tried
 PHASE_STEPS = 16
 
-# if more of the latency range than this fits equally well, the fit isn't used. clips the fingerprints pin down
-# leave under a percent, ones they can't leave a third or more
-IDENTIFIABLE_SHARE = 0.1
-
 # frames the phase and latency are fitted over
 FIT_FRAMES = 20000
 
@@ -74,9 +70,10 @@ def picture_changes(fingerprint: np.ndarray) -> np.ndarray:
 
 def _latency(
     read: np.ndarray, changes: np.ndarray, visible: np.ndarray, reach: float
-) -> tuple[int, float, float, float]:
+) -> tuple[int, float, float, bool]:
     """The read latency that disagrees with the fingerprints least. Returns the number of disagreements, the
-    latency (middle of the widest best-scoring run), that run's width, and the total width scoring the same"""
+    latency (middle of the widest best-scoring run), that run's width, and whether no latency at all scores the
+    same"""
     frames = len(read)
     low = np.searchsorted(visible, read - reach, "right")
     high = np.searchsorted(visible, read + reach, "right")
@@ -129,7 +126,7 @@ def _latency(
     fewest = min(run[0] for run in runs)
     equal = [run for run in runs if run[0] == fewest]
     widest = max(equal, key=lambda run: run[2] - run[1])
-    return int(fewest), (widest[1] + widest[2]) / 2, widest[2] - widest[1], sum(r[2] - r[1] for r in equal)
+    return int(fewest), (widest[1] + widest[2]) / 2, widest[2] - widest[1], any(r[1] <= 0 <= r[2] for r in equal)
 
 
 def fit(
@@ -141,22 +138,22 @@ def fit(
     skips = len(present) > 1 and float(np.min(np.diff(present))) < interval
     phases = np.linspace(1, 0, PHASE_STEPS, endpoint=False) if skips else np.array([1.0])
 
-    best: tuple[int, float, float, float, float] | None = None
+    best: tuple[int, float, float, float, bool] | None = None
     for phase in phases:
         copied = hook_copies(present, interval, float(phase))
         if len(copied) == 0:
             continue
 
-        wrong, latency, width, span = _latency(read, changes, np.sort(visible[copied]), reach)
+        wrong, latency, width, untimed = _latency(read, changes, np.sort(visible[copied]), reach)
         if best is None or (wrong, -width) < (best[0], -best[3]):
-            best = (wrong, latency, float(phase), width, span)
+            best = (wrong, latency, float(phase), width, untimed)
 
     if best is None:
         return 1.0, 0.0, 0, False
 
-    # a game outrunning the recording shows a new picture on nearly every read, so any latency fits and the
-    # probe's measurement is kept instead
-    identified = best[4] < IDENTIFIABLE_SHARE * 2 * reach
+    # the probe's own timing is kept unless the fingerprints rule it out. a game outrunning the recording shows a
+    # new picture on nearly every read, so any latency fits
+    identified = not best[4]
     return best[2], (best[1] if identified else 0.0), best[0], identified
 
 
@@ -335,7 +332,7 @@ def analyse(
                     f"unexplained"
                 )
             else:
-                fitted = "couldn't fit the read latency (game faster than the recording), using the probe's timing"
+                fitted = "the probe's timing fits as well as any read latency, using it"
         else:
             phase, latency = 1.0, 0.0
             fitted = "nothing to fit, using the probe's timing"
