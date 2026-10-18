@@ -577,8 +577,9 @@ def main():
             log.info(f"added {fps_added} (interp: {interpolated_fps}. video.fps: {video.fps}/{interpolated_fps})")
 
     if timeline is not None:
-        # no interpolation, so retiming fills its own gaps using 'retime method'
-        method = settings["retime_method"]
+        # nothing was interpolated, so retiming fills its own gaps. 'retime method' is only offered with interpolation
+        # off, otherwise the video was already at the interpolated fps and the interpolation method is used
+        method = settings["interpolation_method"] if settings["interpolate"] else settings["retime_method"]
         log.info(f"filling duplicate frames with {method}")
 
         if method == "old" and logged_timing is not None:
