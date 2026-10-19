@@ -440,6 +440,15 @@ def render_ticks(sidecar: Sidecar, sizes: np.ndarray, first: int | None = None) 
     tick_time = sidecar.ticks["frame_time"].astype(np.int64)
     at = np.searchsorted(tick_time, cts, "right") - 1
 
+    # when obs's render falls behind, its gpu encoder fills the ticks it missed by encoding the previous render
+    # again, stamped as those ticks, then stamps the late render with the first of them (queue_frame in
+    # obs-video.c). so in encode order a frame whose timestamp a later one doesn't pass is one of those repeats,
+    # and shows the render before it
+    later = np.append(np.minimum.accumulate(cts[::-1])[::-1][1:], np.iinfo(np.int64).max)
+    repeat = cts >= later
+    shown = np.maximum.accumulate(np.where(repeat, -1, np.arange(len(cts))))
+    at = np.where(repeat & (shown >= 0), at[np.maximum(shown, 0)], at)
+
     return np.clip(at + sidecar.render_delay, 0, len(tick_time) - 1)
 
 
