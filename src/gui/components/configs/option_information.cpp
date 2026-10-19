@@ -265,6 +265,8 @@ void configs::option_information(ui::Container& container) {
 				"How far apart two frames can be and still have frames generated between them",
 				"Make it higher if your footage is at a lower FPS than it should be, e.g. choppy 120fps gameplay recorded at 240fps",
 				"Lower it if your blurred footage starts blurring static elements such as menu screens",
+				"With a frame timing log it only counts time the game kept drawing the same picture (a menu, standing still)",
+				"So low framerates, hitches and frames missing from the recording still get frames generated, up to 30",
 			},
 		},
 		{

@@ -122,7 +122,7 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 
 ### Advanced deduplication
 
-- deduplicate range - How far apart two frames can be and still have frames generated between them (-1 = infinite). Make it higher if your footage is at a lower FPS than it should be (e.g. choppy 120fps gameplay recorded at 240fps), lower it if your blurred footage starts blurring static elements such as menu screens
+- deduplicate range - How far apart two frames can be and still have frames generated between them (-1 = infinite). Make it higher if your footage is at a lower FPS than it should be (e.g. choppy 120fps gameplay recorded at 240fps), lower it if your blurred footage starts blurring static elements such as menu screens. With a frame timing log it only counts time the game kept drawing the same picture (a menu, standing still), so a low game framerate, hitches and frames missing only from the recording (e.g. when OBS's encoder falls behind) still get frames generated, up to 30 frames
 - deduplicate threshold - Threshold of movement that triggers deduplication. Turn on `debug` and render a video to embed text showing the movement in each frame
 - deduplicate real frame - Which frame in a run of duplicates is the real one:
   - first - The first frame (default)

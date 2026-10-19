@@ -10,6 +10,7 @@ picture is placed at the moment obs read it.
 """
 
 import bisect
+import itertools
 import math
 from fractions import Fraction
 from pathlib import Path
@@ -207,6 +208,20 @@ def _placed(game: np.ndarray, presents: timing_log.Presents | None, read: np.nda
     return _on_frames(np.where(covered, moment, read + apart), fps)
 
 
+def _stillest(seen: np.ndarray, still: np.ndarray, before: float, after: float) -> float:
+    """The longest the picture provably stayed the same between two moments: from a change to the last frame the
+    game drew after it that still showed the same picture. A game that didn't draw (a low framerate, a hitch) isn't
+    still, it's just slow. `seen` is when the picture obs read changed, `still` when obs read the same picture from
+    a new game frame, both sorted"""
+    inside = seen[np.searchsorted(seen, before, "right") : np.searchsorted(seen, after, "left")]
+    longest = 0.0
+    for since, until in itertools.pairwise(np.concatenate([[before], inside, [after]])):
+        last = np.searchsorted(still, until, "left") - 1
+        if last >= 0 and still[last] > since:
+            longest = max(longest, float(still[last] - since))
+    return longest
+
+
 def _pick(times: list[int], n: int) -> tuple[int, int]:
     """Which of `times` a decision for frame n holds: the one at or before it, through the first past it."""
     begin = max(0, bisect.bisect_right(times, n * TIME_SCALE) - 1)
@@ -215,20 +230,32 @@ def _pick(times: list[int], n: int) -> tuple[int, int]:
 
 
 def _timeline(
-    frames: list[int], placed: list[float], start: int, length: int, hold: int
+    frames: list[int],
+    placed: list[float],
+    start: int,
+    length: int,
+    hold: int,
+    seen: np.ndarray,
+    still: np.ndarray,
 ) -> tuple[list[int], list[int], int]:
-    """Real frames and their times relative to `start`, holding the picture across gaps longer than `hold`, and
-    how many of them the timing didn't manage to separate."""
+    """Real frames and their times relative to `start`, and how many of them the timing didn't manage to
+    separate. The picture is held where it stayed the same for longer than `hold` while the game kept drawing (a
+    menu, standing still). Gaps where the game didn't draw, or pictures missing only from the recording, are
+    interpolated across, up to retime.MAX_GAP_LIMIT"""
     frames_out: list[int] = []
     times_out: list[int] = []
     crowded = 0
+    previous = None
     for k, at in zip(frames, placed):
         frame = min(max(k - start, 0), length - 1)
         time = round((at - start) * TIME_SCALE)
 
-        if times_out and time - times_out[-1] > hold * TIME_SCALE:
+        if previous is not None and (
+            _stillest(seen, still, previous, at) > hold or at - previous > retime.MAX_GAP_LIMIT
+        ):
             frames_out.append(frames_out[-1])
             times_out.append(time - hold * TIME_SCALE)
+        previous = at
 
         # the fingerprints say this is a new picture, so keep it at the smallest possible step rather than drop it
         if times_out and time <= times_out[-1]:
@@ -242,17 +269,21 @@ def _timeline(
 
 
 def _decisions(
-    new: np.ndarray, placed: np.ndarray, start: int, length: int, hold: int
+    new: np.ndarray, seen: np.ndarray, still: np.ndarray, placed: np.ndarray, start: int, length: int, hold: int
 ) -> tuple[vs.VideoNode, int, int]:
-    """A decision per frame of the trimmed part, from the frames the log says are real and when they belong,
-    and how many of those frames the timing put no later than the one before."""
+    """A decision per frame of the trimmed part, from the frames that are real pictures in the recording and when
+    they belong, and how many of those frames the timing put no later than the one before. `seen` is which frames
+    obs read a new picture for, which includes ones its encoder didn't get into the recording, and `still` which
+    ones it read the same picture for from a frame the game drew"""
     real = [int(k) for k in np.nonzero(new)[0]]
 
     # the real frames in the trimmed part plus one either side
     low = bisect.bisect_left(real, start)
     high = bisect.bisect_right(real, start + length - 1)
     kept = real[max(low - 1, 0) : min(high + 1, len(real))]
-    frames_list, times_list, crowded = _timeline(kept, [placed[k] for k in kept], start, length, hold)
+    frames_list, times_list, crowded = _timeline(
+        kept, [placed[k] for k in kept], start, length, hold, np.sort(placed[seen]), np.sort(placed[still])
+    )
 
     gaps = np.diff(times_list) / TIME_SCALE if len(times_list) > 1 else np.array([1.0])
     widest = int(max(2, math.ceil(gaps.max())))
@@ -315,7 +346,8 @@ def analyse(
     source: vs.VideoNode | None = None,
 ) -> retime.Timeline | None:
     """Set up retiming from a video's frame timing log, or None if it has none that fits. `frames` and `fps` are
-    the whole video's, before timescale. Gaps wider than `hold` frames are held rather than interpolated.
+    the whole video's, before timescale. Pictures that stayed the same for longer than `hold` frames are held
+    rather than interpolated across.
     `nearest` is whether the source pads timestamp gaps with the nearest packet rather than the previous one.
     `source` is the whole video, used to find frames obs's encoder repeated when it fell behind"""
     logs = timing_log.sidecars_for(video_path)
@@ -393,21 +425,25 @@ def analyse(
 
     # fingerprints first, then the game's frames, then every frame is new
     shows = np.concatenate([[True], game[1:] != game[:-1]]) if presents is not None else np.ones(len(read), bool)
-    new = np.where(changes >= 0, changes > 0, shows)
+    seen = np.where(changes >= 0, changes > 0, shows)
+    # the same picture from a frame the game drew is stillness. without the game's frames there's no telling that
+    # from a slow game, so any repeat counts
+    still = (changes == 0) & (shows | (game < 0))
 
     # the log says what obs read, which isn't what it encoded when the encoder fell behind
+    new = seen
     if source is not None:
         waits = timing_log.encode_waits(sidecar, sizes, first)[shown]
-        repeated = _encoder_repeats(source, new, waits, clip)
+        repeated = _encoder_repeats(source, seen, waits, clip)
         if repeated.any():
             log.info(
                 f"frame timing: obs's encoder fell behind and repeated {int(repeated.sum())} of {length} frames "
                 f"instead of the pictures it read, so those are treated as repeats"
             )
-            new = new & ~repeated
+            new = seen & ~repeated
 
     placed = _placed(game, presents, read, fps)
-    decisions, widest, crowded = _decisions(new, placed, start, length, hold)
+    decisions, widest, crowded = _decisions(new, seen, still, placed, start, length, hold)
     if crowded:
         log.info(
             f"frame timing: {crowded} of {int(np.count_nonzero(new[clip]))} frames were timed no later than the "
