@@ -130,6 +130,10 @@ def main():
         log.info("LSMASH isn't available, falling back to BestSource")
         source_plugin = "BestSource"
 
+    if source_plugin == "LWLibavSource" and (lsmas_issue := globals().get("lsmas_issue")):
+        log.info(f"LSMASH can't read this video properly since {lsmas_issue}, using BestSource")
+        source_plugin = "BestSource"
+
     if globals().get("frameserver") == "true":
         # debugmode frameserver signpost avis only decode through its vfw codec, which ffmpeg (meaning bestsource/lsmas) can't use
         if AVISOURCE_PLUGIN not in loaded_plugins:

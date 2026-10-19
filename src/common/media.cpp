@@ -85,7 +85,7 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 			"-show_entries",
 			"stream_disposition=attached_pic",
 			"-show_entries",
-			"format=duration,start_time",
+			"format=duration,start_time,format_name",
 			"-of",
 			"json",
 			u::path_to_string(path),
@@ -125,6 +125,8 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 		return s;
 	};
 
+	std::string format_name;
+
 	// format
 	if (j.contains("format")) {
 		const auto& fmt = j["format"];
@@ -134,6 +136,8 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 
 		if (fmt.contains("start_time"))
 			info.start_time = std::stod(fmt["start_time"].get<std::string>());
+
+		format_name = fmt.value("format_name", "");
 	}
 
 	// streams
@@ -187,6 +191,14 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 	// mkv doesn't store stream durations
 	if (info.has_video_stream && info.video_duration <= 0.0)
 		info.video_duration = info.duration - (info.video_start_time - info.start_time);
+
+	// mpeg-ts/ps timestamps are 33 bits of 90khz, and ffmpeg unwraps them to before 0 when they wrap early on
+	constexpr double MPEG_TIMESTAMP_WRAP = static_cast<double>(1LL << 33) / 90000.0;
+	if (format_name.starts_with("mpeg") &&
+	    (info.video_start_time < 0.0 || info.video_start_time + info.video_duration > MPEG_TIMESTAMP_WRAP))
+	{
+		info.lsmas_issue = "its timestamps wrap around partway through";
+	}
 
 	info.preroll_frames = get_video_preroll_frames(path);
 

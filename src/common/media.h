@@ -28,6 +28,8 @@ namespace media {
 
 		int preroll_frames = 0;
 
+		std::optional<std::string> lsmas_issue;
+
 		// debugmode frameserver signpost avi
 		bool frameserver = false;
 		bool ffmpeg_can_decode_video = true;
