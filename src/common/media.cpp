@@ -83,6 +83,8 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 			"stream=index,codec_type,codec_name,codec_tag_string,sample_rate,color_range,r_frame_rate,pix_fmt,color_space,color_transfer,color_primaries,width,height,start_time,duration",
 			// clang-format on
 			"-show_entries",
+			"stream_disposition=attached_pic",
+			"-show_entries",
 			"format=duration,start_time",
 			"-of",
 			"json",
@@ -135,18 +137,18 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 	}
 
 	// streams
-	bool first_video_stream = false;
-
 	for (const auto& stream : j.value("streams", nlohmann::json::array())) {
 		const auto codec_type = stream.value("codec_type", "");
 
-		if (codec_type == "video") {
+		bool attached_pic = stream.contains("disposition") && stream["disposition"].value("attached_pic", 0) != 0;
+
+		if (codec_type == "video" && !attached_pic) {
 			info.has_video_stream = true;
 
-			if (first_video_stream)
+			if (info.video_stream_index >= 0)
 				continue;
 
-			first_video_stream = true;
+			info.video_stream_index = stream.value("index", -1);
 
 			info.width = stream.value("width", 0);
 			info.height = stream.value("height", 0);

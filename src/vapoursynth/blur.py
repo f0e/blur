@@ -121,6 +121,7 @@ def main():
     settings = json.loads(globals().get("settings", "{}"))
     fps_num = globals().get("fps_num", -1)
     fps_den = globals().get("fps_den", -1)
+    video_stream_index = int(globals().get("video_stream_index", -1))
     color_range = globals().get("color_range", "")
     settings_path = Path(globals().get("settings_path", ""))
 
@@ -140,6 +141,7 @@ def main():
         def lwlibav_source(prefer_hw: int):
             return core.lsmas.LWLibavSource(
                 source=video_path,
+                stream_index=video_stream_index,
                 cache=0,
                 prefer_hw=prefer_hw,
                 fpsnum=fps_num if fps_num != -1 else None,
@@ -166,6 +168,7 @@ def main():
         def bestsource(hwdevice: str | None):
             return core.bs.VideoSource(
                 source=video_path,
+                track=video_stream_index,
                 cachemode=0,
                 apply_rotation=False,  # lsmas doesn't
                 fpsnum=fps_num if fps_num != -1 else None,

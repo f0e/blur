@@ -197,6 +197,9 @@ std::vector<std::string> rendering::detail::build_vspipe_video_args(
 	if (video_info.frameserver)
 		args.insert(args.end(), { "-a", "frameserver=true" });
 
+	if (video_info.video_stream_index >= 0)
+		args.insert(args.end(), { "-a", std::format("video_stream_index={}", video_info.video_stream_index) });
+
 	if (options.skipped_frames > 0)
 		args.insert(args.end(), { "-a", std::format("skip_frames={}", options.skipped_frames) });
 

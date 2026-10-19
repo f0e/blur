@@ -3,6 +3,10 @@
 namespace media {
 	struct VideoInfo {
 		bool has_video_stream = false;
+
+		// cover art is a video stream too, and source plugins can pick it rather than the video
+		int video_stream_index = -1;
+
 		std::optional<std::string> color_range;
 		std::optional<std::string> pix_fmt;
 		std::optional<std::string> color_space;
