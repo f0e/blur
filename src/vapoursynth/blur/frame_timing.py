@@ -39,6 +39,11 @@ FIT_FRAMES = 20000
 # seconds of game frames wanted either side of the clip
 LEAD = 2.0
 
+# obs's gpu encoder queue (NUM_ENCODE_TEXTURES in libobs). when every slot is taken at a tick, obs encodes the last
+# queued frame again instead of the one it just rendered, so a frame can only be repeated after waiting about this
+# many ticks
+ENCODE_SLOTS = 10
+
 
 def hook_copies(present: np.ndarray, interval: float, phase: float) -> np.ndarray:
     """Which presents the capture hook copied, skipping ones sooner than `interval` on a fixed grid like obs's
@@ -265,6 +270,40 @@ def _decisions(
     return core.std.ModifyFrame(holder, holder, decide), widest, crowded
 
 
+def _encoder_repeats(source: vs.VideoNode, new: np.ndarray, waits: np.ndarray, clip: slice) -> np.ndarray:
+    """Which frames obs's encoder filled with the frame before, though the log saw a new picture for them.
+
+    Only frames that waited long enough for the queue to have been full are looked at. A repeat re-encodes the
+    texture it just encoded, so it barely differs from the frame before, far less than any real change does, and
+    the two groups are split where they're furthest apart. Nothing is marked unless they're clearly apart"""
+    repeated = np.zeros(len(new), dtype=bool)
+    candidates = np.flatnonzero(new & (np.nan_to_num(waits) >= ENCODE_SLOTS - 1))
+    candidates = candidates[(candidates >= max(clip.start, 1)) & (candidates < min(clip.stop, source.num_frames))]
+    if len(candidates) < 2:
+        return repeated
+
+    # deduplication's measure, read for runs of candidates at a time so they decode in parallel
+    stats = core.std.PlaneStats(source, source[0] + source)
+    runs = np.split(candidates, np.flatnonzero(np.diff(candidates) != 1) + 1)
+    picked = core.std.Splice([stats[int(run[0]) : int(run[-1]) + 1] for run in runs])
+    diffs = np.array([float(f.props["PlaneStatsDiff"]) for f in picked.frames()])
+
+    # the split that best separates the two groups on a log scale (otsu)
+    order = np.argsort(diffs)
+    x = np.log10(np.maximum(diffs[order], 1e-12))
+    k = np.arange(1, len(x))
+    low = np.cumsum(x)[:-1] / k
+    high = (x.sum() - np.cumsum(x)[:-1]) / (len(x) - k)
+    split = int(np.argmax(k * (len(x) - k) * (high - low) ** 2)) + 1
+
+    # an order of magnitude between them, or it's one group with no repeats in it
+    if x[split] - x[split - 1] < 1:
+        return repeated
+
+    repeated[candidates[order[:split]]] = True
+    return repeated
+
+
 def analyse(
     fps: Fraction,
     frames: int,
@@ -273,10 +312,12 @@ def analyse(
     video_path: Path,
     hold: int,
     nearest: bool,
+    source: vs.VideoNode | None = None,
 ) -> retime.Timeline | None:
     """Set up retiming from a video's frame timing log, or None if it has none that fits. `frames` and `fps` are
     the whole video's, before timescale. Gaps wider than `hold` frames are held rather than interpolated.
-    `nearest` is whether the source pads timestamp gaps with the nearest packet rather than the previous one"""
+    `nearest` is whether the source pads timestamp gaps with the nearest packet rather than the previous one.
+    `source` is the whole video, used to find frames obs's encoder repeated when it fell behind"""
     logs = timing_log.sidecars_for(video_path)
     if not logs:
         return None
@@ -353,6 +394,17 @@ def analyse(
     # fingerprints first, then the game's frames, then every frame is new
     shows = np.concatenate([[True], game[1:] != game[:-1]]) if presents is not None else np.ones(len(read), bool)
     new = np.where(changes >= 0, changes > 0, shows)
+
+    # the log says what obs read, which isn't what it encoded when the encoder fell behind
+    if source is not None:
+        waits = timing_log.encode_waits(sidecar, sizes, first)[shown]
+        repeated = _encoder_repeats(source, new, waits, clip)
+        if repeated.any():
+            log.info(
+                f"frame timing: obs's encoder fell behind and repeated {int(repeated.sum())} of {length} frames "
+                f"instead of the pictures it read, so those are treated as repeats"
+            )
+            new = new & ~repeated
 
     placed = _placed(game, presents, read, fps)
     decisions, widest, crowded = _decisions(new, placed, start, length, hold)

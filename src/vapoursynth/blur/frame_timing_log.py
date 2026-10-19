@@ -411,13 +411,18 @@ def game_presents(sidecar: Sidecar, first: float, last: float) -> tuple[Presents
     return presents, ""
 
 
+def _in_order(sidecar: Sidecar, sizes: np.ndarray, first: int) -> np.ndarray:
+    """The video's packets from the log, in presentation order."""
+    packets = sidecar.packets[first : first + len(sizes)]
+    return packets[np.argsort(packets["pts"], kind="stable")]
+
+
 def render_ticks(sidecar: Sidecar, sizes: np.ndarray, first: int | None = None) -> np.ndarray:
     """For each of the video's packets in presentation order, the tick that rendered it, matched through the
     packet's `cts`. `first` is where the video's packets start in the log."""
     if first is None:
         first = match_packets(sidecar, sizes)
-    packets = sidecar.packets[first : first + len(sizes)]
-    packets = packets[np.argsort(packets["pts"], kind="stable")]
+    packets = _in_order(sidecar, sizes, first)
 
     cts = packets["cts"].astype(np.int64)
     pts = packets["pts"].astype(np.int64)
@@ -434,7 +439,17 @@ def render_ticks(sidecar: Sidecar, sizes: np.ndarray, first: int | None = None) 
 
     tick_time = sidecar.ticks["frame_time"].astype(np.int64)
     at = np.searchsorted(tick_time, cts, "right") - 1
+
     return np.clip(at + sidecar.render_delay, 0, len(tick_time) - 1)
+
+
+def encode_waits(sidecar: Sidecar, sizes: np.ndarray, first: int) -> np.ndarray:
+    """For each of the video's packets in presentation order, how many ticks it waited between being rendered and
+    obs's encoder starting on it, nan where obs didn't say."""
+    packets = _in_order(sidecar, sizes, first)
+    cts = packets["cts"].astype(np.int64)
+    fer = packets["fer"].astype(np.int64)
+    return np.where((cts > 0) & (fer > 0), (fer - cts) / 1e9 * float(sidecar.fps), np.nan)
 
 
 def _read_seconds(sidecar: Sidecar, reads: np.ndarray) -> tuple[np.ndarray, str]:

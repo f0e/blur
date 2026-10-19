@@ -235,6 +235,7 @@ def main():
             video_path,
             hold=hold,
             nearest=source_plugin == "BestSource",
+            source=untrimmed,
         )
 
     retiming = (settings["deduplicate"] and settings["deduplicate_range"] != 0) or logged_timing is not None
