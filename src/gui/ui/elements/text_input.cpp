@@ -145,7 +145,7 @@ bool ui::update_text_input(const Container& container, AnimatedElement& element)
 		focus_anim.set_goal(0.f);
 
 		// Stop SDL text input if not in another text input
-		if (get_active_element() && get_active_element()->element->type != ElementType::TEXT_INPUT) {
+		if (!get_active_element() || get_active_element()->element->type != ElementType::TEXT_INPUT) {
 			if (SDL_TextInputActive(container.window)) {
 				SDL_StopTextInput(container.window);
 			}

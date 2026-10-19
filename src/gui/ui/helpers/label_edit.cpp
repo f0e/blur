@@ -1,5 +1,6 @@
 #include "../ui.h"
 #include "../keys.h"
+#include "../../sdl.h"
 
 constexpr gfx::Color SELECTION_COLOR(100, 100, 200, 100);
 constexpr gfx::Color COMPOSITION_TEXT_COLOR(200, 200, 255, 255); // For IME
@@ -32,6 +33,14 @@ void ui::end_label_edit(AnimatedElement& element) {
 
 	if (get_active_element() == &element)
 		reset_active_element();
+
+	// focus may have already moved to another text edit, which still needs it
+	auto* active = get_active_element();
+	if (active != nullptr && helpers::text_input::has_active_text_edit(active->element->id))
+		return;
+
+	if (SDL_TextInputActive(sdl::window))
+		SDL_StopTextInput(sdl::window);
 }
 
 bool ui::update_label_edit(
