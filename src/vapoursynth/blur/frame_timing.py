@@ -240,8 +240,9 @@ def _timeline(
 ) -> tuple[list[int], list[int], int]:
     """Real frames and their times relative to `start`, and how many of them the timing didn't manage to
     separate. The picture is held where it stayed the same for longer than `hold` while the game kept drawing (a
-    menu, standing still). Gaps where the game didn't draw, or pictures missing only from the recording, are
-    interpolated across, up to retime.MAX_GAP_LIMIT"""
+    menu, standing still), and the next picture is switched to rather than interpolated towards. Gaps where the
+    game didn't draw, or pictures missing only from the recording, are interpolated across, up to
+    retime.MAX_GAP_LIMIT"""
     frames_out: list[int] = []
     times_out: list[int] = []
     crowded = 0
@@ -253,8 +254,9 @@ def _timeline(
         if previous is not None and (
             _stillest(seen, still, previous, at) > hold or at - previous > retime.MAX_GAP_LIMIT
         ):
+            # the next picture is shown as it is rather than interpolated towards
             frames_out.append(frames_out[-1])
-            times_out.append(time - hold * TIME_SCALE)
+            times_out.append(time - 1)
         previous = at
 
         # the fingerprints say this is a new picture, so keep it at the smallest possible step rather than drop it
@@ -285,8 +287,13 @@ def _decisions(
         kept, [placed[k] for k in kept], start, length, hold, np.sort(placed[seen]), np.sort(placed[still])
     )
 
-    gaps = np.diff(times_list) / TIME_SCALE if len(times_list) > 1 else np.array([1.0])
-    widest = int(max(2, math.ceil(gaps.max())))
+    # a held picture isn't interpolated, so only gaps between different frames count
+    gaps = [
+        (b - a) / TIME_SCALE
+        for a, b, left, right in zip(times_list, times_list[1:], frames_list, frames_list[1:])
+        if left != right
+    ]
+    widest = int(max(2, math.ceil(max(gaps, default=1.0))))
 
     holder = core.std.BlankClip(width=1, height=1, format=vs.GRAY8, length=length, keep=True)
 
