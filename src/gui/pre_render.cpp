@@ -36,7 +36,7 @@ PreRender::PreRender(const Request& request)
 	  m_volume(request.volume), m_hardware_decoding(request.app_settings.preview_hardware_decoding),
 	  m_start_frame(request.start_frame), m_end_frame(request.end_frame),
 	  m_fps(static_cast<double>(request.video_info.fps_num) / request.video_info.fps_den),
-	  m_clock_offset(request.video_info.video_start_time - request.video_info.start_time) {
+	  m_clock_offset(request.video_info.video_offset()) {
 	const auto& settings = request.settings;
 
 	m_speed = settings.timescale ? static_cast<double>(settings.output_timescale) / settings.input_timescale : 1.0;

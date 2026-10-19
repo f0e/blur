@@ -51,7 +51,7 @@ namespace {
 		double frame_time = std::round(BlurPreview::source_time(request.settings, info, position) * fps) / fps;
 
 		// mpv's clock starts with the container, which can be before the video's first frame
-		auto timestamp = VideoPlayer::frame_seek_target(info.video_start_time - info.start_time + frame_time, fps);
+		auto timestamp = VideoPlayer::frame_seek_target(info.video_offset() + frame_time, fps);
 
 		if (!source_player) {
 			source_player = std::make_shared<VideoPlayer>(0.f, request.app_settings.preview_hardware_decoding);

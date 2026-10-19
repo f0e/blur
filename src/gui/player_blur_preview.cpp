@@ -296,7 +296,7 @@ std::optional<float> PlayerBlurPreview::player_position(const VideoPlayer& playe
 		return std::nullopt;
 
 	// mpv's clock starts with the container, which can be before the video's first frame
-	double video_time = *time - (video_info.video_start_time - video_info.start_time);
+	double video_time = *time - video_info.video_offset();
 
 	return static_cast<float>(std::clamp(video_time / video_info.video_duration, 0.0, 1.0));
 }

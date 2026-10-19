@@ -26,6 +26,11 @@ namespace media {
 		double video_start_time = 0.0;
 		std::vector<double> audio_start_times;
 
+		// where the video starts on the container's timeline, which players show and trims use
+		[[nodiscard]] double video_offset() const {
+			return video_start_time - start_time;
+		}
+
 		int preroll_frames = 0;
 
 		std::optional<std::string> lsmas_issue;

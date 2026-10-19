@@ -190,7 +190,7 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 
 	// mkv doesn't store stream durations
 	if (info.has_video_stream && info.video_duration <= 0.0)
-		info.video_duration = info.duration - (info.video_start_time - info.start_time);
+		info.video_duration = info.duration - info.video_offset();
 
 	// mpeg-ts/ps timestamps are 33 bits of 90khz, and ffmpeg unwraps them to before 0 when they wrap early on
 	constexpr double MPEG_TIMESTAMP_WRAP = static_cast<double>(1LL << 33) / 90000.0;

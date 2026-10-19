@@ -316,9 +316,7 @@ void configs::config_preview(ui::Container& container) {
 			const auto& info = *preview.video_info;
 			float progress =
 				info.duration > 0.0
-					? static_cast<float>(
-						  (info.video_start_time - info.start_time + (seek * info.video_duration)) / info.duration
-					  )
+					? static_cast<float>((info.video_offset() + (seek * info.video_duration)) / info.duration)
 					: 0.f;
 
 			seek_bar = ui::add_timeline(
