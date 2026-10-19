@@ -12,7 +12,6 @@ namespace media {
 		std::optional<std::string> color_space;
 		std::optional<std::string> color_transfer;
 		std::optional<std::string> color_primaries;
-		int sample_rate = -1;
 		int fps_num = -1;
 		int fps_den = -1;
 		float duration = 0.f;
@@ -24,7 +23,6 @@ namespace media {
 
 		double start_time = 0.0;
 		double video_start_time = 0.0;
-		std::vector<double> audio_start_times;
 
 		// where the video starts on the container's timeline, which players show and trims use
 		[[nodiscard]] double video_offset() const {

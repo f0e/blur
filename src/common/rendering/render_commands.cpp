@@ -3,6 +3,19 @@
 #include "common/vspipe.h"
 
 namespace {
+	// -copyts keeps the source on ffprobe's clock, otherwise ffmpeg moves an mpegts audio stream to 0 when its video
+	// isn't mapped
+	void append_input_args(
+		std::vector<std::string>& args, const std::filesystem::path& input_path, double source_offset = 0.0
+	) {
+		args.insert(args.end(), { "-copyts", "-fflags", "+genpts", "-i", "-" });
+
+		if (source_offset != 0.0)
+			args.insert(args.end(), { "-itsoffset", std::format("{:.6f}", source_offset) });
+
+		args.insert(args.end(), { "-i", u::path_to_string(input_path), "-map", "0:v" });
+	}
+
 	void append_audio_filter_args(
 		std::vector<std::string>& args,
 		const media::VideoInfo& video_info,
@@ -16,53 +29,58 @@ namespace {
 		float speed = settings.timescale ? settings.output_timescale / settings.input_timescale : 1.f;
 
 		double skipped_time = static_cast<double>(skipped_frames) / settings.blur_output_fps * speed;
+		double frame_duration = static_cast<double>(video_info.fps_den) / video_info.fps_num;
+
+		double start_time = video_info.video_start_time + (range.start * frame_duration) + skipped_time;
+		double end_time = video_info.video_start_time + (range.end * frame_duration);
 
 		std::string complex_filter;
 		for (size_t i = 0; i < video_info.audio_sample_rates.size(); i++) {
 			if (i > 0)
 				complex_filter += ";";
 
-			// @todo: i still dont know if audio will be perfectly synced but it seems like an endless rabbit hole
 			int sample_rate = video_info.audio_sample_rates[i];
-			double audio_start_time = video_info.audio_start_times[i];
-			double frame_duration = static_cast<double>(video_info.fps_den) / video_info.fps_num;
 
-			auto start_pre_render = static_cast<size_t>(std::llround(
-				((range.start * frame_duration) + skipped_time + video_info.video_start_time - audio_start_time) *
-				sample_rate
-			));
-			auto end_sample = static_cast<size_t>(std::llround(
-				((range.end * frame_duration) + video_info.video_start_time - audio_start_time) * sample_rate
-			));
-
-			// build the middle part of the filter - everything between asetpts and the output label
 			std::string timescale_filter;
-			if (settings.timescale) {
-				if (settings.output_timescale_audio_pitch) {
-					int shifted_rate = static_cast<int>(std::round(sample_rate * speed));
-					timescale_filter = std::format(",asetrate={},aresample={}", shifted_rate, sample_rate);
+			double lead = 0.0;
+			if (speed != 1.f && settings.output_timescale_audio_pitch) {
+				int shifted_rate = static_cast<int>(std::round(sample_rate * speed));
+				timescale_filter = std::format(",asetrate={},aresample={}", shifted_rate, sample_rate);
+			}
+			else if (speed != 1.f) {
+				// atempo starts half a window early, so it's given audio from that much sooner
+				double half_window = std::bit_ceil(static_cast<unsigned>(sample_rate / 24)) / 2.0;
+				double input_per_sample = 1.0;
+
+				// atempo only goes down to 0.5 and skips samples past 2, so bigger changes are chained
+				auto add_atempo = [&](float tempo) {
+					timescale_filter += std::format(",atempo={:.6f}", tempo);
+					lead += half_window * input_per_sample;
+					input_per_sample *= tempo;
+				};
+
+				float s = std::clamp(speed, 0.25f, 100.f);
+				while (s > 2.f) {
+					add_atempo(2.f);
+					s /= 2.f;
 				}
-				else {
-					std::string atempo;
-					float s = std::clamp(speed, 0.25f, 100.f);
-					while (s > 2.0f) {
-						atempo += "atempo=2.0,";
-						s /= 2.0f;
-					}
-					while (s < 0.5f) {
-						atempo += "atempo=0.5,";
-						s /= 0.5f;
-					}
-					atempo += std::format("atempo={:.6f}", s);
-					timescale_filter = "," + atempo;
+				while (s < 0.5f) {
+					add_atempo(0.5f);
+					s /= 0.5f;
 				}
+				add_atempo(s);
 			}
 
+			int64_t start_sample = std::llround((start_time * sample_rate) - lead);
+			int64_t end_sample = std::llround(end_time * sample_rate);
+
+			// audio starting after the video is padded with silence rather than moved to the start
 			complex_filter += std::format(
-				"[1:a:{}]atrim=start_pts={}:end_pts={},asetpts=PTS-STARTPTS{}[a{}]",
+				"[1:a:{}]atrim=start_pts={}:end_pts={},asetpts=PTS-({}),aresample=first_pts=0{}[a{}]",
 				i,
-				start_pre_render,
+				start_sample,
 				end_sample,
+				start_sample,
 				timescale_filter,
 				i
 			);
@@ -227,21 +245,10 @@ tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffm
 			return tl::unexpected(*conflict);
 	}
 
-	std::vector<std::string> args = {
-		"-loglevel",
-		"error",
-		"-hide_banner",
-		"-stats",
-		"-y",
-		"-fflags",
-		"+genpts",
-		"-i",
-		"-",
-		"-i",
-		u::path_to_string(input_path),
-		"-map",
-		"0:v",
-	};
+	std::vector<std::string> args = { "-loglevel", "error", "-hide_banner", "-stats", "-y" };
+
+	// copied audio can't be trimmed, but it can be moved to where the video starts
+	append_input_args(args, input_path, copy_audio ? -video_info.video_start_time : 0.0);
 
 	if (copy_audio) {
 		for (size_t i = 0; i < video_info.audio_sample_rates.size(); i++) {
@@ -282,14 +289,8 @@ tl::expected<std::vector<std::string>, std::string> rendering::detail::build_ffm
 		encoding_args = std::move(*output_args);
 	}
 
-	std::vector<std::string> args = {
-		"-loglevel",    "error",
-		"-hide_banner", "-y",
-		"-fflags",      "+genpts",
-		"-i",           "-",
-		"-i",           u::path_to_string(input_path),
-		"-map",         "0:v",
-	};
+	std::vector<std::string> args = { "-loglevel", "error", "-hide_banner", "-y" };
+	append_input_args(args, input_path);
 
 	if (video_info.ffmpeg_can_decode_audio)
 		append_audio_filter_args(args, video_info, settings, range, skipped_frames);

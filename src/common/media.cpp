@@ -182,9 +182,6 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 
 			if (stream.contains("sample_rate"))
 				info.audio_sample_rates.push_back(std::stoi(stream["sample_rate"].get<std::string>()));
-
-			if (stream.contains("start_time"))
-				info.audio_start_times.push_back(std::stod(stream["start_time"].get<std::string>()));
 		}
 	}
 
