@@ -153,9 +153,16 @@ def _reach(gaps: list[int]) -> int:
     return int(min(REACH if steady else IRREGULAR_REACH, max(MIN_REACH, 2 * statistics.median(gaps))))
 
 
-def detect(video: vs.VideoNode, full_range: bool, spread: float = 1) -> vs.VideoNode:
+def detect(
+    video: vs.VideoNode,
+    full_range: bool,
+    spread: float = 1,
+    spans: np.ndarray | None = None,
+    still: np.ndarray | None = None,
+) -> vs.VideoNode:
     """Which frames of `video` start a new scene. Makes `video` keep more frames cached, see SOURCE_CACHE_SHARE.
-    `spread` is how many of its frames go into each output frame."""
+    `spread` is how many of its frames go into each output frame. `spans` and `still` are what a frame timing log
+    says about each frame, see retime.Timeline."""
     needed = 4 * REACH + core.num_threads * math.ceil(spread)
     budget = core.max_cache_size * (1 << 20) // SOURCE_CACHE_SHARE // _frame_bytes(video)
     _cached(video, max(2 * REACH, min(budget, needed)))
@@ -172,30 +179,46 @@ def detect(video: vs.VideoNode, full_range: bool, spread: float = 1) -> vs.Video
         cut = False
         here = around = blocks = 0.0
         if n > 0:
+            # with a log, its repeats are known, and each change counts per frame of time it covers, so pictures
+            # the recording missed don't make the change after them look like a jump
+            def moving(index: int) -> bool:
+                return change(index) > REPEAT if spans is None else spans[index] > 0
+
+            def size(index: int) -> float:
+                return change(index) if spans is None else change(index) / max(spans[index], 1)
+
             nearby = range(max(1, n - REACH), min(last, n + REACH) + 1)
-            moved = [index for index in nearby if change(index) > REPEAT]
+            moved = [index for index in nearby if moving(index)]
             reach = _reach([b - a for a, b in itertools.pairwise(moved)])
 
             def motion(step: int) -> float:
                 found = []
                 index = n + step
-                while 0 < index <= last and len(found) < NEIGHBOURS:
+                # repeats the log says were only pictures missing from the recording are looked past freely, the
+                # motion carried on through them
+                missing = still is not None
+                while 0 < index <= last and abs(index - n) <= REACH and len(found) < NEIGHBOURS:
+                    missing = missing and not still[index]
                     # past the reach, only the repeats right next to the frame are looked past, to the first
                     # change and no further than the irregular reach. an encoder or game hiccup repeats a few frames
                     # mid-motion, and stopping inside the run would leave nothing to compare with. a change that big
                     # out there is a cut nearby rather than motion, and counting it would hide both
-                    if abs(index - n) > reach and (
-                        found or abs(index - n) > IRREGULAR_REACH or change(index) > BIG_CHANGE
+                    if (
+                        not missing
+                        and abs(index - n) > reach
+                        and (found or abs(index - n) > IRREGULAR_REACH or size(index) > BIG_CHANGE)
                     ):
                         break
-                    if change(index) > REPEAT:
-                        found.append(change(index))
+                    if moving(index):
+                        found.append(size(index))
                     index += step
 
                 return max(found, default=0.0)
 
-            here = change(n)
-            around = max((motion(-1) + motion(1)) / 2, MOTION_FLOOR)
+            # what the motion around it would move in the time this change covers. a cut doesn't grow with time,
+            # so the change itself is left as it is
+            here = change(n) if spans is None or spans[n] > 0 else 0.0
+            around = max((motion(-1) + motion(1)) / 2, MOTION_FLOOR) * (1 if spans is None else max(spans[n], 1))
             blocks = measured[PROP_BLOCKS]
 
             cut = (

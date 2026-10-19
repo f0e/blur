@@ -352,7 +352,11 @@ def main():
     cuts = detected_cuts = None
     if settings["scene_detection"] and (settings["interpolate"] or retiming or settings["blur"]):
         spread = video.fps / settings["blur_output_fps"] if settings["blur"] else 1
-        cuts = detected_cuts = blur.scenes.detect(video, video_info.is_full_color_range, spread)
+        spans = logged_timing.spans if logged_timing is not None else None
+        still = logged_timing.still if logged_timing is not None else None
+        cuts = detected_cuts = blur.scenes.detect(
+            video, video_info.is_full_color_range, spread, spans=spans, still=still
+        )
 
     # svp finds these overlays itself with 'svp hud mask', so then they're only added for the passes that aren't svp
     svp_peels = settings["svp_hud_mask"]

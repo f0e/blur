@@ -14,6 +14,8 @@ The timeline is a clip of per frame decisions rather than a list, so nothing has
 from dataclasses import dataclass
 from fractions import Fraction
 
+import numpy as np
+
 import vapoursynth as vs
 from vapoursynth import core
 
@@ -30,13 +32,17 @@ PROP_DIFF = "BlurDedupeDiff"
 @dataclass(frozen=True)
 class Timeline:
     """`decisions` is a 1x1 clip with `resolution` frames per source frame, carrying the props above. `slots` is
-    how many pairs a decision can hold. `max_gap` is the widest pair in the timeline."""
+    how many pairs a decision can hold. `max_gap` is the widest pair in the timeline. When the timing knows them,
+    `spans` is how many frames of time each source frame's change from the picture before covers (0 for repeats),
+    and `still` which repeats are the picture really staying the same rather than pictures the recording missed."""
 
     decisions: vs.VideoNode
     length: int
     max_gap: int
     resolution: int
     slots: int = 1
+    spans: np.ndarray | None = None
+    still: np.ndarray | None = None
 
 
 @dataclass(frozen=True)

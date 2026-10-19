@@ -457,10 +457,23 @@ def analyse(
             f"one before them"
         )
 
+    # how much time each new picture's change from the picture before covers. time the picture provably stayed
+    # the same doesn't count, nothing moved then
+    since = np.maximum.accumulate(np.where(new | still, np.arange(len(new)), -1))
+    since = np.concatenate([[-1], since[:-1]])
+    spans = np.where(new & (since >= 0), placed - placed[np.maximum(since, 0)], 0.0)
+
+    # a picture that stayed the same across more than one of the game's frames. a single one can be the game frame
+    # a read is matched to being out by one
+    stretch = np.cumsum(seen)
+    stayed = (np.bincount(stretch, weights=still) >= 2)[stretch] & ~seen
+
     return retime.Timeline(
         decisions=decisions,
         length=length,
         max_gap=widest,
         resolution=1,
         slots=SLOTS,
+        spans=spans[clip],
+        still=stayed[clip],
     )
