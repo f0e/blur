@@ -179,7 +179,15 @@ def detect(video: vs.VideoNode, full_range: bool, spread: float = 1) -> vs.Video
             def motion(step: int) -> float:
                 found = []
                 index = n + step
-                while 0 < index <= last and abs(index - n) <= reach and len(found) < NEIGHBOURS:
+                while 0 < index <= last and len(found) < NEIGHBOURS:
+                    # past the reach, only the repeats right next to the frame are looked past, to the first
+                    # change and no further than the irregular reach. an encoder or game hiccup repeats a few frames
+                    # mid-motion, and stopping inside the run would leave nothing to compare with. a change that big
+                    # out there is a cut nearby rather than motion, and counting it would hide both
+                    if abs(index - n) > reach and (
+                        found or abs(index - n) > IRREGULAR_REACH or change(index) > BIG_CHANGE
+                    ):
+                        break
                     if change(index) > REPEAT:
                         found.append(change(index))
                     index += step
