@@ -1,7 +1,7 @@
 #include "media.h"
 
 namespace {
-	int get_video_preroll_frames(const std::filesystem::path& path, double fps, double max_preroll_seconds = 5.0) {
+	int get_video_preroll_frames(const std::filesystem::path& path) {
 		// some mp4 files use an edit list to trim content by offsetting the start time, leaving negative pts
 		// packets at the head of the file that normal players skip but some vapoursynth source plugins decode as real
 		// frames, causing audio/video desync
@@ -11,23 +11,17 @@ namespace {
 		namespace bp = boost::process;
 		bp::ipstream pipe_stream;
 
-		const int max_packets = static_cast<int>(std::ceil(fps * max_preroll_seconds));
-		const auto read_intervals = std::format("%+#{}", max_packets);
-
 		auto c = u::run_command(
 			blur.ffprobe_path,
 			{
 				"-v",
 				"error",
 				"-select_streams",
-				"v:0",
-				"-show_packets",
-				"-read_intervals",
-				read_intervals,
+				"V:0", // not cover art
 				"-show_entries",
-				"packet=pts",
+				"packet=pts,dts",
 				"-of",
-				"json",
+				"csv=p=0",
 				u::path_to_string(path),
 			},
 			bp::std_out > pipe_stream,
@@ -39,22 +33,36 @@ namespace {
 			return 0;
 		}
 
-		std::string output(std::istreambuf_iterator<char>(pipe_stream), {});
-		c->wait();
+		auto parse = [](std::string_view value) -> std::optional<int64_t> {
+			int64_t out = 0;
+			auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), out);
+			if (ec != std::errc{})
+				return {};
+			return out;
+		};
 
-		const auto j = nlohmann::json::parse(output, nullptr, false);
-		if (j.is_discarded()) {
-			u::log_error("failed to parse preroll frames output: {}", output);
-			return 0;
-		}
-
+		// with b-frames, prerolled packets can come after the first shown one. pts is never below dts, so nothing
+		// after dts reaches 0 is prerolled
 		int skip = 0;
-		for (const auto& pkt : j.value("packets", nlohmann::json::array())) {
-			const auto pts = pkt.value("pts", 0LL);
-			if (pts >= 0)
+		std::string line;
+		while (std::getline(pipe_stream, line)) {
+			auto parts = u::split_string(line, ",");
+			if (parts.size() < 2)
+				continue;
+
+			auto pts = parse(parts[0]);
+			auto dts = parse(parts[1]);
+
+			if (pts && *pts < 0)
+				skip++;
+
+			if (dts && *dts >= 0)
 				break;
-			skip++;
 		}
+
+		u::safe_terminate(*c);
+		std::error_code ec;
+		c->wait(ec);
 
 		return skip;
 	}
@@ -178,7 +186,7 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 	if (info.has_video_stream && info.video_duration <= 0.0)
 		info.video_duration = info.duration - (info.video_start_time - info.start_time);
 
-	info.preroll_frames = get_video_preroll_frames(path, (double)info.fps_num / info.fps_den);
+	info.preroll_frames = get_video_preroll_frames(path);
 
 	return info;
 }
