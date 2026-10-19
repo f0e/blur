@@ -185,22 +185,25 @@ std::pair<size_t, size_t> rendering::get_trim_frame_range(const media::VideoInfo
 	if (video_info.fps_num <= 0 || video_info.fps_den <= 0)
 		return { 0, 0 };
 
-	double abs_start_time = video_info.video_start_time + (start * video_info.duration);
-	double abs_end_time = video_info.video_start_time + (end * video_info.duration);
+	// trims are fractions of the container's timeline, like the player shows, which can start before the video
+	double fps = static_cast<double>(video_info.fps_num) / video_info.fps_den;
 
-	auto start_frame = static_cast<size_t>(
-		std::llround((abs_start_time - video_info.video_start_time) * video_info.fps_num / video_info.fps_den)
-	);
-	auto end_frame = static_cast<size_t>(
-		std::llround((abs_end_time - video_info.video_start_time) * video_info.fps_num / video_info.fps_den)
-	);
+	auto to_frame = [&](float position) {
+		auto frame = std::llround(((position * video_info.duration) - video_info.video_offset()) * fps);
+		return static_cast<size_t>(std::max<long long>(frame, 0));
+	};
 
-	return { start_frame, end_frame };
+	return { to_frame(start), to_frame(end) };
 }
 
 bool rendering::has_enough_frames_to_render(const media::VideoInfo& video_info, float start, float end) {
 	auto [start_frame, end_frame] = get_trim_frame_range(video_info, start, end);
-	return end_frame > start_frame;
+
+	// a trim can cover only audio, before or after the video
+	double fps = static_cast<double>(video_info.fps_num) / video_info.fps_den;
+	auto video_frames = static_cast<size_t>(std::llround(video_info.video_duration * fps));
+
+	return end_frame > start_frame && start_frame < video_frames;
 }
 
 tl::expected<rendering::RenderResult, std::variant<std::string, rendering::RenderError>> rendering::detail::

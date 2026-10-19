@@ -112,8 +112,11 @@ namespace {
 
 	// a moment into the part of the video that's actually being rendered
 	float get_input_thumbnail_timestamp(const rendering::VideoRenderDetails& render) {
-		return static_cast<float>(render.video_info.video_start_time) + (render.start * render.video_info.duration) +
-		       0.2f;
+		// -ss counts from the start of the container, which can be before the video
+		const auto& info = render.video_info;
+		return static_cast<float>(
+			std::max(static_cast<double>(render.start * info.duration), info.video_offset()) + 0.2
+		);
 	}
 
 	// the progress row becomes the result row
