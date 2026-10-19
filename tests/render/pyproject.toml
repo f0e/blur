@@ -1,0 +1,10 @@
+[project]
+name = "blur-render-tests"
+version = "0.1.0"
+description = "Renders with blur-cli and checks the output"
+requires-python = ">=3.11"
+dependencies = ["filelock>=3.16", "pytest>=8.3", "pytest-xdist>=3.6"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+markers = ["full: slow coverage that only runs with --full"]
