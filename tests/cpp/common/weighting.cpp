@@ -150,3 +150,24 @@ TEST(Weighting, PythonMatchesCpp) {
 		}
 	}
 }
+
+namespace {
+	weighting::GetWeightsResult weights_for(const std::string& weighting_type, const std::string& sampling = "rectangle") {
+		BlurSettings settings;
+		settings.blur_weighting = weighting_type;
+		settings.advanced.blur_sampling = sampling;
+		return weighting::get_weights(settings, 600);
+	}
+}
+
+TEST(Weighting, CustomWeightsAreWholeNumbers) {
+	// like the render's int(), which gets the same strings
+	for (const auto* sampling : { "rectangle", "round up" }) {
+		EXPECT_TRUE(weights_for("1,2,3", sampling).error.empty()) << sampling;
+		EXPECT_TRUE(weights_for(" 1 , 2 ,+3 ", sampling).error.empty()) << sampling;
+		EXPECT_TRUE(weights_for("-1,0,1", sampling).error.empty()) << sampling;
+
+		for (const auto* invalid : { "", "1,,2", "1.5,2", "3x", "1,2,", "fast" })
+			EXPECT_FALSE(weights_for(invalid, sampling).error.empty()) << sampling << ": '" << invalid << "'";
+	}
+}

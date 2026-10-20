@@ -31,7 +31,7 @@ Each file in the `configs` folder is a separate blur config.
   - ascending
   - descending
   - gaussian_reverse
-  - custom weights - Custom comma-separated frame weights, e.g. 5, 3, 3, 2, 1. Higher numbers indicate frames being more visible when blending, lower numbers mean they are less so.
+  - custom weights - Custom comma-separated whole number frame weights, e.g. 5, 3, 3, 2, 1. Higher numbers indicate frames being more visible when blending, lower numbers mean they are less so.
 - preserve brightness - Blends frames by how much light they hold rather than averaging the stored values. Produces a more natural-looking blur
 - bloom - Makes bright areas glow, brightening the pixels around them
 - bloom threshold - How bright something has to be before it glows (0 = everything glows, 1 = only the very brightest)

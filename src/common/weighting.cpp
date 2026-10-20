@@ -1,5 +1,6 @@
 #include "weighting.h"
 
+#include <charconv>
 #include <numbers>
 
 // thanks to:
@@ -148,13 +149,22 @@ namespace {
 		{ 0.5 + (0.5 * 0.906179845938664), 0.5 * 0.2369268850561891 },
 	} };
 
+	// matches the render's int() parse
 	std::vector<double> parse_custom_weights(const std::string& weighting) {
 		std::vector<double> weights;
-		std::istringstream ss(weighting);
-		std::string token;
 
-		while (std::getline(ss, token, ','))
-			weights.push_back(std::stod(token));
+		for (const auto& part : u::split_string(weighting, ",")) {
+			auto token = u::trim(part);
+			if (token.starts_with('+'))
+				token.erase(0, 1);
+
+			int weight = 0;
+			auto [end, ec] = std::from_chars(token.data(), token.data() + token.size(), weight);
+			if (token.empty() || ec != std::errc() || end != token.data() + token.size())
+				throw std::invalid_argument("not a whole number: " + part);
+
+			weights.push_back(weight);
+		}
 
 		return weights;
 	}
