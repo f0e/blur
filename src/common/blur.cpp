@@ -129,9 +129,11 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 
 	initialised = true;
 
-	std::thread([this] {
-		devices::initialise();
-	}).detach();
+	// devices are process wide, and a second detection racing the first corrupts them (the tests initialise per run)
+	static std::once_flag devices_once;
+	std::call_once(devices_once, [] {
+		std::thread(devices::initialise).detach();
+	});
 
 	return {};
 }
