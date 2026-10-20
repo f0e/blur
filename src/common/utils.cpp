@@ -222,20 +222,19 @@ void u::sleep(double seconds) {
 
 	static HANDLE timer;
 	if (!timer)
-		timer = CreateWaitableTimerExW(NULL, NULL, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+		timer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
 
-	int64_t maxTicks = PERIOD * 9'500;
+	int64_t max_ticks = PERIOD * 9'500;
 	for (;;) {
 		int64_t remaining = (target - t).count();
 		int64_t ticks = (remaining - TOLERANCE) / 100;
 		if (ticks <= 0)
 			break;
-		if (ticks > maxTicks)
-			ticks = maxTicks;
+		ticks = std::min(ticks, max_ticks);
 
 		LARGE_INTEGER due;
 		due.QuadPart = -ticks;
-		SetWaitableTimerEx(timer, &due, 0, NULL, NULL, NULL, 0);
+		SetWaitableTimerEx(timer, &due, 0, nullptr, nullptr, nullptr, 0);
 		WaitForSingleObject(timer, INFINITE);
 		t = high_resolution_clock::now();
 	}
@@ -248,33 +247,33 @@ void u::sleep(double seconds) {
 
 #ifdef WIN32
 bool u::windows_toggle_suspend_process(DWORD pid, bool to_suspend) {
-	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-	if (hSnapshot == INVALID_HANDLE_VALUE)
+	HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+	if (snapshot == INVALID_HANDLE_VALUE)
 		return false;
 
 	THREADENTRY32 te;
 	te.dwSize = sizeof(te);
 
-	if (!Thread32First(hSnapshot, &te)) {
-		CloseHandle(hSnapshot);
+	if (!Thread32First(snapshot, &te)) {
+		CloseHandle(snapshot);
 		return false;
 	}
 
 	do {
 		if (te.th32OwnerProcessID == pid) {
-			HANDLE hThread = OpenThread(THREAD_SUSPEND_RESUME, FALSE, te.th32ThreadID);
-			if (hThread) {
+			HANDLE thread_handle = OpenThread(THREAD_SUSPEND_RESUME, FALSE, te.th32ThreadID);
+			if (thread_handle) {
 				if (to_suspend)
-					SuspendThread(hThread);
+					SuspendThread(thread_handle);
 				else
-					ResumeThread(hThread);
-				CloseHandle(hThread);
+					ResumeThread(thread_handle);
+				CloseHandle(thread_handle);
 			}
 		}
 	}
-	while (Thread32Next(hSnapshot, &te));
+	while (Thread32Next(snapshot, &te));
 
-	CloseHandle(hSnapshot);
+	CloseHandle(snapshot);
 	return true;
 }
 #endif
