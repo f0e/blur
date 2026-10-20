@@ -17,7 +17,9 @@
 
 tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_preview) {
 	resources_path = paths::get_resources_path();
-	settings_path = paths::get_settings_path();
+	// tests point it at their own folder first
+	if (settings_path.empty())
+		settings_path = paths::get_settings_path();
 
 	// has to happen before the defaults below get created
 	config_base::migrate_file(
