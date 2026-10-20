@@ -1,4 +1,4 @@
-#include "tests.h"
+#include "helpers.h"
 
 #include "common/weighting.h"
 
@@ -8,7 +8,7 @@
 namespace {
 	namespace bp = boost::process;
 
-	const std::filesystem::path PYTHON_WEIGHTING_PATH = CURRENT_DIR / "../../src/vapoursynth/blur/weighting.py";
+	const std::filesystem::path PYTHON_WEIGHTING_PATH = REPO_DIR / "src/vapoursynth/blur/weighting.py";
 
 	// exposures in quarter frames up to 40 frames, which floats hold exactly
 	constexpr int MAX_QUARTERS = 160;

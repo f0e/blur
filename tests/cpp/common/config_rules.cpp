@@ -1,4 +1,4 @@
-#include "tests.h"
+#include "helpers.h"
 
 #include "common/config_rules.h"
 
@@ -129,27 +129,13 @@ TEST(ConfigRules, RoundTripsTheDefaultConfig) {
 	EXPECT_EQ(config_rules::parse(config_rules::generate_config_string(settings)), settings);
 }
 
-class ConfigRuleResolution : public ::testing::Test {
+class ConfigRuleResolution : public SettingsTest {
 protected:
-	std::filesystem::path m_settings_dir;
-	std::filesystem::path m_old_settings_path;
-
 	void SetUp() override {
-		m_old_settings_path = blur.settings_path;
-
-		m_settings_dir = TEST_OUTPUT_DIR / ::testing::UnitTest::GetInstance()->current_test_info()->name();
-		std::filesystem::remove_all(m_settings_dir);
-		std::filesystem::create_directories(m_settings_dir);
-
-		blur.settings_path = m_settings_dir;
+		SettingsTest::SetUp();
 
 		config_blur::save("apex", config_blur::DEFAULT_CONFIG);
 		config_blur::save("valorant", config_blur::DEFAULT_CONFIG);
-	}
-
-	void TearDown() override {
-		blur.settings_path = m_old_settings_path;
-		std::filesystem::remove_all(m_settings_dir);
 	}
 };
 

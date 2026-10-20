@@ -133,12 +133,7 @@ find_package(spdlog CONFIG REQUIRED)
 file(GLOB_RECURSE COMMON_SOURCES "src/common/*.cpp")
 file(GLOB_RECURSE CLI_SOURCES "src/cli/*.cpp")
 file(GLOB_RECURSE GUI_SOURCES "src/gui/*.cpp")
-file(GLOB_RECURSE CLI_TEST_SOURCES "tests/cli/*.cpp")
-list(
-  FILTER CLI_TEST_SOURCES
-  EXCLUDE
-  REGEX "^.*/tests/plot_weighting_functions/.*$"
-)
+file(GLOB_RECURSE CLI_TEST_SOURCES "tests/cpp/*.cpp")
 
 # create CLI sources without main for tests
 set(CLI_SOURCES_NO_MAIN ${CLI_SOURCES})
@@ -481,7 +476,8 @@ target_link_libraries(
   blur-tests
   PRIVATE blur-common GTest::gtest GTest::gtest_main CLI11::CLI11
 )
-target_precompile_headers(blur-tests PRIVATE tests/cli/cli_test_pch.h)
+target_include_directories(blur-tests PRIVATE tests/cpp)
+target_precompile_headers(blur-tests PRIVATE tests/cpp/pch.h)
 setup_target(blur-tests)
 
 include(CTest)

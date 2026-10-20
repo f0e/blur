@@ -10,8 +10,6 @@ __pycache__/
 .pytest_cache/
 
 # tests
-tests/assets/*
-test_outputs/
 /Testing/
 
 # outputs

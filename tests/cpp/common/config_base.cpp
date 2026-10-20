@@ -1,23 +1,16 @@
-#include "tests.h"
+#include "helpers.h"
 
 #include "common/config_base.h"
 
-class ConfigMigration : public ::testing::Test {
+class ConfigMigration : public TempDirTest {
 protected:
-	std::filesystem::path m_test_dir;
 	std::filesystem::path m_from;
 	std::filesystem::path m_to;
 
 	void SetUp() override {
-		m_test_dir = TEST_OUTPUT_DIR / ::testing::UnitTest::GetInstance()->current_test_info()->name();
-		std::filesystem::remove_all(m_test_dir);
-		std::filesystem::create_directories(m_test_dir);
+		TempDirTest::SetUp();
 		m_from = m_test_dir / "old.cfg";
 		m_to = m_test_dir / "new.cfg";
-	}
-
-	void TearDown() override {
-		std::filesystem::remove_all(m_test_dir);
 	}
 };
 
