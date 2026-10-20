@@ -109,3 +109,40 @@ TEST(ConfigVersionMigrations, RunsEverythingWhenTheVersionIsUnknown) {
 	const config_base::ConfigMap expected{ { "c", "1" } };
 	EXPECT_EQ(config, expected);
 }
+
+TEST(ConfigValues, ParsesEachType) {
+	const config_base::ConfigMap config{ { "flag", "true" }, { "number", "-3" }, { "decimal", "0.25" } };
+
+	bool flag = false;
+	int number = 0;
+	float decimal = 0.f;
+	config_base::extract_config_value(config, "flag", flag);
+	config_base::extract_config_value(config, "number", number);
+	config_base::extract_config_value(config, "decimal", decimal);
+
+	EXPECT_TRUE(flag);
+	EXPECT_EQ(number, -3);
+	EXPECT_EQ(decimal, 0.25f);
+}
+
+TEST(ConfigValues, InvalidValuesKeepTheDefault) {
+	const config_base::ConfigMap config{ { "flag", "yes" }, { "number", "sixty" }, { "decimal", "" } };
+
+	bool flag = true;
+	int number = 60;
+	float decimal = 1.5f;
+	config_base::extract_config_value(config, "flag", flag);
+	config_base::extract_config_value(config, "number", number);
+	config_base::extract_config_value(config, "decimal", decimal);
+
+	EXPECT_TRUE(flag);
+	EXPECT_EQ(number, 60);
+	EXPECT_EQ(decimal, 1.5f);
+}
+
+TEST(ConfigValues, MissingValuesKeepTheDefault) {
+	int number = 60;
+	config_base::extract_config_value({}, "number", number);
+
+	EXPECT_EQ(number, 60);
+}

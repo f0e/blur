@@ -100,14 +100,13 @@ namespace config_base {
 			out = raw_value;
 		}
 		else {
-			try {
-				std::stringstream ss(raw_value);
-				ss.exceptions(std::ios::failbit); // enable exceptions
-				ss >> std::boolalpha >> out;      // boolalpha: enable true/false bool parsing
-			}
-			catch (const std::exception&) {
-				DEBUG_LOG("failed to parse config variable '{}' (value: {})", var, config.at(var));
-			}
+			// a failed read writes 0, so it goes through a copy to keep the default
+			T value{};
+			std::stringstream ss(raw_value);
+			if (ss >> std::boolalpha >> value)
+				out = value;
+			else
+				DEBUG_LOG("failed to parse config variable '{}' (value: {})", var, raw_value);
 		}
 	}
 
