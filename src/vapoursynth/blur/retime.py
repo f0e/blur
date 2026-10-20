@@ -140,7 +140,7 @@ def bracket(props, time: Fraction) -> Bracket:
     left, right = frames[slot], frames[slot + 1]
     left_time, right_time = times[slot], times[slot + 1]
 
-    if right_time <= left_time or time <= left_time:
+    if left == right or right_time <= left_time or time <= left_time:
         return Bracket(left, right, left_time, right_time, None, slot)
 
     return Bracket(
