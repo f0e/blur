@@ -89,21 +89,31 @@ def _retimed(
     timeline: retime.Timeline,
     dst_fps: Fraction,
     build: Callable[[vs.VideoNode, int], vs.VideoNode],
-    regular: vs.VideoNode | None = None,
 ) -> vs.VideoNode:
     """Interpolate `video` to `dst_fps`, filling the timeline's gaps in the same pass. `build(clip, fps)` is the
-    interpolation call, run on a 1fps clip so `fps` is a multiplier. `regular` is `video` interpolated to `dst_fps`
-    as it is, used wherever the timeline just moves from one frame to the next.
+    interpolation call, run on a 1fps clip so `fps` is a multiplier.
 
-    Interpolates a clip of pairs (frame 2j is the real frame before decision j, 2j + 1 the one after) by `steps`,
-    then each output frame picks its nearest step. Frames between unrelated pairs are never requested so never
-    rendered.
+    Interpolates `video` with each repeat swapped for the real frame after it by `steps`, so every real frame is
+    next to the one after it, then each output frame picks its nearest step. Timelines that can't say which real
+    frame comes next fall back to a clip of pairs (frame 2j is the real frame before decision j, 2j + 1 the one
+    after) for their gaps, which searches motion between unrelated pairs too and for each frame twice.
     """
     ratio = dst_fps / video.fps
     dst_frames = retime.output_frames(timeline.length, ratio)
     steps = _steps(ratio, timeline.max_gap)
 
     decisions = timeline.decisions
+    sources = decisions[:: timeline.resolution] if timeline.resolution > 1 else decisions
+    chained = core.std.FrameEval(
+        core.std.BlankClip(video, length=video.num_frames, keep=True),
+        lambda n, f: video[int(f.props.get(retime.PROP_NEXT, n))],
+        prop_src=sources,
+    )
+
+    # interpolators stop a frame short of the end
+    stepped = build(core.std.AssumeFPS(chained + chained[-1], fpsnum=1, fpsden=1), steps)
+    last_stepped = stepped.num_frames - 1
+
     sides = core.std.BlankClip(video, length=decisions.num_frames, keep=True)
 
     def side(index: int) -> vs.VideoNode:
@@ -131,11 +141,11 @@ def _retimed(
         if at.timepoint is None:
             return video[at.left]
 
-        # the pairs clip searches motion between unrelated pairs too, so it costs about twice as much per frame
-        if regular is not None and at.right == at.left + 1 and at.left_time == at.left and at.right_time == at.right:
-            return regular
-
         step = min(round(at.timepoint * steps), steps)
+
+        if retime.PROP_NEXT in f.props or at.right == at.left + 1:
+            return stepped[min(at.left * steps + step, last_stepped)]
+
         pair = retime.decision_index(timeline, n, ratio) * timeline.slots + at.slot
 
         return generated[min((2 * pair) * steps + step, last_generated)]
@@ -397,22 +407,17 @@ def svp(
     """`new_fps` is only needed alongside `timeline`, since retiming replaces the rate in `smooth_str`."""
     _video = core.fmtc.bitdepth(_video, bits=8)
 
-    def regular(video):
-        # SmoothFps stops one source frame short, so pad with a repeat of the last frame and trim back
-        smooth = SVP(video + video[-1], super_string, vectors_string, smooth_str, halvings)
-        return smooth[: int(video.num_frames * smooth.fps / video.fps)]
-
     def process(video):
         if timeline is None:
-            return regular(video)
+            # SmoothFps stops one source frame short, so pad with a repeat of the last frame and trim back
+            smooth = SVP(video + video[-1], super_string, vectors_string, smooth_str, halvings)
+            return smooth[: int(video.num_frames * smooth.fps / video.fps)]
 
         return _retimed(
             video,
             timeline,
             _fps(new_fps),
-            lambda pairs, steps: SVP(pairs, super_string, vectors_string, _with_rate(smooth_str, steps), halvings),
-            # filling gaps without interpolating lands every output frame on a real one
-            regular(video) if _fps(new_fps) > video.fps else None,
+            lambda clip, steps: SVP(clip, super_string, vectors_string, _with_rate(smooth_str, steps), halvings),
         )
 
     if _video.format.id == vs.YUV444P8:

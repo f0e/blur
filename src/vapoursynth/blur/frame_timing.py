@@ -303,6 +303,7 @@ def _decisions(
         out.props[retime.PROP_FRAMES] = frames_list[begin : stop + 1]
         out.props[retime.PROP_TIMES] = times_list[begin : stop + 1]
         out.props[retime.PROP_TIME_SCALE] = TIME_SCALE
+        out.props[retime.PROP_NEXT] = frames_list[min(bisect.bisect_left(frames_list, n), len(frames_list) - 1)]
         return out
 
     return core.std.ModifyFrame(holder, holder, decide), widest, crowded

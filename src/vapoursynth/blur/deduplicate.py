@@ -182,6 +182,18 @@ def _decisions(
         out.props[retime.PROP_TIME_SCALE] = HALF
         out.props[retime.PROP_DIFF] = diff(source)
 
+        # surrounding's pairs step over runs depending on where they start, so there's no one real frame after each
+        if timing != TIMING_SURROUNDING:
+            _, run_end, _, run_open = run(source, 0, reach - 2)
+
+            if timing == TIMING_LAST:
+                # the first frame starts the first pair whichever frame of its run it is
+                real = source if source == 0 or run_open else run_end
+            else:
+                real = source if source == 0 or diff(source) >= threshold or run_open else min(run_end + 1, last)
+
+            out.props[retime.PROP_NEXT] = real
+
         return out
 
     return core.std.ModifyFrame(holder, [holder, *window], decide)

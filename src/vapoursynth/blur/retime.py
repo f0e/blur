@@ -26,6 +26,9 @@ MAX_GAP_LIMIT = 30
 PROP_FRAMES = "BlurRetimeFrames"
 PROP_TIMES = "BlurRetimeTimes"
 PROP_TIME_SCALE = "BlurRetimeTimeScale"
+# on the first decision of each source frame, the real frame at or after it. timelines whose pairs are always
+# neighbouring real frames set it, which lets every pair be interpolated from one clip
+PROP_NEXT = "BlurRetimeNext"
 PROP_DIFF = "BlurDedupeDiff"
 
 
