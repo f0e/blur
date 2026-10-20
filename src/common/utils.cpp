@@ -79,8 +79,9 @@ std::vector<std::string> u::split_string(std::string str, const std::string& del
 std::string u::to_lower(const std::string& str) {
 	std::string out = str;
 
+	// through unsigned char, since tolower is undefined for the negative chars in utf-8
 	std::ranges::for_each(out, [](char& c) {
-		c = std::tolower(c);
+		c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 	});
 
 	return out;
@@ -102,7 +103,7 @@ namespace {
 		std::string out(str);
 
 		std::ranges::for_each(out, [](char& c) {
-			c = c == '\\' ? '/' : (char)std::tolower(c);
+			c = c == '\\' ? '/' : static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 		});
 
 		return out;

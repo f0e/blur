@@ -50,3 +50,13 @@ TEST(PatternMatching, EdgeCases) {
 	EXPECT_FALSE(u::matches_pattern("*round*clips*", "D:/clips/valorant/round.mp4"));
 	EXPECT_TRUE(u::matches_pattern("d:/clips/round.mp4", "D:/clips/round.mp4"));
 }
+
+TEST(PatternMatching, HandlesNonAsciiPaths) {
+	EXPECT_TRUE(u::matches_pattern("*clips*", "D:/vidéos/クリップ/clips/round.mp4"));
+	EXPECT_TRUE(u::matches_pattern("*クリップ*", "D:/vidéos/クリップ/round.mp4"));
+	EXPECT_FALSE(u::matches_pattern("*apex*", "D:/vidéos/クリップ/round.mp4"));
+}
+
+TEST(StringUtils, ToLowerLeavesNonAsciiAlone) {
+	EXPECT_EQ(u::to_lower("Apex VIDÉO クリップ"), "apex vidÉo クリップ");
+}
