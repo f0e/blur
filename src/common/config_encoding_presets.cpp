@@ -232,23 +232,16 @@ std::vector<config_encoding_presets::PresetDetails> config_encoding_presets::get
 
 	if (preset_group) {
 		for (const auto& preset : *preset_group) {
-			auto params = get_ffmpeg_args(preset.args, 0);
+			auto codec = extract_codec_from_args(get_ffmpeg_args(preset.args, 0));
+			if (!codec)
+				continue;
 
-			for (auto it = params.rbegin(); it != params.rend(); ++it) {
-				if (it == params.rbegin())
-					continue;
-
-				if (*it == "-c:v" || *it == "-codec:v") {
-					std::string codec = *(it - 1);
-					available_presets.push_back(
-						{
-							.name = preset.name,
-							.codec = codec,
-						}
-					);
-					break;
+			available_presets.push_back(
+				{
+					.name = preset.name,
+					.codec = *codec,
 				}
-			}
+			);
 		}
 	}
 
