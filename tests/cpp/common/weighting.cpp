@@ -1,5 +1,6 @@
 #include "helpers.h"
 
+#include "common/paths.h"
 #include "common/weighting.h"
 
 // the render weights frames in python (src/vapoursynth/blur/weighting.py) and the gui previews them in c++, so this
@@ -48,6 +49,13 @@ print(json.dumps(result))
 	std::optional<std::filesystem::path> find_python() {
 		if (const char* env = std::getenv("BLUR_TEST_PYTHON"))
 			return env;
+
+#ifdef _WIN32
+		// the one blur ships with, so it runs without a system python
+		auto bundled = paths::get_resources_path() / "lib" / "vapoursynth" / "python.exe";
+		if (std::filesystem::exists(bundled))
+			return bundled;
+#endif
 
 		for (const auto* name : { "python3", "python" }) {
 			auto path = bp::search_path(name);
