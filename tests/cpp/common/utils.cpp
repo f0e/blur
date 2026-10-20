@@ -51,6 +51,24 @@ TEST(PatternMatching, EdgeCases) {
 	EXPECT_TRUE(u::matches_pattern("d:/clips/round.mp4", "D:/clips/round.mp4"));
 }
 
+TEST(ValidateFilename, TrimsTheName) {
+	EXPECT_EQ(u::validate_filename("  apex  "), "apex");
+}
+
+TEST(ValidateFilename, RejectsEmptyNames) {
+	EXPECT_FALSE(u::validate_filename("").has_value());
+	EXPECT_FALSE(u::validate_filename("   ").has_value());
+}
+
+TEST(ValidateFilename, RejectsWhatWindowsCantName) {
+	for (const auto* name : { ".", "..", "apex.", "a/b", "a\b", "a:b", "a*b", "a?b", "a\"b", "a<b", "a|b", "a\tb" })
+		EXPECT_FALSE(u::validate_filename(name).has_value()) << name;
+}
+
+TEST(ValidateFilename, AllowsOtherPunctuation) {
+	EXPECT_EQ(u::validate_filename("apex (60fps) - v2.1"), "apex (60fps) - v2.1");
+}
+
 TEST(PatternMatching, HandlesNonAsciiPaths) {
 	EXPECT_TRUE(u::matches_pattern("*clips*", "D:/vidéos/クリップ/clips/round.mp4"));
 	EXPECT_TRUE(u::matches_pattern("*クリップ*", "D:/vidéos/クリップ/round.mp4"));
@@ -59,4 +77,12 @@ TEST(PatternMatching, HandlesNonAsciiPaths) {
 
 TEST(StringUtils, ToLowerLeavesNonAsciiAlone) {
 	EXPECT_EQ(u::to_lower("Apex VIDÉO クリップ"), "apex vidÉo クリップ");
+}
+
+TEST(StringUtils, SplitKeepsEmptyParts) {
+	using Parts = std::vector<std::string>;
+
+	EXPECT_EQ(u::split_string("1,,2", ","), (Parts{ "1", "", "2" }));
+	EXPECT_EQ(u::split_string("", ","), (Parts{ "" }));
+	EXPECT_EQ(u::split_string("60000/1001", "/"), (Parts{ "60000", "1001" }));
 }

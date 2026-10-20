@@ -171,3 +171,51 @@ TEST(Weighting, CustomWeightsAreWholeNumbers) {
 			EXPECT_FALSE(weights_for(invalid, sampling).error.empty()) << sampling << ": '" << invalid << "'";
 	}
 }
+
+TEST(Weighting, WeightsSumToOne) {
+	for (const auto* weighting_type : { "equal", "gaussian_sym", "1,2,3", "-1,0,1" }) {
+		auto result = weights_for(weighting_type);
+		ASSERT_TRUE(result.error.empty()) << weighting_type;
+		EXPECT_NEAR(std::accumulate(result.weights.begin(), result.weights.end(), 0.0), 1.0, 1e-9) << weighting_type;
+	}
+}
+
+TEST(Weighting, NothingToBlendWithoutBlur) {
+	BlurSettings settings;
+	settings.blur = false;
+	EXPECT_TRUE(weighting::get_weights(settings, 600).weights.empty());
+
+	settings.blur = true;
+	settings.blur_amount = 0.f;
+	EXPECT_TRUE(weighting::get_weights(settings, 600).weights.empty());
+}
+
+TEST(Weighting, AssumesAFrameGapWithoutTheVideoFps) {
+	BlurSettings settings;
+	settings.blur_output_fps = 60;
+
+	auto known = weighting::get_weights(settings, 600);
+	EXPECT_EQ(known.frame_gap, 10.0);
+	EXPECT_EQ(known.source_fps, 600);
+	EXPECT_TRUE(known.fps_known);
+
+	auto assumed = weighting::get_weights(settings, {});
+	EXPECT_EQ(assumed.frame_gap, weighting::ASSUMED_FRAME_GAP);
+	EXPECT_EQ(assumed.source_fps, weighting::ASSUMED_FRAME_GAP * 60);
+	EXPECT_FALSE(assumed.fps_known);
+}
+
+TEST(Weighting, ParsesTheGaussianBound) {
+	EXPECT_EQ(weighting::parse_gaussian_bound("[0, 2]"), std::make_pair(0.0, 2.0));
+	EXPECT_EQ(weighting::parse_gaussian_bound("[-1.5,3]"), std::make_pair(-1.5, 3.0));
+
+	for (const auto* invalid : { "", "[0]", "[0,1,2]", "[0,\"2\"]", "{\"a\":1}", "0,2" })
+		EXPECT_FALSE(weighting::parse_gaussian_bound(invalid)) << invalid;
+}
+
+TEST(Weighting, RejectsAnUnparseableBound) {
+	BlurSettings settings;
+	settings.advanced.blur_weighting_gaussian_bound = "[0]";
+
+	EXPECT_FALSE(weighting::get_weights(settings, 600).error.empty());
+}

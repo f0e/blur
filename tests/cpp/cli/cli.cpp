@@ -76,6 +76,21 @@ TEST_F(CLITest, OutputWithNoDirectory) {
 	EXPECT_TRUE(std::filesystem::exists(m_test_dir / "output.mp4"));
 }
 
+TEST_F(CLITest, ConfigNameBeatsConfigPath) {
+	// told apart by the container they pick for the output name
+	auto mkv = test_utils::fast_config();
+	mkv.override_advanced = true;
+	mkv.advanced.video_container = "mkv";
+	config_blur::save("mkv", mkv);
+
+	auto input = copy_test_clip();
+
+	EXPECT_TRUE(cli::run({ input }, {}, { m_test_config }, false, true, true, "", {}, { "mkv" }));
+
+	EXPECT_TRUE(std::filesystem::exists(m_test_dir / "test - blur.mkv"));
+	EXPECT_FALSE(std::filesystem::exists(m_test_dir / "test - blur.mp4"));
+}
+
 // these should fail before anything renders
 
 TEST_F(CLITest, InputOutputCountMismatch) {
@@ -109,6 +124,23 @@ TEST_F(CLITest, NonExistentConfigFile) {
 	EXPECT_FALSE(any_exist(outputs));
 }
 
+TEST_F(CLITest, ConfigNameCountMismatch) {
+	auto video = copy_test_clip();
+	auto outputs = test_utils::generate_output_paths(m_test_dir, 2);
+
+	EXPECT_FALSE(cli::run({ video, video }, outputs, {}, false, true, true, "", {}, { "default" }));
+
+	EXPECT_FALSE(any_exist(outputs));
+}
+
+TEST_F(CLITest, UnknownConfigName) {
+	auto outputs = test_utils::generate_output_paths(m_test_dir, 1);
+
+	EXPECT_FALSE(cli::run({ copy_test_clip() }, outputs, {}, false, true, true, "", {}, { "nonexistent" }));
+
+	EXPECT_FALSE(any_exist(outputs));
+}
+
 TEST_F(CLITest, NonExistentInputFile) {
 	std::vector<std::filesystem::path> configs{ m_test_config };
 	auto outputs = test_utils::generate_output_paths(m_test_dir, 1);
@@ -124,6 +156,14 @@ TEST_F(CLITest, InvalidVideoFile) {
 	auto outputs = test_utils::generate_output_paths(m_test_dir, 1);
 
 	EXPECT_FALSE(cli::run({ invalid_video }, outputs, {}, false, true, true));
+
+	EXPECT_FALSE(any_exist(outputs));
+}
+
+TEST_F(CLITest, TrimWithNoFrames) {
+	auto outputs = test_utils::generate_output_paths(m_test_dir, 1);
+
+	EXPECT_FALSE(cli::run({ copy_test_clip() }, outputs, {}, false, true, true, "", {}, {}, 0.2, 0.2));
 
 	EXPECT_FALSE(any_exist(outputs));
 }
