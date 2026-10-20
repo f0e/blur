@@ -110,6 +110,34 @@ TEST(ConfigVersionMigrations, RunsEverythingWhenTheVersionIsUnknown) {
 	EXPECT_EQ(config, expected);
 }
 
+TEST(ConfigMap, SplitsOnTheFirstColon) {
+	std::istringstream stream("custom ffmpeg filters: -vf scale=1280:-2\nmask: C:/masks/hud.png\n");
+
+	auto config = config_base::read_config_map(stream);
+
+	EXPECT_EQ(config.at("custom ffmpeg filters"), "-vf scale=1280:-2");
+	EXPECT_EQ(config.at("mask"), "C:/masks/hud.png");
+}
+
+TEST(ConfigMap, SkipsLinesThatArentSettings) {
+	std::istringstream stream("[blur v3.0.0]\n\n- blur\n: no key\n  blur amount :  2 \r\n");
+
+	const config_base::ConfigMap expected{ { "blur amount", "2" } };
+	EXPECT_EQ(config_base::read_config_map(stream), expected);
+}
+
+TEST(ConfigMap, LaterLinesWin) {
+	std::istringstream stream("quality: 16\nquality: 20\n");
+
+	EXPECT_EQ(config_base::read_config_map(stream).at("quality"), "20");
+}
+
+TEST(ConfigVersion, OnlyTheFirstLineIsTheHeader) {
+	EXPECT_EQ(config_base::parse_config_version("\n\n[blur v3.1.0]\nblur: true\n"), "3.1.0");
+	EXPECT_FALSE(config_base::parse_config_version("blur: true\n[blur v3.1.0]\n").has_value());
+	EXPECT_FALSE(config_base::parse_config_version("").has_value());
+}
+
 TEST(ConfigValues, ParsesEachType) {
 	const config_base::ConfigMap config{ { "flag", "true" }, { "number", "-3" }, { "decimal", "0.25" } };
 
