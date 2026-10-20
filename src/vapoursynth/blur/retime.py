@@ -11,6 +11,7 @@ one pass instead of interpolating already interpolated frames:
 The timeline is a clip of per frame decisions rather than a list, so nothing has to be scanned up front.
 """
 
+import math
 from dataclasses import dataclass
 from fractions import Fraction
 
@@ -37,7 +38,8 @@ class Timeline:
     """`decisions` is a 1x1 clip with `resolution` frames per source frame, carrying the props above. `slots` is
     how many pairs a decision can hold. `max_gap` is the widest pair in the timeline. When the timing knows them,
     `spans` is how many frames of time each source frame's change from the picture before covers (0 for repeats),
-    and `still` which repeats are the picture really staying the same rather than pictures the recording missed."""
+    and `still` which repeats are the picture really staying the same rather than pictures the recording missed.
+    `real` is the real frames, their times and the scale of those, when they're known up front."""
 
     decisions: vs.VideoNode
     length: int
@@ -46,6 +48,7 @@ class Timeline:
     slots: int = 1
     spans: np.ndarray | None = None
     still: np.ndarray | None = None
+    real: tuple[list[int], list[int], int] | None = None
 
 
 @dataclass(frozen=True)
@@ -191,6 +194,91 @@ def nearest(clips: list[vs.VideoNode], timeline: Timeline, target: vs.VideoNode,
         return core.std.FrameEval(holder, lambda n, f: frame(real_frame(n, f.props)), prop_src=decisions)
 
     return [stretched(clip) for clip in clips]
+
+
+def listed(frames: list[int], times: list[int], scale: int, length: int, slots: int | None = None, **extra) -> Timeline:
+    """A timeline from its real frames and their times in 1/`scale` frames, both in order. A frame listed twice in a
+    row is held between the two. Without `slots`, decisions hold as many pairs as they need."""
+    end = max(length, frames[-1] + 1)
+    starts = np.arange(end, dtype=np.int64) * scale
+    begins = np.maximum(np.searchsorted(times, starts, "right") - 1, 0)
+    stops = np.minimum(np.searchsorted(times, starts + scale, "left"), len(times) - 1)
+    stops = np.maximum(stops, begins)
+    if slots is None:
+        slots = max(1, int(np.max(stops - begins)))
+    stops = np.minimum(stops, begins + slots)
+    following = np.minimum(np.searchsorted(frames, np.arange(end), "left"), len(frames) - 1)
+
+    # a held picture isn't interpolated, so only gaps between different frames count
+    gaps = [(b - a) / scale for a, b, left, right in zip(times, times[1:], frames, frames[1:]) if left != right]
+    widest = int(max(2, math.ceil(max(gaps, default=1.0))))
+
+    holder = core.std.BlankClip(width=1, height=1, format=vs.GRAY8, length=end, keep=True)
+
+    def decide(n: int, f: vs.VideoFrame) -> vs.VideoFrame:
+        begin, stop = int(begins[n]), int(stops[n])
+        out = f.copy()
+        out.props[PROP_FRAMES] = frames[begin : stop + 1]
+        out.props[PROP_TIMES] = times[begin : stop + 1]
+        out.props[PROP_TIME_SCALE] = scale
+        out.props[PROP_NEXT] = frames[following[n]]
+        return out
+
+    return Timeline(
+        decisions=core.std.ModifyFrame(holder, holder, decide),
+        length=length,
+        max_gap=widest,
+        resolution=1,
+        slots=slots,
+        real=(frames, times, scale),
+        **extra,
+    )
+
+
+def spaced(timeline: Timeline, ratio: Fraction) -> tuple[Timeline, Timeline]:
+    """For interpolating to `ratio` times the framerate in two passes, where only the second places frames. The
+    first makes each real frame and evenly spaced steps between neighbouring ones, about `ratio` per frame of time
+    between them, which an interpolator taking a time point does in one run each rather than one per off-grid
+    frame. Returns the first pass's timeline, which lands each of its frames on one of those, and the second's,
+    which places them on the first's output."""
+    assert timeline.real is not None
+    frames, times, scale = timeline.real
+
+    first_frames: list[int] = []
+    first_times: list[int] = []
+    second_frames: list[int] = []
+    second_times: list[int] = []
+    made = 0
+
+    def place(index: int, time: Fraction):
+        at = round(time * ratio)
+        # crowded frames are kept apart by the smallest step, like the timeline they come from
+        if second_times and at <= second_times[-1]:
+            at = second_times[-1] + 1
+        second_frames.append(index)
+        second_times.append(at)
+
+    for i, (frame, time) in enumerate(zip(frames, times)):
+        if i > 0 and frames[i - 1] == frame:
+            place(second_frames[-1], Fraction(time))
+            continue
+
+        # the first pass's output frame n is at n / ratio
+        first_frames.append(frame)
+        first_times.append(made * ratio.denominator)
+        place(made, Fraction(time))
+        made += 1
+
+        if i + 1 < len(frames) and frames[i + 1] != frame:
+            gap = Fraction(times[i + 1] - time)
+            steps = max(1, round(gap / scale * ratio))
+            for step in range(1, steps):
+                place(made, time + gap * Fraction(step, steps))
+                made += 1
+
+    first = listed(first_frames, first_times, ratio.numerator, max(timeline.length, math.ceil(made / ratio)))
+    second = listed(second_frames, second_times, scale, output_frames(timeline.length, ratio))
+    return first, second
 
 
 def annotate(video: vs.VideoNode, timeline: Timeline, ratio: Fraction) -> vs.VideoNode:

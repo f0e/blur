@@ -222,13 +222,6 @@ def _stillest(seen: np.ndarray, still: np.ndarray, before: float, after: float) 
     return longest
 
 
-def _pick(times: list[int], n: int) -> tuple[int, int]:
-    """Which of `times` a decision for frame n holds: the one at or before it, through the first past it."""
-    begin = max(0, bisect.bisect_right(times, n * TIME_SCALE) - 1)
-    stop = min(bisect.bisect_left(times, (n + 1) * TIME_SCALE), len(times) - 1)
-    return begin, min(max(stop, begin), begin + SLOTS)
-
-
 def _timeline(
     frames: list[int],
     placed: list[float],
@@ -272,9 +265,9 @@ def _timeline(
 
 def _decisions(
     new: np.ndarray, seen: np.ndarray, still: np.ndarray, placed: np.ndarray, start: int, length: int, hold: int
-) -> tuple[vs.VideoNode, int, int]:
-    """A decision per frame of the trimmed part, from the frames that are real pictures in the recording and when
-    they belong, and how many of those frames the timing put no later than the one before. `seen` is which frames
+) -> tuple[list[int], list[int], int]:
+    """The real frames of the trimmed part and when they belong, from the frames that are real pictures in the
+    recording, and how many of those frames the timing put no later than the one before. `seen` is which frames
     obs read a new picture for, which includes ones its encoder didn't get into the recording, and `still` which
     ones it read the same picture for from a frame the game drew"""
     real = [int(k) for k in np.nonzero(new)[0]]
@@ -283,30 +276,9 @@ def _decisions(
     low = bisect.bisect_left(real, start)
     high = bisect.bisect_right(real, start + length - 1)
     kept = real[max(low - 1, 0) : min(high + 1, len(real))]
-    frames_list, times_list, crowded = _timeline(
+    return _timeline(
         kept, [placed[k] for k in kept], start, length, hold, np.sort(placed[seen]), np.sort(placed[still])
     )
-
-    # a held picture isn't interpolated, so only gaps between different frames count
-    gaps = [
-        (b - a) / TIME_SCALE
-        for a, b, left, right in zip(times_list, times_list[1:], frames_list, frames_list[1:])
-        if left != right
-    ]
-    widest = int(max(2, math.ceil(max(gaps, default=1.0))))
-
-    holder = core.std.BlankClip(width=1, height=1, format=vs.GRAY8, length=length, keep=True)
-
-    def decide(n: int, f: vs.VideoFrame) -> vs.VideoFrame:
-        begin, stop = _pick(times_list, n)
-        out = f.copy()
-        out.props[retime.PROP_FRAMES] = frames_list[begin : stop + 1]
-        out.props[retime.PROP_TIMES] = times_list[begin : stop + 1]
-        out.props[retime.PROP_TIME_SCALE] = TIME_SCALE
-        out.props[retime.PROP_NEXT] = frames_list[min(bisect.bisect_left(frames_list, n), len(frames_list) - 1)]
-        return out
-
-    return core.std.ModifyFrame(holder, holder, decide), widest, crowded
 
 
 def _encoder_repeats(source: vs.VideoNode, new: np.ndarray, waits: np.ndarray, clip: slice) -> np.ndarray:
@@ -451,7 +423,7 @@ def analyse(
             new = seen & ~repeated
 
     placed = _placed(game, presents, read, fps)
-    decisions, widest, crowded = _decisions(new, seen, still, placed, start, length, hold)
+    frames, times, crowded = _decisions(new, seen, still, placed, start, length, hold)
     if crowded:
         log.info(
             f"frame timing: {crowded} of {int(np.count_nonzero(new[clip]))} frames were timed no later than the "
@@ -469,12 +441,4 @@ def analyse(
     stretch = np.cumsum(seen)
     stayed = (np.bincount(stretch, weights=still) >= 2)[stretch] & ~seen
 
-    return retime.Timeline(
-        decisions=decisions,
-        length=length,
-        max_gap=widest,
-        resolution=1,
-        slots=SLOTS,
-        spans=spans[clip],
-        still=stayed[clip],
-    )
+    return retime.listed(frames, times, TIME_SCALE, length, SLOTS, spans=spans[clip], still=stayed[clip])

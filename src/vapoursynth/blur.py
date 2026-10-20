@@ -1,5 +1,6 @@
 import json
 import sys
+from fractions import Fraction
 from pathlib import Path
 
 import vapoursynth as vs
@@ -557,15 +558,24 @@ def main():
                         "'rife', 'rife (tensorrt)', 'gimm-vfi (tensorrt)'"
                     )
 
-                # the first interpolation pass fills deduplication's gaps
-                video, cuts = interpolate_to(
-                    settings["pre_interpolation_method"],
-                    video,
-                    pre_interpolated_fps,
-                    cuts,
-                    timeline=timeline,
-                )
-                timeline = None
+                if timeline is not None and timeline.real is not None and pre_interpolated_fps < interpolated_fps:
+                    # most of the frames it would place are between steps, which costs a model run each. the later
+                    # pass places frames anyway, so this one only makes the steps
+                    ratio = Fraction(pre_interpolated_fps).limit_denominator(1000000) / video.fps
+                    first, timeline = blur.retime.spaced(timeline, ratio)
+                    video, cuts = interpolate_to(
+                        settings["pre_interpolation_method"], video, pre_interpolated_fps, cuts, timeline=first
+                    )
+                else:
+                    # the first interpolation pass fills deduplication's gaps
+                    video, cuts = interpolate_to(
+                        settings["pre_interpolation_method"],
+                        video,
+                        pre_interpolated_fps,
+                        cuts,
+                        timeline=timeline,
+                    )
+                    timeline = None
 
                 fps_added = video.fps - old_fps
                 log.info(
