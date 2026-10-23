@@ -90,15 +90,15 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 
 ### SVP
 
-- optimise gpu settings - Picks svp gpu rendering itself, true/false. When RIFE or GIMM-VFI shares the GPU with SVP, whether SVP should run on the GPU or the CPU depends on the hardware, settings and video (on an RTX 5080 + 9800X3D, GIMM-VFI then SVP rendered 12-21% faster with SVP on the CPU, but with fewer CPU cores it flipped back to the GPU). The first render of each video format times each combination for a few seconds and saves the fastest, keyed on the CPU, GPUs and their drivers, these settings, and the video's resolution, fps and pixel format. It isn't timed while blur is running another render, or for previews. Until something's been timed SVP runs on the CPU, since next to RIFE or GIMM-VFI on the GPU it can run out of video memory, and a combination that's taking twice as long as the fastest so far is stopped early for the same reason. With nothing else on the GPU, SVP always renders on it. svp gpu rendering is only used when this is off
+- optimise gpu settings - Picks svp gpu rendering itself. When RIFE or GIMM-VFI shares the GPU with SVP, whether SVP should run on the GPU or the CPU depends on the hardware, settings and video (on an RTX 5080 + 9800X3D, GIMM-VFI then SVP rendered 12-21% faster with SVP on the CPU, but with fewer CPU cores it flipped back to the GPU). The first render of each video format times each combination for a few seconds and saves the fastest, keyed on the CPU, GPUs and their drivers, these settings, and the video's resolution, fps and pixel format. It isn't timed while blur is running another render, or for previews. Until something's been timed SVP runs on the CPU, since next to RIFE or GIMM-VFI on the GPU it can run out of video memory, and a combination that's taking twice as long as the fastest so far is stopped early for the same reason. With nothing else on the GPU, SVP always renders on it. svp gpu rendering is only used when this is off
 - svp gpu rendering - Renders the interpolated frames on the GPU
-- svp hud mask - Takes the HUD off the scene before interpolating it, true/false. open-svpflow learns how see-through each pixel of the HUD is from how the scene moves behind it, interpolates the scene on its own and puts the HUD back over it. On the 1200fps test recordings it cuts error on HUD elements by 4-10% for 10-20% more render time, without changing the scene. With svp gpu rendering off it's much slower (on 240fps test clips SVP took about 3x as long with it on, and 4.5x on 4:4:4 videos)
+- svp hud mask - Takes the HUD off the scene before interpolating it. open-svpflow learns how see-through each pixel of the HUD is from how the scene moves behind it, interpolates the scene on its own and puts the HUD back over it. On the 1200fps test recordings it cuts error on HUD elements by 4-10% for 10-20% more render time, without changing the scene. With svp gpu rendering off it's much slower (on 240fps test clips SVP took about 3x as long with it on, and 4.5x on 4:4:4 videos)
 
 ### LSFG
 
-- lsfg performance mode - A faster version of LSFG that looks slightly worse, better suited to less powerful GPUs, true/false
+- lsfg performance mode - A faster version of LSFG that looks slightly worse, better suited to less powerful GPUs
 - lsfg flow scale - Size of the copy LSFG finds motion on, from 0.25 to 1. See the description in Lossless Scaling for a more comprehensive description
-- lsfg ui detection - Finds HUD elements that stay put while the scene moves and keeps them from being dragged along with it, true/false. On fast motion it can leave a patch of unblurred background around the crosshair
+- lsfg ui detection - Finds HUD elements that stay put while the scene moves and keeps them from being dragged along with it. On fast motion it can leave a patch of unblurred background around the crosshair
 
 ### TensorRT
 
@@ -208,7 +208,7 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 
 You can customise the SVP interpolation settings even further by manually defining JSON parameters. [See here](https://www.svp-team.com/wiki/Manual:SVPflow) for explanations on settings.
 
-- manual svp: Enables manual SVP settings, true/false
+- manual svp: Enables manual SVP settings
 - super string: JSON string used as input in [SVSuper](https://www.svp-team.com/wiki/Manual:SVPflow#SVSuper.28source.2C_params_string.29)
 - vectors string: JSON string used as input in [SVAnalyse](https://www.svp-team.com/wiki/Manual:SVPflow#SVAnalyse.28super.2C_params_string.2C_.5Bsrc.5D:_clip.29)
 - smooth string: JSON string used as input in [SVSmoothFps](https://www.svp-team.com/wiki/Manual:SVPflow#SVSmoothFps.28source.2C_super.2C_vectors.2C_params_string.2C_.5Bsar.5D:_float.2C_.5Bmt.5D:_integer.29)
