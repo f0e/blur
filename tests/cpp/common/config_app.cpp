@@ -9,6 +9,7 @@ namespace {
 		settings.output_prefix = "blurred";
 		settings.gpu_type = "amd";
 		settings.rife_device = "1";
+		settings.lossless_scaling_path = "some/folder";
 		settings.gui_width = 1000;
 		settings.gui_height = 700;
 		settings.blur_amount_tied_to_fps = false;
@@ -47,6 +48,7 @@ TEST(ConfigApp, SharingLeavesOutThisMachinesSettings) {
 	const GlobalAppSettings defaults;
 	EXPECT_EQ(shared.gpu_type, defaults.gpu_type);
 	EXPECT_EQ(shared.rife_device, defaults.rife_device);
+	EXPECT_EQ(shared.lossless_scaling_path, defaults.lossless_scaling_path);
 	EXPECT_EQ(shared.sample_video_path, defaults.sample_video_path);
 	EXPECT_EQ(shared.config_preview_seek, defaults.config_preview_seek);
 	EXPECT_EQ(shared.dismissed_update_version, defaults.dismissed_update_version);
@@ -60,6 +62,7 @@ TEST(ConfigApp, ImportingKeepsThisMachinesSettings) {
 
 	EXPECT_EQ(imported.gpu_type, current.gpu_type);
 	EXPECT_EQ(imported.sample_video_path, current.sample_video_path);
+	EXPECT_EQ(imported.lossless_scaling_path, current.lossless_scaling_path);
 	EXPECT_EQ(imported.dismissed_update_version, current.dismissed_update_version);
 	EXPECT_EQ(imported.output_prefix, GlobalAppSettings{}.output_prefix);
 }

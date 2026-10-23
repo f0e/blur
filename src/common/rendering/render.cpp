@@ -8,6 +8,7 @@
 #	include "common/interpolation_models.h"
 #endif
 #include "common/media.h"
+#include "common/plugins.h"
 
 namespace {
 	std::optional<std::string> check_tensorrt_installed(const BlurSettings& settings) {
@@ -49,6 +50,28 @@ namespace {
 
 		return {};
 	}
+
+	std::optional<std::string> check_lsfg_installed(
+		const BlurSettings& settings, const GlobalAppSettings& app_settings
+	) {
+		if (!settings.uses_interpolation_method("lsfg"))
+			return {};
+
+		if (!plugins::lsfg::installed())
+			return "LSFG interpolation isn't installed, use a different interpolation method";
+
+		if (!plugins::lsfg::find_dll(app_settings.lossless_scaling_path))
+			return "Lossless Scaling wasn't found. Install it through Steam or set \"lossless scaling path\" to its folder";
+
+		return {};
+	}
+
+	std::optional<std::string> check_installed(const BlurSettings& settings, const GlobalAppSettings& app_settings) {
+		if (auto error = check_tensorrt_installed(settings))
+			return error;
+
+		return check_lsfg_installed(settings, app_settings);
+	}
 }
 
 tl::expected<std::string, std::string> rendering::build_preview_script(
@@ -59,7 +82,7 @@ tl::expected<std::string, std::string> rendering::build_preview_script(
 	bool preview_mask,
 	const std::filesystem::path& log_path
 ) {
-	if (auto error = check_tensorrt_installed(settings))
+	if (auto error = check_installed(settings, app_settings))
 		return tl::unexpected(*error);
 
 	auto merged_settings = detail::merge_settings(
@@ -134,7 +157,7 @@ tl::expected<rendering::RenderResult, rendering::RenderError> rendering::pre_ren
 	size_t start_frame,
 	size_t end_frame
 ) {
-	if (auto error = check_tensorrt_installed(settings))
+	if (auto error = check_installed(settings, app_settings))
 		return tl::unexpected(RenderError{ .user_message = *error });
 
 	auto merged_settings = detail::merge_settings(
@@ -224,7 +247,7 @@ tl::expected<rendering::RenderResult, std::variant<std::string, rendering::Rende
 	if (!std::filesystem::exists(input_path))
 		return tl::unexpected("Input path does not exist");
 
-	if (auto error = check_tensorrt_installed(settings))
+	if (auto error = check_installed(settings, app_settings))
 		return tl::unexpected(*error);
 
 	std::filesystem::path output_path;

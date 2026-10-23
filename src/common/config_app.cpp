@@ -17,6 +17,7 @@ std::string config_app::generate_config_string(const GlobalAppSettings& settings
 #ifdef TENSORRT
 		output << "tensorrt gpu: " << settings.tensorrt_device << "\n";
 #endif
+		output << "lossless scaling path: " << settings.lossless_scaling_path << "\n";
 	}
 
 	output << "\n";
@@ -83,6 +84,7 @@ void config_app::copy_machine_settings(GlobalAppSettings& to, const GlobalAppSet
 	to.gpu_type = from.gpu_type;
 	to.rife_device = from.rife_device;
 	to.tensorrt_device = from.tensorrt_device;
+	to.lossless_scaling_path = from.lossless_scaling_path;
 
 	to.preview_hardware_decoding = from.preview_hardware_decoding;
 
@@ -121,6 +123,7 @@ GlobalAppSettings config_app::parse_from_map(const std::map<std::string, std::st
 #ifdef TENSORRT
 	config_base::extract_config_value(config_map, "tensorrt gpu", settings.tensorrt_device);
 #endif
+	config_base::extract_config_value(config_map, "lossless scaling path", settings.lossless_scaling_path);
 
 #ifdef BLUR_COLOR_THEMES
 	config_base::extract_config_value(config_map, "color theme", settings.gui_color_hex);

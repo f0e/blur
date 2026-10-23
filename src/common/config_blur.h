@@ -130,6 +130,10 @@ struct BlurSettings {
 	bool svp_gpu_rendering = true;
 	bool svp_hud_mask = true;
 
+	bool lsfg_performance_mode = false;
+	float lsfg_flow_scale = 1.f;
+	bool lsfg_ui_detection = true;
+
 	bool rife_trt_ensemble = false;
 
 	bool override_advanced = false;
@@ -196,6 +200,7 @@ namespace config_blur {
 		SVP_SEARCH_SIZE,
 		SVP_BLOCK_OVERLAP,
 		BLUR_SAMPLING,
+		LSFG_FLOW_SCALE,
 	};
 
 	struct ValidationError {

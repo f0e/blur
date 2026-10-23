@@ -160,8 +160,8 @@ void configs::option_information(ui::Container& container) {
 			{
 #ifdef TENSORRT
 				// todo: update with mvtools
-				"Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt) > svp",
-				"Speed: svp >> rife (tensorrt) > rife >> gimm-vfi (tensorrt)",
+				"Quality: gimm-vfi (tensorrt) > lsfg > rife = rife (tensorrt) > svp",
+				"Speed: lsfg > svp >> rife (tensorrt) > rife >> gimm-vfi (tensorrt)",
 #else
 				// todo: update with mvtools
 				"Quality: rife > svp",
@@ -191,6 +191,32 @@ void configs::option_information(ui::Container& container) {
 			{
 				"The FPS the input video is interpolated to, before blurring",
 				"You can also use a multiplier of the input's FPS instead, e.g. 5x",
+			},
+		},
+		{
+			"lsfg performance mode checkbox",
+			{
+				"A faster version of LSFG that looks slightly worse, better suited to less powerful GPUs",
+			},
+		},
+		{
+			"lsfg flow scale",
+			{
+				"Size of the copy LSFG finds motion on",
+				"See the description in Lossless Scaling for a more comprehensive description",
+			},
+		},
+		{
+			"lsfg ui detection checkbox",
+			{
+				"Finds HUD elements that stay put while the scene moves and keeps them from being dragged along with it",
+				"(On fast motion it can leave a patch of unblurred background around the crosshair)",
+			},
+		},
+		{
+			"lossless scaling path input",
+			{
+				"Lossless Scaling's install folder, which lsfg runs from. Blank finds it in your Steam libraries",
 			},
 		},
 #ifdef TENSORRT

@@ -188,7 +188,7 @@ def _retimed_rife_merge(
     merged = merge(before, after, timepoint)
 
     # frames landing on a real frame skip the model
-    held = _vsmlrt().bits_as(before, merged)
+    held = before if before.format.id == merged.format.id else _vsmlrt().bits_as(before, merged)
 
     def pick(n: int, f: vs.VideoFrame) -> vs.VideoNode:
         return held if at(n, f.props).timepoint is None else merged
@@ -866,3 +866,51 @@ def interpolate_rife_vsmlrt(
         device_index=device_index,
         settings_path=settings_path,
     )
+
+
+# the plugin reads this to tell which source frames it already has
+LSFG_INDEX_PROP = "LsfgSource"
+
+
+def _with_index(n: int, f: vs.VideoFrame) -> vs.VideoFrame:
+    out = f.copy()
+    out.props[LSFG_INDEX_PROP] = n
+    return out
+
+
+def interpolate_lsfg(
+    video: vs.VideoNode,
+    video_info: u.VideoInfo,
+    new_fps: int,
+    dll_path: str,
+    performance: bool = False,
+    flow_scale: float = 1.0,
+    ui_detection: bool = True,
+    timeline: retime.Timeline | None = None,
+):
+    if not hasattr(core, "lsfg"):
+        raise u.BlurException("LSFG interpolation needs the lsfg plugin, which isn't installed")
+
+    if not dll_path:
+        raise u.BlurException(
+            'Lossless Scaling wasn\'t found. Install it through Steam or set "lossless scaling path" to its folder'
+        )
+
+    options = {
+        "dll": dll_path,
+        "mode": 1 if performance else 0,
+        "flow_scale": flow_scale,
+        "ui_detection": int(ui_detection),
+    }
+    fps = _fps(new_fps)
+
+    def process(rgb: vs.VideoNode) -> vs.VideoNode:
+        if timeline is None:
+            return core.lsfg.Interpolate(rgb, fpsnum=fps.numerator, fpsden=fps.denominator, **options)
+
+        def merge(before, after, timepoint):
+            return core.lsfg.Merge(before, after, timepoint, **options)
+
+        return _retimed_rife_merge(core.std.ModifyFrame(rgb, rgb, _with_index), timeline, fps, merge)
+
+    return u.with_format(video, video_info, vs.RGB24, process)

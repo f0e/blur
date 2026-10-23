@@ -41,18 +41,19 @@ Each file in the `configs` folder is a separate blur config.
 
 - interpolate - Whether or not the input video file will be interpolated to a higher FPS
 - interpolated fps - If interpolate is enabled, this is the FPS that the input file will be interpolated to (before blurring). Can be a set FPS number or a multiplier (append x to end e.g. `5x`)
-- interpolation method - Method used for interpolation (`svp`, `rife`, `rife (tensorrt)`, `gimm-vfi (tensorrt)`, `mvtools`):
-  - Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt) > svp
-  - Speed: svp >> rife (tensorrt) > rife >> gimm-vfi (tensorrt)
+- interpolation method - Method used for interpolation (`svp`, `rife`, `rife (tensorrt)`, `gimm-vfi (tensorrt)`, `lsfg`, `mvtools`):
+  - Quality: gimm-vfi (tensorrt) > lsfg > rife = rife (tensorrt) > svp
+  - Speed: lsfg > svp >> rife (tensorrt) > rife >> gimm-vfi (tensorrt)
   - `rife (tensorrt)` and `gimm-vfi (tensorrt)` are only available with a supported NVIDIA GPU
   - `gimm-vfi (tensorrt)` follows fast motion far better than rife (mostly matters at 60fps and below), but is around 5x slower than `rife (tensorrt)`. It's best used as the pre-interpolation method, to around 3x the source framerate, with svp doing the rest. Its model is made with `tools/export_gimm_vfi.py`
+  - `lsfg` is [Lossless Scaling](https://store.steampowered.com/app/993090/Lossless_Scaling/)'s frame generation (LSFG 3). Currently only supported on Windows, and requires you to have Lossless Scaling installed.
 
 ### Pre-interpolation
 
 - pre-interpolate - Enable pre-interpolation using a more accurate but slower AI model before main interpolation
 - pre-interpolated minimum fps - The input video is pre-interpolated (before main interpolation and blurring) to whichever of this and the minimum multiplier is higher. `0` to only use the multiplier
 - pre-interpolated minimum multiplier - Multiplier of the input video's FPS, e.g. `2` doubles it. `1` to only use the minimum fps
-- pre-interpolation method - Method used for pre-interpolation (`rife`, `rife (tensorrt)`, `gimm-vfi (tensorrt)`):
+- pre-interpolation method - Method used for pre-interpolation (`rife`, `rife (tensorrt)`, `gimm-vfi (tensorrt)`, `lsfg`):
   - Quality: gimm-vfi (tensorrt) > rife = rife (tensorrt)
   - Speed: rife (tensorrt) > rife >> gimm-vfi (tensorrt)
 
@@ -92,6 +93,12 @@ Masks protect regions of the frame (like a HUD) from interpolation and deduplica
 - optimise gpu settings - Picks svp gpu rendering itself, true/false. When RIFE or GIMM-VFI shares the GPU with SVP, whether SVP should run on the GPU or the CPU depends on the hardware, settings and video (on an RTX 5080 + 9800X3D, GIMM-VFI then SVP rendered 12-21% faster with SVP on the CPU, but with fewer CPU cores it flipped back to the GPU). The first render of each video format times each combination for a few seconds and saves the fastest, keyed on the CPU, GPUs and their drivers, these settings, and the video's resolution, fps and pixel format. It isn't timed while blur is running another render, or for previews. Until something's been timed SVP runs on the CPU, since next to RIFE or GIMM-VFI on the GPU it can run out of video memory, and a combination that's taking twice as long as the fastest so far is stopped early for the same reason. With nothing else on the GPU, SVP always renders on it. svp gpu rendering is only used when this is off
 - svp gpu rendering - Renders the interpolated frames on the GPU
 - svp hud mask - Takes the HUD off the scene before interpolating it, true/false. open-svpflow learns how see-through each pixel of the HUD is from how the scene moves behind it, interpolates the scene on its own and puts the HUD back over it. On the 1200fps test recordings it cuts error on HUD elements by 4-10% for 10-20% more render time, without changing the scene. With svp gpu rendering off it's much slower (on 240fps test clips SVP took about 3x as long with it on, and 4.5x on 4:4:4 videos)
+
+### LSFG
+
+- lsfg performance mode - A faster version of LSFG that looks slightly worse, better suited to less powerful GPUs, true/false
+- lsfg flow scale - Size of the copy LSFG finds motion on, from 0.25 to 1. See the description in Lossless Scaling for a more comprehensive description
+- lsfg ui detection - Finds HUD elements that stay put while the scene moves and keeps them from being dragged along with it, true/false. On fast motion it can leave a patch of unblurred background around the crosshair
 
 ### TensorRT
 
@@ -228,6 +235,7 @@ Presets are grouped by encoder (`nvidia`, `amd`, `intel`, `mac`, `cpu`), each a 
 - gpu type (nvidia/amd/intel) - GPU used for GPU encoding, picks which group of encode presets is used
 - rife gpu - GPU used by `rife` (auto = fastest)
 - tensorrt gpu - GPU used by `rife (tensorrt)` and `gimm-vfi (tensorrt)` (auto = fastest)
+- lossless scaling path - Lossless Scaling's install folder (or its `Lossless.dll`), which `lsfg` runs from. Blank finds it in your Steam libraries
 
 ### GUI
 

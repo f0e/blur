@@ -1,6 +1,7 @@
 #include "render_commands.h"
 #include "output.h"
 #include "common/vspipe.h"
+#include "common/plugins.h"
 
 namespace {
 	// -copyts keeps the source on ffprobe's clock, otherwise ffmpeg moves an mpegts audio stream to 0 when its video
@@ -157,6 +158,12 @@ nlohmann::json rendering::detail::merge_settings(
 	settings_json.update(app_settings.to_json());
 	settings_json["rife_device_index"] = device_indices.rife;
 	settings_json["tensorrt_device_index"] = device_indices.tensorrt;
+
+	std::optional<std::filesystem::path> lossless_dll;
+	if (blur_settings.uses_interpolation_method("lsfg"))
+		lossless_dll = plugins::lsfg::find_dll(app_settings.lossless_scaling_path);
+	settings_json["lsfg_dll"] = lossless_dll ? u::path_to_string(*lossless_dll) : "";
+
 	return settings_json;
 }
 

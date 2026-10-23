@@ -6,6 +6,7 @@ struct GlobalAppSettings {
 	std::string gpu_type;
 	std::string rife_device = "auto";
 	std::string tensorrt_device = "auto";
+	std::string lossless_scaling_path; // found through steam when empty
 
 #ifdef BLUR_COLOR_THEMES
 	std::string gui_color_hex;

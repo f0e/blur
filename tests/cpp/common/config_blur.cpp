@@ -50,6 +50,10 @@ namespace {
 		settings.svp_gpu_rendering = false;
 		settings.svp_hud_mask = false;
 
+		settings.lsfg_performance_mode = true;
+		settings.lsfg_flow_scale = 0.5f;
+		settings.lsfg_ui_detection = false;
+
 		settings.gpu_decoding = true;
 
 		settings.timescale = true;
@@ -162,6 +166,19 @@ TEST(ConfigBlurValidation, FixesInvalidOptions) {
 	EXPECT_TRUE(std::ranges::all_of(result.errors, &config_blur::ValidationError::fixable));
 	EXPECT_EQ(settings.advanced.deduplicate_threshold, BlurSettings{}.advanced.deduplicate_threshold);
 	EXPECT_EQ(settings.advanced.svp_block_size, BlurSettings{}.advanced.svp_block_size);
+}
+
+TEST(ConfigBlurValidation, FixesAnOutOfRangeLsfgFlowScale) {
+	for (float scale : { 0.f, -0.5f, 1.5f }) {
+		BlurSettings settings;
+		settings.lsfg_flow_scale = scale;
+
+		auto result = config_blur::validate(settings, GlobalAppSettings{}, EncodingPresetSettings{}, true);
+
+		ASSERT_EQ(result.errors.size(), 1) << scale;
+		EXPECT_EQ(result.errors[0].field, config_blur::ValidationField::LSFG_FLOW_SCALE);
+		EXPECT_EQ(settings.lsfg_flow_scale, BlurSettings{}.lsfg_flow_scale);
+	}
 }
 
 TEST(ConfigBlurValidation, AudioCopyCantTimescale) {

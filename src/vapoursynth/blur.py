@@ -477,6 +477,18 @@ def main():
                     timeline=timeline,
                 )
 
+            case "lsfg":
+                result = blur.interpolate.interpolate_lsfg(
+                    video,
+                    video_info=video_info,
+                    new_fps=new_fps,
+                    dll_path=settings["lsfg_dll"],
+                    performance=settings["lsfg_performance_mode"],
+                    flow_scale=settings["lsfg_flow_scale"],
+                    ui_detection=settings["lsfg_ui_detection"],
+                    timeline=timeline,
+                )
+
             case "mvtools":
                 result = blur.interpolate.interpolate_mvtools(
                     video,
@@ -489,7 +501,7 @@ def main():
             case _:
                 raise u.BlurException(
                     f"Invalid interpolation method: '{method}'. Should be one of: 'svp', 'rife', "
-                    "'rife (tensorrt)', 'gimm-vfi (tensorrt)', 'mvtools'"
+                    "'rife (tensorrt)', 'gimm-vfi (tensorrt)', 'lsfg', 'mvtools'"
                 )
 
         if cuts is None:
@@ -552,10 +564,11 @@ def main():
                     "rife",
                     "rife (tensorrt)",
                     "gimm-vfi (tensorrt)",
+                    "lsfg",
                 ]:
                     raise u.BlurException(
                         f"Invalid pre-interpolation method: '{settings['pre_interpolation_method']}'. Should be one of: "
-                        "'rife', 'rife (tensorrt)', 'gimm-vfi (tensorrt)'"
+                        "'rife', 'rife (tensorrt)', 'gimm-vfi (tensorrt)', 'lsfg'"
                     )
 
                 if timeline is not None and timeline.real is not None and pre_interpolated_fps < interpolated_fps:

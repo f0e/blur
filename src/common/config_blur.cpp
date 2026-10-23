@@ -268,6 +268,14 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "svp hud mask: " << (settings.svp_hud_mask ? "true" : "false") << "\n";
 	}
 
+	if (!concise || settings.uses_interpolation_method("lsfg")) {
+		output << "\n";
+		output << "- lsfg" << "\n";
+		output << "lsfg performance mode: " << (settings.lsfg_performance_mode ? "true" : "false") << "\n";
+		output << "lsfg flow scale: " << settings.lsfg_flow_scale << "\n";
+		output << "lsfg ui detection: " << (settings.lsfg_ui_detection ? "true" : "false") << "\n";
+	}
+
 	// TensorRT section
 #ifdef TENSORRT
 	bool uses_rife_trt = settings.uses_interpolation_method("rife (tensorrt)");
@@ -533,6 +541,17 @@ config_blur::ValidationResult config_blur::validate(
 			config.advanced.svp_block_overlap = DEFAULT_CONFIG.advanced.svp_block_overlap;
 	}
 
+	if (std::isnan(config.lsfg_flow_scale) || config.lsfg_flow_scale <= 0.f || config.lsfg_flow_scale > 1.f) {
+		add_error(
+			ValidationField::LSFG_FLOW_SCALE,
+			std::format("LSFG flow scale ({}) should be above 0 and at most 1", config.lsfg_flow_scale),
+			true
+		);
+
+		if (fix)
+			config.lsfg_flow_scale = DEFAULT_CONFIG.lsfg_flow_scale;
+	}
+
 	return result;
 }
 
@@ -614,6 +633,10 @@ BlurSettings config_blur::parse_from_map(
 #endif
 	config_base::extract_config_value(config_map, "svp gpu rendering", settings.svp_gpu_rendering);
 	config_base::extract_config_value(config_map, "svp hud mask", settings.svp_hud_mask);
+
+	config_base::extract_config_value(config_map, "lsfg performance mode", settings.lsfg_performance_mode);
+	config_base::extract_config_value(config_map, "lsfg flow scale", settings.lsfg_flow_scale);
+	config_base::extract_config_value(config_map, "lsfg ui detection", settings.lsfg_ui_detection);
 
 	config_base::extract_config_value(config_map, "gpu decoding", settings.gpu_decoding);
 	config_base::extract_config_value(config_map, "gpu encoding", settings.gpu_encoding);
@@ -879,6 +902,9 @@ nlohmann::json BlurSettings::to_json() const {
 	j["svp_gpu_search"] = this->svp_gpu_search;
 	j["svp_gpu_rendering"] = this->svp_gpu_rendering;
 	j["svp_hud_mask"] = this->svp_hud_mask;
+	j["lsfg_performance_mode"] = this->lsfg_performance_mode;
+	j["lsfg_flow_scale"] = this->lsfg_flow_scale;
+	j["lsfg_ui_detection"] = this->lsfg_ui_detection;
 	j["gpu_encoding"] = this->gpu_encoding;
 
 	j["filters"] = this->filters;

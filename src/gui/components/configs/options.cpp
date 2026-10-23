@@ -2,6 +2,7 @@
 #include "../../fonts/icons.h"
 
 #include "../../ui/ui.h"
+#include "../../renderer.h"
 #include "../../render/render.h"
 
 #include "common/config_encoding_presets.h"
@@ -9,6 +10,7 @@
 #include "common/masks.h"
 #include "common/devices.h"
 #include "common/interpolation_models.h"
+#include "common/plugins.h"
 #include "common/encoding.h"
 #include "common/rendering/render_optimise.h"
 
@@ -268,6 +270,12 @@ void configs::options(ui::Container& container) {
 			}
 		}
 
+		// still shown when a config picks it without the plugin, so it can be switched back
+		if (plugins::lsfg::installed() || settings.uses_interpolation_method("lsfg")) {
+			interpolation_options.insert(interpolation_options.end() - 1, "lsfg");
+			pre_interpolation_options.emplace_back("lsfg");
+		}
+
 		// pre-interpolating with the main method is skipped, so it isn't offered
 		std::erase(pre_interpolation_options, settings.interpolation_method);
 
@@ -345,6 +353,32 @@ void configs::options(ui::Container& container) {
 		if (settings.uses_interpolation_method("svp"))
 			ui::add_checkbox("svp hud mask checkbox", container, "svp hud mask", settings.svp_hud_mask, fonts::dejavu);
 
+		if (settings.uses_interpolation_method("lsfg")) {
+			ui::add_checkbox(
+				"lsfg performance mode checkbox",
+				container,
+				"lsfg performance mode",
+				settings.lsfg_performance_mode,
+				fonts::dejavu
+			);
+
+			ui::add_slider(
+				"lsfg flow scale",
+				container,
+				0.25f,
+				1.f,
+				&settings.lsfg_flow_scale,
+				"lsfg flow scale: {:.2f}",
+				fonts::dejavu,
+				{},
+				0.05f
+			);
+
+			ui::add_checkbox(
+				"lsfg ui detection checkbox", container, "lsfg ui detection", settings.lsfg_ui_detection, fonts::dejavu
+			);
+		}
+
 #ifdef TENSORRT
 		if (settings.uses_interpolation_method("rife (tensorrt)")) {
 			ui::add_checkbox(
@@ -385,6 +419,9 @@ void configs::options(ui::Container& container) {
 
 		if (gimm_installed())
 			retime_options.insert(retime_options.begin() + 3, "gimm-vfi (tensorrt)");
+
+		if (plugins::lsfg::installed() || settings.retime_method == "lsfg")
+			retime_options.insert(retime_options.end() - 2, "lsfg");
 
 		ui::add_dropdown(
 			"retime method dropdown", container, "retime method", retime_options, settings.retime_method, fonts::dejavu
@@ -560,6 +597,47 @@ void configs::options(ui::Container& container) {
 			WARNING_COLOR,
 			fonts::dejavu
 		);
+	}
+
+	if (settings.uses_interpolation_method("lsfg")) {
+		// looking it up reads the registry and steam's library list, so only when the setting changes
+		static std::optional<std::string> checked_path;
+		static std::optional<std::filesystem::path> found;
+		if (checked_path != app_settings.lossless_scaling_path) {
+			checked_path = app_settings.lossless_scaling_path;
+			found = plugins::lsfg::find_dll(app_settings.lossless_scaling_path);
+		}
+
+		ui::add_text_input(
+			"lossless scaling path input",
+			container,
+			app_settings.lossless_scaling_path,
+			"lossless scaling path",
+			fonts::dejavu,
+			"auto"
+		);
+
+		// the steam library it's in, since the rest of the path is always the same and the whole thing doesn't fit
+		if (found && app_settings.lossless_scaling_path.empty()) {
+			auto library = found->parent_path().parent_path().parent_path().parent_path();
+			ui::add_text(
+				"lossless scaling found path",
+				container,
+				std::vector<std::string>{ "found in steam library", u::path_to_string(library.make_preferred()) },
+				gfx::Color::white(renderer::MUTED_SHADE),
+				fonts::dejavu
+			);
+		}
+
+		if (!found) {
+			ui::add_text(
+				"lossless scaling not found warning",
+				container,
+				"lossless scaling wasn't found",
+				WARNING_COLOR,
+				fonts::dejavu
+			);
+		}
 	}
 
 	if (settings.uses_interpolation_method("rife")) {
