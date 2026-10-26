@@ -176,8 +176,8 @@ $plugins = @(
     },
     @{
         Name         = "open-svpflow";
-        Url          = "https://github.com/Z1xus/open-svpflow/releases/download/nightly-20261016-deadbad82b17/x86_64-pc-windows-msvc.zip";
-        Sha256       = "b4640639f31fbfd51a61232b4e55fa1412f64f518f95cf8e4824730421e21b52";
+        Url          = "https://github.com/Z1xus/open-svpflow/releases/download/nightly-20261024-deadbad2201d/x86_64-pc-windows-msvc.zip";
+        Sha256       = "0d1a5879455e38ac13b79ffb4b10e317009717f534d1fb5b178998db7f7fcc71";
         FilePatterns = @("svpflow1_vs.dll", "svpflow2_vs.dll");
     }
 )
