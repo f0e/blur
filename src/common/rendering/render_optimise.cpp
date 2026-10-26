@@ -37,12 +37,8 @@ namespace {
 #else
 		std::vector<bool> renderings = gpu_rendering_supported ? std::vector{ true, false } : std::vector{ false };
 #endif
-#ifdef SVPFLOW_FORK
 		std::vector<bool> searches =
 			settings.optimise_prioritise_speed ? std::vector{ true, false } : std::vector{ false };
-#else
-		std::vector<bool> searches = { false };
-#endif
 		std::vector<bool> decodings =
 			OPTIMISE_GPU_DECODING ? std::vector{ false, true } : std::vector{ settings.gpu_decoding };
 

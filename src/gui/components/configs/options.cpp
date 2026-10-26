@@ -672,7 +672,6 @@ void configs::options(ui::Container& container) {
 		);
 
 		if (settings.optimise_gpu_settings) {
-#ifdef SVPFLOW_FORK
 			ui::add_checkbox(
 				"auto svp prioritise speed checkbox",
 				container,
@@ -680,7 +679,6 @@ void configs::options(ui::Container& container) {
 				settings.optimise_prioritise_speed,
 				fonts::dejavu
 			);
-#endif
 
 			if (rendering::optimise::benchmarks(settings) &&
 			    !rendering::optimise::list_saved(settings, app_settings).empty())
@@ -693,12 +691,6 @@ void configs::options(ui::Container& container) {
 			}
 		}
 		else {
-#ifdef SVPFLOW_FORK
-			ui::add_checkbox(
-				"svp gpu search checkbox", container, "svp gpu search", settings.svp_gpu_search, fonts::dejavu
-			);
-#endif
-
 			if (devices::get_svp_gpu_supported() == false) {
 				ui::add_text(
 					"svp gpu rendering unsupported warning",
@@ -716,6 +708,12 @@ void configs::options(ui::Container& container) {
 					settings.svp_gpu_rendering,
 					fonts::dejavu
 				);
+
+				if (settings.svp_gpu_rendering) {
+					ui::add_checkbox(
+						"svp gpu search checkbox", container, "svp gpu search", settings.svp_gpu_search, fonts::dejavu
+					);
+				}
 			}
 		}
 	}

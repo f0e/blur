@@ -369,8 +369,8 @@ void configs::option_information(ui::Container& container) {
 		{
 			"auto svp prioritise speed checkbox",
 			{
+				"Lets auto svp gpu settings pick svp gpu search too when it's faster",
 				"WARNING: the output can look worse with this on",
-				"Lets optimising pick settings that are faster but less accurate, like svp gpu search",
 			},
 		},
 		{
@@ -383,8 +383,9 @@ void configs::option_information(ui::Container& container) {
 		{
 			"svp gpu search checkbox",
 			{
-				"Finds motion on the GPU, mostly faster at full search size",
-				"(Searches in an order the GPU can run in parallel, so results differ slightly)",
+				"Finds motion on the GPU, which makes SVP up to twice as fast, most at svp search size full",
+				"(Takes shortcuts the CPU search doesn't, so HUD elements can smear a little on some frames. Uses a little "
+				"more video memory)",
 			},
 		},
 		{

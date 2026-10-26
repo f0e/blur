@@ -335,8 +335,8 @@ def generate_svp_strings(
         }
 
     if gpu_search:
-        # open-svpflow searches the large levels in an order the gpu can run in parallel
-        vectors_json.setdefault("main", {}).setdefault("search", {})["gpu"] = True
+        # lets open-svpflow take shortcuts in the search so it can run on the gpu, which it only does with gpu rendering
+        vectors_json["exact"] = False
 
     return [json.dumps(obj) for obj in [super_json, vectors_json, smooth_json]]
 

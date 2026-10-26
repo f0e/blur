@@ -47,7 +47,9 @@ namespace {
 		settings.upscale = true;
 
 		settings.optimise_gpu_settings = false;
+		settings.optimise_prioritise_speed = true;
 		settings.svp_gpu_rendering = false;
+		settings.svp_gpu_search = true;
 		settings.svp_hud_mask = false;
 
 		settings.lsfg_performance_mode = true;

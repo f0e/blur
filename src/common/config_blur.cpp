@@ -260,11 +260,9 @@ std::string config_blur::generate_config_string(const BlurSettings& settings, bo
 		output << "\n";
 		output << "- svp" << "\n";
 		output << "optimise gpu settings: " << (settings.optimise_gpu_settings ? "true" : "false") << "\n";
-#ifdef SVPFLOW_FORK
 		output << "prioritise speed: " << (settings.optimise_prioritise_speed ? "true" : "false") << "\n";
-		output << "svp gpu search: " << (settings.svp_gpu_search ? "true" : "false") << "\n";
-#endif
 		output << "svp gpu rendering: " << (settings.svp_gpu_rendering ? "true" : "false") << "\n";
+		output << "svp gpu search: " << (settings.svp_gpu_search ? "true" : "false") << "\n";
 		output << "svp hud mask: " << (settings.svp_hud_mask ? "true" : "false") << "\n";
 	}
 
@@ -627,11 +625,9 @@ BlurSettings config_blur::parse_from_map(
 	config_base::extract_config_value(config_map, "upscale", settings.upscale);
 
 	config_base::extract_config_value(config_map, "optimise gpu settings", settings.optimise_gpu_settings);
-#ifdef SVPFLOW_FORK
 	config_base::extract_config_value(config_map, "prioritise speed", settings.optimise_prioritise_speed);
-	config_base::extract_config_value(config_map, "svp gpu search", settings.svp_gpu_search);
-#endif
 	config_base::extract_config_value(config_map, "svp gpu rendering", settings.svp_gpu_rendering);
+	config_base::extract_config_value(config_map, "svp gpu search", settings.svp_gpu_search);
 	config_base::extract_config_value(config_map, "svp hud mask", settings.svp_hud_mask);
 
 	config_base::extract_config_value(config_map, "lsfg performance mode", settings.lsfg_performance_mode);
