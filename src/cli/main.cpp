@@ -16,6 +16,7 @@ namespace {
 }
 
 #ifdef _WIN32
+// NOLINTNEXTLINE(misc-use-internal-linkage, *-avoid-c-arrays) windows' entry point
 int wmain(int argc, wchar_t* argv[]) {
 #else
 int main(int argc, char* argv[]) {
@@ -35,6 +36,8 @@ int main(int argc, char* argv[]) {
 	bool verbose = false;
 	std::string mask;
 	bool auto_mask = false;
+	std::optional<double> trim_start;
+	std::optional<double> trim_end;
 
 	app.add_option("-i,--input", input_strs, "Input file name(s)")->required();
 	app.add_option("-o,--output", output_strs, "Output file name(s) (optional)");
@@ -52,6 +55,10 @@ int main(int argc, char* argv[]) {
 		auto_mask,
 		"Generate an automatic mask for each video, overriding the config (optional)"
 	);
+	app.add_option("--start", trim_start, "Seconds into each video to start rendering from (optional)")
+		->check(CLI::NonNegativeNumber);
+	app.add_option("--end", trim_end, "Seconds into each video to stop rendering at (optional)")
+		->check(CLI::NonNegativeNumber);
 	app.add_flag("-p,--preview", preview, "Enable preview");
 	app.add_flag("-v,--verbose", verbose, "Verbose mode");
 
@@ -70,7 +77,9 @@ int main(int argc, char* argv[]) {
 		false,
 		mask,
 		auto_mask_flag->count() > 0 ? std::optional{ auto_mask } : std::nullopt,
-		config_names
+		config_names,
+		trim_start,
+		trim_end
 	);
 
 	return success ? 0 : 1;

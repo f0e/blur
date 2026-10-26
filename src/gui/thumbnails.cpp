@@ -92,7 +92,7 @@ namespace {
 std::optional<thumbnails::ThumbnailRes> thumbnails::get(
 	const std::filesystem::path& video_path, std::optional<gfx::Size> size, double timestamp
 ) {
-	const auto key = video_path.string();
+	const auto key = u::path_to_string(video_path);
 
 	std::unique_lock lock(thumbnail_mutex);
 
@@ -146,7 +146,7 @@ std::optional<thumbnails::ThumbnailRes> thumbnails::get(
 void thumbnails::remove(const std::filesystem::path& video_path) {
 	std::unique_lock lock(thumbnail_mutex);
 
-	auto it = thumbnail_cache.find(video_path.string());
+	auto it = thumbnail_cache.find(u::path_to_string(video_path));
 	if (it == thumbnail_cache.end())
 		return;
 

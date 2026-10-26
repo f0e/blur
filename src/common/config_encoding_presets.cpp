@@ -232,23 +232,16 @@ std::vector<config_encoding_presets::PresetDetails> config_encoding_presets::get
 
 	if (preset_group) {
 		for (const auto& preset : *preset_group) {
-			auto params = get_ffmpeg_args(preset.args, 0);
+			auto codec = extract_codec_from_args(get_ffmpeg_args(preset.args, 0));
+			if (!codec)
+				continue;
 
-			for (auto it = params.rbegin(); it != params.rend(); ++it) {
-				if (it == params.rbegin())
-					continue;
-
-				if (*it == "-c:v" || *it == "-codec:v") {
-					std::string codec = *(it - 1);
-					available_presets.push_back(
-						{
-							.name = preset.name,
-							.codec = codec,
-						}
-					);
-					break;
+			available_presets.push_back(
+				{
+					.name = preset.name,
+					.codec = *codec,
 				}
-			}
+			);
 		}
 	}
 
@@ -285,12 +278,10 @@ tl::expected<std::string, std::string> config_encoding_presets::extract_codec_fr
 ) {
 	const std::vector<std::string> codec_flags = { "-c:v", "-codec:v", "-vcodec", "-c:video", "-codec:video" };
 
-	for (size_t i = 0; i < ffmpeg_args.size() - 1; i++) {
-		for (const auto& flag : codec_flags) {
-			if (ffmpeg_args[i] == flag) {
-				return ffmpeg_args[i + 1];
-			}
-		}
+	// ffmpeg uses the last one given
+	for (size_t i = ffmpeg_args.size(); i >= 2; i--) {
+		if (u::contains(codec_flags, ffmpeg_args[i - 2]))
+			return ffmpeg_args[i - 1];
 	}
 
 	return tl::unexpected("no codec found");

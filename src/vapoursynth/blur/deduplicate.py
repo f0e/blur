@@ -47,7 +47,7 @@ def _decisions(
     future_checks: int,
 ) -> vs.VideoNode:
     """For every frame of `clip`, which two real frames it sits between and when they belong. Pairs never span
-    more than `max_gap` frames, past that the picture holds then moves over the last `max_gap` frames."""
+    more than `max_gap` frames, past that the picture holds and the next one is shown as it is."""
     diffs = core.std.PlaneStats(clip, clip[0] + clip)
 
     reach = _reach(timing, max_gap)
@@ -105,14 +105,11 @@ def _decisions(
             return source, HALF * source, source, HALF * source, 1
 
         def pair(left: int, left_time: int, right: int, right_time: int) -> tuple[int, int, int, int, int]:
-            # hold `left` then move over the last `max_gap` frames
-            return (
-                left,
-                max(left_time, right_time - HALF * max_gap),
-                right,
-                right_time,
-                0,
-            )
+            # further apart than that is a still stretch (a menu, standing still), and what comes after it is shown
+            # as it is rather than interpolated towards
+            if right_time - left_time > HALF * max_gap:
+                return held()
+            return left, left_time, right, right_time, 0
 
         start, end, open_start, open_end = run(source, max_gap, max_gap)
 
@@ -175,7 +172,7 @@ def _decisions(
 
                     right = next_end + 1
 
-                answer = held() if right - left > max_gap else pair(left, HALF * left, right, HALF * right)
+                answer = pair(left, HALF * left, right, HALF * right)
 
         left, left_time, right, right_time, hold = answer
 
@@ -184,6 +181,18 @@ def _decisions(
         out.props[retime.PROP_TIMES] = [left_time] if hold else [left_time, right_time]
         out.props[retime.PROP_TIME_SCALE] = HALF
         out.props[retime.PROP_DIFF] = diff(source)
+
+        # surrounding's pairs step over runs depending on where they start, so there's no one real frame after each
+        if timing != TIMING_SURROUNDING:
+            _, run_end, _, run_open = run(source, 0, reach - 2)
+
+            if timing == TIMING_LAST:
+                # the first frame starts the first pair whichever frame of its run it is
+                real = source if source == 0 or run_open else run_end
+            else:
+                real = source if source == 0 or diff(source) >= threshold or run_open else min(run_end + 1, last)
+
+            out.props[retime.PROP_NEXT] = real
 
         return out
 

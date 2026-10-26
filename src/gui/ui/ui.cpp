@@ -173,6 +173,11 @@ bool ui::is_dragging_scrollbar(const void* owner) {
 	return owner != nullptr && scrollbar_drag.owner == owner;
 }
 
+void ui::clear_containers() {
+	for (auto* container : Container::instances)
+		container->elements.clear();
+}
+
 void ui::reset_container(
 	Container& container,
 	SDL_Window* window,
@@ -544,6 +549,11 @@ bool ui::is_active_element(const AnimatedElement& element, const std::string& ty
 	return active_element == &element && active_element_type == type;
 }
 
+bool ui::is_dragging_seek() {
+	return active_element_type == "seek bar" || active_element_type == "timeline_seek" ||
+	       active_element_type.starts_with("grab_");
+}
+
 void ui::reset_active_element() {
 	active_element = nullptr;
 	active_element_type = "";
@@ -610,6 +620,25 @@ bool ui::update_container_input(Container& container) {
 	}
 
 	hover_blocked = false;
+
+	if (keys::is_mouse_down(SDL_BUTTON_RIGHT) && !active_element && container.rect.contains(keys::mouse_pos)) {
+		AnimatedElement* target = nullptr;
+
+		for (const auto& id : container.current_element_ids) {
+			auto& element = container.elements[id];
+			if (element.element->context_menu.empty() || !element.element->rect.contains(keys::mouse_pos))
+				continue;
+
+			if (!target || element.z_index >= target->z_index)
+				target = &element;
+		}
+
+		if (target) {
+			keys::on_mouse_press_handled(SDL_BUTTON_RIGHT);
+			context_menu::open(target->element->context_menu);
+			updated = true;
+		}
+	}
 
 	hovered_id = hovered_element_internal ? hovered_element_internal->element->id : "";
 

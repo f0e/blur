@@ -183,18 +183,6 @@ download_zip \
   "ffmpeg" \
   "ec9b34a5abd0decc87b150809f82ef8352500b32db9496c917b5ffa8b5c5b8dd"
 
-## svpflow
-echo "Downloading SVPFlow libraries..."
-download_library \
-  "https://github.com/Spritzerland/svpflow-arm64/raw/4922e4bcfeb0ee80d80555ac54b4f0e92e4d6316/libsvpflow1_arm.dylib" \
-  "libsvpflow1_arm.dylib" \
-  "vapoursynth-plugins"
-
-download_library \
-  "https://github.com/Spritzerland/svpflow-arm64/raw/4922e4bcfeb0ee80d80555ac54b4f0e92e4d6316/libsvpflow2_arm.dylib" \
-  "libsvpflow2_arm.dylib" \
-  "vapoursynth-plugins"
-
 # ## RIFE ncnn Vulkan library
 # echo "Downloading RIFE ncnn Vulkan library..."
 # download_library \
@@ -230,6 +218,7 @@ $out_dir/python/bin/pip install \
   vapoursynth==79 \
   vapoursynth-akarin==1.5.0 \
   vapoursynth-bestsource==21.0 \
+  vapoursynth-blur-frameblender==3.2.0 \
   vapoursynth-lsmas==1310.0.0.0 \
   vapoursynth-mvtools==29
 
@@ -259,12 +248,17 @@ make
 cd ../..
 " "build/unix/.libs" "vapoursynth-plugins"
 
-## frameblender
-download_library \
-  "https://github.com/f0e/vs-frameblender/releases/download/v2.1/frameblender-macos-arm64.dylib" \
-  "libframeblender.dylib" \
-  "vapoursynth-plugins" \
-  "dabbf2a507d0a63c30937836afdfb5613c885d70d85c424c19d88e84c3c0368f"
+## open-svpflow
+mkdir -p download/open-svpflow "$out_dir/vapoursynth-plugins"
+if [ ! -f download/open-svpflow/libsvpflow1_vs.dylib ]; then
+  wget -q "https://github.com/Z1xus/open-svpflow/releases/download/nightly-20261024-deadbad2201d/aarch64-apple-darwin.zip" \
+    -O download/open-svpflow/open-svpflow.zip
+  echo "59f9285ac6f3b4bfab49641822327b9935247c965a86231aa2d950b513f63549  download/open-svpflow/open-svpflow.zip" |
+    shasum -a 256 -c --quiet -
+  unzip -o download/open-svpflow/open-svpflow.zip libsvpflow1_vs.dylib libsvpflow2_vs.dylib -d download/open-svpflow
+  rm download/open-svpflow/open-svpflow.zip
+fi
+cp download/open-svpflow/libsvpflow1_vs.dylib download/open-svpflow/libsvpflow2_vs.dylib "$out_dir/vapoursynth-plugins"
 
 # Define model downloads
 echo "Starting model downloads..."

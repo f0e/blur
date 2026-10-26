@@ -125,6 +125,14 @@ void configs::app_options(ui::Container& container) {
 		fonts::dejavu
 	);
 
+	ui::add_checkbox(
+		"pre-render output encoding checkbox",
+		container,
+		"pre-renders use output encoding",
+		app_settings.pre_render_output_encoding,
+		fonts::dejavu
+	);
+
 	/*
 	    Rendering
 	*/

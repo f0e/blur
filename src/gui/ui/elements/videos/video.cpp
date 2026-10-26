@@ -2,35 +2,80 @@
 #include "../../keys.h"
 #include "../../../render/render.h"
 #include "../../../fonts/icons.h"
+#include "../../../video_info_rows.h"
 
 namespace {
-	constexpr int REMOVE_BUTTON_GAP = 22;
-	constexpr int REMOVE_BUTTON_RADIUS = 12;
-	constexpr gfx::Color REMOVE_BUTTON_COLOUR(17, 17, 17);
-	constexpr gfx::Color REMOVE_BUTTON_HOVER_COLOUR(153, 40, 40);
+	constexpr int CORNER_BUTTON_SIZE = 26;
+	constexpr int CORNER_BUTTON_GAP = 6;
+	constexpr int CORNER_BUTTON_MARGIN = 10;
+	constexpr float CORNER_BUTTON_ROUNDING = 6.f;
 
-	gfx::Point get_remove_button_pos(const gfx::Rect& rect) {
-		return rect.top_right().offset(-REMOVE_BUTTON_GAP, REMOVE_BUTTON_GAP);
+	constexpr gfx::Color CORNER_BUTTON_COLOUR(0, 0, 0, 200);
+	constexpr gfx::Color CORNER_BUTTON_HOVER_COLOUR(45, 45, 45, 235);
+	constexpr gfx::Color REMOVE_BUTTON_HOVER_COLOUR(153, 40, 40, 235);
+
+	gfx::Rect get_remove_button_rect(const gfx::Rect& rect) {
+		return {
+			rect.x2() - CORNER_BUTTON_MARGIN - CORNER_BUTTON_SIZE,
+			rect.y + CORNER_BUTTON_MARGIN,
+			CORNER_BUTTON_SIZE,
+			CORNER_BUTTON_SIZE,
+		};
 	}
 
-	void render_remove_button(const ui::AnimatedElement& element, const gfx::Rect& rect, float anim) {
+	gfx::Rect get_info_button_rect(const gfx::Rect& rect) {
+		auto button_rect = get_remove_button_rect(rect);
+		button_rect.x -= CORNER_BUTTON_SIZE + CORNER_BUTTON_GAP;
+		return button_rect;
+	}
+
+	void render_corner_button(
+		const gfx::Rect& rect, const std::string& icon, gfx::Color hover_colour, float hover, float alpha
+	) {
+		auto background = gfx::Color::lerp(CORNER_BUTTON_COLOUR, hover_colour, hover).adjust_alpha(alpha);
+
+		render::rounded_rect_filled(rect, background, CORNER_BUTTON_ROUNDING);
+		render::rounded_rect_stroke(rect, gfx::Color::white(40 * alpha), CORNER_BUTTON_ROUNDING);
+
+		render::text(
+			rect.center(),
+			gfx::Color::lerp(gfx::Color::white(190), gfx::Color::white(), hover).adjust_alpha(alpha),
+			icon,
+			fonts::icons,
+			FONT_CENTERED_X | FONT_CENTERED_Y
+		);
+	}
+
+	void render_corner_buttons(const ui::AnimatedElement& element, const gfx::Rect& rect, float anim) {
+		const auto& data = std::get<ui::VideoElementData>(element.element->data);
+
 		float alpha = anim * element.animations.at(ui::hasher("hover")).current;
 		if (alpha <= 0.f)
 			return;
 
-		float hover = element.animations.at(ui::hasher("remove_hover")).current;
+		float remove_hover = element.animations.at(ui::hasher("remove_hover")).current;
+		render_corner_button(
+			get_remove_button_rect(rect), icons::CLOSE, REMOVE_BUTTON_HOVER_COLOUR, remove_hover, alpha
+		);
 
-		auto pos = get_remove_button_pos(rect);
-		auto colour = gfx::Color::lerp(REMOVE_BUTTON_COLOUR, REMOVE_BUTTON_HOVER_COLOUR, hover).adjust_alpha(alpha);
+		if (!data.video.video_info)
+			return;
 
-		render::circle_filled(pos, REMOVE_BUTTON_RADIUS, colour);
+		auto info_rect = get_info_button_rect(rect);
+		float info_hover = element.animations.at(ui::hasher("info_hover")).current;
+		render_corner_button(info_rect, icons::INFO, CORNER_BUTTON_HOVER_COLOUR, info_hover, alpha);
 
-		render::text(
-			pos,
-			gfx::Color(255, 255, 255).adjust_alpha(alpha),
-			icons::CLOSE,
-			fonts::icons,
-			FONT_CENTERED_X | FONT_CENTERED_Y
+		// lined up with the right of the pair rather than the info button
+		gfx::Rect buttons_rect = info_rect;
+		buttons_rect.w = get_remove_button_rect(rect).x2() - info_rect.x;
+
+		ui::render_info_popover(
+			buttons_rect,
+			u::path_to_string(data.video.path.filename()),
+			get_video_info_rows(*data.video.video_info, true),
+			fonts::dejavu,
+			alpha * info_hover,
+			true
 		);
 	}
 }
@@ -45,6 +90,7 @@ void ui::render_video(const Container& container, const AnimatedElement& element
 	float anim = element.animations.at(hasher("main")).current;
 	int alpha = anim * 255;
 	float video_alpha = alpha * (1.f - data.fade);
+	const auto* overlay_frame = data.overlay && data.overlay->frame ? &*data.overlay->frame : nullptr;
 
 	if (data.video.video_info && !data.video.video_info->ffmpeg_can_decode_video) {
 		render::text(
@@ -56,8 +102,14 @@ void ui::render_video(const Container& container, const AnimatedElement& element
 		);
 	}
 	else if (data.video.video_info) {
-		bool overlay_drawn = data.overlay && data.overlay->player &&
-		                     data.overlay->player->draw(rect.shrink(1), gfx::Color::white(video_alpha));
+		bool overlay_drawn = false;
+		if (overlay_frame && overlay_frame->texture) {
+			render::image(rect.shrink(1), *overlay_frame->texture, gfx::Color::white(video_alpha));
+			overlay_drawn = true;
+		}
+		else if (overlay_frame && overlay_frame->player) {
+			overlay_drawn = overlay_frame->player->draw(rect.shrink(1), gfx::Color::white(video_alpha));
+		}
 
 		// the video stands in faded while the overlay's on its way
 		float player_alpha = data.overlay ? video_alpha * 0.4f : video_alpha;
@@ -86,7 +138,7 @@ void ui::render_video(const Container& container, const AnimatedElement& element
 	render::borders(rect, gfx::Color(50, 50, 50, alpha), gfx::Color(15, 15, 15, alpha));
 
 	if (data.active)
-		render_remove_button(element, rect, anim);
+		render_corner_buttons(element, rect, anim);
 }
 
 bool ui::update_video(const Container& container, AnimatedElement& element) {
@@ -97,6 +149,7 @@ bool ui::update_video(const Container& container, AnimatedElement& element) {
 
 	bool hovered = mouse_in_container && rect.contains(keys::mouse_pos);
 	bool remove_hovered = false;
+	bool info_hovered = false;
 	bool updated = false;
 
 	if (hovered) {
@@ -111,9 +164,8 @@ bool ui::update_video(const Container& container, AnimatedElement& element) {
 			}
 		}
 		else {
-			auto remove_button_pos = get_remove_button_pos(rect);
-			float dist = std::hypot(keys::mouse_pos.x - remove_button_pos.x, keys::mouse_pos.y - remove_button_pos.y);
-			remove_hovered = dist <= REMOVE_BUTTON_RADIUS;
+			remove_hovered = get_remove_button_rect(rect).contains(keys::mouse_pos);
+			info_hovered = data.video.video_info && get_info_button_rect(rect).contains(keys::mouse_pos);
 
 			if (keys::is_mouse_down()) {
 				keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
@@ -124,7 +176,7 @@ bool ui::update_video(const Container& container, AnimatedElement& element) {
 
 					data.on_remove(data.video.video_id);
 				}
-				else if (videos::player) {
+				else if (!info_hovered && videos::player) {
 					videos::player->cycle_paused();
 				}
 			}
@@ -133,7 +185,11 @@ bool ui::update_video(const Container& container, AnimatedElement& element) {
 
 	// timeline scroll input waits for the stack to settle
 	bool settled = element.animations.at(hasher("offset")).complete;
-	bool over_timeline = settled && videos::timeline_rect(rect).contains(keys::mouse_pos);
+	// the track numbers and scrollbar scroll the tracks
+	auto timeline_rect = videos::timeline_rect(rect, data.timeline_height);
+	timeline_rect.x -= videos::TRACK_LABEL_GAP + videos::TRACK_LABEL_WIDTH;
+	timeline_rect.w += videos::TRACK_LABEL_GAP + videos::TRACK_LABEL_WIDTH + videos::TRACK_SCROLLBAR_WIDTH;
+	bool over_timeline = settled && timeline_rect.contains(keys::mouse_pos);
 
 	if (data.active && mouse_in_container && !over_timeline && keys::scroll_delta != 0.f) {
 		int direction = keys::scroll_delta > 0.f ? 1 : -1;
@@ -152,6 +208,7 @@ bool ui::update_video(const Container& container, AnimatedElement& element) {
 
 	element.animations.at(hasher("hover")).set_goal(data.active && hovered ? 1.f : 0.f);
 	element.animations.at(hasher("remove_hover")).set_goal(remove_hovered ? 1.f : 0.f);
+	element.animations.at(hasher("info_hover")).set_goal(info_hovered ? 1.f : 0.f);
 
 	return updated;
 }

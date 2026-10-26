@@ -1,7 +1,7 @@
 #include "media.h"
 
 namespace {
-	int get_video_preroll_frames(const std::filesystem::path& path, double fps, double max_preroll_seconds = 5.0) {
+	int get_video_preroll_frames(const std::filesystem::path& path) {
 		// some mp4 files use an edit list to trim content by offsetting the start time, leaving negative pts
 		// packets at the head of the file that normal players skip but some vapoursynth source plugins decode as real
 		// frames, causing audio/video desync
@@ -11,23 +11,17 @@ namespace {
 		namespace bp = boost::process;
 		bp::ipstream pipe_stream;
 
-		const int max_packets = static_cast<int>(std::ceil(fps * max_preroll_seconds));
-		const auto read_intervals = std::format("%+#{}", max_packets);
-
 		auto c = u::run_command(
 			blur.ffprobe_path,
 			{
 				"-v",
 				"error",
 				"-select_streams",
-				"v:0",
-				"-show_packets",
-				"-read_intervals",
-				read_intervals,
+				"V:0", // not cover art
 				"-show_entries",
-				"packet=pts",
+				"packet=pts,dts",
 				"-of",
-				"json",
+				"csv=p=0",
 				u::path_to_string(path),
 			},
 			bp::std_out > pipe_stream,
@@ -39,22 +33,36 @@ namespace {
 			return 0;
 		}
 
-		std::string output(std::istreambuf_iterator<char>(pipe_stream), {});
-		c->wait();
+		auto parse = [](std::string_view value) -> std::optional<int64_t> {
+			int64_t out = 0;
+			auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), out);
+			if (ec != std::errc{})
+				return {};
+			return out;
+		};
 
-		const auto j = nlohmann::json::parse(output, nullptr, false);
-		if (j.is_discarded()) {
-			u::log_error("failed to parse preroll frames output: {}", output);
-			return 0;
-		}
-
+		// with b-frames, prerolled packets can come after the first shown one. pts is never below dts, so nothing
+		// after dts reaches 0 is prerolled
 		int skip = 0;
-		for (const auto& pkt : j.value("packets", nlohmann::json::array())) {
-			const auto pts = pkt.value("pts", 0LL);
-			if (pts >= 0)
+		std::string line;
+		while (std::getline(pipe_stream, line)) {
+			auto parts = u::split_string(line, ",");
+			if (parts.size() < 2)
+				continue;
+
+			auto pts = parse(parts[0]);
+			auto dts = parse(parts[1]);
+
+			if (pts && *pts < 0)
+				skip++;
+
+			if (dts && *dts >= 0)
 				break;
-			skip++;
 		}
+
+		u::safe_terminate(*c);
+		std::error_code ec;
+		c->wait(ec);
 
 		return skip;
 	}
@@ -75,7 +83,9 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 			"stream=index,codec_type,codec_name,codec_tag_string,sample_rate,color_range,r_frame_rate,pix_fmt,color_space,color_transfer,color_primaries,width,height,start_time,duration",
 			// clang-format on
 			"-show_entries",
-			"format=duration,start_time",
+			"stream_disposition=attached_pic",
+			"-show_entries",
+			"format=duration,start_time,format_name",
 			"-of",
 			"json",
 			u::path_to_string(path),
@@ -115,6 +125,8 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 		return s;
 	};
 
+	std::string format_name;
+
 	// format
 	if (j.contains("format")) {
 		const auto& fmt = j["format"];
@@ -124,21 +136,23 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 
 		if (fmt.contains("start_time"))
 			info.start_time = std::stod(fmt["start_time"].get<std::string>());
+
+		format_name = fmt.value("format_name", "");
 	}
 
 	// streams
-	bool first_video_stream = false;
-
 	for (const auto& stream : j.value("streams", nlohmann::json::array())) {
 		const auto codec_type = stream.value("codec_type", "");
 
-		if (codec_type == "video") {
+		bool attached_pic = stream.contains("disposition") && stream["disposition"].value("attached_pic", 0) != 0;
+
+		if (codec_type == "video" && !attached_pic) {
 			info.has_video_stream = true;
 
-			if (first_video_stream)
+			if (info.video_stream_index >= 0)
 				continue;
 
-			first_video_stream = true;
+			info.video_stream_index = stream.value("index", -1);
 
 			info.width = stream.value("width", 0);
 			info.height = stream.value("height", 0);
@@ -168,17 +182,22 @@ media::VideoInfo media::get_video_info(const std::filesystem::path& path) {
 
 			if (stream.contains("sample_rate"))
 				info.audio_sample_rates.push_back(std::stoi(stream["sample_rate"].get<std::string>()));
-
-			if (stream.contains("start_time"))
-				info.audio_start_times.push_back(std::stod(stream["start_time"].get<std::string>()));
 		}
 	}
 
 	// mkv doesn't store stream durations
 	if (info.has_video_stream && info.video_duration <= 0.0)
-		info.video_duration = info.duration - (info.video_start_time - info.start_time);
+		info.video_duration = info.duration - info.video_offset();
 
-	info.preroll_frames = get_video_preroll_frames(path, (double)info.fps_num / info.fps_den);
+	// mpeg-ts/ps timestamps are 33 bits of 90khz, and ffmpeg unwraps them to before 0 when they wrap early on
+	constexpr double MPEG_TIMESTAMP_WRAP = static_cast<double>(1LL << 33) / 90000.0;
+	if (format_name.starts_with("mpeg") &&
+	    (info.video_start_time < 0.0 || info.video_start_time + info.video_duration > MPEG_TIMESTAMP_WRAP))
+	{
+		info.lsmas_issue = "its timestamps wrap around partway through";
+	}
+
+	info.preroll_frames = get_video_preroll_frames(path);
 
 	return info;
 }

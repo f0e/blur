@@ -11,11 +11,15 @@
 #include "config_rules.h"
 #include "masks.h"
 #include "paths.h"
-#include "vspipe.h"
+#ifndef _WIN32
+#	include "vspipe.h"
+#endif
 
 tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_preview) {
 	resources_path = paths::get_resources_path();
-	settings_path = paths::get_settings_path();
+	// tests point it at their own folder first
+	if (settings_path.empty())
+		settings_path = paths::get_settings_path();
 
 	// has to happen before the defaults below get created
 	config_base::migrate_file(
@@ -47,8 +51,8 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 
 #if defined(_WIN32)
 	used_installer =
-		std::filesystem::exists(resources_path / "lib\\vapoursynth\\Lib\\site-packages\\vapoursynth\\vspipe.exe") &&
-		std::filesystem::exists(resources_path / "lib\\ffmpeg\\ffmpeg.exe");
+		std::filesystem::exists(resources_path / R"(lib\vapoursynth\Lib\site-packages\vapoursynth\vspipe.exe)") &&
+		std::filesystem::exists(resources_path / R"(lib\ffmpeg\ffmpeg.exe)");
 #elif defined(__linux__) || defined(__APPLE__)
 	used_installer =
 		std::filesystem::exists(resources_path / "python/lib/python3.12/site-packages/vapoursynth/vspipe") &&
@@ -57,9 +61,9 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 
 	if (used_installer) {
 #if defined(_WIN32)
-		vspipe_path = (blur.resources_path / "lib\\vapoursynth\\Lib\\site-packages\\vapoursynth\\vspipe.exe");
-		ffmpeg_path = (blur.resources_path / "lib\\ffmpeg\\ffmpeg.exe");
-		ffprobe_path = (blur.resources_path / "lib\\ffmpeg\\ffprobe.exe");
+		vspipe_path = (blur.resources_path / R"(lib\vapoursynth\Lib\site-packages\vapoursynth\vspipe.exe)");
+		ffmpeg_path = (blur.resources_path / R"(lib\ffmpeg\ffmpeg.exe)");
+		ffprobe_path = (blur.resources_path / R"(lib\ffmpeg\ffprobe.exe)");
 #elif defined(__linux__) || defined(__APPLE__)
 		vspipe_path = (blur.resources_path / "python/lib/python3.12/site-packages/vapoursynth/vspipe");
 		ffmpeg_path = (blur.resources_path / "ffmpeg/ffmpeg");
@@ -127,9 +131,11 @@ tl::expected<void, std::string> Blur::initialise(bool _verbose, bool _using_prev
 
 	initialised = true;
 
-	std::thread([this] {
-		devices::initialise();
-	}).detach();
+	// devices are process wide, and a second detection racing the first corrupts them (the tests initialise per run)
+	static std::once_flag devices_once;
+	std::call_once(devices_once, [] {
+		std::thread(devices::initialise).detach();
+	});
 
 	return {};
 }
@@ -145,10 +151,6 @@ void Blur::cleanup() {
 
 	// stop renders & wait for them to finish stopping
 	rendering::video_render_queue.stop_and_wait();
-
-	// remove temp dirs
-	DEBUG_LOG("removing temp path {}", temp_path);
-	std::filesystem::remove_all(temp_path); // todo: is this unsafe lol
 
 	u::log("Application cleanup completed");
 }

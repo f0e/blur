@@ -8,9 +8,11 @@ be short if OBS died mid-recording.
 - `READ`  - when OBS's GPU read the captured picture (from the probe filter), and a hash of it
 - `PCKT`  - every encoded video packet, used to line a saved file up with the log
 - `PRES`  - the captured game's own frames, if the plugin could trace them
+- `MARK`  - the NVIDIA Reflex markers the game sent for them, matched to its frames here
 - `GAME`  - which process OBS was capturing, how, and its hook's copy interval
 """
 
+import json
 import os
 import shutil
 import struct
@@ -23,7 +25,7 @@ from pathlib import Path
 import numpy as np
 
 SIDECAR_SUFFIX = ".frametiming"
-SIDECAR_VERSION = 8
+SIDECAR_VERSION = 9
 
 # the share of a video's packets whose size has to differ from the log's by the same amount to match it
 MATCH_SHARE = 0.98
@@ -31,6 +33,9 @@ MATCH_SHARE = 0.98
 # packet size steps in a row that have to agree before an offset is checked, and how many places they're taken from
 MATCH_RUN = 8
 MATCH_ANCHORS = 3
+
+# how far past a frame's slot a packet's timestamp can be and still count as at it, in frames
+PTS_LEEWAY = 0.25
 
 # other logs beside a video tried when looking for the one it was cut from
 MATCH_CANDIDATES = 16
@@ -79,8 +84,6 @@ PRESENT = np.dtype(
         ("flags", "<u8"),
         ("app_sim_start", "<u8"),
         ("app_sim_end", "<u8"),
-        ("reflex_sim_start", "<u8"),
-        ("reflex_sim_end", "<u8"),
         ("screen_time", "<u8"),
         ("frame_type", "<u8"),
         ("window", "<u8"),
@@ -97,7 +100,9 @@ GAME = np.dtype(
     ]
 )
 
-DTYPES = {b"TICK": TICK, b"READ": READ, b"PCKT": PACKET, b"PRES": PRESENT, b"GAME": GAME}
+MARKER = np.dtype([("qpc", "<u8"), ("process_id", "<u8"), ("frame_id", "<u8"), ("marker", "<u8")])
+
+DTYPES = {b"TICK": TICK, b"READ": READ, b"PCKT": PACKET, b"PRES": PRESENT, b"MARK": MARKER, b"GAME": GAME}
 
 HOOK_CAPTURE = 0
 WINDOW_CAPTURE = 1
@@ -109,6 +114,11 @@ PRESENT_FAILED = 1 << 1
 
 # presentdata's FrameType. anything above this was generated rather than drawn
 FRAME_TYPE_APPLICATION = 2
+
+# nvidia's pc latency stats markers, as the plugin logs them
+MARKER_SIMULATION_START = 0
+MARKER_PRESENT_START = 4
+MARKER_OUT_OF_BAND_PRESENT_START = 11
 
 # lining the gpu clock up with qpc: minimum samples, samples per window, minimum windows, and the percentile
 # each window's floor is taken at
@@ -135,6 +145,7 @@ class Sidecar:
     reads: np.ndarray
     packets: np.ndarray
     presents: np.ndarray
+    markers: np.ndarray
     games: np.ndarray
     game_timing: int
 
@@ -246,6 +257,7 @@ def load_sidecar(path: Path) -> Sidecar:
         sections[b"READ"],
         sections[b"PCKT"],
         sections[b"PRES"],
+        sections[b"MARK"],
         sections[b"GAME"],
         game_timing,
     )
@@ -255,6 +267,56 @@ def captured_game(sidecar: Sidecar, process: int) -> np.ndarray | None:
     """What the log says about how obs was capturing a process, if it says anything."""
     captured = sidecar.games[sidecar.games["process_id"] == process]
     return captured[-1] if len(captured) else None
+
+
+def hook_interval(fps: Fraction, flags: int) -> float:
+    """The interval in seconds the capture hook skips presents on. Worked out like game-capture.c's
+    `reset_frame_interval` rather than taken from the log, since obs keeps handing the hook a new one as its
+    framerate changes and the log's is from when the game was hooked."""
+    interval = fps.denominator * 1_000_000_000 // fps.numerator
+    if not flags & CAPTURE_LIMIT_FRAMERATE:
+        interval //= 2
+    return interval / 1e9
+
+
+def reflex_simulation(markers: np.ndarray, process: int, present_qpc: np.ndarray) -> np.ndarray:
+    """When each present's frame started simulating by its reflex markers, 0 where it has none. `present_qpc`
+    is sorted. A frame's present start marker is sent just before its present call, so a frame goes with the
+    first present at or after that marker, as long as it starts before the next frame's marker"""
+    simulated = np.zeros(len(present_qpc), dtype=np.int64)
+    markers = markers[markers["process_id"] == process]
+    if len(markers) == 0 or len(present_qpc) == 0:
+        return simulated
+
+    # games send one of the two present start markers
+    kind = MARKER_PRESENT_START
+    if not np.any(markers["marker"] == kind):
+        kind = MARKER_OUT_OF_BAND_PRESENT_START
+
+    def first_of(marker: int) -> tuple[np.ndarray, np.ndarray]:
+        chosen = markers[markers["marker"] == marker]
+        frames, at = np.unique(chosen["frame_id"].astype(np.int64), return_index=True)
+        return frames, chosen["qpc"].astype(np.int64)[at]
+
+    frames, presented = first_of(kind)
+    sim_frames, sim_qpc = first_of(MARKER_SIMULATION_START)
+    if len(frames) == 0 or len(sim_frames) == 0:
+        return simulated
+
+    order = np.argsort(presented, kind="stable")
+    frames, presented = frames[order], presented[order]
+
+    at = np.searchsorted(present_qpc, presented, "left")
+    following = np.append(presented[1:], np.iinfo(np.int64).max)
+    found = at < len(present_qpc)
+    found[found] &= present_qpc[at[found]] < following[found]
+
+    sim_at = np.searchsorted(sim_frames, frames)
+    found &= sim_at < len(sim_frames)
+    found[found] &= sim_frames[sim_at[found]] == frames[found]
+
+    simulated[at[found]] = sim_qpc[sim_at[found]]
+    return simulated
 
 
 def game_presents(sidecar: Sidecar, first: float, last: float) -> tuple[Presents | None, str]:
@@ -316,8 +378,11 @@ def game_presents(sidecar: Sidecar, first: float, last: float) -> tuple[Presents
     # prefer the game's own simulation times if it reports them
     simulated_qpc = start_qpc
     simulated_by = "frame start"
-    for field, by in (("app_sim_start", "PresentMon markers"), ("reflex_sim_start", "NVIDIA Reflex")):
-        reported = records[field].astype(np.int64)
+    reports = (
+        (records["app_sim_start"].astype(np.int64), "PresentMon markers"),
+        (reflex_simulation(sidecar.markers, process, present_qpc), "NVIDIA Reflex"),
+    )
+    for reported, by in reports:
         if np.mean(reported > 0) >= 0.5:
             simulated_qpc = np.where(reported > 0, reported, start_qpc)
             simulated_by = by
@@ -325,7 +390,7 @@ def game_presents(sidecar: Sidecar, first: float, last: float) -> tuple[Presents
 
     visible_qpc = done_qpc if hooked else records["screen_time"].astype(np.int64)
 
-    interval = float(captured["frame_interval"]) / 1e9 if hooked and captured is not None else 0.0
+    interval = hook_interval(sidecar.fps, int(captured["flags"])) if hooked and captured is not None else 0.0
 
     # the first frame has no start time, so it's dropped
     def seconds(qpc: np.ndarray) -> np.ndarray:
@@ -346,13 +411,18 @@ def game_presents(sidecar: Sidecar, first: float, last: float) -> tuple[Presents
     return presents, ""
 
 
+def _in_order(sidecar: Sidecar, sizes: np.ndarray, first: int) -> np.ndarray:
+    """The video's packets from the log, in presentation order."""
+    packets = sidecar.packets[first : first + len(sizes)]
+    return packets[np.argsort(packets["pts"], kind="stable")]
+
+
 def render_ticks(sidecar: Sidecar, sizes: np.ndarray, first: int | None = None) -> np.ndarray:
-    """For each frame of the video, the tick that rendered it, matched through the packet's `cts`. `first` is where
-    the video's packets start in the log."""
+    """For each of the video's packets in presentation order, the tick that rendered it, matched through the
+    packet's `cts`. `first` is where the video's packets start in the log."""
     if first is None:
         first = match_packets(sidecar, sizes)
-    packets = sidecar.packets[first : first + len(sizes)]
-    packets = packets[np.argsort(packets["pts"], kind="stable")]
+    packets = _in_order(sidecar, sizes, first)
 
     cts = packets["cts"].astype(np.int64)
     pts = packets["pts"].astype(np.int64)
@@ -369,7 +439,26 @@ def render_ticks(sidecar: Sidecar, sizes: np.ndarray, first: int | None = None) 
 
     tick_time = sidecar.ticks["frame_time"].astype(np.int64)
     at = np.searchsorted(tick_time, cts, "right") - 1
+
+    # when obs's render falls behind, its gpu encoder fills the ticks it missed by encoding the previous render
+    # again, stamped as those ticks, then stamps the late render with the first of them (queue_frame in
+    # obs-video.c). so in encode order a frame whose timestamp a later one doesn't pass is one of those repeats,
+    # and shows the render before it
+    later = np.append(np.minimum.accumulate(cts[::-1])[::-1][1:], np.iinfo(np.int64).max)
+    repeat = cts >= later
+    shown = np.maximum.accumulate(np.where(repeat, -1, np.arange(len(cts))))
+    at = np.where(repeat & (shown >= 0), at[np.maximum(shown, 0)], at)
+
     return np.clip(at + sidecar.render_delay, 0, len(tick_time) - 1)
+
+
+def encode_waits(sidecar: Sidecar, sizes: np.ndarray, first: int) -> np.ndarray:
+    """For each of the video's packets in presentation order, how many ticks it waited between being rendered and
+    obs's encoder starting on it, nan where obs didn't say."""
+    packets = _in_order(sidecar, sizes, first)
+    cts = packets["cts"].astype(np.int64)
+    fer = packets["fer"].astype(np.int64)
+    return np.where((cts > 0) & (fer > 0), (fer - cts) / 1e9 * float(sidecar.fps), np.nan)
 
 
 def _read_seconds(sidecar: Sidecar, reads: np.ndarray) -> tuple[np.ndarray, str]:
@@ -500,7 +589,8 @@ def _mp4_sample_sizes(path: Path) -> np.ndarray | None:
         return None
 
 
-def _ffprobe_sample_sizes(path: Path) -> np.ndarray | None:
+def _ffprobe_packets(path: Path) -> tuple[np.ndarray, np.ndarray] | None:
+    """The video track's packet sizes in decode order, and their presentation times in seconds."""
     ffprobe = shutil.which("ffprobe")
     bundled = Path(__file__).parent.parent / "ffmpeg" / "ffprobe.exe"
     if bundled.exists():
@@ -516,39 +606,66 @@ def _ffprobe_sample_sizes(path: Path) -> np.ndarray | None:
             "-select_streams",
             "v:0",
             "-show_entries",
-            "packet=dts,size",
+            "packet=pts_time,dts,size",
             "-of",
-            "csv=p=0",
+            "json",
             str(path),
         ],
         capture_output=True,
         text=True,
         check=False,
+        # avoid console window flashing
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     if out.returncode != 0:
         return None
 
-    packets = []
-    for line in out.stdout.splitlines():
-        dts, size = line.split(",")[:2]
-        packets.append((int(dts), int(size)))
-    packets.sort()
-    return np.array([size for _, size in packets], dtype=np.int64)
+    try:
+        packets = json.loads(out.stdout).get("packets", [])
+        packets = sorted((int(p["dts"]), int(p["size"]), float(p["pts_time"])) for p in packets)
+    except (ValueError, KeyError, TypeError):
+        return None
+
+    sizes = np.array([size for _, size, _ in packets], dtype=np.int64)
+    pts = np.array([pts for _, _, pts in packets], dtype=np.float64)
+    return sizes, pts
 
 
-def packet_sizes(video_path: Path, frames: int) -> np.ndarray:
-    """The size of every encoded packet in a video. Reads the mp4 sample table directly when possible since
-    it's much faster than ffprobe."""
+def shown_packets(pts: np.ndarray, frames: int, fps: Fraction, nearest: bool) -> np.ndarray:
+    """Which packet (in presentation order) each frame of a source forced to a framerate shows. Gaps in the
+    timestamps get padded with repeats and packets landing too close together get dropped, so frames and packets
+    don't line up one to one. LSMASH shows the last packet at or before each frame's slot, BestSource the nearest
+    one. Packets before zero are preroll, which the source skips."""
+    order = np.sort(pts)
+    shown = order[order >= 0]
+    begin = shown[0] if len(shown) else order[0]
+    slots = begin + np.arange(frames) / float(fps)
+
+    if nearest:
+        at = np.searchsorted((order[1:] + order[:-1]) / 2, slots, "right")
+    else:
+        # leeway for timestamps rounded to the container's timebase
+        at = np.searchsorted(order, slots + PTS_LEEWAY / float(fps), "right") - 1
+    return np.clip(at, 0, len(order) - 1)
+
+
+def video_packets(video_path: Path, frames: int, fps: Fraction, nearest: bool) -> tuple[np.ndarray, np.ndarray]:
+    """The size of every encoded packet in a video, and which packet (in presentation order) each of its `frames`
+    shows. Reads the mp4 sample table directly when possible since it's much faster than ffprobe."""
     sizes = _mp4_sample_sizes(video_path)
-    if sizes is None or len(sizes) != frames:
-        sizes = _ffprobe_sample_sizes(video_path)
+    if sizes is not None and len(sizes) == frames:
+        return sizes, np.arange(frames)
 
-    if sizes is None:
+    probed = _ffprobe_packets(video_path)
+    if probed is None or len(probed[0]) == 0:
         raise LogError("couldn't read the video's packet sizes")
-    if len(sizes) != frames:
-        raise LogError(f"the video has {len(sizes)} packets but {frames} frames")
 
-    return sizes
+    sizes, pts = probed
+    if len(sizes) == frames:
+        return sizes, np.arange(frames)
+    if fps <= 0:
+        raise LogError(f"the video has {len(sizes)} packets but {frames} frames")
+    return sizes, shown_packets(pts, frames, fps, nearest)
 
 
 def match_packets(sidecar: Sidecar, sizes: np.ndarray) -> int:

@@ -3,13 +3,15 @@
 namespace {
 	struct Waveform {
 		bool ready = false;
-		std::vector<int16_t> samples;
+		std::vector<std::vector<int16_t>> tracks;
 	};
 
 	std::unordered_map<std::string, Waveform> waveform_cache;
 	std::mutex waveform_mutex;
 
-	std::vector<int16_t> ffmpeg_get_waveform_samples(const std::filesystem::path& path, int target_width) {
+	std::vector<int16_t> ffmpeg_get_waveform_samples(
+		const std::filesystem::path& path, size_t track, int target_width
+	) {
 		namespace bp = boost::process;
 
 		bp::ipstream pipe_stream;
@@ -20,7 +22,9 @@ namespace {
 				"-v",
 				"error",
 				"-i",
-				path.string(),
+				u::path_to_string(path),
+				"-map",
+				std::format("0:a:{}", track),
 				"-f",
 				"s16le",
 				"-acodec",
@@ -73,21 +77,29 @@ namespace {
 		return downsampled;
 	}
 
-	void ffmpeg_get_waveform_async(const std::filesystem::path& video_path, const std::string& key, int target_width) {
+	void ffmpeg_get_waveforms_async(
+		const std::filesystem::path& video_path, const std::string& key, size_t track_count, int target_width
+	) {
 		u::log("spawning waveform thread for {}", u::path_to_string(video_path));
 
-		std::thread([video_path, key, target_width] {
-			auto samples = ffmpeg_get_waveform_samples(video_path, target_width);
+		std::thread([video_path, key, track_count, target_width] {
+			std::vector<std::vector<int16_t>> tracks;
+			tracks.reserve(track_count);
+
+			for (size_t i = 0; i < track_count; i++)
+				tracks.push_back(ffmpeg_get_waveform_samples(video_path, i, target_width));
 
 			std::unique_lock lock(waveform_mutex);
-			waveform_cache[key].samples = samples;
+			waveform_cache[key].tracks = std::move(tracks);
 			waveform_cache[key].ready = true;
 		}).detach();
 	}
 }
 
-std::optional<std::vector<int16_t>> waveforms::get_waveform(const std::filesystem::path& video_path, int target_width) {
-	const auto key = video_path.string();
+std::optional<std::vector<std::vector<int16_t>>> waveforms::get_waveforms(
+	const std::filesystem::path& video_path, size_t track_count, int target_width
+) {
+	const auto key = u::path_to_string(video_path);
 
 	std::unique_lock lock(waveform_mutex);
 
@@ -96,39 +108,19 @@ std::optional<std::vector<int16_t>> waveforms::get_waveform(const std::filesyste
 	if (it == waveform_cache.end()) {
 		waveform_cache[key] = {};
 
-		ffmpeg_get_waveform_async(video_path, key, target_width);
+		ffmpeg_get_waveforms_async(video_path, key, track_count, target_width);
 
 		return {};
 	}
 
-	auto waveform = it->second;
-	if (!waveform.ready)
+	if (!it->second.ready)
 		return {};
 
-	auto samples = waveform.samples;
+	auto tracks = std::move(it->second.tracks);
 
 	// remove from cache now that we've fetched it
 	// TODO: if its never fetched then itll sit in memory forever
 	waveform_cache.erase(key);
 
-	return samples;
-}
-
-int16_t waveforms::get_audio_percentile_peak(const std::vector<int16_t>& samples, float percentile) {
-	if (samples.empty())
-		return 1;
-
-	// sort samples from quietest->loudest
-	std::vector<int16_t> abs_samples;
-	abs_samples.reserve(samples.size());
-	for (int16_t sample : samples) {
-		abs_samples.push_back(std::abs(sample));
-	}
-
-	std::ranges::sort(abs_samples);
-
-	// get xth percentile amplitude
-	auto idx = static_cast<size_t>(percentile * abs_samples.size());
-	idx = std::min(idx, abs_samples.size() - 1);
-	return std::max(abs_samples[idx], static_cast<int16_t>(1));
+	return tracks;
 }

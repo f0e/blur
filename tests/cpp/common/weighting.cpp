@@ -1,0 +1,221 @@
+#include "helpers.h"
+
+#include "common/paths.h"
+#include "common/weighting.h"
+
+// the render weights frames in python (src/vapoursynth/blur/weighting.py) and the gui previews them in c++, so this
+// runs both over every weighting and sampling method and checks they agree
+
+namespace {
+	namespace bp = boost::process;
+
+	const std::filesystem::path PYTHON_WEIGHTING_PATH = REPO_DIR / "src/vapoursynth/blur/weighting.py";
+
+	// exposures in quarter frames up to 40 frames, which floats hold exactly
+	constexpr int MAX_QUARTERS = 160;
+
+	const std::vector<std::string> WEIGHTINGS = {
+		"equal",     "cosine",     "gaussian_sym",     "pyramid", "gaussian",
+		"ascending", "descending", "gaussian_reverse", "vegas",   "1,2,3",
+	};
+
+	// weighting.py imports blur.utils for its exception type, which pulls in vapoursynth, so it's stubbed out
+	constexpr std::string_view PYTHON_SCRIPT = R"(
+import importlib.util, json, sys, types
+
+utils = types.ModuleType("blur.utils")
+utils.BlurException = Exception
+blur = types.ModuleType("blur")
+blur.utils = utils
+sys.modules["blur"] = blur
+sys.modules["blur.utils"] = utils
+
+spec = importlib.util.spec_from_file_location("weighting", sys.argv[1])
+weighting = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(weighting)
+
+with open(sys.argv[2]) as f:
+    max_quarters, weightings, samplings, std_dev, mean, bound = json.load(f)
+result = {}
+for quarters in range(1, max_quarters + 1):
+    for weighting_type in weightings:
+        for sampling in samplings:
+            weights = weighting.parse(1, quarters / 4, weighting_type, std_dev, mean, bound, sampling)
+            result[f"{quarters}|{weighting_type}|{sampling}"] = list(weights)
+
+print(json.dumps(result))
+)";
+
+	std::optional<std::filesystem::path> find_python() {
+		if (const char* env = std::getenv("BLUR_TEST_PYTHON"))
+			return env;
+
+#ifdef _WIN32
+		// the one blur ships with, so it runs without a system python
+		auto bundled = paths::get_resources_path() / "lib" / "vapoursynth" / "python.exe";
+		if (std::filesystem::exists(bundled))
+			return bundled;
+#endif
+
+		for (const auto* name : { "python3", "python" }) {
+			auto path = bp::search_path(name);
+			if (path.empty())
+				continue;
+
+			// skip stubs that exist but can't run, like the windows store alias
+			auto c = u::run_command(path.native(), { "--version" }, bp::std_out > bp::null, bp::std_err > bp::null);
+			if (c) {
+				c->wait();
+				if (c->exit_code() == 0)
+					return path.native();
+			}
+		}
+
+		return {};
+	}
+
+	std::vector<double> get_cpp_weights(int quarters, const std::string& weighting_type, const std::string& sampling) {
+		BlurSettings settings;
+		settings.blur = true;
+		settings.blur_amount = static_cast<float>(quarters) / 4;
+		settings.blur_output_fps = 1;
+		settings.blur_weighting = weighting_type;
+		settings.advanced.blur_sampling = sampling;
+
+		// one output fps and one video fps make the exposure the blur amount
+		auto res = weighting::get_weights(settings, 1);
+		EXPECT_TRUE(res.error.empty()) << res.error;
+
+		return res.weights;
+	}
+}
+
+TEST(Weighting, PythonMatchesCpp) {
+	auto python = find_python();
+	if (!python)
+		GTEST_SKIP() << "no python found, set BLUR_TEST_PYTHON";
+
+	const BlurSettings defaults;
+
+	nlohmann::json args = {
+		MAX_QUARTERS,
+		WEIGHTINGS,
+		config_blur::BLUR_SAMPLING_METHODS,
+		defaults.advanced.blur_weighting_gaussian_std_dev,
+		defaults.advanced.blur_weighting_gaussian_mean,
+		nlohmann::json::parse(defaults.advanced.blur_weighting_gaussian_bound),
+	};
+
+	// passed as files since windows command line quoting mangles the quotes in them
+	auto temp_dir = std::filesystem::temp_directory_path() / "blur-weighting-test";
+	std::filesystem::create_directories(temp_dir);
+	auto script_path = temp_dir / "weighting_dump.py";
+	auto args_path = temp_dir / "args.json";
+	std::ofstream(script_path) << PYTHON_SCRIPT;
+	std::ofstream(args_path) << args.dump();
+
+	bp::ipstream out_stream;
+	bp::ipstream err_stream;
+
+	auto c = u::run_command(
+		*python,
+		{ "-I",
+	      u::path_to_string(script_path),
+	      u::path_to_string(PYTHON_WEIGHTING_PATH),
+	      u::path_to_string(args_path) },
+		bp::std_out > out_stream,
+		bp::std_err > err_stream
+	);
+	ASSERT_TRUE(c) << c.error();
+
+	std::string output(std::istreambuf_iterator<char>(out_stream), {});
+	std::string errors(std::istreambuf_iterator<char>(err_stream), {});
+	c->wait();
+	std::filesystem::remove_all(temp_dir);
+	ASSERT_EQ(c->exit_code(), 0) << errors;
+
+	auto python_weights = nlohmann::json::parse(output);
+
+	for (int quarters = 1; quarters <= MAX_QUARTERS; quarters++) {
+		for (const auto& weighting_type : WEIGHTINGS) {
+			for (const auto& sampling : config_blur::BLUR_SAMPLING_METHODS) {
+				auto key = std::format("{}|{}|{}", quarters, weighting_type, sampling);
+				auto expected = python_weights.at(key).get<std::vector<double>>();
+				auto actual = get_cpp_weights(quarters, weighting_type, sampling);
+
+				ASSERT_EQ(actual.size(), expected.size()) << key;
+				for (size_t i = 0; i < expected.size(); i++)
+					EXPECT_NEAR(actual[i], expected[i], 1e-9) << key << " weight " << i;
+			}
+		}
+	}
+}
+
+namespace {
+	weighting::GetWeightsResult weights_for(const std::string& weighting_type, const std::string& sampling = "rectangle") {
+		BlurSettings settings;
+		settings.blur_weighting = weighting_type;
+		settings.advanced.blur_sampling = sampling;
+		return weighting::get_weights(settings, 600);
+	}
+}
+
+TEST(Weighting, CustomWeightsAreWholeNumbers) {
+	// like the render's int(), which gets the same strings
+	for (const auto* sampling : { "rectangle", "round up" }) {
+		EXPECT_TRUE(weights_for("1,2,3", sampling).error.empty()) << sampling;
+		EXPECT_TRUE(weights_for(" 1 , 2 ,+3 ", sampling).error.empty()) << sampling;
+		EXPECT_TRUE(weights_for("-1,0,1", sampling).error.empty()) << sampling;
+
+		for (const auto* invalid : { "", "1,,2", "1.5,2", "3x", "1,2,", "fast" })
+			EXPECT_FALSE(weights_for(invalid, sampling).error.empty()) << sampling << ": '" << invalid << "'";
+	}
+}
+
+TEST(Weighting, WeightsSumToOne) {
+	for (const auto* weighting_type : { "equal", "gaussian_sym", "1,2,3", "-1,0,1" }) {
+		auto result = weights_for(weighting_type);
+		ASSERT_TRUE(result.error.empty()) << weighting_type;
+		EXPECT_NEAR(std::accumulate(result.weights.begin(), result.weights.end(), 0.0), 1.0, 1e-9) << weighting_type;
+	}
+}
+
+TEST(Weighting, NothingToBlendWithoutBlur) {
+	BlurSettings settings;
+	settings.blur = false;
+	EXPECT_TRUE(weighting::get_weights(settings, 600).weights.empty());
+
+	settings.blur = true;
+	settings.blur_amount = 0.f;
+	EXPECT_TRUE(weighting::get_weights(settings, 600).weights.empty());
+}
+
+TEST(Weighting, AssumesAFrameGapWithoutTheVideoFps) {
+	BlurSettings settings;
+	settings.blur_output_fps = 60;
+
+	auto known = weighting::get_weights(settings, 600);
+	EXPECT_EQ(known.frame_gap, 10.0);
+	EXPECT_EQ(known.source_fps, 600);
+	EXPECT_TRUE(known.fps_known);
+
+	auto assumed = weighting::get_weights(settings, {});
+	EXPECT_EQ(assumed.frame_gap, weighting::ASSUMED_FRAME_GAP);
+	EXPECT_EQ(assumed.source_fps, weighting::ASSUMED_FRAME_GAP * 60);
+	EXPECT_FALSE(assumed.fps_known);
+}
+
+TEST(Weighting, ParsesTheGaussianBound) {
+	EXPECT_EQ(weighting::parse_gaussian_bound("[0, 2]"), std::make_pair(0.0, 2.0));
+	EXPECT_EQ(weighting::parse_gaussian_bound("[-1.5,3]"), std::make_pair(-1.5, 3.0));
+
+	for (const auto* invalid : { "", "[0]", "[0,1,2]", "[0,\"2\"]", "{\"a\":1}", "0,2" })
+		EXPECT_FALSE(weighting::parse_gaussian_bound(invalid)) << invalid;
+}
+
+TEST(Weighting, RejectsAnUnparseableBound) {
+	BlurSettings settings;
+	settings.advanced.blur_weighting_gaussian_bound = "[0]";
+
+	EXPECT_FALSE(weighting::get_weights(settings, 600).error.empty());
+}

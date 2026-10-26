@@ -14,6 +14,7 @@
 #include "os/desktop_notification.h"
 
 #include "components/main.h"
+#include "components/queue_preview.h"
 #include "components/notifications.h"
 #include "components/render_history.h"
 #include "components/update_notice.h"
@@ -116,7 +117,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	const int queue_width = std::min(preferred_queue_width, rect.w - base_config_width);
 	const int queue_page_width = base_config_width + queue_width;
 
-	queue_config_container_rect.x = rect.center().x - queue_page_width / 2;
+	queue_config_container_rect.x = rect.center().x - (queue_page_width / 2);
 	queue_config_container_rect.w = base_config_width;
 
 	ui::reset_container(
@@ -227,14 +228,14 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	bool render_corner_update_notice = components::update_notice::is_updating();
 	ui::AnimatedElement* config_back_button = nullptr;
 
-	// built first so it gets escape before the screens do
+	// built first so they get escape before the screens do
+	ui::context_menu::build();
 	ui::dialog::build(sdl::window, rect);
 
-	// its vapoursynth core and any gpu memory aren't worth keeping while the queue's not up
 	bool queue_shown =
 		screen == Screens::MAIN && components::main::current_screen() == components::main::MainScreen::PENDING;
 	if (!queue_shown)
-		components::main::release_previews();
+		components::queue_preview::release();
 
 	if (screen != Screens::CONFIG)
 		components::configs::preview_frames::pause();
@@ -416,7 +417,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	static Screens last_screen = screen;
 	if (last_screen != screen) {
 		if (last_screen == Screens::CONFIG)
-			components::configs::reset_config_preview();
+			components::configs::on_screen_left();
 
 		// the preset may have just been changed in the config tab, and whether trimming is possible depends on it
 		components::main::invalidate_trim_support();
@@ -457,6 +458,7 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 	ui::stick_element_to_top(config_container, config_back_button);
 
 	want_to_render |= ui::dialog::update_frame(delta_time);
+	want_to_render |= ui::context_menu::update_frame(delta_time);
 	want_to_render |= ui::tooltip::update(delta_time);
 	ui::on_update_frame_end();
 
@@ -514,6 +516,8 @@ bool gui::renderer::redraw_window(bool rendered_last, bool want_to_render) {
 		components::render_history::draw_panel(history_panel_container, history_button_container);
 
 		ui::dialog::render();
+
+		ui::context_menu::render();
 
 		ui::tooltip::render();
 

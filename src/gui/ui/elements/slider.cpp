@@ -16,12 +16,6 @@ constexpr float TIE_ROUNDING = 4.0f;
 // text input
 constexpr int TEXT_INPUT_GAP = 10;
 
-constexpr gfx::Color TEXT_COLOR(255, 255, 255, 255);
-
-constexpr gfx::Color SELECTION_COLOR(100, 100, 200, 100);
-constexpr gfx::Color COMPOSITION_TEXT_COLOR(200, 200, 255, 255); // For IME
-constexpr gfx::Color COMPOSITION_BG_COLOR(60, 60, 60, 150);      // For IME
-
 namespace {
 	struct SliderPositions {
 		gfx::Rect label_rect;
@@ -135,36 +129,6 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 	float anim = element.animations.at(hasher("main")).current;
 	float hover_anim = element.animations.at(hasher("hover")).current;
 
-	// i'm doing this in render because it needs to run when the other slider if updating and atm it wouldn't cause only
-	// one element can update at once. not ideal, but idc
-	// todo: refactor
-	if (slider_data.is_tied_slider && slider_data.is_tied != nullptr) {
-		if (slider_observers.contains(element.element->id)) {
-			auto& observer = slider_observers[element.element->id];
-
-			if (*slider_data.is_tied && slider_data.tied_value) {
-				float current_tied_val = std::visit(to_float_ptr, *slider_data.tied_value);
-
-				if (observer.init && current_tied_val != observer.last_tied_value) {
-					float proportion = current_tied_val / observer.last_tied_value;
-
-					std::visit(
-						[proportion](auto&& arg) {
-							*arg = static_cast<std::decay_t<decltype(*arg)>>(*arg * proportion);
-						},
-						slider_data.current_value
-					);
-				}
-
-				observer.last_tied_value = current_tied_val;
-				observer.init = true;
-			}
-			else {
-				observer.init = false;
-			}
-		}
-	}
-
 	// Get current value as float
 	float current_val = std::visit(to_float_ptr, slider_data.current_value);
 	float min_val = std::visit(to_float, slider_data.min_value);
@@ -185,29 +149,20 @@ void ui::render_slider(const Container& container, const AnimatedElement& elemen
 
 	auto positions = get_slider_positions(container, element, slider_data);
 
-	auto text_input_state = helpers::text_input::has_text_edit(element.element->id);
-	if (text_input_state) {
-		gfx::Rect clip_rect = positions.label_rect;
-		gfx::Point text_pos = clip_rect.origin();
-
-		auto& state = helpers::text_input::text_input_map.at(element.element->id);
-
-		helpers::text_input::render_text(
-			slider_data.text_input,
-			state,
-			text_pos,
-			TEXT_COLOR.adjust_alpha(anim),
-			clip_rect,
-			"",
-			{},
-			SELECTION_COLOR.adjust_alpha(anim),
-			COMPOSITION_TEXT_COLOR.adjust_alpha(anim),
-			COMPOSITION_BG_COLOR.adjust_alpha(anim)
-		);
+	if (helpers::text_input::has_text_edit(element.element->id)) {
+		auto text_input = slider_data.text_input;
+		text_input.font = slider_data.font;
+		render_label_edit(element, text_input, positions.label_rect, text_color, anim);
 	}
 	else {
 		std::string label = format_label(slider_data.current_value, slider_data.label_format);
 		render::text(positions.label_rect.origin(), text_color, label, slider_data.font);
+
+		if (!slider_data.label_note.empty()) {
+			gfx::Point note_pos = positions.label_rect.origin();
+			note_pos.x += slider_data.font.calc_size(label + " ").w;
+			render::text(note_pos, tooltip_color, slider_data.label_note, slider_data.font);
+		}
 	}
 
 	// Render tooltip if provided
@@ -303,133 +258,43 @@ bool ui::update_slider(const Container& container, AnimatedElement& element) {
 
 	// text input
 	if (get_active_element() != &element || get_active_element_type() != "slider") {
-		label_hovered = positions.label_rect.contains(keys::mouse_pos) && set_hovered_element(element);
-		if (label_hovered) {
-			set_cursor(SDL_SYSTEM_CURSOR_TEXT);
-		}
-
-		auto deactivate_slider_text_input = [&]() {
-			if (helpers::text_input::has_text_edit(element.element->id)) {
-				ui::helpers::text_input::remove_text_edit(element.element->id);
-
-				if (get_active_element() == &element) {
-					reset_active_element();
-				}
-			}
-		};
-
-		// grab this before we claim the press below, which clears it
-		bool pressed = keys::is_mouse_down();
-
-		// text input: handle clicks
-		if (pressed) {
-			if (label_hovered) {
-				keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
-
-				if (!helpers::text_input::has_text_edit(element.element->id)) {
-					set_active_element(element, "text input");
-
-					slider_data.editing_text = get_value_string(slider_data.current_value, slider_data.label_format);
-
-					slider_data.text_input = helpers::text_input::TextInputData{
-						.text = &slider_data.editing_text,
-						.font = slider_data.font,
-					};
-
-					auto& state = ui::helpers::text_input::add_text_edit(element.element->id, slider_data.text_input);
-					state.active = true;
-
-					SDL_StartTextInput(container.window);
-
-					helpers::text_input::select_all(&slider_data.text_input, &state.edit_state);
-
-					// so the drag from this press doesn't clear the select-all
-					state.selected_all_mouse_lock = true;
-				}
-			}
-			else {
-				deactivate_slider_text_input();
-			}
-		}
+		slider_data.text_input.font = slider_data.font;
 
 		if (helpers::text_input::has_text_edit(element.element->id)) {
-			auto& state = helpers::text_input::text_input_map.at(element.element->id);
-
-			if (state.active && get_active_element() != &element) {
-				deactivate_slider_text_input();
-			}
-
-			bool active = get_active_element() == &element;
-
-			if (active) {
-				while (!text_event_queue.empty()) {
-					auto& event = text_event_queue.front();
-
-					// escape/enter to submit
-					if (event.type == SDL_EVENT_KEY_DOWN) {
-						if (event.key.scancode == SDL_SCANCODE_ESCAPE || event.key.scancode == SDL_SCANCODE_RETURN) {
-							deactivate_slider_text_input();
-							break;
-						}
-					}
-
-					helpers::text_input::handle_text_input_event(slider_data.text_input, state, event);
-					text_event_queue.erase(text_event_queue.begin());
-				}
-
-				gfx::Point text_relative_pos(
-					keys::mouse_pos.x - positions.label_rect.x + static_cast<int>(state.scroll_x),
-					keys::mouse_pos.y - positions.label_rect.y
-				);
-
-				helpers::text_input::handle_mouse(
-					slider_data.text_input,
-					state,
-					text_relative_pos,
-					label_hovered,
-					pressed,
-					keys::get_click_count(),
-					(SDL_GetModState() & SDL_KMOD_SHIFT) != 0u
-				);
-
-				helpers::text_input::update_ime_area(container.window, state, slider_data.font);
-
-				bool value_changed = false;
-
-				std::visit(
-					[&](auto* value_ptr) {
-						if (value_ptr) {
+			return update_label_edit(
+				container, element, slider_data.text_input, positions.label_rect, [&](const std::string& text) {
+					std::visit(
+						[&](auto* value_ptr) {
 							using T = std::remove_pointer_t<decltype(value_ptr)>;
 							T old_value = *value_ptr;
 
-							std::stringstream ss(slider_data.editing_text);
+							std::stringstream ss(text);
 							T new_value{};
-							if (ss >> new_value) {
-								*value_ptr = new_value;
-							}
-							else {
-								*value_ptr = T{ 0 }; // fallback to 0 or 0.0f
-							}
+							*value_ptr = ss >> new_value ? new_value : T{ 0 };
 
-							value_changed = (*value_ptr != old_value);
-						}
-					},
-					slider_data.current_value
-				);
-
-				if (value_changed && slider_data.on_change) {
-					(*slider_data.on_change)(slider_data.current_value);
+							if (*value_ptr != old_value && slider_data.on_change)
+								(*slider_data.on_change)(slider_data.current_value);
+						},
+						slider_data.current_value
+					);
 				}
+			);
+		}
+
+		label_hovered = positions.label_rect.contains(keys::mouse_pos) && set_hovered_element(element);
+		if (label_hovered) {
+			set_cursor(SDL_SYSTEM_CURSOR_TEXT);
+
+			if (keys::is_mouse_down()) {
+				keys::on_mouse_press_handled(SDL_BUTTON_LEFT);
+				begin_label_edit(
+					container,
+					element,
+					slider_data.text_input,
+					get_value_string(slider_data.current_value, slider_data.label_format)
+				);
+				return true;
 			}
-
-			// Clamp cursor/selection just in case
-			helpers::text_input::clamp(&slider_data.text_input, &state.edit_state);
-
-			if (!state.active) {
-				slider_data.editing_text = "";
-			}
-
-			return active;
 		}
 	}
 
@@ -550,14 +415,38 @@ ui::AnimatedElement* ui::add_slider_tied(
 	const render::Font& font,
 	std::optional<std::function<void(const std::variant<int*, float*>&)>> on_change,
 	float precision,
-	const std::string& tooltip
+	const std::string& tooltip,
+	const std::string& label_note
 ) {
 	gfx::Size slider_size(200, font.height() + TRACK_LABEL_GAP + TRACK_HEIGHT);
 	if (!tooltip.empty())
 		slider_size.h += LINE_HEIGHT_ADD + font.height();
 
-	if (!slider_observers.contains(id)) {
-		slider_observers.emplace(id, SliderObserver{});
+	// follow the tied value here rather than when rendering, so anything built after this slider in the same frame
+	// (like the weighting graph) sees both values updated together
+	auto& observer = slider_observers[id];
+	if (is_tied) {
+		float current_tied_val = std::visit(to_float_ptr, tied_value);
+
+		// scaling by 0 would lose the value for good, so wait it out and scale from the last non-zero value
+		if (current_tied_val > 0.f) {
+			if (observer.init && current_tied_val != observer.last_tied_value) {
+				float proportion = current_tied_val / observer.last_tied_value;
+
+				std::visit(
+					[proportion](auto&& arg) {
+						*arg = static_cast<std::decay_t<decltype(*arg)>>(*arg * proportion);
+					},
+					value
+				);
+			}
+
+			observer.last_tied_value = current_tied_val;
+			observer.init = true;
+		}
+	}
+	else {
+		observer.init = false;
 	}
 
 	Element element(
@@ -575,7 +464,8 @@ ui::AnimatedElement* ui::add_slider_tied(
 	                       .is_tied_slider = true,
 	                       .is_tied = &is_tied,
 	                       .tied_value = tied_value,
-	                       .tied_text = tied_text },
+	                       .tied_text = tied_text,
+	                       .label_note = label_note },
 		render_slider,
 		update_slider,
 		remove_slider

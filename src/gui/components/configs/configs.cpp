@@ -162,7 +162,6 @@ void configs::select_config(const std::string& name) {
 
 	// sliders cache their values
 	ui::reset_tied_sliders();
-	parse_interp();
 }
 
 bool configs::has_unsaved_changes() {
@@ -174,6 +173,9 @@ bool configs::has_unsaved_changes() {
 
 namespace {
 	bool needs_load = false;
+
+	// opening a config from the queue shouldn't change which one the screen opens on next time
+	std::optional<std::string> config_before_queue_edit;
 
 	void load() {
 		using namespace configs;
@@ -215,6 +217,20 @@ void configs::enter_screen() {
 	gui::renderer::screen = gui::renderer::Screens::CONFIG;
 }
 
+void configs::edit_config_for_video(const std::string& name, const std::filesystem::path& video_path, float seek) {
+	enter_screen();
+
+	if (!config_before_queue_edit)
+		config_before_queue_edit = selected_config_name;
+
+	// load() keeps this selected once it's run
+	selected_config_name = name;
+	selected_config_tab = "blur";
+	selected_right_tab = RIGHT_TABS[0];
+
+	queue_video_preview = QueueVideoPreview{ .path = video_path, .seek = seek };
+}
+
 void configs::import_config(const BlurSettings& imported) {
 	enter_screen();
 
@@ -223,7 +239,6 @@ void configs::import_config(const BlurSettings& imported) {
 
 	ui::reset_tied_sliders();
 	settings = imported;
-	parse_interp();
 
 	gui::components::notifications::add(
 		selected_config_name.empty() ? "Imported config"
@@ -243,6 +258,16 @@ void configs::leave_screen(const std::function<void()>& on_leave) {
 	ui::dialog::confirm_destructive(
 		"Discard unsaved changes?", "Leaving will discard your unsaved config changes.", "Discard", on_leave
 	);
+}
+
+void configs::on_screen_left() {
+	reset_config_preview();
+	queue_video_preview.reset();
+
+	if (config_before_queue_edit) {
+		selected_config_name = *config_before_queue_edit;
+		config_before_queue_edit.reset();
+	}
 }
 
 void configs::section(
@@ -295,14 +320,12 @@ void configs::config_actions(ui::Container& container) {
 
 			ui::reset_tied_sliders();
 			settings = imported;
-			parse_interp();
 		};
 
 		if (settings != config_blur::DEFAULT_CONFIG) {
 			do_restore_defaults = [] {
 				ui::reset_tied_sliders();
 				settings = config_blur::DEFAULT_CONFIG;
-				parse_interp();
 			};
 		}
 	}

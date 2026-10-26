@@ -130,6 +130,7 @@ Write-Host "Installing numpy and plugins into VapourSynth's Python..."
     numpy==2.5.3 `
     vapoursynth-akarin==1.5.0 `
     vapoursynth-bestsource==21.0 `
+    vapoursynth-blur-frameblender==3.2.0 `
     vapoursynth-fmtconv==31 `
     vapoursynth-lsmas==1310.0.0.0 `
     vapoursynth-mvtools==29
@@ -162,30 +163,22 @@ Extract-Files -ArchivePath $sevenZipArchive -FilePatterns @("7z.exe", "7z.dll") 
 # plugins that aren't on pypi
 $plugins = @(
     @{
-        Name        = "FrameBlender";
-        Url         = "https://github.com/f0e/vs-frameblender/releases/download/v2.1/frameblender-windows-x64.dll";
-        Sha256      = "eab7f45949109513bd7bec3f71111d219e28c9f1ebb22aa13805815a7d8a629a";
-        IsDirectDll = $true;
-    },
-    @{
         Name        = "VapourSynth-RIFE-ncnn-Vulkan";
         Url         = "https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan/releases/download/r9_mod_v33/librife_windows_x86-64.dll";
         Sha256      = "36a25b471be88e6f915320c818022dc8657dd9beac22a8c3158bd7f4260cc410";
         IsDirectDll = $true;
     },
     @{
-        Name         = "SVPFlow";
-        Url          = "https://web.archive.org/web/20190322064557if_/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip";
-        FilePatterns = @(
-            "svpflow-4.2.0.142/lib-windows/vapoursynth/x64/svpflow1_vs64.dll",
-            "svpflow-4.2.0.142/lib-windows/vapoursynth/x64/svpflow2_vs64.dll"
-        );
-    },
-    @{
         Name         = "AVISource";
         Url          = "https://github.com/vapoursynth/vs-avisource-obsolete/releases/download/R1/avisource-r1.7z";
         Sha256       = "f43b6285b90fee682d9f669fe6aedca22592b7ba9d4be77ea5965a0af908d124";
         FilePatterns = @("win64/avisource.dll");
+    },
+    @{
+        Name         = "open-svpflow";
+        Url          = "https://github.com/Z1xus/open-svpflow/releases/download/nightly-20261024-deadbad2201d/x86_64-pc-windows-msvc.zip";
+        Sha256       = "0d1a5879455e38ac13b79ffb4b10e317009717f534d1fb5b178998db7f7fcc71";
+        FilePatterns = @("svpflow1_vs.dll", "svpflow2_vs.dll");
     }
 )
 

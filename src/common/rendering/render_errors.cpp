@@ -66,9 +66,7 @@ std::string rendering::detail::without_error_objects(const std::string& stderr_o
 	return kept;
 }
 
-tl::expected<rendering::RenderError, std::string> rendering::detail::parse_error_output(
-	const std::string& stderr_output
-) {
+tl::expected<rendering::RenderError, std::string> rendering::parse_error_output(const std::string& stderr_output) {
 	RenderError result;
 	result.is_blur_exception = false;
 

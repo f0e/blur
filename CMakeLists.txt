@@ -78,7 +78,14 @@ set(
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-# version comes from project() above, bump it there
+# version comes from project() above, bump it there. a pre-release adds a suffix (3.0.0-beta.1), and is released as a
+# github pre-release. empty for a release
+set(BLUR_PRERELEASE "beta.1")
+set(BLUR_VERSION_STRING "${PROJECT_VERSION}")
+if(BLUR_PRERELEASE)
+  string(APPEND BLUR_VERSION_STRING "-${BLUR_PRERELEASE}")
+endif()
+
 set(BLUR_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
 configure_file(
   "${CMAKE_SOURCE_DIR}/cmake/blur_version.h.in"
@@ -126,12 +133,7 @@ find_package(spdlog CONFIG REQUIRED)
 file(GLOB_RECURSE COMMON_SOURCES "src/common/*.cpp")
 file(GLOB_RECURSE CLI_SOURCES "src/cli/*.cpp")
 file(GLOB_RECURSE GUI_SOURCES "src/gui/*.cpp")
-file(GLOB_RECURSE CLI_TEST_SOURCES "tests/cli/*.cpp")
-list(
-  FILTER CLI_TEST_SOURCES
-  EXCLUDE
-  REGEX "^.*/tests/plot_weighting_functions/.*$"
-)
+file(GLOB_RECURSE CLI_TEST_SOURCES "tests/cpp/*.cpp")
 
 # create CLI sources without main for tests
 set(CLI_SOURCES_NO_MAIN ${CLI_SOURCES})
@@ -474,7 +476,8 @@ target_link_libraries(
   blur-tests
   PRIVATE blur-common GTest::gtest GTest::gtest_main CLI11::CLI11
 )
-target_precompile_headers(blur-tests PRIVATE tests/cli/cli_test_pch.h)
+target_include_directories(blur-tests PRIVATE tests/cpp)
+target_precompile_headers(blur-tests PRIVATE tests/cpp/pch.h)
 setup_target(blur-tests)
 
 include(CTest)

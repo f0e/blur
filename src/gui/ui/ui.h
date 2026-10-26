@@ -2,6 +2,7 @@
 
 #include "../render/render.h"
 #include "../thumbnails.h"
+#include "frame.h"
 #include "helpers/text_input.h"
 #include "common/media.h"
 
@@ -51,7 +52,9 @@ namespace ui {
 		SPINNER,
 		UPDATE_NOTICE,
 		LOGO_AND_VERSION,
-		LINK
+		LINK,
+		INFO_ICON,
+		INTERPOLATION_TRACK
 	};
 
 	struct BarElementData {
@@ -151,9 +154,11 @@ namespace ui {
 		std::shared_ptr<render::Texture> texture;
 		std::string image_id;
 		gfx::Color image_color;
+		std::optional<std::function<void()>> on_click;
 
 		bool operator==(const ImageElementData& other) const {
-			return texture == other.texture && image_id == other.image_id && image_color == other.image_color;
+			return texture == other.texture && image_id == other.image_id && image_color == other.image_color &&
+			       on_click.has_value() == other.on_click.has_value();
 		}
 	};
 
@@ -175,17 +180,23 @@ namespace ui {
 		float* end = nullptr;
 		bool trim_disabled = false;
 
+		// which audio track plays
+		size_t* audio_track = nullptr;
+
 		bool operator==(const UIVideo& other) const = default;
 	};
 
 	struct VideoWaveform {
-		std::vector<int16_t> samples;
+		std::vector<std::vector<int16_t>> tracks;
 		int16_t max_sample = 0;
 	};
 
 	struct VideoOverlay {
-		// null until it's ready, the video's shown faded meanwhile
-		std::shared_ptr<VideoPlayer> player;
+		// nothing until it's ready, the video's shown faded meanwhile
+		std::optional<Frame> frame;
+
+		// the stretch of the video it covers, marked on the timeline. as fractions of the container's duration
+		std::optional<std::pair<float, float>> range;
 
 		bool operator==(const VideoOverlay& other) const = default;
 	};
@@ -199,24 +210,33 @@ namespace ui {
 		size_t* index = nullptr;
 		size_t list_index = 0;
 		size_t video_count = 1;
+		int timeline_height = 0;
 		std::function<void(size_t video_id)> on_remove;
 
 		bool operator==(const VideoElementData& other) const {
 			return video == other.video && thumbnail == other.thumbnail && overlay == other.overlay &&
 			       active == other.active && fade == other.fade && index == other.index &&
-			       list_index == other.list_index && video_count == other.video_count;
+			       list_index == other.list_index && video_count == other.video_count &&
+			       timeline_height == other.timeline_height;
 		}
 	};
 
 	struct TimelineElementData {
+		// the range grabs only show when it has a start and end
 		UIVideo video;
+		std::shared_ptr<VideoPlayer> player;
 		VideoWaveform* waveform = nullptr;
+
+		// a stretch to mark, like what a pre-render covers. as fractions of the duration
+		std::optional<std::pair<float, float>> highlight;
+
 		bool active = false;
 		float fade = 0.f;
 		bool interactive = false;
 
 		bool operator==(const TimelineElementData& other) const {
-			return video == other.video && waveform == other.waveform && active == other.active && fade == other.fade &&
+			return video == other.video && player == other.player && waveform == other.waveform &&
+			       highlight == other.highlight && active == other.active && fade == other.fade &&
 			       interactive == other.interactive;
 		}
 	};
@@ -311,15 +331,16 @@ namespace ui {
 		bool* is_tied;
 		std::optional<std::variant<int*, float*>> tied_value;
 		std::string tied_text;
+		std::string label_note;
 
-		std::string editing_text;
 		helpers::text_input::TextInputData text_input;
 
 		bool operator==(const SliderElementData& other) const {
 			return min_value == other.min_value && max_value == other.max_value &&
 			       current_value == other.current_value && label_format == other.label_format && font == other.font &&
 			       precision == other.precision && tooltip == other.tooltip && is_tied_slider == other.is_tied_slider &&
-			       is_tied == other.is_tied && tied_value == other.tied_value && tied_text == other.tied_text;
+			       is_tied == other.is_tied && tied_value == other.tied_value && tied_text == other.tied_text &&
+			       label_note == other.label_note;
 			// && text_input == other.text_input;
 		}
 	};
@@ -374,18 +395,23 @@ namespace ui {
 	struct DropdownElementData {
 		std::string label; // empty omits the label and its vertical spacing
 		std::vector<std::string> options;
-		std::string* selected;
+		std::string* selected; // null when multiselect
 		render::Font font;
 		std::optional<std::function<void(std::string*)>> on_change;
 		std::vector<std::string> muted_options;
 		std::vector<DropdownOptionAction> option_actions;
 		std::optional<DropdownAddAction> add_action;
+		std::vector<bool*> checked; // one per option when multiselect, empty otherwise
+
+		// a small box with just this text in this colour, and no label
+		std::optional<std::pair<std::string, gfx::Color>> compact;
 
 		std::string hovered_option;
 
 		bool operator==(const DropdownElementData& other) const {
 			return label == other.label && options == other.options && selected == other.selected &&
-			       font == other.font && muted_options == other.muted_options;
+			       font == other.font && muted_options == other.muted_options && checked == other.checked &&
+			       compact == other.compact;
 		}
 	};
 
@@ -418,11 +444,12 @@ namespace ui {
 
 	struct WeightingGraphElementData {
 		std::vector<double> weights;
-		bool accurate_fps;
+		double frame_gap;
+		int source_fps;
+		bool fps_known;
+		int bars_height;
 
-		bool operator==(const WeightingGraphElementData& other) const {
-			return weights == other.weights && accurate_fps == other.accurate_fps;
-		}
+		bool operator==(const WeightingGraphElementData& other) const = default;
 	};
 
 	struct TabsElementData {
@@ -524,6 +551,45 @@ namespace ui {
 		}
 	};
 
+	struct InfoRow {
+		std::string label;
+		std::string value;
+
+		bool operator==(const InfoRow& other) const = default;
+	};
+
+	struct InfoIconElementData {
+		std::string title;
+		std::vector<InfoRow> rows;
+		render::Font font;
+
+		bool operator==(const InfoIconElementData& other) const {
+			return title == other.title && rows == other.rows && font == other.font;
+		}
+	};
+
+	// neutral rather than a second colour, so it works with any theme
+	inline constexpr gfx::Color PRE_INTERPOLATION_COLOR = gfx::Color::white();
+
+	// the interpolated fps and where pre-interpolation hands over to it, as two thumbs on one fps track
+	struct InterpolationTrackElementData {
+		std::string* interpolated_fps; // an fps or a multiple of the source, like "5x"
+		int* pre_minimum_fps;
+		float* pre_minimum_multiplier;
+		bool show_pre;
+
+		std::optional<double> source_fps;
+		render::Font font;
+
+		helpers::text_input::TextInputData text_input;
+
+		bool operator==(const InterpolationTrackElementData& other) const {
+			return interpolated_fps == other.interpolated_fps && pre_minimum_fps == other.pre_minimum_fps &&
+			       pre_minimum_multiplier == other.pre_minimum_multiplier && show_pre == other.show_pre &&
+			       source_fps == other.source_fps && font == other.font;
+		}
+	};
+
 	using ElementData = std::variant<
 		BarElementData,
 		TextElementData,
@@ -549,7 +615,9 @@ namespace ui {
 		SpinnerElementData,
 		UpdateNoticeElementData,
 		LogoAndVersionElementData,
-		LinkElementData>;
+		LinkElementData,
+		InfoIconElementData,
+		InterpolationTrackElementData>;
 
 	struct AnimationState {
 		float speed;
@@ -584,6 +652,12 @@ namespace ui {
 
 	struct Container;
 
+	struct ContextMenuItem {
+		std::string label;
+		std::optional<std::string> icon;
+		std::function<void()> on_press;
+	};
+
 	struct Element {
 		std::string id;
 		ElementType type;
@@ -597,6 +671,9 @@ namespace ui {
 		bool always_render = false;
 		bool auto_center_horizontal = true;
 		gfx::Rect orig_rect;
+
+		// opened by right clicking the element. it's cleared each time the element's added, so set it after
+		std::vector<ContextMenuItem> context_menu;
 
 		Element(
 			std::string id,
@@ -626,6 +703,7 @@ namespace ui {
 			this->always_render = other.always_render;
 			this->auto_center_horizontal = other.auto_center_horizontal;
 			this->orig_rect = other.orig_rect;
+			this->context_menu = other.context_menu;
 
 			bool updated = this->data != other.data;
 			if (updated) {
@@ -645,7 +723,22 @@ namespace ui {
 	const inline AnimationState DEFAULT_ANIMATION(25.f);
 
 	struct Container {
-		SDL_Window* window;
+		inline static std::vector<Container*> instances;
+
+		Container() {
+			instances.push_back(this);
+		}
+
+		~Container() {
+			std::erase(instances, this);
+		}
+
+		Container(const Container&) = delete;
+		Container(Container&&) = delete;
+		Container& operator=(const Container&) = delete;
+		Container& operator=(Container&&) = delete;
+
+		SDL_Window* window = nullptr;
 
 		gfx::Rect rect;
 		std::optional<gfx::Color> background_color;
@@ -739,6 +832,7 @@ namespace ui {
 	void render_text(const Container& container, const AnimatedElement& element);
 
 	void render_image(const Container& container, const AnimatedElement& element);
+	bool update_image(const Container& container, AnimatedElement& element);
 
 	void render_video_frame(const Container& container, const AnimatedElement& element);
 	bool update_video_frame(const Container& container, AnimatedElement& element);
@@ -750,6 +844,17 @@ namespace ui {
 
 	void render_timeline(const Container& container, const AnimatedElement& element);
 	bool update_timeline(const Container& container, AnimatedElement& element);
+
+	// a video's timeline laid out like other elements, rather than under a video in a stack
+	// progress is where the playhead starts until the player has a position, as a fraction of the duration
+	AnimatedElement* add_timeline(
+		const std::string& id,
+		Container& container,
+		TimelineElementData data,
+		int height,
+		std::optional<int> width = {},
+		float progress = 0.f
+	);
 
 	void handle_videos_event(const SDL_Event& event, bool& to_render);
 
@@ -815,6 +920,30 @@ namespace ui {
 
 	void render_link(const Container& container, const AnimatedElement& element);
 	bool update_link(const Container& container, AnimatedElement& element);
+
+	void render_info_icon(const Container& container, const AnimatedElement& element);
+	bool update_info_icon(const Container& container, AnimatedElement& element);
+
+	void render_interpolation_track(const Container& container, const AnimatedElement& element);
+	bool update_interpolation_track(const Container& container, AnimatedElement& element);
+	void remove_interpolation_track(AnimatedElement& element);
+
+	// which value is being typed ("handover" or "interpolated fps"), empty when neither
+	std::string get_interpolation_track_edit(const std::string& id);
+
+	// the info icon's popover, for elements that draw their own icon. it sits beside anchor with their right edges
+	// lined up
+	void render_info_popover(
+		const gfx::Rect& anchor,
+		const std::string& title,
+		const std::vector<InfoRow>& rows,
+		const render::Font& font,
+		float anim,
+		bool below = false
+	);
+
+	// drops every container's elements, for shutdown. they can hold video players and textures
+	void clear_containers();
 
 	void reset_container(
 		Container& container,
@@ -904,7 +1033,8 @@ namespace ui {
 		std::shared_ptr<render::Texture> texture,
 		const gfx::Size& max_size,
 		const std::string& image_id = "",
-		gfx::Color image_color = gfx::Color::white()
+		gfx::Color image_color = gfx::Color::white(),
+		std::optional<std::function<void()>> on_click = {}
 	);
 
 	// the player's current frame, sized like add_image. nothing's added until a video is loaded
@@ -920,6 +1050,8 @@ namespace ui {
 	void add_videos(
 		const std::string& id,
 		Container& container,
+		// where the videos can start, below anything drawn over the top of the container
+		int top,
 		const std::vector<UIVideo>& ui_videos,
 		size_t& index,
 		float& start,
@@ -928,7 +1060,8 @@ namespace ui {
 		bool hardware_decoding,
 		bool trim_disabled,
 		const std::function<void(size_t video_id)>& on_remove,
-		const std::optional<VideoOverlay>& active_overlay = {}
+		const std::optional<VideoOverlay>& active_overlay = {},
+		const std::vector<ContextMenuItem>& active_context_menu = {}
 	);
 
 	AnimatedElement* add_button(
@@ -1005,7 +1138,8 @@ namespace ui {
 		const render::Font& font,
 		std::optional<std::function<void(const std::variant<int*, float*>&)>> on_change = {},
 		float precision = 0.f,
-		const std::string& tooltip = ""
+		const std::string& tooltip = "",
+		const std::string& label_note = ""
 	);
 
 	int seek_bar_height(const render::Font& font);
@@ -1067,6 +1201,16 @@ namespace ui {
 		std::optional<int> width = {} // empty fills the container
 	);
 
+	// options toggle on and off, and the list stays open
+	AnimatedElement* add_multiselect_dropdown(
+		const std::string& id,
+		Container& container,
+		const std::string& label,
+		const std::vector<std::pair<std::string, bool*>>& options,
+		const render::Font& font,
+		std::optional<std::function<void(std::string*)>> on_change = {}
+	);
+
 	int get_dropdown_box_height(const render::Font& font);
 
 	AnimatedElement* add_color_picker(
@@ -1080,8 +1224,30 @@ namespace ui {
 		std::optional<std::function<void()>> on_change = {}
 	);
 
+	AnimatedElement* add_interpolation_track(
+		const std::string& id, Container& container, InterpolationTrackElementData data
+	);
+
+	// a dropdown just big enough for `text`, drawn in `color`, for picking inline
+	AnimatedElement* add_compact_dropdown(
+		const std::string& id,
+		Container& container,
+		const std::vector<std::string>& options,
+		std::string& selected,
+		const std::string& text,
+		const gfx::Color& color,
+		const render::Font& font,
+		std::optional<std::function<void(std::string*)>> on_change = {},
+		const std::vector<std::string>& muted_options = {}
+	);
+
 	AnimatedElement* add_weighting_graph(
-		const std::string& id, Container& container, const std::vector<double>& weights, bool accurate_fps
+		const std::string& id,
+		Container& container,
+		const std::vector<double>& weights,
+		double frame_gap,
+		int source_fps,
+		bool fps_known
 	);
 
 	int tabs_height(const render::Font& font);
@@ -1150,6 +1316,16 @@ namespace ui {
 		gfx::Color hover_color = gfx::Color::white()
 	);
 
+	// an (i) icon that shows a title and label/value rows while hovered
+	AnimatedElement* add_info_icon(
+		const std::string& id,
+		Container& container,
+		const gfx::Size& size,
+		const std::string& title,
+		const std::vector<InfoRow>& rows,
+		const render::Font& font
+	);
+
 	void add_spacing(Container& container, int spacing);
 
 	void reserve_space(Container& container, int height);
@@ -1206,10 +1382,38 @@ namespace ui {
 	void set_cursor(SDL_SystemCursor cursor);
 
 	void set_active_element(AnimatedElement& element, const std::string& type = "");
+
+	// a label that's edited in place when clicked, like a slider's value. the edit is keyed by the element's id since
+	// keys only reach the active element's edit
+	void begin_label_edit(
+		const Container& container,
+		AnimatedElement& element,
+		helpers::text_input::TextInputData& input_data,
+		const std::string& text
+	);
+	// while editing, with on_change getting the text after every edit. false once the edit has ended
+	bool update_label_edit(
+		const Container& container,
+		AnimatedElement& element,
+		helpers::text_input::TextInputData& input_data,
+		const gfx::Rect& rect,
+		const std::function<void(const std::string&)>& on_change
+	);
+	void end_label_edit(AnimatedElement& element);
+	void render_label_edit(
+		const AnimatedElement& element,
+		const helpers::text_input::TextInputData& input_data,
+		const gfx::Rect& rect,
+		const gfx::Color& color,
+		float anim
+	);
 	AnimatedElement* get_active_element();
 	std::string get_active_element_type();
 	bool is_active_element(const AnimatedElement& element, const std::string& type = "");
 	void reset_active_element();
+
+	// a seek bar, timeline or trim grab is being dragged, moving the video as it goes
+	bool is_dragging_seek();
 
 	bool set_hovered_element(AnimatedElement& element);
 	std::string get_hovered_id();
@@ -1222,6 +1426,19 @@ namespace ui {
 		void on_input_end(const std::string& hovered_element_id);
 
 		bool update(float delta_time);
+		void render();
+	}
+
+	namespace context_menu {
+		// opens at the mouse
+		void open(std::vector<ContextMenuItem> items);
+		void close();
+		bool is_open();
+
+		void build();
+
+		bool update_input();
+		bool update_frame(float delta_time);
 		void render();
 	}
 

@@ -8,7 +8,15 @@
 #include "components/configs/configs.h"
 #include "components/configs/preview_frames.h"
 #include "components/main.h"
+#include "components/queue_preview.h"
 #include "os/taskbar.h"
+#include "preview_files.h"
+#include "pre_render.h"
+#include "ui/elements/videos/videos.h"
+
+#if __has_include("automation.h")
+#	include "automation.h"
+#endif
 
 #define DEBUG_RENDER_LOGGING 0
 
@@ -52,15 +60,38 @@ namespace {
 
 		os::taskbar::set_progress(ProgressState::NONE);
 	}
+
+	// video players and textures free gl resources, so they have to go before the gl context does
+	void shutdown() {
+#ifdef BLUR_AUTOMATION
+		automation::shutdown();
+#endif
+		ui::clear_containers();
+		gui::components::configs::preview_frames::reset();
+		gui::components::queue_preview::release();
+		ui::videos::player.reset();
+
+		VideoPlayer::wait_for_destroys(std::chrono::seconds(2));
+		PreRender::wait_for_renders(std::chrono::seconds(5));
+		preview_files::remove_all();
+
+		sdl::cleanup();
+	}
 }
 
 int gui::run() {
+#ifdef BLUR_AUTOMATION
+	automation::initialise();
+#endif
+
 	auto sdl_init_res = sdl::initialise();
 	if (!sdl_init_res) {
 		u::log_error("Error: {}", sdl_init_res.error());
 		sdl::cleanup();
 		return 1;
 	}
+
+	preview_files::remove_stale();
 
 	SDL_Event event;
 
@@ -76,10 +107,14 @@ int gui::run() {
 
 		update_taskbar_progress();
 
+#ifdef BLUR_AUTOMATION
+		to_render |= automation::update();
+#endif
+
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {
 				case SDL_EVENT_QUIT:
-					sdl::cleanup();
+					shutdown();
 					return 0;
 
 				case SDL_EVENT_WINDOW_EXPOSED:
@@ -137,10 +172,13 @@ int gui::run() {
 
 			if (event.type == SDL_EVENT_KEY_DOWN) {
 				// playback keys go to whichever screen's video is up, and not while typing
-				if (!SDL_TextInputActive(sdl::window)) {
+				auto* active = ui::get_active_element();
+				bool typing = active != nullptr && ui::helpers::text_input::has_active_text_edit(active->element->id);
+
+				if (!typing) {
 					if (gui::renderer::screen == gui::renderer::Screens::CONFIG)
-						gui::components::configs::preview_frames::handle_key_press(event.key.key);
-					else
+						gui::components::configs::preview_frames::handle_key_press(event.key.key, event.key.mod);
+					else if (!gui::components::main::handle_key_press(event.key.key, event.key.mod))
 						ui::handle_videos_event(event, to_render);
 				}
 			}
@@ -149,29 +187,34 @@ int gui::run() {
 			}
 
 			gui::components::configs::preview_frames::handle_event(event, to_render);
-			gui::components::main::handle_event(event, to_render);
+			gui::components::queue_preview::handle_event(event, to_render);
 
 			if (keys::process_event(event)) {
 				ui::on_update_input_start();
 				to_render |= ui::update_container_input(renderer::notification_container);
 
-				if (ui::dialog::is_open()) {
-					// modal, nothing behind it gets input
-					to_render |= ui::dialog::update_input();
-				}
-				else {
-					to_render |= ui::update_container_input(renderer::history_panel_container);
-					to_render |= ui::update_container_input(renderer::history_button_container);
-					to_render |= ui::update_container_input(renderer::update_container);
-					to_render |= ui::update_container_input(renderer::navigation_button_container);
-					to_render |= ui::update_container_input(renderer::nav_container);
+				// it's modal, but a right click outside closes it and goes through so it can open another one
+				to_render |= ui::context_menu::update_input();
 
-					to_render |= ui::update_container_input(renderer::main_container);
-					to_render |= ui::update_container_input(renderer::queue_config_container);
-					to_render |= ui::update_container_input(renderer::queue_container);
-					to_render |= ui::update_container_input(renderer::config_container);
-					to_render |= ui::update_container_input(renderer::option_information_container);
-					to_render |= ui::update_container_input(renderer::config_preview_content_container);
+				if (!ui::context_menu::is_open()) {
+					if (ui::dialog::is_open()) {
+						// modal, nothing behind it gets input
+						to_render |= ui::dialog::update_input();
+					}
+					else {
+						to_render |= ui::update_container_input(renderer::history_panel_container);
+						to_render |= ui::update_container_input(renderer::history_button_container);
+						to_render |= ui::update_container_input(renderer::update_container);
+						to_render |= ui::update_container_input(renderer::navigation_button_container);
+						to_render |= ui::update_container_input(renderer::nav_container);
+
+						to_render |= ui::update_container_input(renderer::main_container);
+						to_render |= ui::update_container_input(renderer::queue_config_container);
+						to_render |= ui::update_container_input(renderer::queue_container);
+						to_render |= ui::update_container_input(renderer::config_container);
+						to_render |= ui::update_container_input(renderer::option_information_container);
+						to_render |= ui::update_container_input(renderer::config_preview_content_container);
+					}
 				}
 
 				ui::on_update_input_end();
@@ -182,6 +225,10 @@ int gui::run() {
 			rendered_last,
 			to_render
 		); // note: rendered isn't true if rendering was forced, it's only if an animation or smth is playing
+
+#ifdef BLUR_AUTOMATION
+		automation::on_frame(rendered);
+#endif
 
 #if DEBUG_RENDER_LOGGING
 		static size_t frame = 0;
@@ -209,6 +256,6 @@ int gui::run() {
 		}
 	}
 
-	sdl::cleanup();
+	shutdown();
 	return 0;
 }

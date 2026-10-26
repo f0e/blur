@@ -10,6 +10,7 @@ picture is placed at the moment obs read it.
 """
 
 import bisect
+import itertools
 import math
 from fractions import Fraction
 from pathlib import Path
@@ -33,15 +34,16 @@ LATENCY_REACH = 1.0
 # hook skip grid phases tried
 PHASE_STEPS = 16
 
-# if more of the latency range than this fits equally well, the fit isn't used. clips the fingerprints pin down
-# leave under a percent, ones they can't leave a third or more
-IDENTIFIABLE_SHARE = 0.1
-
 # frames the phase and latency are fitted over
 FIT_FRAMES = 20000
 
 # seconds of game frames wanted either side of the clip
 LEAD = 2.0
+
+# obs's gpu encoder queue (NUM_ENCODE_TEXTURES in libobs). when every slot is taken at a tick, obs encodes the last
+# queued frame again instead of the one it just rendered, so a frame can only be repeated after waiting about this
+# many ticks
+ENCODE_SLOTS = 10
 
 
 def hook_copies(present: np.ndarray, interval: float, phase: float) -> np.ndarray:
@@ -74,9 +76,10 @@ def picture_changes(fingerprint: np.ndarray) -> np.ndarray:
 
 def _latency(
     read: np.ndarray, changes: np.ndarray, visible: np.ndarray, reach: float
-) -> tuple[int, float, float, float]:
+) -> tuple[int, float, float, bool]:
     """The read latency that disagrees with the fingerprints least. Returns the number of disagreements, the
-    latency (middle of the widest best-scoring run), that run's width, and the total width scoring the same"""
+    latency (middle of the widest best-scoring run), that run's width, and whether no latency at all scores the
+    same"""
     frames = len(read)
     low = np.searchsorted(visible, read - reach, "right")
     high = np.searchsorted(visible, read + reach, "right")
@@ -129,7 +132,7 @@ def _latency(
     fewest = min(run[0] for run in runs)
     equal = [run for run in runs if run[0] == fewest]
     widest = max(equal, key=lambda run: run[2] - run[1])
-    return int(fewest), (widest[1] + widest[2]) / 2, widest[2] - widest[1], sum(r[2] - r[1] for r in equal)
+    return int(fewest), (widest[1] + widest[2]) / 2, widest[2] - widest[1], any(r[1] <= 0 <= r[2] for r in equal)
 
 
 def fit(
@@ -141,22 +144,22 @@ def fit(
     skips = len(present) > 1 and float(np.min(np.diff(present))) < interval
     phases = np.linspace(1, 0, PHASE_STEPS, endpoint=False) if skips else np.array([1.0])
 
-    best: tuple[int, float, float, float, float] | None = None
+    best: tuple[int, float, float, float, bool] | None = None
     for phase in phases:
         copied = hook_copies(present, interval, float(phase))
         if len(copied) == 0:
             continue
 
-        wrong, latency, width, span = _latency(read, changes, np.sort(visible[copied]), reach)
+        wrong, latency, width, untimed = _latency(read, changes, np.sort(visible[copied]), reach)
         if best is None or (wrong, -width) < (best[0], -best[3]):
-            best = (wrong, latency, float(phase), width, span)
+            best = (wrong, latency, float(phase), width, untimed)
 
     if best is None:
         return 1.0, 0.0, 0, False
 
-    # a game outrunning the recording shows a new picture on nearly every read, so any latency fits and the
-    # probe's measurement is kept instead
-    identified = best[4] < IDENTIFIABLE_SHARE * 2 * reach
+    # the probe's own timing is kept unless the fingerprints rule it out. a game outrunning the recording shows a
+    # new picture on nearly every read, so any latency fits
+    identified = not best[4]
     return best[2], (best[1] if identified else 0.0), best[0], identified
 
 
@@ -205,28 +208,49 @@ def _placed(game: np.ndarray, presents: timing_log.Presents | None, read: np.nda
     return _on_frames(np.where(covered, moment, read + apart), fps)
 
 
-def _pick(times: list[int], n: int) -> tuple[int, int]:
-    """Which of `times` a decision for frame n holds: the one at or before it, through the first past it."""
-    begin = max(0, bisect.bisect_right(times, n * TIME_SCALE) - 1)
-    stop = min(bisect.bisect_left(times, (n + 1) * TIME_SCALE), len(times) - 1)
-    return begin, min(max(stop, begin), begin + SLOTS)
+def _stillest(seen: np.ndarray, still: np.ndarray, before: float, after: float) -> float:
+    """The longest the picture provably stayed the same between two moments: from a change to the last frame the
+    game drew after it that still showed the same picture. A game that didn't draw (a low framerate, a hitch) isn't
+    still, it's just slow. `seen` is when the picture obs read changed, `still` when obs read the same picture from
+    a new game frame, both sorted"""
+    inside = seen[np.searchsorted(seen, before, "right") : np.searchsorted(seen, after, "left")]
+    longest = 0.0
+    for since, until in itertools.pairwise(np.concatenate([[before], inside, [after]])):
+        last = np.searchsorted(still, until, "left") - 1
+        if last >= 0 and still[last] > since:
+            longest = max(longest, float(still[last] - since))
+    return longest
 
 
 def _timeline(
-    frames: list[int], placed: list[float], start: int, length: int, hold: int
+    frames: list[int],
+    placed: list[float],
+    start: int,
+    length: int,
+    hold: int,
+    seen: np.ndarray,
+    still: np.ndarray,
 ) -> tuple[list[int], list[int], int]:
-    """Real frames and their times relative to `start`, holding the picture across gaps longer than `hold`, and
-    how many of them the timing didn't manage to separate."""
+    """Real frames and their times relative to `start`, and how many of them the timing didn't manage to
+    separate. The picture is held where it stayed the same for longer than `hold` while the game kept drawing (a
+    menu, standing still), and the next picture is switched to rather than interpolated towards. Gaps where the
+    game didn't draw, or pictures missing only from the recording, are interpolated across, up to
+    retime.MAX_GAP_LIMIT"""
     frames_out: list[int] = []
     times_out: list[int] = []
     crowded = 0
+    previous = None
     for k, at in zip(frames, placed):
         frame = min(max(k - start, 0), length - 1)
         time = round((at - start) * TIME_SCALE)
 
-        if times_out and time - times_out[-1] > hold * TIME_SCALE:
+        if previous is not None and (
+            _stillest(seen, still, previous, at) > hold or at - previous > retime.MAX_GAP_LIMIT
+        ):
+            # the next picture is shown as it is rather than interpolated towards
             frames_out.append(frames_out[-1])
-            times_out.append(time - hold * TIME_SCALE)
+            times_out.append(time - 1)
+        previous = at
 
         # the fingerprints say this is a new picture, so keep it at the smallest possible step rather than drop it
         if times_out and time <= times_out[-1]:
@@ -240,32 +264,55 @@ def _timeline(
 
 
 def _decisions(
-    new: np.ndarray, placed: np.ndarray, start: int, length: int, hold: int
-) -> tuple[vs.VideoNode, int, int]:
-    """A decision per frame of the trimmed part, from the frames the log says are real and when they belong,
-    and how many of those frames the timing put no later than the one before."""
+    new: np.ndarray, seen: np.ndarray, still: np.ndarray, placed: np.ndarray, start: int, length: int, hold: int
+) -> tuple[list[int], list[int], int]:
+    """The real frames of the trimmed part and when they belong, from the frames that are real pictures in the
+    recording, and how many of those frames the timing put no later than the one before. `seen` is which frames
+    obs read a new picture for, which includes ones its encoder didn't get into the recording, and `still` which
+    ones it read the same picture for from a frame the game drew"""
     real = [int(k) for k in np.nonzero(new)[0]]
 
     # the real frames in the trimmed part plus one either side
     low = bisect.bisect_left(real, start)
     high = bisect.bisect_right(real, start + length - 1)
     kept = real[max(low - 1, 0) : min(high + 1, len(real))]
-    frames_list, times_list, crowded = _timeline(kept, [placed[k] for k in kept], start, length, hold)
+    return _timeline(
+        kept, [placed[k] for k in kept], start, length, hold, np.sort(placed[seen]), np.sort(placed[still])
+    )
 
-    gaps = np.diff(times_list) / TIME_SCALE if len(times_list) > 1 else np.array([1.0])
-    widest = int(max(2, math.ceil(gaps.max())))
 
-    holder = core.std.BlankClip(width=1, height=1, format=vs.GRAY8, length=length, keep=True)
+def _encoder_repeats(source: vs.VideoNode, new: np.ndarray, waits: np.ndarray, clip: slice) -> np.ndarray:
+    """Which frames obs's encoder filled with the frame before, though the log saw a new picture for them.
 
-    def decide(n: int, f: vs.VideoFrame) -> vs.VideoFrame:
-        begin, stop = _pick(times_list, n)
-        out = f.copy()
-        out.props[retime.PROP_FRAMES] = frames_list[begin : stop + 1]
-        out.props[retime.PROP_TIMES] = times_list[begin : stop + 1]
-        out.props[retime.PROP_TIME_SCALE] = TIME_SCALE
-        return out
+    Only frames that waited long enough for the queue to have been full are looked at. A repeat re-encodes the
+    texture it just encoded, so it barely differs from the frame before, far less than any real change does, and
+    the two groups are split where they're furthest apart. Nothing is marked unless they're clearly apart"""
+    repeated = np.zeros(len(new), dtype=bool)
+    candidates = np.flatnonzero(new & (np.nan_to_num(waits) >= ENCODE_SLOTS - 1))
+    candidates = candidates[(candidates >= max(clip.start, 1)) & (candidates < min(clip.stop, source.num_frames))]
+    if len(candidates) < 2:
+        return repeated
 
-    return core.std.ModifyFrame(holder, holder, decide), widest, crowded
+    # deduplication's measure, read for runs of candidates at a time so they decode in parallel
+    stats = core.std.PlaneStats(source, source[0] + source)
+    runs = np.split(candidates, np.flatnonzero(np.diff(candidates) != 1) + 1)
+    picked = core.std.Splice([stats[int(run[0]) : int(run[-1]) + 1] for run in runs])
+    diffs = np.array([float(f.props["PlaneStatsDiff"]) for f in picked.frames()])
+
+    # the split that best separates the two groups on a log scale (otsu)
+    order = np.argsort(diffs)
+    x = np.log10(np.maximum(diffs[order], 1e-12))
+    k = np.arange(1, len(x))
+    low = np.cumsum(x)[:-1] / k
+    high = (x.sum() - np.cumsum(x)[:-1]) / (len(x) - k)
+    split = int(np.argmax(k * (len(x) - k) * (high - low) ** 2)) + 1
+
+    # an order of magnitude between them, or it's one group with no repeats in it
+    if x[split] - x[split - 1] < 1:
+        return repeated
+
+    repeated[candidates[order[:split]]] = True
+    return repeated
 
 
 def analyse(
@@ -275,18 +322,23 @@ def analyse(
     length: int,
     video_path: Path,
     hold: int,
+    nearest: bool,
+    source: vs.VideoNode | None = None,
 ) -> retime.Timeline | None:
     """Set up retiming from a video's frame timing log, or None if it has none that fits. `frames` and `fps` are
-    the whole video's, before timescale. Gaps wider than `hold` frames are held rather than interpolated"""
+    the whole video's, before timescale. Pictures that stayed the same for longer than `hold` frames are held
+    rather than interpolated across.
+    `nearest` is whether the source pads timestamp gaps with the nearest packet rather than the previous one.
+    `source` is the whole video, used to find frames obs's encoder repeated when it fell behind"""
     logs = timing_log.sidecars_for(video_path)
     if not logs:
         return None
 
     sidecar_path = logs[0]
     try:
-        sizes = timing_log.packet_sizes(video_path, frames)
+        sizes, shown = timing_log.video_packets(video_path, frames, fps, nearest)
         sidecar_path, sidecar, first = timing_log.find_sidecar(logs, sizes)
-        ticks = timing_log.render_ticks(sidecar, sizes, first)
+        ticks = timing_log.render_ticks(sidecar, sizes, first)[shown]
         read, fingerprint, timed_by = timing_log.reads_for(sidecar, ticks)
         clip = slice(start, start + length)
         presents, missing_reason = timing_log.game_presents(sidecar, read[clip][0] - LEAD, read[clip][-1] + LEAD)
@@ -333,7 +385,7 @@ def analyse(
                     f"unexplained"
                 )
             else:
-                fitted = "couldn't fit the read latency (game faster than the recording), using the probe's timing"
+                fitted = "the probe's timing fits as well as any read latency, using it"
         else:
             phase, latency = 1.0, 0.0
             fitted = "nothing to fit, using the probe's timing"
@@ -353,20 +405,40 @@ def analyse(
 
     # fingerprints first, then the game's frames, then every frame is new
     shows = np.concatenate([[True], game[1:] != game[:-1]]) if presents is not None else np.ones(len(read), bool)
-    new = np.where(changes >= 0, changes > 0, shows)
+    seen = np.where(changes >= 0, changes > 0, shows)
+    # the same picture from a frame the game drew is stillness. without the game's frames there's no telling that
+    # from a slow game, so any repeat counts
+    still = (changes == 0) & (shows | (game < 0))
+
+    # the log says what obs read, which isn't what it encoded when the encoder fell behind
+    new = seen
+    if source is not None:
+        waits = timing_log.encode_waits(sidecar, sizes, first)[shown]
+        repeated = _encoder_repeats(source, seen, waits, clip)
+        if repeated.any():
+            log.info(
+                f"frame timing: obs's encoder fell behind and repeated {int(repeated.sum())} of {length} frames "
+                f"instead of the pictures it read, so those are treated as repeats"
+            )
+            new = seen & ~repeated
 
     placed = _placed(game, presents, read, fps)
-    decisions, widest, crowded = _decisions(new, placed, start, length, hold)
+    frames, times, crowded = _decisions(new, seen, still, placed, start, length, hold)
     if crowded:
         log.info(
             f"frame timing: {crowded} of {int(np.count_nonzero(new[clip]))} frames were timed no later than the "
             f"one before them"
         )
 
-    return retime.Timeline(
-        decisions=decisions,
-        length=length,
-        max_gap=widest,
-        resolution=1,
-        slots=SLOTS,
-    )
+    # how much time each new picture's change from the picture before covers. time the picture provably stayed
+    # the same doesn't count, nothing moved then
+    since = np.maximum.accumulate(np.where(new | still, np.arange(len(new)), -1))
+    since = np.concatenate([[-1], since[:-1]])
+    spans = np.where(new & (since >= 0), placed - placed[np.maximum(since, 0)], 0.0)
+
+    # a picture that stayed the same across more than one of the game's frames. a single one can be the game frame
+    # a read is matched to being out by one
+    stretch = np.cumsum(seen)
+    stayed = (np.bincount(stretch, weights=still) >= 2)[stretch] & ~seen
+
+    return retime.listed(frames, times, TIME_SCALE, length, SLOTS, spans=spans[clip], still=stayed[clip])

@@ -13,7 +13,9 @@ bool cli::run(
 	bool disable_update_check,
 	const std::string& mask,
 	const std::optional<bool>& auto_mask,
-	const std::vector<std::string>& config_names
+	const std::vector<std::string>& config_names,
+	std::optional<double> trim_start,
+	std::optional<double> trim_end
 ) {
 	auto init_res = blur.initialise(verbose, preview);
 	if (!init_res) { // todo: preview in cli
@@ -108,6 +110,25 @@ bool cli::run(
 			continue;
 		}
 
+		float start = 0.f;
+		float end = 1.f;
+		if (trim_start || trim_end) {
+			if (video_info.duration <= 0.f) {
+				u::log("Video '{}' has no duration to trim", input_path);
+				any_failed = true;
+				continue;
+			}
+
+			start = static_cast<float>(std::min(trim_start.value_or(0.0) / video_info.duration, 1.0));
+			end = static_cast<float>(std::min(trim_end.value_or(video_info.duration) / video_info.duration, 1.0));
+
+			if (!rendering::has_enough_frames_to_render(video_info, start, end)) {
+				u::log("Video '{}' has no frames between the start and end", input_path);
+				any_failed = true;
+				continue;
+			}
+		}
+
 		std::optional<std::filesystem::path> output_path;
 		std::optional<std::filesystem::path> config_path;
 		std::optional<std::string> config_name;
@@ -137,8 +158,8 @@ bool cli::run(
 			config_path,
 			config_app::get_app_config(),
 			output_path,
-			0.f,
-			1.f,
+			start,
+			end,
 			{},
 			[&any_failed](const rendering::VideoRenderDetails& render, const auto& result) {
 				if (result)

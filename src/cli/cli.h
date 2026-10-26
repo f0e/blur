@@ -14,6 +14,10 @@ namespace cli {
 		const std::optional<bool>& auto_mask = {},
 
 		// one per input, like config_paths
-		const std::vector<std::string>& config_names = {}
+		const std::vector<std::string>& config_names = {},
+
+		// seconds into each video
+		std::optional<double> trim_start = {},
+		std::optional<double> trim_end = {}
 	);
 }

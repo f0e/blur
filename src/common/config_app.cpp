@@ -15,8 +15,9 @@ std::string config_app::generate_config_string(const GlobalAppSettings& settings
 		output << "rife gpu: " << settings.rife_device << "\n";
 
 #ifdef TENSORRT
-		output << "rife (tensorrt) gpu: " << settings.tensorrt_device << "\n";
+		output << "tensorrt gpu: " << settings.tensorrt_device << "\n";
 #endif
+		output << "lossless scaling path: " << settings.lossless_scaling_path << "\n";
 	}
 
 	output << "\n";
@@ -37,6 +38,7 @@ std::string config_app::generate_config_string(const GlobalAppSettings& settings
 	output << "\n";
 	output << "- preview" << "\n";
 	output << "preview volume: " << settings.preview_volume << "\n";
+	output << "pre-renders use output encoding: " << (settings.pre_render_output_encoding ? "true" : "false") << "\n";
 
 	if (!shareable_only) {
 		output << "hardware accelerated preview: " << (settings.preview_hardware_decoding ? "true" : "false") << "\n";
@@ -82,6 +84,7 @@ void config_app::copy_machine_settings(GlobalAppSettings& to, const GlobalAppSet
 	to.gpu_type = from.gpu_type;
 	to.rife_device = from.rife_device;
 	to.tensorrt_device = from.tensorrt_device;
+	to.lossless_scaling_path = from.lossless_scaling_path;
 
 	to.preview_hardware_decoding = from.preview_hardware_decoding;
 
@@ -118,8 +121,9 @@ GlobalAppSettings config_app::parse_from_map(const std::map<std::string, std::st
 	config_base::extract_config_value(config_map, "rife gpu", settings.rife_device);
 
 #ifdef TENSORRT
-	config_base::extract_config_value(config_map, "rife (tensorrt) gpu", settings.tensorrt_device);
+	config_base::extract_config_value(config_map, "tensorrt gpu", settings.tensorrt_device);
 #endif
+	config_base::extract_config_value(config_map, "lossless scaling path", settings.lossless_scaling_path);
 
 #ifdef BLUR_COLOR_THEMES
 	config_base::extract_config_value(config_map, "color theme", settings.gui_color_hex);
@@ -134,6 +138,9 @@ GlobalAppSettings config_app::parse_from_map(const std::map<std::string, std::st
 
 	config_base::extract_config_value(config_map, "preview volume", settings.preview_volume);
 	config_base::extract_config_value(config_map, "hardware accelerated preview", settings.preview_hardware_decoding);
+	config_base::extract_config_value(
+		config_map, "pre-renders use output encoding", settings.pre_render_output_encoding
+	);
 	config_base::extract_config_value(config_map, "sample video path", settings.sample_video_path);
 	config_base::extract_config_value(config_map, "config preview seek", settings.config_preview_seek);
 

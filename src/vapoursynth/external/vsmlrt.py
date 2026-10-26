@@ -20,10 +20,12 @@ import contextlib
 import copy
 from dataclasses import dataclass, field
 import enum
+import json # blur
 from fractions import Fraction
 import math
 import os
 import os.path
+import re # blur
 import subprocess
 import sys
 import tempfile
@@ -85,6 +87,147 @@ trtexec_path: str = os.path.join(plugins_path, "vsmlrt-cuda", "trtexec")
 migraphx_driver_path: str = os.path.join(plugins_path, "vsmlrt-hip", "migraphx-driver")
 tensorrt_rtx_path: str = os.path.join(plugins_path, "vsmlrt-cuda", "tensorrt_rtx")
 models_path: str = os.path.join(plugins_path, "models")
+
+_builder_job = None
+
+# blur: checked while a builder runs, and true stops it. the gui's preview sets this so a preview that's been closed
+# doesn't keep building
+builder_cancelled: typing.Callable[[], bool] = lambda: False
+
+
+def _engine_device_memory(engine_path: str) -> typing.Optional[int]:
+    """blur: the memory each of an engine's streams needs, which varies several times over between models, gpus and
+    tensorrt versions. trtexec reads it from the engine, and it's kept next to it since that takes a second or so"""
+    stat = os.stat(engine_path)
+    cache_path = engine_path + ".memory"
+
+    try:
+        with open(cache_path) as f:
+            cached = json.load(f)
+        if cached["size"] == stat.st_size and cached["mtime"] == stat.st_mtime_ns:
+            return cached["device_memory"]
+    except (OSError, ValueError, KeyError):
+        pass
+
+    try:
+        output = subprocess.run(
+            [trtexec_path, f"--loadEngine={engine_path}", "--iterations=1", "--warmUp=0", "--duration=0",
+             "--noDataTransfers"],
+            capture_output=True, text=True, timeout=120,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        ).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+    match = re.search(r"device memory size: ([\d.]+) MiB", output)
+    if match is None:
+        return None
+
+    device_memory = int(float(match[1]) * 2**20)
+    with contextlib.suppress(OSError), open(cache_path, "w") as f:
+        json.dump({"size": stat.st_size, "mtime": stat.st_mtime_ns, "device_memory": device_memory}, f)
+
+    return device_memory
+
+
+def _fit_streams(engine_path: str, device_id: int, num_streams: int) -> int:
+    """blur: each stream holds its own copy of the engine's working memory, and spilling out of vram is far slower
+    than a stream or two less. streams are only added while they all fit in half the card, leaving the rest for svp
+    and the like"""
+    device_memory = _engine_device_memory(engine_path)
+    if not device_memory:
+        return num_streams
+
+    vram = core.trt.DeviceProperties(device_id)["total_global_memory"]
+    fitted = max(1, min(num_streams, vram // 2 // device_memory))
+
+    if fitted < num_streams:
+        print(
+            f"[blur] running {fitted} of {num_streams} tensorrt streams, each needs "
+            f"{device_memory / 2**30:.1f} GB of the gpu's {vram / 2**30:.1f} GB",
+            file=sys.stderr
+        )
+
+    return fitted
+
+
+def _run_builder(args, env, check: bool) -> subprocess.CompletedProcess:
+    """blur: runs an engine builder (trtexec etc.), its output going to stderr.
+
+    builders also run from the gui's preview, which has no console. they'd each open a console window there, and what
+    they wrote to stderr would be lost. on windows a child also outlives whoever started it, so a cancelled render or
+    a preview the gui gave up on would leave the build running. it's put in a job that's killed when this process ends
+    """
+    global _builder_job
+
+    process = subprocess.Popen(
+        args, env=env, stdout=sys.stderr, stderr=subprocess.STDOUT,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    )
+
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+        kernel32.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+        kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+
+        if _builder_job is None:
+            class IoCounters(ctypes.Structure):
+                _fields_ = [(name, ctypes.c_ulonglong) for name in (
+                    "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+                    "ReadTransferCount", "WriteTransferCount", "OtherTransferCount",
+                )]
+
+            class BasicLimits(ctypes.Structure):
+                _fields_ = [
+                    ("PerProcessUserTimeLimit", ctypes.c_longlong), ("PerJobUserTimeLimit", ctypes.c_longlong),
+                    ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                    ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                    ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD),
+                    ("SchedulingClass", wintypes.DWORD),
+                ]
+
+            class ExtendedLimits(ctypes.Structure):
+                _fields_ = [
+                    ("BasicLimitInformation", BasicLimits), ("IoInfo", IoCounters),
+                    ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
+                    ("PeakProcessMemoryUsed", ctypes.c_size_t), ("PeakJobMemoryUsed", ctypes.c_size_t),
+                ]
+
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+            JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+
+            job = kernel32.CreateJobObjectW(None, None)
+            limits = ExtendedLimits()
+            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            if job and kernel32.SetInformationJobObject(
+                job, JOB_OBJECT_EXTENDED_LIMIT_INFORMATION, ctypes.byref(limits), ctypes.sizeof(limits)
+            ):
+                # never closed, it's what ends the builders along with this process
+                _builder_job = job
+
+        if _builder_job is not None:
+            # a builder that's already finished can't be added, which doesn't matter
+            kernel32.AssignProcessToJobObject(_builder_job, int(process._handle))
+
+    with process:
+        while True:
+            try:
+                returncode = process.wait(timeout=0.5)
+                break
+            except subprocess.TimeoutExpired:
+                if builder_cancelled():
+                    process.kill()
+                    process.wait()
+                    raise RuntimeError("engine build cancelled")
+
+    if check and returncode != 0:
+        raise subprocess.CalledProcessError(returncode, args)
+
+    return subprocess.CompletedProcess(args, returncode)
 
 
 class Backend:
@@ -2261,7 +2404,7 @@ def trtexec(
                     # env_key has been set, no extra action
                     env = {env_key: prev_env_value, "CUDA_MODULE_LOADING": "LAZY"}
                     env.update(**custom_env)
-                    subprocess.run(args, env=env, check=True, stdout=sys.stderr)
+                    _run_builder(args, env, check=True)
                 else:
                     time_str = time.strftime('%y%m%d_%H%M%S', time.localtime())
 
@@ -2273,7 +2416,7 @@ def trtexec(
                     env = {env_key: log_filename, "CUDA_MODULE_LOADING": "LAZY"}
                     env.update(**custom_env)
 
-                    completed_process = subprocess.run(args, env=env, check=False, stdout=sys.stderr)
+                    completed_process = _run_builder(args, env, check=False)
 
                     if completed_process.returncode == 0:
                         try:
@@ -2289,7 +2432,7 @@ def trtexec(
             else:
                 env = {"CUDA_MODULE_LOADING": "LAZY"}
                 env.update(**custom_env)
-                subprocess.run(args, env=env, check=True, stdout=sys.stderr)
+                _run_builder(args, env, check=True)
 
             # build succeeded, move it into place
             os.replace(tmp_engine_path, engine_path)
@@ -2430,7 +2573,7 @@ def migraphx_driver(
 
     args.extend(custom_args)
 
-    subprocess.run(args, env=custom_env, check=True, stdout=sys.stderr)
+    _run_builder(args, custom_env, check=True)
 
     return mxr_path
 
@@ -2629,7 +2772,7 @@ def tensorrt_rtx(
     try:
         env = {"CUDA_MODULE_LOADING": "LAZY"}
         env.update(**custom_env)
-        subprocess.run(args, env=env, check=True, stdout=sys.stderr)
+        _run_builder(args, env, check=True)
 
         os.replace(tmp_engine_path, engine_path)
     finally:
@@ -3009,7 +3152,7 @@ def _inference(
             clips, engine_path,
             device_id=backend.device_id,
             use_cuda_graph=backend.use_cuda_graph,
-            num_streams=backend.num_streams,
+            num_streams=_fit_streams(engine_path, backend.device_id, backend.num_streams), # blur
             verbosity=4 if backend.verbose else 2,
             **kwargs
         )

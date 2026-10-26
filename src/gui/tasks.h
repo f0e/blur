@@ -12,6 +12,7 @@ namespace tasks {
 		std::optional<media::VideoInfo> video_info;
 		float start = 0.f;
 		float end = 1.f;
+		size_t audio_track = 0;
 		bool start_immediately = false;
 
 		std::string config_name;

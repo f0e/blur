@@ -9,7 +9,9 @@
 #include "../fonts/dejavu_sans.h"
 #include "../fonts/nv_garamond.h"
 #include "../fonts/icons.h"
-#include "common/waveforms.h"
+#if __has_include("../automation.h")
+#	include "../automation.h"
+#endif
 
 namespace {
 	gfx::Color interpolate_color(const std::vector<gfx::Color>& colors, const std::vector<float>& positions, float t) {
@@ -188,6 +190,9 @@ void render::ImGuiWrap::end(SDL_Window* window) { // NOLINT(readability-convert-
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+#ifdef BLUR_AUTOMATION
+	automation::on_frame_drawn(drawable_width, drawable_height);
+#endif
 	SDL_GL_SwapWindow(window);
 }
 
@@ -618,6 +623,44 @@ void render::Texture::destroy() {
 	}
 }
 
+bool render::Texture::save_png(const std::filesystem::path& path) const {
+	if (!m_id)
+		return false;
+
+	// gles can't read a texture directly, only a framebuffer it's attached to
+	GLint prev_fbo = 0;
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
+
+	GLuint fbo = 0;
+	glGenFramebuffers(1, &fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_id, 0);
+
+	std::vector<uint8_t> pixels;
+	bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+	if (complete) {
+		// rows come out in the order they were uploaded, top first
+		pixels.resize(static_cast<size_t>(m_width) * m_height * 4);
+		glPixelStorei(GL_PACK_ALIGNMENT, 1);
+		glReadPixels(0, 0, m_width, m_height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
+	glDeleteFramebuffers(1, &fbo);
+
+	if (!complete)
+		return false;
+
+	SDL_Surface* surface = SDL_CreateSurfaceFrom(m_width, m_height, SDL_PIXELFORMAT_RGBA32, pixels.data(), m_width * 4);
+	if (!surface)
+		return false;
+
+	bool saved = IMG_SavePNG(surface, u::path_to_string(path).c_str());
+	SDL_DestroySurface(surface);
+
+	return saved;
+}
+
 void render::Texture::bind() const {
 	glBindTexture(GL_TEXTURE_2D, m_id);
 }
@@ -777,8 +820,6 @@ void render::waveform(
 	const size_t sample_range = end_idx - start_idx;
 	const float samples_per_pixel = static_cast<float>(sample_range) / width;
 
-	int16_t display_max = waveforms::get_audio_percentile_peak(samples, 1.f); // 0.999f);
-
 	if (samples_per_pixel >= 2.0f) {
 		// Zoomed out: draw amplitude envelope
 		for (int x = 0; x < width; ++x) {
@@ -788,7 +829,7 @@ void render::waveform(
 			// Find peak amplitude in this pixel range
 			float peak_amplitude = 0.0f;
 			for (size_t i = pixel_start; i < pixel_end; ++i) {
-				float amplitude = std::abs(static_cast<float>(samples[i])) / display_max;
+				float amplitude = std::abs(static_cast<float>(samples[i])) / max_sample;
 				amplitude = std::min(amplitude, 1.0f);
 				peak_amplitude = std::max(peak_amplitude, amplitude);
 			}
@@ -828,7 +869,7 @@ void render::waveform(
 		points.reserve(sample_range);
 
 		for (size_t i = start_idx; i < end_idx; ++i) {
-			float amplitude = std::abs(static_cast<float>(samples[i])) / display_max;
+			float amplitude = std::abs(static_cast<float>(samples[i])) / max_sample;
 			amplitude = std::min(amplitude, 1.0f);
 
 			const int x = rect.x + static_cast<int>((i - start_idx) * width / static_cast<float>(sample_range));
@@ -854,6 +895,15 @@ void render::waveform(
 				auto segment_color = color;
 				if (!active_rect.contains(p1) && !active_rect.contains(p2)) {
 					segment_color = segment_color.adjust_alpha(0.5f);
+				}
+
+				// the spline's pieces overlap where they join, which a translucent colour shows as dots along a flat
+				// line. so silence is a plain line like when zoomed out
+				if (p0.y == y_center && p1.y == y_center && p2.y == y_center && p3.y == y_center) {
+					// samples can be closer than a pixel apart
+					if (p2.x > p1.x)
+						rect_filled(gfx::Rect(p1.x, y_center, p2.x - p1.x, 1), segment_color);
+					continue;
 				}
 
 				gfx::Point prev = p1;
@@ -1074,28 +1124,28 @@ std::vector<std::string> render::wrap_text(
 				test_line += ' ';
 			test_line += word;
 
-			if (font.calc_size(test_line).w > dimensions.w) {
-				if (!current_line.empty()) {
-					lines.push_back(current_line);
-					current_line = word;
-				}
-				else {
-					// Word itself is too long, hard break
-					std::string sub_word;
-					for (char c : word) {
-						sub_word += c;
-						if (font.calc_size(sub_word).w > dimensions.w) {
-							if (sub_word.length() > 1) {
-								lines.push_back(sub_word.substr(0, sub_word.length() - 1));
-								sub_word = sub_word.back();
-							}
-						}
-					}
-					current_line = sub_word;
-				}
-			}
-			else {
+			if (font.calc_size(test_line).w <= dimensions.w) {
 				current_line = test_line;
+				continue;
+			}
+
+			if (!current_line.empty()) {
+				lines.push_back(current_line);
+				current_line.clear();
+			}
+
+			// a word too long for a line of its own (like a path) is broken between characters
+			for (size_t i = 0; i < word.size();) {
+				size_t length = utf8_seq_len(static_cast<unsigned char>(word[i]));
+				std::string character = word.substr(i, length);
+				i += length;
+
+				if (!current_line.empty() && font.calc_size(current_line + character).w > dimensions.w) {
+					lines.push_back(current_line);
+					current_line.clear();
+				}
+
+				current_line += character;
 			}
 		}
 

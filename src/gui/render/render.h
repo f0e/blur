@@ -75,6 +75,8 @@ namespace render {
 		bool load_from_surface(SDL_Surface* surface);
 		void destroy();
 
+		[[nodiscard]] bool save_png(const std::filesystem::path& path) const;
+
 		void bind() const;
 		static void unbind();
 

@@ -3,12 +3,15 @@
 namespace media {
 	struct VideoInfo {
 		bool has_video_stream = false;
+
+		// cover art is a video stream too, and source plugins can pick it rather than the video
+		int video_stream_index = -1;
+
 		std::optional<std::string> color_range;
 		std::optional<std::string> pix_fmt;
 		std::optional<std::string> color_space;
 		std::optional<std::string> color_transfer;
 		std::optional<std::string> color_primaries;
-		int sample_rate = -1;
 		int fps_num = -1;
 		int fps_den = -1;
 		float duration = 0.f;
@@ -20,9 +23,15 @@ namespace media {
 
 		double start_time = 0.0;
 		double video_start_time = 0.0;
-		std::vector<double> audio_start_times;
+
+		// where the video starts on the container's timeline, which players show and trims use
+		[[nodiscard]] double video_offset() const {
+			return video_start_time - start_time;
+		}
 
 		int preroll_frames = 0;
+
+		std::optional<std::string> lsmas_issue;
 
 		// debugmode frameserver signpost avi
 		bool frameserver = false;
